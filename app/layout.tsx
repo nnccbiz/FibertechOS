@@ -13,7 +13,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="he" dir="rtl">
-      <body className="bg-gray-50 text-gray-900 min-h-screen">{children}</body>
+      <body className="bg-[#f0f4f8] text-gray-900 min-h-screen">
+        {children}
+      </body>
     </html>
   );
 }
