@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"/Users/netanel/Library/Mobile Documents/com~apple~CloudDocs/Fibertech os\" -type f -exec ls -lh {})",
+      "Bash(sort -k2)",
+      "Bash(pandoc \"data /עותק של fibertech-spec.docx\" -o /tmp/fibertech-spec.md)",
+      "Bash(pandoc \"data /עותק של fibertech-presentation.docx\" -o /tmp/fibertech-presentation.md)",
+      "Bash(python3 -c \"import docx; print\\(''python-docx available''\\)\")",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)",
+      "Bash(npm -v)",
+      "Bash(npx -v)",
+      "Read(//Users/netanel/.nvm/**)",
+      "Read(//Users/netanel/**)",
+      "Bash(sw_vers)",
+      "Bash(mkdir -p database)",
+      "Bash(cp supabase/schema.sql database/schema.sql)"
+    ]
+  }
+}
