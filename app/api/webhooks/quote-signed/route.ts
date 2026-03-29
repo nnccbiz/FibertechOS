@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-
-const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
-
 /**
  * POST /api/webhooks/quote-signed
  *
@@ -16,6 +9,12 @@ const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
  * via Make.com webhook.
  */
 export async function POST(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
+
   const body = await req.json();
   const { quote_id } = body;
 
