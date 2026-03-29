@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 interface Project {
   id: string;
   name: string;
@@ -47,6 +49,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
     );
   }
 
+  const router = useRouter();
   const activeProjects = projects.filter((p) => p.status === 'active');
 
   return (
@@ -76,7 +79,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
               {activeProjects.map((project) => {
                 const profit = getProfitColor(project.order_value);
                 return (
-                  <tr key={project.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                  <tr key={project.id} onClick={() => router.push(`/projects/${project.id}`)} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
                     <td className="py-2.5 pr-2">
                       <p className="text-xs font-semibold text-gray-800">{project.name}</p>
                       <p className="text-[10px] text-gray-400">{project.assigned_to || '—'}</p>

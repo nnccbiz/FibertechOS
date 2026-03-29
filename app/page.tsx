@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/ui/Sidebar';
 import BottomNav from '@/components/ui/BottomNav';
@@ -27,6 +28,7 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [activeNav, setActiveNav] = useState('dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,10 @@ export default function DashboardPage() {
 
           {/* Action buttons */}
           <div className="flex gap-3 mb-5 animate-fade-in-up">
-            <button className="flex items-center gap-2 bg-[#1a56db] text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
+            <button
+              onClick={() => router.push('/projects/new')}
+              className="flex items-center gap-2 bg-[#1a56db] text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+            >
               <span>➕</span>
               <span>פרויקט חדש</span>
             </button>
