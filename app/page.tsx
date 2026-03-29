@@ -9,6 +9,7 @@ import AlertsList from '@/components/dashboard/AlertsList';
 import ProjectsTable from '@/components/dashboard/ProjectsTable';
 import Pipeline from '@/components/dashboard/Pipeline';
 import TeamStatus from '@/components/dashboard/TeamStatus';
+import InventoryWidget from '@/components/dashboard/InventoryWidget';
 
 interface DashboardData {
   projects: any[];
@@ -180,6 +181,18 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Action buttons */}
+          <div className="flex gap-3 mb-5 animate-fade-in-up">
+            <button className="flex items-center gap-2 bg-[#1a56db] text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
+              <span>➕</span>
+              <span>פרויקט חדש</span>
+            </button>
+            <button className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+              <span>📈</span>
+              <span>יצירת דוחות</span>
+            </button>
+          </div>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5 animate-fade-in-up">
             {kpiCards.map((card) => (
@@ -233,32 +246,14 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Team status */}
+              {/* Inventory — above team */}
               <div className="animate-fade-in-up-delay-3">
-                <TeamStatus members={data?.teamMembers || []} loading={loading} />
+                <InventoryWidget />
               </div>
 
-              {/* Quick inventory */}
+              {/* Team status */}
               <div className="animate-fade-in-up-delay-4">
-                <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-                  <h3 className="text-sm font-bold text-gray-700 mb-3">📦 מלאי מהיר</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'צינורות', icon: '🔧', value: '—' },
-                      { label: 'אביזרים', icon: '⚙️', value: '—' },
-                      { label: 'חומרי סיכה', icon: '🧴', value: '—' },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="bg-gray-50 rounded-lg p-3 text-center"
-                      >
-                        <span className="text-lg block mb-1">{item.icon}</span>
-                        <p className="text-[10px] text-gray-500 font-medium">{item.label}</p>
-                        <p className="text-sm font-bold text-gray-700 mt-0.5">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <TeamStatus members={data?.teamMembers || []} loading={loading} />
               </div>
             </div>
           </div>

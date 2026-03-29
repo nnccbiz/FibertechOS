@@ -46,7 +46,13 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
         <p className="text-sm text-gray-400 text-center py-3">אין חברי צוות</p>
       ) : (
         <div className="space-y-2">
-          {members.map((member) => {
+          {[...members]
+            .sort((a, b) => {
+              if (a.name === 'אשר') return -1;
+              if (b.name === 'אשר') return 1;
+              return 0;
+            })
+            .map((member) => {
             const color = getRoleColor(member.role);
             const initials = member.name
               .split(' ')
