@@ -63,7 +63,6 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-700 truncate">{member.name}</p>
-                  <p className="text-[10px] text-gray-400">{member.role}</p>
                 </div>
                 <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="מחובר" />
               </div>
