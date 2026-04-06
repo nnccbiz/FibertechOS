@@ -144,7 +144,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
   }
 
   return (
-    <div className="w-[320px] bg-white border-r border-[#e2e8f0] flex flex-col h-full">
+    <div className="w-[320px] bg-white border-r border-[#e2e8f0] flex flex-col h-screen">
       {/* Header */}
       <div className="px-4 py-3 bg-[#1a56db] flex items-center gap-2">
         <span className="text-lg">✨</span>
