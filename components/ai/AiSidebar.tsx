@@ -144,18 +144,18 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
   }
 
   return (
-    <div className="w-[320px] bg-white border-r border-[#e2e8f0] flex flex-col h-screen">
-      {/* Header */}
-      <div className="px-4 py-3 bg-[#1a56db] flex items-center gap-2">
+    <div className="w-[320px] bg-white border-r border-[#e2e8f0] flex flex-col h-screen overflow-hidden">
+      {/* Header — fixed top */}
+      <div className="px-4 py-3 bg-[#fce4ec] flex items-center gap-2 flex-shrink-0">
         <span className="text-lg">✨</span>
         <div>
-          <p className="text-sm font-bold text-white">ג׳מה AI</p>
-          <p className="text-[10px] text-blue-200">{CONTEXT_LABELS[context]}</p>
+          <p className="text-sm font-bold text-[#e91e63]">ג׳מה AI</p>
+          <p className="text-[10px] text-[#f48fb1]">{CONTEXT_LABELS[context]}</p>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+      {/* Messages — scrollable middle */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2.5">
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
             <div
@@ -199,9 +199,9 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
         )}
       </div>
 
-      {/* Uploaded files */}
+      {/* Uploaded files — fixed bottom area */}
       {uploadedFiles.length > 0 && (
-        <div className="px-3 py-2 border-t border-[#e2e8f0] flex flex-wrap gap-1.5">
+        <div className="px-3 py-2 border-t border-[#e2e8f0] flex flex-wrap gap-1.5 flex-shrink-0">
           {uploadedFiles.map((file, i) => (
             <div key={i} className="relative group">
               {file.preview ? (
@@ -220,8 +220,8 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
         </div>
       )}
 
-      {/* Input */}
-      <div className="border-t border-[#e2e8f0] px-3 py-2">
+      {/* Input — always visible at bottom */}
+      <div className="border-t border-[#e2e8f0] px-3 py-2 flex-shrink-0">
         <input
           ref={fileInputRef}
           type="file"
