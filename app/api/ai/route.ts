@@ -3,48 +3,45 @@ import { NextRequest, NextResponse } from 'next/server';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${GEMINI_API_KEY}`;
 
-const SYSTEM_PROMPT = `אתה עוזר AI של מערכת FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
+const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
-המשימה שלך: לקבל טקסט חופשי בעברית מהמשתמש ולחלץ ממנו נתוני פרויקט מובנים.
+אתה מקבל פקודות בעברית חופשית ומבצע אותן בשקט (Silent Execution).
+אתה מחזיר JSON בלבד — בלי טקסט, בלי markdown.
 
-עליך להחזיר JSON בלבד (בלי טקסט נוסף) במבנה הבא:
+מבנה התשובה:
 {
-  "name": "שם הפרויקט",
-  "location": "מיקום",
-  "project_number": null,
-  "order_value": null,
-  "ordering_entity": "מזמין",
-  "responsible_party": "גורם אחראי",
-  "description": "תיאור",
-  "project_type": "ביוב/מים/ניקוז/השקיה/תשתית/אחר",
-  "installation_type": "חפירה פתוחה/השחלה בשרוול/דחיקה",
-  "special_requirements": "",
-  "field_supervision": "",
-  "soil_type": "",
-  "push_depth": "",
-  "manhole_type": "",
-  "connection_method": "",
-  "project_status": "תכנון כללי/תכנון מפורט/טרום מכרז/מועד הגשת מכרז/קבלן זוכה",
-  "winning_contractor": "",
-  "project_story": "",
-  "competitors": "",
-  "assessments": "",
-  "politics": "",
+  "action": "create" | "update" | "delete" | "import" | "generate" | "query",
+  "target_table": "projects" | "project_details" | "project_contacts" | "pipe_specs" | "alerts" | "leads" | "inventory" | "team_members",
+  "target_label": "תיאור קריא של היעד",
+  "summary": "משפט אחד שמתאר מה ביצעת",
+  "fields_count": 0,
+  "data": {
+    // השדות שצריך לעדכן/ליצור
+  },
   "contacts": [
-    {"role": "מזמין הפרויקט/מלווה מטעם המזמין/קבלן/נציג/מנהל הפרויקט/מפקח/מתכנן/משרד מתכנן", "name": "", "phone": "", "email": ""}
+    {"role": "", "name": "", "phone": "", "email": ""}
   ],
   "pipe_specs": [
     {"diameter_mm": 0, "line_length_m": 0, "unit_length_m": 0, "stiffness_pascal": 0, "pressure_bar": 0, "notes": ""}
   ]
 }
 
+טבלאות זמינות:
+- projects: id, name, current_stage, stage_label, progress_percent, priority, assigned_to, order_value, status
+- project_details: project_id, project_number, location, description, ordering_entity, responsible_party, project_type, installation_type, special_requirements, field_supervision, soil_type, push_depth, manhole_type, connection_method, project_status, tender_submission_date, winning_contractor, winning_date, expected_pipe_order_date, project_story, competitors, assessments, politics
+- project_contacts: project_id, role, name, phone, email
+- pipe_specs: project_id, diameter_mm, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, notes
+- inventory: manufacturer, pipe_type (הטמנה/דחיקה/השחלה), diameter_mm, pressure_bar, stiffness_sn, length_m, in_stock, category (צינורות/אביזרים/חומרי סיכה)
+- alerts: project_id, type, message, is_resolved, assigned_to
+- leads: project_name, developer_name, stage (הכרות/מסמכים/מכרז/מו"מ), estimated_value, next_action, next_action_date
+
 כללים:
-- החזר רק JSON תקין, בלי markdown, בלי הסברים
-- אם שדה לא הוזכר, השאר null או מחרוזת ריקה
-- אם הוזכרו מספר צינורות, הוסף מספר אובייקטים ל-pipe_specs
-- אם הוזכרו אנשי קשר, מלא את contacts
-- המר ערכים מספריים למספרים (לא מחרוזות)
-- אם המשתמש שואל שאלה במקום לתת נתונים, החזר: {"message": "תשובתך כאן"} `;
+1. החזר רק JSON תקין
+2. אם שדה לא הוזכר — אל תכלול אותו ב-data
+3. המר ערכים מספריים למספרים
+4. ספור את מספר השדות שמולאו ב-fields_count
+5. ה-summary חייב להיות בעברית, קצר וברור
+6. אם הפקודה לא ברורה, החזר: {"action": "query", "summary": "שאלה או הבהרה", "message": "..."}`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,11 +49,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
     }
 
-    const { message, context } = await request.json();
+    const body = await request.json();
+    const { message, context, document_text } = body;
 
-    const userMessage = context
-      ? `הנתונים הקיימים בפרויקט:\n${JSON.stringify(context, null, 2)}\n\nהודעת המשתמש:\n${message}`
-      : message;
+    let userMessage = message;
+    if (context) {
+      userMessage = `נתונים קיימים:\n${JSON.stringify(context)}\n\nפקודה:\n${message}`;
+    }
+    if (document_text) {
+      userMessage = `תוכן מסמך שהועלה:\n${document_text}\n\nפקודה:\n${message || 'חלץ את כל הנתונים מהמסמך והזן למערכת'}`;
+    }
 
     const response = await fetch(GEMINI_URL, {
       method: 'POST',
@@ -84,15 +86,12 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Try to parse JSON from response
     let parsed;
     try {
-      // Remove markdown code blocks if present
       const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      // If not valid JSON, return as message
-      parsed = { message: text };
+      parsed = { action: 'query', summary: text, message: text };
     }
 
     return NextResponse.json(parsed);

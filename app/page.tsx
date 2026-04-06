@@ -11,6 +11,8 @@ import ProjectsTable from '@/components/dashboard/ProjectsTable';
 import Pipeline from '@/components/dashboard/Pipeline';
 import TeamStatus from '@/components/dashboard/TeamStatus';
 import InventoryWidget from '@/components/dashboard/InventoryWidget';
+import CommandBar from '@/components/ai/CommandBar';
+import ActivityLog from '@/components/ai/ActivityLog';
 
 interface DashboardData {
   projects: any[];
@@ -32,6 +34,7 @@ export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiRefresh, setAiRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -142,6 +145,7 @@ export default function DashboardPage() {
     <div className="min-h-screen" dir="rtl">
       <Sidebar activeKey={activeNav} onNavigate={setActiveNav} />
       <BottomNav activeKey={activeNav} onNavigate={setActiveNav} />
+      <CommandBar onActionComplete={() => { setAiRefresh((n) => n + 1); window.location.reload(); }} />
 
       {/* Main content area */}
       <main className="md:mr-[220px] pb-20 md:pb-6">
@@ -222,6 +226,11 @@ export default function DashboardPage() {
 
             {/* Right column — narrow (320px) */}
             <div className="w-full lg:w-[320px] flex-shrink-0 space-y-5">
+              {/* AI Activity Log */}
+              <div className="animate-fade-in-up-delay-1">
+                <ActivityLog refreshTrigger={aiRefresh} />
+              </div>
+
               {/* Shipments en route */}
               <div className="animate-fade-in-up-delay-2">
                 <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
