@@ -149,8 +149,8 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
       <div className="px-4 py-3 bg-[#fce4ec] flex items-center gap-2 flex-shrink-0">
         <span className="text-lg">✨</span>
         <div>
-          <p className="text-sm font-bold text-[#e91e63]">ג׳מה AI</p>
-          <p className="text-[10px] text-[#f48fb1]">{CONTEXT_LABELS[context]}</p>
+          <p className="text-sm font-bold text-[#1a56db]">ג׳מה AI</p>
+          <p className="text-[10px] text-[#1a56db]/60">{CONTEXT_LABELS[context]}</p>
         </div>
       </div>
 
@@ -253,7 +253,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
           <button
             onClick={handleSend}
             disabled={loading || (!input.trim() && uploadedFiles.length === 0)}
-            className="bg-[#1a56db] text-white px-2.5 py-2 rounded-lg text-xs hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="bg-[#fce4ec] text-[#1a56db] font-semibold px-2.5 py-2 rounded-lg text-xs hover:bg-[#f8bbd0] transition-colors disabled:opacity-50"
           >
             שלח
           </button>
