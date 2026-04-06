@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
-import CommandBar from '@/components/ai/CommandBar';
+import AiSidebar from '@/components/ai/AiSidebar';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
 const PROJECT_TYPES = ['ביוב', 'מים', 'ניקוז', 'השקיה', 'תשתית', 'אחר'];
@@ -202,7 +202,18 @@ export default function NewProjectPage() {
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1';
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
+    <div className="min-h-screen bg-[#f0f4f8] flex" dir="rtl">
+      {/* AI Sidebar — fixed left */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-40">
+        <AiSidebar
+          context="projects"
+          formData={{ name, location, projectNumber, orderValue, orderingEntity, projectType, installationType }}
+          onDataExtracted={handleAiData}
+        />
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 lg:ml-[320px] min-h-screen">
       {/* Header */}
       <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -436,9 +447,7 @@ export default function NewProjectPage() {
           </button>
         </div>
       </div>
-
-      {/* AI Command Bar (Cmd+K) */}
-      <CommandBar />
+      </div>
     </div>
   );
 }
