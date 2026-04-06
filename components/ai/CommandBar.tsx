@@ -223,7 +223,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
               </div>
             ) : (
               <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                ⌘K
+                {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
               </kbd>
             )}
           </div>
