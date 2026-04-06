@@ -4,22 +4,23 @@ interface NavItem {
   icon: string;
   label: string;
   key: string;
+  href: string;
 }
 
 const navItems: NavItem[] = [
-  { icon: '🏠', label: 'בקרה', key: 'dashboard' },
-  { icon: '📋', label: 'פרויקטים', key: 'projects' },
-  { icon: '📊', label: 'שיווק', key: 'marketing' },
-  { icon: '🚢', label: 'יבוא', key: 'import' },
-  { icon: '👷', label: 'שדה', key: 'field' },
-  { icon: '📦', label: 'מלאי', key: 'inventory' },
-  { icon: '📈', label: 'דוחות', key: 'reports' },
-  { icon: '⚙️', label: 'הגדרות', key: 'settings' },
+  { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
+  { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
+  { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
+  { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: '👷', label: 'שדה', key: 'field', href: '/field' },
+  { icon: '📦', label: 'מלאי', key: 'inventory', href: '/inventory' },
+  { icon: '📈', label: 'דוחות', key: 'reports', href: '/reports' },
+  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings' },
 ];
 
 interface SidebarProps {
   activeKey: string;
-  onNavigate: (key: string) => void;
+  onNavigate?: (key: string) => void;
 }
 
 export default function Sidebar({ activeKey, onNavigate }: SidebarProps) {
@@ -32,10 +33,11 @@ export default function Sidebar({ activeKey, onNavigate }: SidebarProps) {
 
       <nav className="flex-1 py-3 overflow-y-auto">
         {navItems.map((item) => (
-          <button
+          <a
             key={item.key}
-            onClick={() => onNavigate(item.key)}
-            className={`w-full flex items-center gap-3 px-5 py-3 text-sm font-medium transition-colors ${
+            href={item.href}
+            onClick={() => onNavigate?.(item.key)}
+            className={`w-full flex items-center gap-3 px-5 py-3 text-sm font-medium transition-colors no-underline ${
               activeKey === item.key
                 ? 'bg-blue-50 text-[#1a56db] border-l-[3px] border-[#1a56db]'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -43,7 +45,7 @@ export default function Sidebar({ activeKey, onNavigate }: SidebarProps) {
           >
             <span className="text-lg">{item.icon}</span>
             <span>{item.label}</span>
-          </button>
+          </a>
         ))}
       </nav>
 
