@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
-import AiChat from '@/components/projects/AiChat';
+import CommandBar from '@/components/ai/CommandBar';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
 const PROJECT_TYPES = ['ביוב', 'מים', 'ניקוז', 'השקיה', 'תשתית', 'אחר'];
@@ -437,11 +437,8 @@ export default function NewProjectPage() {
         </div>
       </div>
 
-      {/* AI Chat Widget */}
-      <AiChat
-        onDataExtracted={handleAiData}
-        currentData={{ name, location, projectNumber, orderValue, orderingEntity, projectType, installationType }}
-      />
+      {/* AI Command Bar (Cmd+K) */}
+      <CommandBar />
     </div>
   );
 }
