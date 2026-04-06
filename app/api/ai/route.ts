@@ -50,14 +50,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, context, document_text } = body;
+    const { message, context, document_text, files } = body;
 
-    let userMessage = message;
+    let userMessage = message || '';
     if (context) {
       userMessage = `נתונים קיימים:\n${JSON.stringify(context)}\n\nפקודה:\n${message}`;
     }
     if (document_text) {
       userMessage = `תוכן מסמך שהועלה:\n${document_text}\n\nפקודה:\n${message || 'חלץ את כל הנתונים מהמסמך והזן למערכת'}`;
+    }
+
+    // Build parts array — text + optional files/images
+    const parts: any[] = [{ text: SYSTEM_PROMPT + '\n\n' + userMessage }];
+
+    // Add uploaded files (images, PDFs as base64)
+    if (files && Array.isArray(files)) {
+      for (const file of files) {
+        if (file.base64 && file.mimeType) {
+          parts.push({
+            inline_data: {
+              mime_type: file.mimeType,
+              data: file.base64,
+            },
+          });
+        }
+      }
+      if (!message) {
+        parts[0] = { text: SYSTEM_PROMPT + '\n\nחלץ את כל הנתונים מהקבצים המצורפים והזן למערכת.' };
+      }
     }
 
     const response = await fetch(GEMINI_URL, {
@@ -67,7 +87,7 @@ export async function POST(request: NextRequest) {
         contents: [
           {
             role: 'user',
-            parts: [{ text: SYSTEM_PROMPT + '\n\n' + userMessage }],
+            parts,
           },
         ],
         generationConfig: {

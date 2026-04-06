@@ -14,13 +14,22 @@ interface LogEntry {
   timestamp: Date;
 }
 
+interface UploadedFile {
+  name: string;
+  mimeType: string;
+  base64: string;
+  preview?: string; // data URL for image preview
+}
+
 export default function CommandBar({ onActionComplete }: CommandBarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Cmd+K / Ctrl+K listener
   useEffect(() => {
@@ -42,12 +51,42 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+      setUploadedFiles([]);
     }
   }, [isOpen]);
 
+  // Process selected/dropped files
+  function processFiles(fileList: FileList) {
+    Array.from(fileList).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        // Extract base64 data after the comma
+        const base64 = dataUrl.split(',')[1];
+        const isImage = file.type.startsWith('image/');
+
+        setUploadedFiles((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            base64,
+            preview: isImage ? dataUrl : undefined,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeFile(index: number) {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   // Execute command
-  const executeCommand = useCallback(async (command: string, documentText?: string) => {
-    if (!command.trim() && !documentText) return;
+  const executeCommand = useCallback(async (command: string, documentText?: string, filesToSend?: UploadedFile[]) => {
+    if (!command.trim() && !documentText && (!filesToSend || filesToSend.length === 0)) return;
 
     setLoading(true);
     setFeedback(null);
@@ -59,6 +98,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
         body: JSON.stringify({
           message: command,
           document_text: documentText,
+          files: filesToSend?.map((f) => ({ base64: f.base64, mimeType: f.mimeType, name: f.name })),
         }),
       });
 
@@ -143,6 +183,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
       });
 
       setInput('');
+      setUploadedFiles([]);
       onActionComplete?.();
 
       // Auto-close after success
@@ -163,20 +204,23 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
+    }
+  }
 
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
+  // Handle file input change
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
+      e.target.value = '';
+    }
+  }
 
-    // Read file as text (basic — for PDFs we'd need a parser)
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      executeCommand(
-        input || `חלץ נתונים מהמסמך ${file.name} והזן למערכת`,
-        text
-      );
-    };
-    reader.readAsText(file);
+  // Send command with attached files
+  function handleSubmit() {
+    if (loading) return;
+    executeCommand(input, undefined, uploadedFiles.length > 0 ? uploadedFiles : undefined);
   }
 
   if (!isOpen) return null;
@@ -199,6 +243,16 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
         <div className={`bg-white rounded-2xl shadow-2xl border-2 transition-colors ${
           dragOver ? 'border-[#1a56db] bg-blue-50' : 'border-[#e2e8f0]'
         }`}>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
           {/* Input row */}
           <div className="flex items-center px-4 py-3 gap-3">
             <span className="text-xl">✨</span>
@@ -208,32 +262,86 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !loading) executeCommand(input);
+                if (e.key === 'Enter' && !loading) handleSubmit();
               }}
               placeholder='הקלד פקודה... (למשל: "הוסף 200 מטר צינור DN1200 לפרויקט X")'
               className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder:text-gray-400"
               dir="rtl"
               disabled={loading}
             />
-            {loading ? (
-              <div className="flex gap-1 px-2">
-                <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            ) : (
-              <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
-              </kbd>
-            )}
+            <div className="flex items-center gap-1.5">
+              {/* Upload button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+                className="text-gray-400 hover:text-[#1a56db] transition-colors p-1 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                title="העלה קובץ או תמונה"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              {loading ? (
+                <div className="flex gap-1 px-2">
+                  <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              ) : (
+                <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                  {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
+                </kbd>
+              )}
+            </div>
           </div>
+
+          {/* Uploaded files preview */}
+          {uploadedFiles.length > 0 && (
+            <div className="px-4 pb-3">
+              <div className="flex flex-wrap gap-2">
+                {uploadedFiles.map((file, i) => (
+                  <div key={i} className="relative group">
+                    {file.preview ? (
+                      <img
+                        src={file.preview}
+                        alt={file.name}
+                        className="w-16 h-16 object-cover rounded-lg border border-[#e2e8f0]"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-50 rounded-lg border border-[#e2e8f0] flex flex-col items-center justify-center">
+                        <span className="text-lg">📄</span>
+                        <span className="text-[8px] text-gray-400 truncate max-w-[56px] px-1">{file.name.split('.').pop()?.toUpperCase()}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeFile(i)}
+                      className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ✕
+                    </button>
+                    <p className="text-[8px] text-gray-400 text-center mt-0.5 truncate max-w-[64px]">{file.name}</p>
+                  </div>
+                ))}
+              </div>
+              {!input.trim() && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="mt-2 text-xs bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  חלץ נתונים מהקבצים
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Drag & drop zone hint */}
           {dragOver && (
             <div className="px-4 pb-3">
               <div className="border-2 border-dashed border-[#1a56db] rounded-xl p-6 text-center">
-                <p className="text-sm text-[#1a56db] font-medium">📄 שחרר את המסמך כאן</p>
-                <p className="text-[10px] text-blue-400 mt-1">PDF, DOCX, Excel — ג׳מה תחלץ את הנתונים</p>
+                <p className="text-sm text-[#1a56db] font-medium">📄 שחרר קבצים כאן</p>
+                <p className="text-[10px] text-blue-400 mt-1">תמונות, PDF, Excel, Word — ג׳מה תחלץ את הנתונים</p>
               </div>
             </div>
           )}
