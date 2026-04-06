@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
+import AiChat from '@/components/projects/AiChat';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
 const PROJECT_TYPES = ['ביוב', 'מים', 'ניקוז', 'השקיה', 'תשתית', 'אחר'];
@@ -58,6 +59,39 @@ export default function NewProjectPage() {
   // Related data
   const [contacts, setContacts] = useState<ProjectContact[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<PipeSpec[]>([]);
+
+  // Handle AI-extracted data
+  function handleAiData(data: any) {
+    if (data.name) setName(data.name);
+    if (data.location) setLocation(data.location);
+    if (data.project_number) setProjectNumber(String(data.project_number));
+    if (data.order_value) setOrderValue(String(data.order_value));
+    if (data.ordering_entity) setOrderingEntity(data.ordering_entity);
+    if (data.responsible_party) setResponsibleParty(data.responsible_party);
+    if (data.description) setDescription(data.description);
+    if (data.project_type) setProjectType(data.project_type);
+    if (data.installation_type) setInstallationType(data.installation_type);
+    if (data.special_requirements) setSpecialRequirements(data.special_requirements);
+    if (data.field_supervision) setFieldSupervision(data.field_supervision);
+    if (data.soil_type) setSoilType(data.soil_type);
+    if (data.push_depth) setPushDepth(data.push_depth);
+    if (data.manhole_type) setManholeType(data.manhole_type);
+    if (data.connection_method) setConnectionMethod(data.connection_method);
+    if (data.project_status) setProjectStatus(data.project_status);
+    if (data.winning_contractor) setWinningContractor(data.winning_contractor);
+    if (data.project_story) setProjectStory(data.project_story);
+    if (data.competitors) setCompetitors(data.competitors);
+    if (data.assessments) setAssessments(data.assessments);
+    if (data.politics) setPolitics(data.politics);
+    if (data.contacts?.length > 0) {
+      const validContacts = data.contacts.filter((c: any) => c.name);
+      if (validContacts.length > 0) setContacts(validContacts);
+    }
+    if (data.pipe_specs?.length > 0) {
+      const validSpecs = data.pipe_specs.filter((s: any) => s.diameter_mm > 0);
+      if (validSpecs.length > 0) setPipeSpecs(validSpecs);
+    }
+  }
 
   // Auto-calculate expected pipe order (2 months after winning date)
   function handleWinningDateChange(date: string) {
@@ -402,6 +436,12 @@ export default function NewProjectPage() {
           </button>
         </div>
       </div>
+
+      {/* AI Chat Widget */}
+      <AiChat
+        onDataExtracted={handleAiData}
+        currentData={{ name, location, projectNumber, orderValue, orderingEntity, projectType, installationType }}
+      />
     </div>
   );
 }
