@@ -147,10 +147,10 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
     <div className="w-[320px] bg-white border-r border-[#e2e8f0] flex flex-col h-screen overflow-hidden">
       {/* Header — fixed top */}
       <div className="px-4 py-3 bg-[#fce4ec] flex items-center gap-2 flex-shrink-0">
-        <span className="text-lg">✨</span>
+        <span className="text-2xl">✨</span>
         <div>
-          <p className="text-sm font-bold text-[#1a56db]">רקסי AI</p>
-          <p className="text-[10px] text-[#1a56db]/60">{CONTEXT_LABELS[context]}</p>
+          <p className="text-lg font-bold text-[#1a56db]">רקסי AI</p>
+          <p className="text-[12px] text-[#1a56db]/60">{CONTEXT_LABELS[context]}</p>
         </div>
       </div>
 
@@ -159,7 +159,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
             <div
-              className={`max-w-[90%] rounded-xl px-3 py-2 text-xs whitespace-pre-wrap ${
+              className={`max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
                 msg.role === 'user'
                   ? 'bg-[#1a56db] text-white rounded-tr-none'
                   : 'bg-gray-100 text-gray-700 rounded-tl-none'
@@ -185,12 +185,12 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
         {/* Hints — show only if no user messages yet */}
         {messages.length <= 1 && (
           <div className="pt-2">
-            <p className="text-[10px] text-gray-400 mb-1.5">דוגמאות:</p>
+            <p className="text-[12px] text-gray-400 mb-1.5">דוגמאות:</p>
             {CONTEXT_HINTS[context]?.map((hint, i) => (
               <button
                 key={i}
                 onClick={() => { setInput(hint); }}
-                className="block w-full text-right text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-1.5 mb-1 hover:bg-blue-50 hover:text-[#1a56db] transition-colors"
+                className="block w-full text-right text-[13px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-1.5 mb-1 hover:bg-blue-50 hover:text-[#1a56db] transition-colors"
               >
                 {hint}
               </button>
@@ -207,7 +207,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
               {file.preview ? (
                 <img src={file.preview} alt={file.name} className="w-10 h-10 object-cover rounded border border-[#e2e8f0]" />
               ) : (
-                <div className="w-10 h-10 bg-gray-50 rounded border border-[#e2e8f0] flex items-center justify-center text-sm">📄</div>
+                <div className="w-10 h-10 bg-gray-50 rounded border border-[#e2e8f0] flex items-center justify-center text-lg">📄</div>
               )}
               <button
                 onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
@@ -247,13 +247,13 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="תאר מה לעדכן..."
-            className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+            className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
             disabled={loading}
           />
           <button
             onClick={handleSend}
             disabled={loading || (!input.trim() && uploadedFiles.length === 0)}
-            className="bg-[#fce4ec] text-[#1a56db] font-semibold px-2.5 py-2 rounded-lg text-xs hover:bg-[#f8bbd0] transition-colors disabled:opacity-50"
+            className="bg-[#fce4ec] text-[#1a56db] font-semibold px-2.5 py-2 rounded-lg text-sm hover:bg-[#f8bbd0] transition-colors disabled:opacity-50"
           >
             שלח
           </button>

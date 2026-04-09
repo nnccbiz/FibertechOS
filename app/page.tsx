@@ -142,8 +142,8 @@ export default function DashboardPage() {
         <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-800">לוח בקרה</h1>
-              <p className="text-[11px] text-gray-400">
+              <h1 className="text-2xl font-bold text-gray-800">לוח בקרה</h1>
+              <p className="text-[13px] text-gray-400">
                 {new Date().toLocaleDateString('he-IL', {
                   weekday: 'long',
                   year: 'numeric',
@@ -153,7 +153,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="md:hidden">
-              <span className="text-lg font-bold text-[#1a56db]">FibertechOS</span>
+              <span className="text-2xl font-bold text-[#1a56db]">FibertechOS</span>
             </div>
           </div>
         </header>
@@ -162,14 +162,14 @@ export default function DashboardPage() {
           {/* Error banner */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-center gap-3">
-              <span className="text-lg">❌</span>
+              <span className="text-2xl">❌</span>
               <div>
-                <p className="text-sm font-semibold text-red-700">שגיאת חיבור</p>
-                <p className="text-xs text-red-500">{error}</p>
+                <p className="text-lg font-semibold text-red-700">שגיאת חיבור</p>
+                <p className="text-sm text-red-500">{error}</p>
               </div>
               <button
                 onClick={() => window.location.reload()}
-                className="mr-auto text-xs bg-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors"
+                className="mr-auto text-sm bg-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors"
               >
                 נסה שוב
               </button>
@@ -180,12 +180,12 @@ export default function DashboardPage() {
           <div className="flex gap-3 mb-5 animate-fade-in-up">
             <button
               onClick={() => router.push('/projects/new')}
-              className="flex items-center gap-2 bg-[#1a56db] text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-[#1a56db] text-white text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
             >
               <span>➕</span>
               <span>פרויקט חדש</span>
             </button>
-            <button className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+            <button className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
               <span>📈</span>
               <span>יצירת דוחות</span>
             </button>
@@ -223,7 +223,7 @@ export default function DashboardPage() {
               {/* Shipments en route */}
               <div className="animate-fade-in-up-delay-2">
                 <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-                  <h3 className="text-sm font-bold text-gray-700 mb-3">🚢 משלוחים בדרך</h3>
+                  <h3 className="text-lg font-bold text-gray-700 mb-3">🚢 משלוחים בדרך</h3>
                   {loading ? (
                     <div className="space-y-2">
                       {[1, 2].map((i) => (
@@ -239,12 +239,12 @@ export default function DashboardPage() {
                             key={shipment.id}
                             className="bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2"
                           >
-                            <p className="text-xs font-medium text-gray-700">{shipment.message}</p>
+                            <p className="text-sm font-medium text-gray-700">{shipment.message}</p>
                           </div>
                         ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 text-center py-3">אין משלוחים פעילים</p>
+                    <p className="text-lg text-gray-400 text-center py-3">אין משלוחים פעילים</p>
                   )}
                 </div>
               </div>

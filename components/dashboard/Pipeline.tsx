@@ -49,29 +49,29 @@ export default function Pipeline({ leads, loading }: PipelineProps) {
 
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-      <h3 className="text-sm font-bold text-gray-700 mb-4">📊 צינור שיווקי</h3>
+      <h3 className="text-lg font-bold text-gray-700 mb-4">📊 צינור שיווקי</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {grouped.map((stage) => (
           <div key={stage.key} className="rounded-lg bg-gray-50 p-3">
             <div className="flex items-center gap-1.5 mb-2">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
-              <span className="text-[11px] font-bold text-gray-600">{stage.label}</span>
-              <span className="text-[10px] text-gray-400 mr-auto">{stage.leads.length}</span>
+              <span className="text-[13px] font-bold text-gray-600">{stage.label}</span>
+              <span className="text-[12px] text-gray-400 mr-auto">{stage.leads.length}</span>
             </div>
             <div className="space-y-1.5">
               {stage.leads.length === 0 ? (
-                <p className="text-[10px] text-gray-300 text-center py-2">ריק</p>
+                <p className="text-[12px] text-gray-300 text-center py-2">ריק</p>
               ) : (
                 stage.leads.map((lead) => (
                   <div
                     key={lead.id}
                     className="bg-white rounded-md p-2 border border-gray-100 shadow-sm"
                   >
-                    <p className="text-[11px] font-semibold text-gray-700 truncate">
+                    <p className="text-[13px] font-semibold text-gray-700 truncate">
                       {lead.project_name}
                     </p>
-                    <p className="text-[10px] text-gray-400 truncate">{lead.developer_name}</p>
-                    <p className="text-[10px] font-bold text-[#1a56db] mt-1">
+                    <p className="text-[12px] text-gray-400 truncate">{lead.developer_name}</p>
+                    <p className="text-[12px] font-bold text-[#1a56db] mt-1">
                       {formatValue(lead.estimated_value)}
                     </p>
                   </div>

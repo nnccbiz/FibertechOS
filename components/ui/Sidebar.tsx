@@ -45,11 +45,11 @@ export default function Sidebar() {
       <div className={`border-b border-[#e2e8f0] flex items-center ${expanded ? 'px-4 py-4' : 'px-0 py-4 justify-center'}`}>
         {expanded ? (
           <div>
-            <h1 className="text-lg font-bold text-[#1a56db]">FibertechOS</h1>
-            <p className="text-[10px] text-gray-400">פיברטק תשתיות</p>
+            <h1 className="text-2xl font-bold text-[#1a56db]">FibertechOS</h1>
+            <p className="text-[12px] text-gray-400">פיברטק תשתיות</p>
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-[#1a56db] flex items-center justify-center text-white text-xs font-bold">
+          <div className="w-8 h-8 rounded-lg bg-[#1a56db] flex items-center justify-center text-white text-sm font-bold">
             F
           </div>
         )}
@@ -61,7 +61,7 @@ export default function Sidebar() {
           <a
             key={item.key}
             href={item.href}
-            className={`flex items-center gap-3 py-3 text-sm font-medium transition-all duration-200 no-underline ${
+            className={`flex items-center gap-3 py-3 text-lg font-medium transition-all duration-200 no-underline ${
               expanded ? 'px-4' : 'px-0 justify-center'
             } ${
               activeKey === item.key
@@ -70,7 +70,7 @@ export default function Sidebar() {
             }`}
             title={!expanded ? item.label : undefined}
           >
-            <span className="text-lg flex-shrink-0">{item.icon}</span>
+            <span className="text-2xl flex-shrink-0">{item.icon}</span>
             {expanded && (
               <span className="whitespace-nowrap overflow-hidden">{item.label}</span>
             )}
@@ -80,13 +80,13 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className={`border-t border-[#e2e8f0] flex items-center ${expanded ? 'p-3 gap-2' : 'p-2 justify-center'}`}>
-        <div className="w-8 h-8 rounded-full bg-[#1a56db] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+        <div className="w-8 h-8 rounded-full bg-[#1a56db] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
           פ
         </div>
         {expanded && (
           <div>
-            <p className="text-xs font-medium text-gray-700">פיברטק</p>
-            <p className="text-[10px] text-gray-400">v0.1.0</p>
+            <p className="text-sm font-medium text-gray-700">פיברטק</p>
+            <p className="text-[12px] text-gray-400">v0.1.0</p>
           </div>
         )}
       </div>

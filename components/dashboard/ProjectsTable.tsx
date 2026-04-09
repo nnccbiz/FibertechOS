@@ -55,24 +55,24 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-gray-700">📋 פרויקטים פעילים</h3>
-        <span className="text-[10px] bg-blue-100 text-[#1a56db] px-2 py-0.5 rounded-full font-bold">
+        <h3 className="text-lg font-bold text-gray-700">📋 פרויקטים פעילים</h3>
+        <span className="text-[12px] bg-blue-100 text-[#1a56db] px-2 py-0.5 rounded-full font-bold">
           {activeProjects.length}
         </span>
       </div>
 
       {activeProjects.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-4">אין פרויקטים פעילים</p>
+        <p className="text-lg text-gray-400 text-center py-4">אין פרויקטים פעילים</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-lg">
             <thead>
               <tr className="border-b border-[#e2e8f0]">
-                <th className="text-right text-[11px] text-gray-500 font-medium pb-2 pr-2">פרויקט</th>
-                <th className="text-right text-[11px] text-gray-500 font-medium pb-2">ערך</th>
-                <th className="text-right text-[11px] text-gray-500 font-medium pb-2">שלב</th>
-                <th className="text-right text-[11px] text-gray-500 font-medium pb-2">התקדמות</th>
-                <th className="text-center text-[11px] text-gray-500 font-medium pb-2">רווחיות</th>
+                <th className="text-right text-[13px] text-gray-500 font-medium pb-2 pr-2">פרויקט</th>
+                <th className="text-right text-[13px] text-gray-500 font-medium pb-2">ערך</th>
+                <th className="text-right text-[13px] text-gray-500 font-medium pb-2">שלב</th>
+                <th className="text-right text-[13px] text-gray-500 font-medium pb-2">התקדמות</th>
+                <th className="text-center text-[13px] text-gray-500 font-medium pb-2">רווחיות</th>
               </tr>
             </thead>
             <tbody>
@@ -81,16 +81,16 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
                 return (
                   <tr key={project.id} onClick={() => router.push(`/projects/${project.id}`)} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
                     <td className="py-2.5 pr-2">
-                      <p className="text-xs font-semibold text-gray-800">{project.name}</p>
-                      <p className="text-[10px] text-gray-400">{project.assigned_to || '—'}</p>
+                      <p className="text-sm font-semibold text-gray-800">{project.name}</p>
+                      <p className="text-[12px] text-gray-400">{project.assigned_to || '—'}</p>
                     </td>
                     <td className="py-2.5">
-                      <span className="text-xs font-medium text-gray-700">
+                      <span className="text-sm font-medium text-gray-700">
                         {formatCurrency(project.order_value)}
                       </span>
                     </td>
                     <td className="py-2.5">
-                      <span className="text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      <span className="text-[13px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                         {project.stage_label || `שלב ${project.current_stage}`}
                       </span>
                     </td>
@@ -102,7 +102,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
                             style={{ width: `${project.progress_percent}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-gray-500 w-7 text-left">
+                        <span className="text-[12px] text-gray-500 w-7 text-left">
                           {project.progress_percent}%
                         </span>
                       </div>

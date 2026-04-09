@@ -53,26 +53,26 @@ export default function FormB244() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto p-4" dir="rtl">
-      <h2 className="text-xl font-bold">B-244 — טופס תיוג להנעה והדרכה</h2>
+      <h2 className="text-2xl font-bold">B-244 — טופס תיוג להנעה והדרכה</h2>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">מספר דו״ח</label>
+          <label className="block text-lg font-medium text-gray-700">מספר דו״ח</label>
           <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">תאריך</label>
+          <label className="block text-lg font-medium text-gray-700">תאריך</label>
           <input type="date" value={form.report_date} onChange={(e) => set('report_date', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">שם קבלן</label>
+          <label className="block text-lg font-medium text-gray-700">שם קבלן</label>
           <input type="text" value={form.contractor_name} onChange={(e) => set('contractor_name', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">סוג הדרכה</label>
+          <label className="block text-lg font-medium text-gray-700">סוג הדרכה</label>
           <select value={form.training_type} onChange={(e) => set('training_type', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm">
             <option value="הנעה">הנעה</option>
             <option value="הדרכה">הדרכה</option>
@@ -81,13 +81,13 @@ export default function FormB244() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">קוטר (DN)</label>
+        <label className="block text-lg font-medium text-gray-700">קוטר (DN)</label>
         <input type="text" value={form.dn_size} onChange={(e) => set('dn_size', e.target.value)} placeholder="e.g. DN900" className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
 
       {/* Attendees */}
       <fieldset className="border rounded-lg p-4 space-y-3">
-        <legend className="text-sm font-semibold px-2">משתתפים</legend>
+        <legend className="text-lg font-semibold px-2">משתתפים</legend>
         {form.attendees.map((a, i) => (
           <div key={i} className="grid grid-cols-3 gap-2">
             <input type="text" placeholder="שם" value={a.name} onChange={(e) => updateAttendee(i, 'name', e.target.value)} className="rounded border-gray-300 shadow-sm" />
@@ -95,12 +95,12 @@ export default function FormB244() {
             <input type="tel" placeholder="טלפון" value={a.phone} onChange={(e) => updateAttendee(i, 'phone', e.target.value)} className="rounded border-gray-300 shadow-sm" />
           </div>
         ))}
-        <button type="button" onClick={addAttendee} className="text-sm text-blue-600 hover:underline">+ הוסף משתתף</button>
+        <button type="button" onClick={addAttendee} className="text-lg text-blue-600 hover:underline">+ הוסף משתתף</button>
       </fieldset>
 
       {/* Checklist */}
       <fieldset className="border rounded-lg p-4 space-y-2">
-        <legend className="text-sm font-semibold px-2">צ׳קליסט הדרכה</legend>
+        <legend className="text-lg font-semibold px-2">צ׳קליסט הדרכה</legend>
         {[
           { key: 'safety_briefing_done' as const, label: 'תדרוך בטיחות בוצע' },
           { key: 'handling_demo_done' as const, label: 'הדגמת טיפול בצנרת' },
@@ -108,7 +108,7 @@ export default function FormB244() {
           { key: 'sealing_demo_done' as const, label: 'הדגמת איטום' },
           { key: 'labeling_done' as const, label: 'תיוג צנרת בוצע' },
         ].map(({ key, label }) => (
-          <label key={key} className="flex items-center gap-3 text-sm">
+          <label key={key} className="flex items-center gap-3 text-lg">
             <input type="checkbox" checked={form[key]} onChange={(e) => set(key, e.target.checked)} className="h-5 w-5 rounded" />
             {label}
           </label>
@@ -118,7 +118,7 @@ export default function FormB244() {
       <PhotoUpload label="תמונות מההדרכה" onUpload={setPhotos} />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">הערות</label>
+        <label className="block text-lg font-medium text-gray-700">הערות</label>
         <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
 
@@ -127,7 +127,7 @@ export default function FormB244() {
         <SignaturePad label="חתימת פיברטק" onSave={setFibertechSig} />
       </div>
 
-      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700">
+      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-2xl font-semibold hover:bg-blue-700">
         שלח דו״ח B-244
       </button>
     </form>

@@ -27,7 +27,7 @@ export default function StatusTracker({ currentStatus, onChange }: StatusTracker
             key={status.key}
             type="button"
             onClick={() => onChange(status.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
               isActive
                 ? 'text-white shadow-sm'
                 : isPast

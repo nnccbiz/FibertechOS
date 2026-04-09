@@ -61,8 +61,8 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
   if (unresolvedAlerts.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-        <h3 className="text-sm font-bold text-gray-700 mb-3">⚠️ התראות דחופות</h3>
-        <p className="text-sm text-gray-400 text-center py-4">אין התראות פתוחות</p>
+        <h3 className="text-lg font-bold text-gray-700 mb-3">⚠️ התראות דחופות</h3>
+        <p className="text-lg text-gray-400 text-center py-4">אין התראות פתוחות</p>
       </div>
     );
   }
@@ -70,8 +70,8 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-700">⚠️ התראות דחופות</h3>
-        <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
+        <h3 className="text-lg font-bold text-gray-700">⚠️ התראות דחופות</h3>
+        <span className="text-[12px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
           {unresolvedAlerts.length}
         </span>
       </div>
@@ -83,12 +83,12 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
               key={alert.id}
               className={`${style.bg} ${style.border} border rounded-lg px-3 py-2.5 flex items-start gap-2`}
             >
-              <span className="text-sm mt-0.5">{style.icon}</span>
+              <span className="text-lg mt-0.5">{style.icon}</span>
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${style.text}`}>{alert.type}</p>
-                <p className="text-xs text-gray-700 mt-0.5 truncate">{alert.message}</p>
+                <p className={`text-sm font-semibold ${style.text}`}>{alert.type}</p>
+                <p className="text-sm text-gray-700 mt-0.5 truncate">{alert.message}</p>
               </div>
-              <span className="text-[10px] text-gray-400 whitespace-nowrap mt-0.5">
+              <span className="text-[12px] text-gray-400 whitespace-nowrap mt-0.5">
                 {alert.created_at ? timeAgo(alert.created_at) : ''}
               </span>
             </div>

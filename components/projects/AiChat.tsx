@@ -82,7 +82,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 md:bottom-6 left-6 w-14 h-14 bg-[#1a56db] text-white rounded-full shadow-lg flex items-center justify-center text-2xl hover:bg-blue-700 transition-all hover:scale-105 z-50"
+        className="fixed bottom-24 md:bottom-6 left-6 w-14 h-14 bg-[#1a56db] text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700 transition-all hover:scale-105 z-50"
         title="שיחה עם רקסי AI"
       >
         ✨
@@ -95,15 +95,15 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e8f0] bg-[#1a56db] rounded-t-2xl">
         <div className="flex items-center gap-2">
-          <span className="text-lg">✨</span>
+          <span className="text-2xl">✨</span>
           <div>
-            <p className="text-sm font-bold text-white">רקסי AI</p>
-            <p className="text-[10px] text-blue-200">עוזרת FibertechOS</p>
+            <p className="text-lg font-bold text-white">רקסי AI</p>
+            <p className="text-[12px] text-blue-200">עוזרת FibertechOS</p>
           </div>
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="text-white/70 hover:text-white text-lg"
+          className="text-white/70 hover:text-white text-2xl"
         >
           ✕
         </button>
@@ -117,7 +117,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
             className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}
           >
             <div
-              className={`max-w-[85%] rounded-xl px-3 py-2 text-xs whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
                 msg.role === 'user'
                   ? 'bg-[#1a56db] text-white rounded-tr-none'
                   : 'bg-gray-100 text-gray-700 rounded-tl-none'
@@ -150,13 +150,13 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="תאר את הפרויקט..."
-            className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+            className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
             disabled={loading}
           />
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="bg-[#1a56db] text-white px-3 py-2 rounded-lg text-xs hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="bg-[#1a56db] text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             שלח
           </button>

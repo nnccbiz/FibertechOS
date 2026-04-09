@@ -255,7 +255,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
 
           {/* Input row */}
           <div className="flex items-center px-4 py-3 gap-3">
-            <span className="text-xl">✨</span>
+            <span className="text-2xl">✨</span>
             <input
               ref={inputRef}
               type="text"
@@ -265,7 +265,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
                 if (e.key === 'Enter' && !loading) handleSubmit();
               }}
               placeholder='הקלד פקודה... (למשל: "הוסף 200 מטר צינור DN1200 לפרויקט X")'
-              className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder:text-gray-400"
+              className="flex-1 text-lg outline-none bg-transparent text-gray-800 placeholder:text-gray-400"
               dir="rtl"
               disabled={loading}
             />
@@ -289,7 +289,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
                   <span className="w-1.5 h-1.5 bg-[#1a56db] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               ) : (
-                <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                <kbd className="text-[12px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
                   {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
                 </kbd>
               )}
@@ -310,13 +310,13 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
                       />
                     ) : (
                       <div className="w-16 h-16 bg-gray-50 rounded-lg border border-[#e2e8f0] flex flex-col items-center justify-center">
-                        <span className="text-lg">📄</span>
+                        <span className="text-2xl">📄</span>
                         <span className="text-[8px] text-gray-400 truncate max-w-[56px] px-1">{file.name.split('.').pop()?.toUpperCase()}</span>
                       </div>
                     )}
                     <button
                       onClick={() => removeFile(i)}
-                      className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[11px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       ✕
                     </button>
@@ -328,7 +328,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="mt-2 text-xs bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="mt-2 text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   חלץ נתונים מהקבצים
                 </button>
@@ -340,8 +340,8 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
           {dragOver && (
             <div className="px-4 pb-3">
               <div className="border-2 border-dashed border-[#1a56db] rounded-xl p-6 text-center">
-                <p className="text-sm text-[#1a56db] font-medium">📄 שחרר קבצים כאן</p>
-                <p className="text-[10px] text-blue-400 mt-1">תמונות, PDF, Excel, Word — רקסי תחלץ את הנתונים</p>
+                <p className="text-lg text-[#1a56db] font-medium">📄 שחרר קבצים כאן</p>
+                <p className="text-[12px] text-blue-400 mt-1">תמונות, PDF, Excel, Word — רקסי תחלץ את הנתונים</p>
               </div>
             </div>
           )}
@@ -349,7 +349,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
           {/* Feedback */}
           {feedback && (
             <div className={`px-4 pb-3`}>
-              <div className={`rounded-xl px-4 py-3 text-xs ${
+              <div className={`rounded-xl px-4 py-3 text-sm ${
                 feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
                 feedback.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
                 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -362,7 +362,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
           {/* Quick actions */}
           {!feedback && !loading && !input && (
             <div className="border-t border-[#e2e8f0] px-4 py-3">
-              <p className="text-[10px] text-gray-400 mb-2">פקודות מהירות</p>
+              <p className="text-[12px] text-gray-400 mb-2">פקודות מהירות</p>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   'צור פרויקט חדש',
@@ -374,13 +374,13 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
                   <button
                     key={cmd}
                     onClick={() => { setInput(cmd); inputRef.current?.focus(); }}
-                    className="text-[11px] bg-gray-50 text-gray-600 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="text-[13px] bg-gray-50 text-gray-600 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     {cmd}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-300 mt-2 text-center">גרור מסמך לכאן לעיבוד אוטומטי</p>
+              <p className="text-[12px] text-gray-300 mt-2 text-center">גרור מסמך לכאן לעיבוד אוטומטי</p>
             </div>
           )}
         </div>

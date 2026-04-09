@@ -118,16 +118,16 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-700">✨ פעולות AI אחרונות</h3>
+        <h3 className="text-lg font-bold text-gray-700">✨ פעולות AI אחרונות</h3>
         {entries.length > 0 && (
-          <span className="text-[10px] text-gray-400">{entries.length} פעולות</span>
+          <span className="text-[12px] text-gray-400">{entries.length} פעולות</span>
         )}
       </div>
 
       {entries.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-gray-400">אין פעולות עדיין</p>
-          <p className="text-[10px] text-gray-300 mt-1">לחץ ⌘K להפעלת רקסי</p>
+          <p className="text-lg text-gray-400">אין פעולות עדיין</p>
+          <p className="text-[12px] text-gray-300 mt-1">לחץ ⌘K להפעלת רקסי</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -141,23 +141,23 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
               }`}
             >
               <div className="flex items-start gap-2">
-                <span className="text-sm mt-0.5">
+                <span className="text-lg mt-0.5">
                   {actionIcons[entry.action_type] || '⚡'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-700">{entry.summary}</p>
+                  <p className="text-sm text-gray-700">{entry.summary}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[12px] text-gray-400">
                       {timeAgo(entry.created_at)}
                     </span>
-                    <span className="text-[10px] text-gray-300">•</span>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[12px] text-gray-300">•</span>
+                    <span className="text-[12px] text-gray-400">
                       {sourceLabels[entry.source_type] || entry.source_type}
                     </span>
                     {entry.fields_count > 0 && (
                       <>
-                        <span className="text-[10px] text-gray-300">•</span>
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-[12px] text-gray-300">•</span>
+                        <span className="text-[12px] text-gray-400">
                           {entry.fields_count} שדות
                         </span>
                       </>
@@ -167,13 +167,13 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
                 {entry.status === 'applied' && entry.previous_values && (
                   <button
                     onClick={() => handleUndo(entry)}
-                    className="text-[10px] text-red-400 hover:text-red-600 bg-white px-2 py-1 rounded border border-red-200 hover:border-red-300 transition-colors flex-shrink-0"
+                    className="text-[12px] text-red-400 hover:text-red-600 bg-white px-2 py-1 rounded border border-red-200 hover:border-red-300 transition-colors flex-shrink-0"
                   >
                     ביטול
                   </button>
                 )}
                 {entry.status === 'reverted' && (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">בוטל</span>
+                  <span className="text-[12px] text-gray-400 flex-shrink-0">בוטל</span>
                 )}
               </div>
             </div>

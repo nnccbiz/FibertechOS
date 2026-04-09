@@ -30,11 +30,11 @@ interface EditableFieldProps {
 }
 
 function EditableField({ label, value, editing, type = 'text', options, onChange }: EditableFieldProps) {
-  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
 
   return (
     <div className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-      <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{label}</span>
+      <span className="text-[13px] text-gray-500 w-40 flex-shrink-0">{label}</span>
       {editing ? (
         type === 'textarea' ? (
           <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-[60px]`} />
@@ -47,7 +47,7 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
         )
       ) : (
-        <span className="text-xs font-medium text-gray-800">{value || '—'}</span>
+        <span className="text-sm font-medium text-gray-800">{value || '—'}</span>
       )}
     </div>
   );
@@ -58,14 +58,14 @@ function SectionHeader({ title, icon, editing, onToggle, onSave, saving }: {
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-sm font-bold text-gray-700">{icon} {title}</h2>
+      <h2 className="text-lg font-bold text-gray-700">{icon} {title}</h2>
       <div className="flex gap-2">
         {editing && (
-          <button onClick={onSave} disabled={saving} className="text-[11px] bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <button onClick={onSave} disabled={saving} className="text-[13px] bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
             {saving ? 'שומר...' : 'שמור'}
           </button>
         )}
-        <button onClick={onToggle} className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${editing ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+        <button onClick={onToggle} className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${editing ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
           {editing ? 'ביטול' : 'עריכה'}
         </button>
       </div>
@@ -405,7 +405,7 @@ Do NOT return JSON — return plain text only.`;
       <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center" dir="rtl">
         <div className="text-center">
           <p className="text-gray-500">פרויקט לא נמצא</p>
-          <button onClick={() => router.push('/projects/list')} className="text-sm text-[#1a56db] hover:underline mt-2">
+          <button onClick={() => router.push('/projects/list')} className="text-lg text-[#1a56db] hover:underline mt-2">
             חזרה לפרויקטים
           </button>
         </div>
@@ -414,7 +414,7 @@ Do NOT return JSON — return plain text only.`;
   }
 
   const d = detailForm;
-  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
   const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
@@ -422,10 +422,10 @@ Do NOT return JSON — return plain text only.`;
       <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-800">{project.name}</h1>
-            <p className="text-[11px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
+            <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
+            <p className="text-[13px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
           </div>
-          <button onClick={() => router.push('/projects/list')} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">
+          <button onClick={() => router.push('/projects/list')} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
             ← חזרה לפרויקטים
           </button>
         </div>
@@ -434,7 +434,7 @@ Do NOT return JSON — return plain text only.`;
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-5">
         {/* Status */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-3">📌 סטטוס</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-3">📌 סטטוס</h2>
           <StatusTracker
             currentStatus={d.project_status || 'תכנון כללי'}
             onChange={async (status) => {
@@ -449,10 +449,10 @@ Do NOT return JSON — return plain text only.`;
           />
           {d.expected_pipe_order_date && (
             <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-              <span className="text-lg">📦</span>
+              <span className="text-2xl">📦</span>
               <div>
-                <p className="text-xs font-bold text-green-700">צפי מועד להזמנת צנרת</p>
-                <p className="text-sm font-bold text-green-800">{formatDate(d.expected_pipe_order_date)}</p>
+                <p className="text-sm font-bold text-green-700">צפי מועד להזמנת צנרת</p>
+                <p className="text-lg font-bold text-green-800">{formatDate(d.expected_pipe_order_date)}</p>
               </div>
             </div>
           )}
@@ -480,9 +480,9 @@ Do NOT return JSON — return plain text only.`;
           {/* קבלנים מבצעים */}
           <div className="border-t border-[#e2e8f0] mt-4 pt-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-gray-500">קבלנים מבצעים</h3>
+              <h3 className="text-sm font-bold text-gray-500">קבלנים מבצעים</h3>
               {editInfo && (
-                <button onClick={() => setContractorsForm((prev) => [...prev, ''])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף קבלן</button>
+                <button onClick={() => setContractorsForm((prev) => [...prev, ''])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף קבלן</button>
               )}
             </div>
             {editInfo ? (
@@ -490,22 +490,22 @@ Do NOT return JSON — return plain text only.`;
                 {contractorsForm.map((c, i) => (
                   <div key={i} className="flex gap-2 items-center">
                     <input type="text" placeholder="שם קבלן מבצע" value={c} onChange={(e) => { const next = [...contractorsForm]; next[i] = e.target.value; setContractorsForm(next); }} className={`${inputClass} flex-1`} />
-                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                   </div>
                 ))}
-                {contractorsForm.length === 0 && <p className="text-xs text-gray-400">אין קבלנים. לחץ + להוסיף.</p>}
+                {contractorsForm.length === 0 && <p className="text-sm text-gray-400">אין קבלנים. לחץ + להוסיף.</p>}
               </div>
             ) : (
               <div className="space-y-1">
                 {contractorsForm.filter((c) => c.trim()).length > 0 ? (
                   contractorsForm.filter((c) => c.trim()).map((c, i) => (
                     <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
-                      <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">קבלן מבצע {contractorsForm.filter((x) => x.trim()).length > 1 ? i + 1 : ''}</span>
-                      <span className="text-xs font-medium text-gray-800">{c}</span>
+                      <span className="text-[13px] text-gray-500 w-40 flex-shrink-0">קבלן מבצע {contractorsForm.filter((x) => x.trim()).length > 1 ? i + 1 : ''}</span>
+                      <span className="text-sm font-medium text-gray-800">{c}</span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-400">אין קבלנים מבצעים</p>
+                  <p className="text-sm text-gray-400">אין קבלנים מבצעים</p>
                 )}
               </div>
             )}
@@ -526,12 +526,12 @@ Do NOT return JSON — return plain text only.`;
 
           {/* Delivery months picker */}
           <div className="border-t border-[#e2e8f0] mt-4 pt-4">
-            <h3 className="text-xs font-bold text-gray-500 mb-3">חודשי אספקה</h3>
+            <h3 className="text-sm font-bold text-gray-500 mb-3">חודשי אספקה</h3>
             {editDates ? (
               <div className="space-y-4">
                 {[new Date().getFullYear(), new Date().getFullYear() + 1].map((year) => (
                   <div key={year}>
-                    <p className="text-[11px] font-bold text-gray-400 mb-1.5">{year}</p>
+                    <p className="text-[13px] font-bold text-gray-400 mb-1.5">{year}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
                         const key = `${year}-${m}`;
@@ -545,7 +545,7 @@ Do NOT return JSON — return plain text only.`;
                               const next = selected ? entries.filter((e: string) => e !== key) : [...entries, key].sort();
                               updateDetailForm('delivery_months_list', next.join(','));
                             }}
-                            className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
+                            className={`text-[13px] px-3 py-1.5 rounded-full border transition-colors ${
                               selected
                                 ? 'bg-[#1a56db] text-white border-[#1a56db]'
                                 : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'
@@ -567,10 +567,10 @@ Do NOT return JSON — return plain text only.`;
                   if (yearMonths.length === 0) return null;
                   return (
                     <div key={year}>
-                      <p className="text-[10px] text-gray-400 mb-1">{year}</p>
+                      <p className="text-[12px] text-gray-400 mb-1">{year}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {yearMonths.map((m: number) => (
-                          <span key={m} className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
+                          <span key={m} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
                             {MONTH_NAMES[m]}
                           </span>
                         ))}
@@ -579,7 +579,7 @@ Do NOT return JSON — return plain text only.`;
                   );
                 })}
                 {!(d.delivery_months_list || '').split(',').filter(Boolean).length && (
-                  <span className="text-xs text-gray-400">לא נבחרו חודשי אספקה</span>
+                  <span className="text-sm text-gray-400">לא נבחרו חודשי אספקה</span>
                 )}
               </div>
             )}
@@ -600,14 +600,14 @@ Do NOT return JSON — return plain text only.`;
                   <input type="text" placeholder="שם" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
                   <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-32`} dir="ltr" />
                   <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
-                  <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                  <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+              <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
             </div>
           ) : contacts.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
                     <th className="text-right text-gray-500 font-medium pb-2 pr-2">תפקיד</th>
@@ -629,7 +629,7 @@ Do NOT return JSON — return plain text only.`;
               </table>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 text-center py-3">אין אנשי קשר. לחץ עריכה להוסיף.</p>
+            <p className="text-sm text-gray-400 text-center py-3">אין אנשי קשר. לחץ עריכה להוסיף.</p>
           )}
         </section>
 
@@ -645,7 +645,7 @@ Do NOT return JSON — return plain text only.`;
           </div>
           {(editType || d.installation_type === 'דחיקה') && (
             <div className="border-t border-[#e2e8f0] mt-3 pt-3">
-              <h3 className="text-xs font-bold text-gray-500 mb-2">פרטי דחיקה</h3>
+              <h3 className="text-sm font-bold text-gray-500 mb-2">פרטי דחיקה</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                 <EditableField label="סוג הקרקע" value={d.soil_type || ''} editing={editType} onChange={(v) => updateDetailForm('soil_type', v)} />
                 <EditableField label="עומק הדחיקה" value={d.push_depth || ''} editing={editType} onChange={(v) => updateDetailForm('push_depth', v)} />
@@ -669,14 +669,14 @@ Do NOT return JSON — return plain text only.`;
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
-                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
                     <th className="text-right text-gray-500 font-medium pb-2 pr-2">קוטר (מ"מ)</th>
@@ -702,17 +702,17 @@ Do NOT return JSON — return plain text only.`;
               </table>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+            <p className="text-sm text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
           )}
         </section>
 
         {/* Updates / Meeting log */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-700">📝 מעקב עדכונים ופגישות</h2>
+            <h2 className="text-lg font-bold text-gray-700">📝 מעקב עדכונים ופגישות</h2>
             <button
               onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
-              className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+              className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
             >
               {showAddUpdate ? 'ביטול' : '+ עדכון חדש'}
             </button>
@@ -723,24 +723,24 @@ Do NOT return JSON — return plain text only.`;
             <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">תאריך</label>
+                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">תאריך</label>
                   <input type="date" value={newUpdate.update_date} onChange={(e) => setNewUpdate({ ...newUpdate, update_date: e.target.value })} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
+                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
                   <input type="text" placeholder="שמות, מופרדים בפסיק" value={newUpdate.people} onChange={(e) => setNewUpdate({ ...newUpdate, people: e.target.value })} className={inputClass} />
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">כותרת (תיאור קצר)</label>
+                <label className="block text-[13px] font-semibold text-gray-500 mb-1">כותרת (תיאור קצר)</label>
                 <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={newUpdate.title} onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })} className={inputClass} />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
+                <label className="block text-[13px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
                 <textarea placeholder="פירוט הפגישה / העדכון..." value={newUpdate.description} onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })} className={`${inputClass} min-h-[80px]`} />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
+                <label className="block text-[13px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
                 <textarea placeholder="משימה 1, משימה 2..." value={newUpdate.tasks} onChange={(e) => setNewUpdate({ ...newUpdate, tasks: e.target.value })} className={`${inputClass} min-h-[50px]`} />
               </div>
               <button
@@ -760,7 +760,7 @@ Do NOT return JSON — return plain text only.`;
                   await load();
                 }}
                 disabled={saving || !newUpdate.title.trim()}
-                className="bg-[#1a56db] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {saving ? 'שומר...' : 'שמור עדכון'}
               </button>
@@ -776,23 +776,23 @@ Do NOT return JSON — return plain text only.`;
                     onClick={() => setExpandedUpdate(expandedUpdate === upd.id ? null : upd.id)}
                     className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-gray-50 transition-colors"
                   >
-                    <span className="text-[11px] text-gray-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
-                    <span className="text-[11px] text-[#1a56db] flex-shrink-0 w-32 truncate">{upd.people}</span>
-                    <span className="text-xs font-medium text-gray-800 flex-1 truncate">{upd.title}</span>
+                    <span className="text-[13px] text-gray-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
+                    <span className="text-[13px] text-[#1a56db] flex-shrink-0 w-32 truncate">{upd.people}</span>
+                    <span className="text-sm font-medium text-gray-800 flex-1 truncate">{upd.title}</span>
                     <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                   {expandedUpdate === upd.id && (
                     <div className="px-4 pb-4 border-t border-[#e2e8f0] bg-gray-50/50">
                       {upd.description && (
                         <div className="mt-3">
-                          <p className="text-[10px] font-bold text-gray-400 mb-1">תיאור</p>
-                          <p className="text-xs text-gray-700 whitespace-pre-wrap">{upd.description}</p>
+                          <p className="text-[12px] font-bold text-gray-400 mb-1">תיאור</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{upd.description}</p>
                         </div>
                       )}
                       {upd.tasks && (
                         <div className="mt-3">
-                          <p className="text-[10px] font-bold text-gray-400 mb-1">משימות לביצוע</p>
-                          <p className="text-xs text-gray-700 whitespace-pre-wrap">{upd.tasks}</p>
+                          <p className="text-[12px] font-bold text-gray-400 mb-1">משימות לביצוע</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{upd.tasks}</p>
                         </div>
                       )}
                       <div className="mt-3 flex gap-2">
@@ -804,7 +804,7 @@ Do NOT return JSON — return plain text only.`;
                             setExportEmail('');
                             setExportCopied(false);
                           }}
-                          className="text-[10px] text-[#1a56db] hover:text-blue-700 font-medium"
+                          className="text-[12px] text-[#1a56db] hover:text-blue-700 font-medium"
                         >
                           📤 ייצא
                         </button>
@@ -815,7 +815,7 @@ Do NOT return JSON — return plain text only.`;
                               await load();
                             }
                           }}
-                          className="text-[10px] text-red-400 hover:text-red-600"
+                          className="text-[12px] text-red-400 hover:text-red-600"
                         >
                           מחק עדכון
                         </button>
@@ -826,7 +826,7 @@ Do NOT return JSON — return plain text only.`;
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
+            <p className="text-sm text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
           )}
         </section>
 
@@ -835,20 +835,20 @@ Do NOT return JSON — return plain text only.`;
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
-                <h3 className="text-sm font-bold text-gray-700">📤 ייצוא עדכון כמייל</h3>
+                <h3 className="text-lg font-bold text-gray-700">📤 ייצוא עדכון כמייל</h3>
                 <button onClick={() => setExportUpdate(null)} className="text-gray-400 hover:text-gray-600">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
               <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">נמען</label>
+                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">נמען</label>
                   <input
                     type="text"
                     placeholder="שם או מייל הנמען..."
                     value={exportRecipient}
                     onChange={(e) => setExportRecipient(e.target.value)}
-                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                     list="contact-suggestions"
                   />
                   <datalist id="contact-suggestions">
@@ -858,17 +858,17 @@ Do NOT return JSON — return plain text only.`;
                   </datalist>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">שפה</label>
+                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">שפה</label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setExportLang('he')}
-                      className={`flex-1 text-xs py-2 rounded-lg border transition-colors ${exportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
                     >
                       עברית
                     </button>
                     <button
                       onClick={() => setExportLang('en')}
-                      className={`flex-1 text-xs py-2 rounded-lg border transition-colors ${exportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
                     >
                       English
                     </button>
@@ -877,14 +877,14 @@ Do NOT return JSON — return plain text only.`;
                 <button
                   onClick={() => generateExportEmail(exportUpdate, exportLang, exportRecipient)}
                   disabled={exportLoading}
-                  className="w-full bg-[#1a56db] text-white text-xs font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {exportLoading ? 'רקסי מכינה את המייל...' : '✨ הפק מייל'}
                 </button>
                 {exportEmail && (
                   <div className="space-y-2">
-                    <label className="block text-[11px] font-semibold text-gray-500">תוצאה</label>
-                    <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={exportLang === 'he' ? 'rtl' : 'ltr'}>
+                    <label className="block text-[13px] font-semibold text-gray-500">תוצאה</label>
+                    <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={exportLang === 'he' ? 'rtl' : 'ltr'}>
                       {exportEmail}
                     </div>
                     <div className="flex gap-2">
@@ -894,7 +894,7 @@ Do NOT return JSON — return plain text only.`;
                           setExportCopied(true);
                           setTimeout(() => setExportCopied(false), 2000);
                         }}
-                        className="flex-1 text-xs py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
+                        className="flex-1 text-sm py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
                       >
                         {exportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
                       </button>
@@ -904,7 +904,7 @@ Do NOT return JSON — return plain text only.`;
                           const body = encodeURIComponent(exportEmail);
                           window.open(`mailto:?subject=${subject}&body=${body}`);
                         }}
-                        className="flex-1 text-xs py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
+                        className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
                       >
                         📧 פתח במייל
                       </button>

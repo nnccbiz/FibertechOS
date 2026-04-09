@@ -31,13 +31,13 @@ export default function BottomNav() {
           <a
             key={item.key}
             href={item.href}
-            className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors no-underline ${
+            className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[12px] font-medium transition-colors no-underline ${
               activeKey === item.key
                 ? 'bg-blue-50 text-[#1a56db]'
                 : 'text-gray-500'
             }`}
           >
-            <span className="text-base mb-0.5">{item.icon}</span>
+            <span className="text-lg mb-0.5">{item.icon}</span>
             <span>{item.label}</span>
           </a>
         ))}

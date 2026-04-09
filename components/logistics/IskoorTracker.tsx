@@ -50,7 +50,7 @@ function statusBadge(status: string) {
     pending: 'ממתין',
   };
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? map.pending}`}>
+    <span className={`px-2 py-0.5 rounded-full text-sm font-medium ${map[status] ?? map.pending}`}>
       {labels[status] ?? status}
     </span>
   );
@@ -88,22 +88,22 @@ export default function IskoorTracker() {
 
   return (
     <div className="space-y-6 p-4" dir="rtl">
-      <h2 className="text-xl font-bold">מעקב אספקת ISKOOR</h2>
+      <h2 className="text-2xl font-bold">מעקב אספקת ISKOOR</h2>
 
       {Object.entries(lots).map(([lot, containers]) => (
         <div key={lot} className="border rounded-lg overflow-hidden">
           {/* Lot header */}
           <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
             <div>
-              <span className="font-semibold text-lg">{lot}</span>
+              <span className="font-semibold text-2xl">{lot}</span>
               {containers[0].bl_number && (
-                <span className="text-sm text-gray-500 mr-3">BL: {containers[0].bl_number}</span>
+                <span className="text-lg text-gray-500 mr-3">BL: {containers[0].bl_number}</span>
               )}
               {containers[0].project_name && (
-                <span className="text-sm text-gray-500 mr-3">{containers[0].project_name}</span>
+                <span className="text-lg text-gray-500 mr-3">{containers[0].project_name}</span>
               )}
             </div>
-            <div className="flex gap-4 text-sm">
+            <div className="flex gap-4 text-lg">
               <span>שחרור: <strong>{formatDate(containers[0].release_date)}</strong></span>
               <span>ETA: <strong>{formatDate(containers[0].eta)}</strong></span>
               <span>אספקה: <strong>{formatDate(containers[0].delivery_date)}</strong></span>
@@ -113,7 +113,7 @@ export default function IskoorTracker() {
 
           {/* Container table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-lg">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
                   <th className="px-3 py-2 text-right">מכולה</th>
@@ -131,7 +131,7 @@ export default function IskoorTracker() {
               <tbody className="divide-y">
                 {containers.map((c) => (
                   <tr key={c.container_number} className="hover:bg-blue-50">
-                    <td className="px-3 py-2 font-mono text-xs">{c.container_number}</td>
+                    <td className="px-3 py-2 font-mono text-sm">{c.container_number}</td>
                     <td className="px-3 py-2 text-center">{c.invoice_number ?? '—'}</td>
                     <td className="px-3 py-2 text-center">{c.invoice_value ? `€${c.invoice_value.toLocaleString()}` : '—'}</td>
                     <td className="px-3 py-2 text-center">{c.dn900_qty || ''}</td>

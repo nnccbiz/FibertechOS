@@ -46,7 +46,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
               <select
                 value={contact.role}
                 onChange={(e) => updateContact(i, 'role', e.target.value)}
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] bg-white"
+                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] bg-white"
               >
                 <option value="">תפקיד</option>
                 {ROLES.map((r) => (
@@ -58,14 +58,14 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                 value={contact.name}
                 onChange={(e) => updateContact(i, 'name', e.target.value)}
                 placeholder="שם"
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
               />
               <input
                 type="tel"
                 value={contact.phone}
                 onChange={(e) => updateContact(i, 'phone', e.target.value)}
                 placeholder="טלפון"
-                className="col-span-2 border border-[#e2e8f0] rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                className="col-span-2 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 dir="ltr"
               />
               <input
@@ -73,13 +73,13 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                 value={contact.email}
                 onChange={(e) => updateContact(i, 'email', e.target.value)}
                 placeholder="מייל"
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 dir="ltr"
               />
               <button
                 type="button"
                 onClick={() => removeContact(i)}
-                className="col-span-1 text-red-400 hover:text-red-600 text-xs text-center"
+                className="col-span-1 text-red-400 hover:text-red-600 text-sm text-center"
               >
                 ✕
               </button>
@@ -90,7 +90,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
       <button
         type="button"
         onClick={addContact}
-        className="text-xs text-[#1a56db] hover:underline"
+        className="text-sm text-[#1a56db] hover:underline"
       >
         + הוסף איש קשר
       </button>

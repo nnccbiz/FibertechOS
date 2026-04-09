@@ -129,19 +129,19 @@ export default function ProjectsListPage() {
         <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-800">📋 פרויקטים</h1>
-              <p className="text-[11px] text-gray-400">{filtered.length} פרויקטים | סה"כ {formatILS(totalValue)}</p>
+              <h1 className="text-2xl font-bold text-gray-800">📋 פרויקטים</h1>
+              <p className="text-[13px] text-gray-400">{filtered.length} פרויקטים | סה"כ {formatILS(totalValue)}</p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/')}
-                className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2"
+                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
               >
                 ← דשבורד
               </button>
               <button
                 onClick={() => router.push('/projects/new')}
-                className="text-xs bg-[#1a56db] text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="text-sm bg-[#1a56db] text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
                 + פרויקט חדש
               </button>
@@ -157,12 +157,12 @@ export default function ProjectsListPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="חיפוש פרויקט או יזם..."
-              className="border border-[#e2e8f0] rounded-lg px-3 py-2 text-xs w-48 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+              className="border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
             />
             <div className="flex gap-1">
               <button
                 onClick={() => setFilter('all')}
-                className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${
+                className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
                   filter === 'all' ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -172,7 +172,7 @@ export default function ProjectsListPage() {
                 <button
                   key={s}
                   onClick={() => setFilter(s)}
-                  className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${
+                  className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
                     filter === s ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -192,20 +192,20 @@ export default function ProjectsListPage() {
           ) : (
             <div className="bg-white rounded-xl border border-[#e2e8f0] overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-[#e2e8f0]">
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap sticky right-0 bg-gray-50 z-10">#</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">עדכון</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">יזם</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">משרד תכנון</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap min-w-[140px]">שם פרויקט</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">תיאור</th>
-                      <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">הסתברות</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סך הפרויקט</th>
-                      <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">מועד הזמנה</th>
-                      <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סטטוס</th>
-                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">חודשי אספקה</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap sticky right-0 bg-gray-50 z-10">#</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">עדכון</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">יזם</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">משרד תכנון</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap min-w-[140px]">שם פרויקט</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">תיאור</th>
+                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">הסתברות</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סך הפרויקט</th>
+                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">מועד הזמנה</th>
+                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סטטוס</th>
+                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">חודשי אספקה</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -219,7 +219,7 @@ export default function ProjectsListPage() {
                           className="border-b border-gray-50 hover:bg-blue-50/30 cursor-pointer transition-colors"
                         >
                           <td className="py-2 px-2 text-gray-400 sticky right-0 bg-white z-10">{project.serial_number || idx + 1}</td>
-                          <td className="py-2 px-2 text-[10px] text-gray-400 whitespace-nowrap">
+                          <td className="py-2 px-2 text-[12px] text-gray-400 whitespace-nowrap">
                             {project.last_updated_at
                               ? new Date(project.last_updated_at).toLocaleDateString('he-IL')
                               : '—'}
@@ -229,7 +229,7 @@ export default function ProjectsListPage() {
                           <td className="py-2 px-2 font-semibold text-gray-800">{project.name}</td>
                           <td className="py-2 px-2 text-gray-500 max-w-[150px] truncate">{project.description || '—'}</td>
                           <td className="py-2 px-2 text-center">
-                            <span className="text-[11px] font-bold text-gray-700">
+                            <span className="text-[13px] font-bold text-gray-700">
                               {project.probability_percent != null ? `${project.probability_percent}%` : '—'}
                             </span>
                           </td>
@@ -242,7 +242,7 @@ export default function ProjectsListPage() {
                               : '—'}
                           </td>
                           <td className="py-2 px-2 text-center">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
                               STATUS_COLORS[project.realization_status] || 'bg-gray-100 text-gray-600'
                             }`}>
                               {project.realization_status || '—'}
@@ -256,26 +256,26 @@ export default function ProjectsListPage() {
                               {currentYearMonths.length > 0 ? (
                                 <div className="flex flex-wrap gap-1 flex-row-reverse justify-end">
                                   {currentYearMonths.map((m) => (
-                                    <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                    <span key={m} className="text-[11px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
                                       {MONTH_NAMES[m]}
                                     </span>
                                   ))}
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-gray-400 hover:text-[#1a56db]">+ בחר חודשים</span>
+                                <span className="text-[12px] text-gray-400 hover:text-[#1a56db]">+ בחר חודשים</span>
                               )}
                             </button>
                             {monthPickerOpen === project.id && (
                               <div className="absolute top-full left-0 z-40 bg-white border border-[#e2e8f0] rounded-xl shadow-lg p-3 mt-1 w-[220px] space-y-3">
                                 {[currentYear, currentYear + 1].map((year) => (
                                   <div key={year}>
-                                    <p className="text-[10px] font-bold text-gray-500 mb-1.5 text-center">{year}</p>
+                                    <p className="text-[12px] font-bold text-gray-500 mb-1.5 text-center">{year}</p>
                                     <div className="grid grid-cols-3 gap-1">
                                       {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                                         <button
                                           key={m}
                                           onClick={() => toggleMonth(project.id, year, m)}
-                                          className={`text-[10px] px-2 py-1.5 rounded-lg transition-colors ${
+                                          className={`text-[12px] px-2 py-1.5 rounded-lg transition-colors ${
                                             hasEntry(project.id, year, m)
                                               ? 'bg-[#1a56db] text-white'
                                               : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -296,7 +296,7 @@ export default function ProjectsListPage() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-[#e2e8f0]">
-                      <td colSpan={10} className="py-2.5 px-2 text-xs font-bold text-gray-700 sticky right-0 bg-gray-50 z-10">
+                      <td colSpan={10} className="py-2.5 px-2 text-sm font-bold text-gray-700 sticky right-0 bg-gray-50 z-10">
                         סה"כ: {formatILS(totalValue)}
                       </td>
                       <td></td>
