@@ -167,7 +167,7 @@ export default function FloatingChat() {
             if (proj) {
               await supabase.from('project_updates').insert({
                 project_id: proj.id,
-                update_date: data.data.update_date || new Date().toISOString().substring(0, 10),
+                update_date: new Date().toISOString().substring(0, 10),
                 people: data.data.people || '',
                 title: data.data.title || '',
                 description: data.data.description || '',

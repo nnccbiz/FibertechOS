@@ -125,7 +125,7 @@ export default function ProjectDetailPage() {
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
-        supabase.from('project_updates').select('*').eq('project_id', id).order('update_date', { ascending: false }),
+        supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       ]);
 
       const proj = projRes.data;
