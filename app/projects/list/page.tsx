@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
 
+interface ProjectDetail {
+  project_id: string;
+  delivery_months_list: string | null;
+}
+
 interface Project {
   id: string;
   serial_number: number | null;
@@ -21,14 +26,6 @@ interface Project {
   last_updated_at: string;
 }
 
-interface MonthlyData {
-  project_id: string;
-  year: number;
-  month: number;
-  amount: number;
-  is_actual: boolean;
-}
-
 const STATUS_COLORS: Record<string, string> = {
   'הזמנה': 'bg-green-100 text-green-700',
   'גבוהה': 'bg-blue-100 text-blue-700',
@@ -41,22 +38,21 @@ const STATUS_OPTIONS = ['הזמנה', 'גבוהה', 'בינוני', 'נמוך'];
 export default function ProjectsListPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [projectDetails, setProjectDetails] = useState<ProjectDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   async function fetchData() {
     try {
       setLoading(true);
-      const [projRes, monthlyRes] = await Promise.all([
+      const [projRes, detRes] = await Promise.all([
         supabase.from('projects').select('*').order('serial_number', { ascending: true }),
-        supabase.from('project_monthly_revenue').select('*').eq('year', selectedYear),
+        supabase.from('project_details').select('project_id, delivery_months_list'),
       ]);
 
       if (projRes.data) setProjects(projRes.data);
-      if (monthlyRes.data) setMonthlyData(monthlyRes.data);
+      if (detRes.data) setProjectDetails(detRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,7 +62,7 @@ export default function ProjectsListPage() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedYear]);
+  }, []);
 
   const filtered = projects.filter((p) => {
     if (filter !== 'all' && p.realization_status !== filter) return false;
@@ -76,23 +72,10 @@ export default function ProjectsListPage() {
 
   const totalValue = filtered.reduce((sum, p) => sum + (p.order_value || 0), 0);
 
-  // Get monthly totals for filtered projects
-  function getMonthAmount(projectId: string, month: number): number {
-    const entry = monthlyData.find(
-      (m) => m.project_id === projectId && m.month === month
-    );
-    return entry?.amount || 0;
-  }
-
-  function getMonthTotal(month: number): number {
-    return filtered.reduce((sum, p) => sum + getMonthAmount(p.id, month), 0);
-  }
-
-  const yearTotal = Array.from({ length: 12 }, (_, i) => getMonthTotal(i + 1)).reduce((a, b) => a + b, 0);
-
-  function handleAiData(data: any) {
-    // Refresh data after AI action
-    fetchData();
+  function getDeliveryMonths(projectId: string): number[] {
+    const det = projectDetails.find((d) => d.project_id === projectId);
+    if (!det?.delivery_months_list) return [];
+    return det.delivery_months_list.split(',').filter(Boolean).map(Number);
   }
 
   return (
@@ -153,21 +136,6 @@ export default function ProjectsListPage() {
                 </button>
               ))}
             </div>
-            <div className="mr-auto flex items-center gap-2">
-              <button
-                onClick={() => setSelectedYear((y) => y - 1)}
-                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
-              >
-                ←
-              </button>
-              <span className="text-sm font-bold text-gray-700">{selectedYear}</span>
-              <button
-                onClick={() => setSelectedYear((y) => y + 1)}
-                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
-              >
-                →
-              </button>
-            </div>
           </div>
 
           {/* Table */}
@@ -191,22 +159,14 @@ export default function ProjectsListPage() {
                       <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">תיאור</th>
                       <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">הסתברות</th>
                       <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סך הפרויקט</th>
-                      <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">אספקה</th>
                       <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">מועד הזמנה</th>
                       <th className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סטטוס</th>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <th key={i} className="text-center text-[10px] text-gray-500 font-medium py-2.5 px-1.5 whitespace-nowrap min-w-[65px]">
-                          {MONTH_NAMES[i + 1]}
-                        </th>
-                      ))}
-                      <th className="text-center text-[10px] text-gray-500 font-bold py-2.5 px-2 whitespace-nowrap bg-blue-50">מצטבר</th>
+                      <th className="text-right text-[10px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">חודשי אספקה</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((project, idx) => {
-                      const projectYearTotal = Array.from({ length: 12 }, (_, i) =>
-                        getMonthAmount(project.id, i + 1)
-                      ).reduce((a, b) => a + b, 0);
+                      const months = getDeliveryMonths(project.id);
 
                       return (
                         <tr
@@ -232,9 +192,6 @@ export default function ProjectsListPage() {
                           <td className="py-2 px-2 font-semibold text-gray-800 whitespace-nowrap">
                             {formatILS(project.order_value)}
                           </td>
-                          <td className="py-2 px-2 text-center text-gray-600">
-                            {project.delivery_months ? `${project.delivery_months} חודשים` : '—'}
-                          </td>
                           <td className="py-2 px-2 text-center text-gray-600 whitespace-nowrap">
                             {project.order_execution_date
                               ? new Date(project.order_execution_date).toLocaleDateString('he-IL')
@@ -247,43 +204,27 @@ export default function ProjectsListPage() {
                               {project.realization_status || '—'}
                             </span>
                           </td>
-                          {Array.from({ length: 12 }, (_, i) => {
-                            const amount = getMonthAmount(project.id, i + 1);
-                            const isActual = monthlyData.find(
-                              (m) => m.project_id === project.id && m.month === i + 1
-                            )?.is_actual;
-                            return (
-                              <td key={i} className={`py-2 px-1.5 text-center text-[10px] whitespace-nowrap ${
-                                isActual ? 'text-green-700 font-bold bg-green-50/50' : 'text-gray-500'
-                              }`}>
-                                {amount > 0 ? formatILS(amount) : '—'}
-                              </td>
-                            );
-                          })}
-                          <td className="py-2 px-2 text-center text-[10px] font-bold text-[#1a56db] bg-blue-50/50 whitespace-nowrap">
-                            {projectYearTotal > 0 ? formatILS(projectYearTotal) : '—'}
+                          <td className="py-2 px-2">
+                            {months.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {months.map((m) => (
+                                  <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                    {MONTH_NAMES[m]}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : '—'}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  {/* Totals row */}
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-[#e2e8f0]">
-                      <td colSpan={11} className="py-2.5 px-2 text-xs font-bold text-gray-700 sticky right-0 bg-gray-50 z-10">
-                        סה"כ
+                      <td colSpan={10} className="py-2.5 px-2 text-xs font-bold text-gray-700 sticky right-0 bg-gray-50 z-10">
+                        סה"כ: {formatILS(totalValue)}
                       </td>
-                      {Array.from({ length: 12 }, (_, i) => {
-                        const monthTotal = getMonthTotal(i + 1);
-                        return (
-                          <td key={i} className="py-2.5 px-1.5 text-center text-[10px] font-bold text-gray-700 whitespace-nowrap">
-                            {monthTotal > 0 ? formatILS(monthTotal) : '—'}
-                          </td>
-                        );
-                      })}
-                      <td className="py-2.5 px-2 text-center text-[11px] font-bold text-[#1a56db] bg-blue-50 whitespace-nowrap">
-                        {formatILS(yearTotal)}
-                      </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>

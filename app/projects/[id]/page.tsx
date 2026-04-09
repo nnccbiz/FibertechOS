@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 
 function formatDate(d: string | null) {
@@ -257,6 +258,7 @@ Do NOT return JSON — return plain text only.`;
         winning_contractor: detailForm.winning_contractor,
         winning_date: detailForm.winning_date || null,
         expected_pipe_order_date: detailForm.expected_pipe_order_date || null,
+        delivery_months_list: detailForm.delivery_months_list || null,
       };
 
       if (detailForm.id) {
@@ -520,6 +522,48 @@ Do NOT return JSON — return plain text only.`;
             <EditableField label="מועד הגשת המכרז" value={editDates ? formatDateInput(d.tender_submission_date) : formatDate(d.tender_submission_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('tender_submission_date', v)} />
             <EditableField label="תאריך הכרזה קבלן זוכה" value={editDates ? formatDateInput(d.winning_date) : formatDate(d.winning_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('winning_date', v)} />
             <EditableField label="צפי מועד להזמנת צנרת" value={editDates ? formatDateInput(d.expected_pipe_order_date) : formatDate(d.expected_pipe_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('expected_pipe_order_date', v)} />
+          </div>
+
+          {/* Delivery months picker */}
+          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
+            <h3 className="text-xs font-bold text-gray-500 mb-2">חודשי אספקה</h3>
+            {editDates ? (
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                  const selected = (detailForm.delivery_months_list || '').split(',').filter(Boolean).map(Number).includes(m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        const current = (detailForm.delivery_months_list || '').split(',').filter(Boolean).map(Number);
+                        const next = selected ? current.filter((x: number) => x !== m) : [...current, m].sort((a: number, b: number) => a - b);
+                        updateDetailForm('delivery_months_list', next.join(','));
+                      }}
+                      className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
+                        selected
+                          ? 'bg-[#1a56db] text-white border-[#1a56db]'
+                          : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'
+                      }`}
+                    >
+                      {MONTH_NAMES[m]}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {(d.delivery_months_list || '').split(',').filter(Boolean).map(Number).length > 0 ? (
+                  (d.delivery_months_list || '').split(',').filter(Boolean).map(Number).map((m: number) => (
+                    <span key={m} className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
+                      {MONTH_NAMES[m]}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-400">לא נבחרו חודשי אספקה</span>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
