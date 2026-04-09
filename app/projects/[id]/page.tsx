@@ -95,6 +95,7 @@ export default function ProjectDetailPage() {
   const [detailForm, setDetailForm] = useState<any>({});
   const [contactsForm, setContactsForm] = useState<any[]>([]);
   const [specsForm, setSpecsForm] = useState<any[]>([]);
+  const [contractorsForm, setContractorsForm] = useState<string[]>([]);
 
   useEffect(() => {
     load();
@@ -122,7 +123,8 @@ export default function ProjectDetailPage() {
 
       if (proj) setForm({ ...proj });
       setDetailForm({ ...det });
-      setContactsForm(cons.map((c: any) => ({ ...c })));
+      setContactsForm(cons.filter((c: any) => c.role !== 'קבלן מבצע').map((c: any) => ({ ...c })));
+      setContractorsForm(cons.filter((c: any) => c.role === 'קבלן מבצע').map((c: any) => c.name || ''));
       setSpecsForm(specs.map((s: any) => ({ ...s })));
     } catch (err) {
       console.error(err);
@@ -163,12 +165,22 @@ export default function ProjectDetailPage() {
         project_number: detailForm.project_number ? parseInt(detailForm.project_number) : null,
         ordering_entity: detailForm.ordering_entity,
         responsible_party: detailForm.responsible_party,
+        winning_contractor: detailForm.winning_contractor,
       };
 
       if (detailForm.id) {
         await supabase.from('project_details').update(detailData).eq('id', detailForm.id);
       } else {
         await supabase.from('project_details').insert(detailData);
+      }
+
+      // Save contractors — delete old and insert new
+      await supabase.from('project_contacts').delete().eq('project_id', id).eq('role', 'קבלן מבצע');
+      const validContractors = contractorsForm.filter((c) => c.trim());
+      if (validContractors.length > 0) {
+        await supabase.from('project_contacts').insert(
+          validContractors.map((name) => ({ project_id: id, role: 'קבלן מבצע', name }))
+        );
       }
 
       setEditInfo(false);
@@ -313,7 +325,7 @@ export default function ProjectDetailPage() {
   }
 
   function cancelEdit(section: string) {
-    if (section === 'info') { setForm({ ...project }); setDetailForm({ ...details }); setEditInfo(false); }
+    if (section === 'info') { setForm({ ...project }); setDetailForm({ ...details }); setContractorsForm(contacts.filter((c) => c.role === 'קבלן מבצע').map((c) => c.name || '')); setEditInfo(false); }
     if (section === 'dates') { setDetailForm({ ...details }); setEditDates(false); }
     if (section === 'type') { setDetailForm({ ...details }); setEditType(false); }
     if (section === 'story') { setDetailForm({ ...details }); setEditStory(false); }
@@ -396,10 +408,10 @@ export default function ProjectDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="שם הפרויקט" value={form.name || ''} editing={editInfo} onChange={(v) => updateForm('name', v)} />
             <EditableField label="יזם" value={form.developer_name || ''} editing={editInfo} onChange={(v) => updateForm('developer_name', v)} />
+            <EditableField label="קבלן זוכה" value={d.winning_contractor || ''} editing={editInfo} onChange={(v) => updateDetailForm('winning_contractor', v)} />
             <EditableField label="משרד תכנון" value={form.planning_office || ''} editing={editInfo} onChange={(v) => updateForm('planning_office', v)} />
             <EditableField label="מיקום" value={d.location || ''} editing={editInfo} onChange={(v) => updateDetailForm('location', v)} />
             <EditableField label="מספר פרויקט" value={String(d.project_number || '')} editing={editInfo} type="number" onChange={(v) => updateDetailForm('project_number', v)} />
-            <EditableField label="מזמין הפרויקט" value={d.ordering_entity || ''} editing={editInfo} onChange={(v) => updateDetailForm('ordering_entity', v)} />
             <EditableField label="אחראי פרויקט" value={d.responsible_party || ''} editing={editInfo} onChange={(v) => updateDetailForm('responsible_party', v)} />
             <EditableField label="ערך הזמנה" value={editInfo ? String(form.order_value || '') : (form.order_value ? formatCurrency(form.order_value) : '')} editing={editInfo} type="number" onChange={(v) => updateForm('order_value', v)} />
             <EditableField label="סטטוס פרויקט" value={form.status || ''} editing={editInfo} onChange={(v) => updateForm('status', v)} />
@@ -407,6 +419,40 @@ export default function ProjectDetailPage() {
             <EditableField label="הסתברות %" value={String(form.probability_percent || '')} editing={editInfo} type="number" onChange={(v) => updateForm('probability_percent', v)} />
             <EditableField label="חודשי אספקה" value={String(form.delivery_months || '')} editing={editInfo} type="number" onChange={(v) => updateForm('delivery_months', v)} />
             <EditableField label="תיאור" value={form.description || ''} editing={editInfo} type="textarea" onChange={(v) => updateForm('description', v)} />
+          </div>
+
+          {/* קבלנים מבצעים */}
+          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold text-gray-500">קבלנים מבצעים</h3>
+              {editInfo && (
+                <button onClick={() => setContractorsForm((prev) => [...prev, ''])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף קבלן</button>
+              )}
+            </div>
+            {editInfo ? (
+              <div className="space-y-2">
+                {contractorsForm.map((c, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input type="text" placeholder="שם קבלן מבצע" value={c} onChange={(e) => { const next = [...contractorsForm]; next[i] = e.target.value; setContractorsForm(next); }} className={`${inputClass} flex-1`} />
+                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                  </div>
+                ))}
+                {contractorsForm.length === 0 && <p className="text-xs text-gray-400">אין קבלנים. לחץ + להוסיף.</p>}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {contractorsForm.filter((c) => c.trim()).length > 0 ? (
+                  contractorsForm.filter((c) => c.trim()).map((c, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                      <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">קבלן מבצע {contractorsForm.filter((x) => x.trim()).length > 1 ? i + 1 : ''}</span>
+                      <span className="text-xs font-medium text-gray-800">{c}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-400">אין קבלנים מבצעים</p>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -418,8 +464,7 @@ export default function ProjectDetailPage() {
             <EditableField label="תאריך ההזמנה המאושרת" value={editDates ? formatDateInput(d.approved_order_date) : formatDate(d.approved_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('approved_order_date', v)} />
             <EditableField label="תאריך התחלת הנחת צנרת" value={editDates ? formatDateInput(d.pipe_installation_start) : formatDate(d.pipe_installation_start)} editing={editDates} type="date" onChange={(v) => updateDetailForm('pipe_installation_start', v)} />
             <EditableField label="מועד הגשת המכרז" value={editDates ? formatDateInput(d.tender_submission_date) : formatDate(d.tender_submission_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('tender_submission_date', v)} />
-            <EditableField label="קבלן זוכה" value={d.winning_contractor || ''} editing={editDates} onChange={(v) => updateDetailForm('winning_contractor', v)} />
-            <EditableField label="תאריך הכרזה" value={editDates ? formatDateInput(d.winning_date) : formatDate(d.winning_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('winning_date', v)} />
+            <EditableField label="תאריך הכרזה קבלן זוכה" value={editDates ? formatDateInput(d.winning_date) : formatDate(d.winning_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('winning_date', v)} />
             <EditableField label="צפי מועד להזמנת צנרת" value={editDates ? formatDateInput(d.expected_pipe_order_date) : formatDate(d.expected_pipe_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('expected_pipe_order_date', v)} />
           </div>
         </section>
