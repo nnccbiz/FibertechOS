@@ -34,8 +34,15 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 - inventory: manufacturer, pipe_type (הטמנה/דחיקה/השחלה), diameter_mm, pressure_bar, stiffness_sn, length_m, in_stock, category (צינורות/אביזרים/חומרי סיכה)
 - alerts: project_id, type, message, is_resolved, assigned_to
 - leads: project_name, developer_name, stage (הכרות/מסמכים/מכרז/מו"מ), estimated_value, next_action, next_action_date
+- project_updates: project_id, update_date (YYYY-MM-DD), people (שמות האנשים), title (כותרת קצרה), description (תיאור מלא), tasks (משימות לביצוע)
 
 כללים:
+7. כשמשתמש אומר "נפגשתי עם X לגבי פרויקט Y" או "עדכון פגישה" — השתמש בטבלה project_updates:
+   - target_table: "project_updates"
+   - action: "create"
+   - data: { update_date, people, title, description, tasks }
+   - חפש את הפרויקט לפי שם ב-target_label
+   - הפרד בין תיאור הפגישה למשימות
 1. החזר רק JSON תקין
 2. אם שדה לא הוזכר — אל תכלול אותו ב-data
 3. המר ערכים מספריים למספרים

@@ -79,8 +79,12 @@ export default function ProjectDetailPage() {
   const [details, setDetails] = useState<any>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
+  const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [expandedUpdate, setExpandedUpdate] = useState<string | null>(null);
+  const [showAddUpdate, setShowAddUpdate] = useState(false);
+  const [newUpdate, setNewUpdate] = useState({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' });
 
   // Edit states per section
   const [editInfo, setEditInfo] = useState(false);
@@ -104,11 +108,12 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
+        supabase.from('project_updates').select('*').eq('project_id', id).order('update_date', { ascending: false }),
       ]);
 
       const proj = projRes.data;
@@ -120,6 +125,7 @@ export default function ProjectDetailPage() {
       setDetails(det);
       setContacts(cons);
       setPipeSpecs(specs);
+      setUpdates(updRes.data || []);
 
       if (proj) setForm({ ...proj });
       setDetailForm({ ...det });
@@ -586,6 +592,118 @@ export default function ProjectDetailPage() {
             </div>
           ) : (
             <p className="text-xs text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+          )}
+        </section>
+
+        {/* Updates / Meeting log */}
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-700">📝 מעקב עדכונים ופגישות</h2>
+            <button
+              onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
+              className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              {showAddUpdate ? 'ביטול' : '+ עדכון חדש'}
+            </button>
+          </div>
+
+          {/* Add new update form */}
+          {showAddUpdate && (
+            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">תאריך</label>
+                  <input type="date" value={newUpdate.update_date} onChange={(e) => setNewUpdate({ ...newUpdate, update_date: e.target.value })} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
+                  <input type="text" placeholder="שמות, מופרדים בפסיק" value={newUpdate.people} onChange={(e) => setNewUpdate({ ...newUpdate, people: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">כותרת (תיאור קצר)</label>
+                <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={newUpdate.title} onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
+                <textarea placeholder="פירוט הפגישה / העדכון..." value={newUpdate.description} onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })} className={`${inputClass} min-h-[80px]`} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
+                <textarea placeholder="משימה 1, משימה 2..." value={newUpdate.tasks} onChange={(e) => setNewUpdate({ ...newUpdate, tasks: e.target.value })} className={`${inputClass} min-h-[50px]`} />
+              </div>
+              <button
+                onClick={async () => {
+                  if (!newUpdate.title.trim()) return;
+                  setSaving(true);
+                  await supabase.from('project_updates').insert({
+                    project_id: params.id as string,
+                    update_date: newUpdate.update_date,
+                    people: newUpdate.people,
+                    title: newUpdate.title,
+                    description: newUpdate.description,
+                    tasks: newUpdate.tasks,
+                  });
+                  setShowAddUpdate(false);
+                  setSaving(false);
+                  await load();
+                }}
+                disabled={saving || !newUpdate.title.trim()}
+                className="bg-[#1a56db] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'שומר...' : 'שמור עדכון'}
+              </button>
+            </div>
+          )}
+
+          {/* Updates list */}
+          {updates.length > 0 ? (
+            <div className="space-y-2">
+              {updates.map((upd) => (
+                <div key={upd.id} className="border border-[#e2e8f0] rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedUpdate(expandedUpdate === upd.id ? null : upd.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-[11px] text-gray-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
+                    <span className="text-[11px] text-[#1a56db] flex-shrink-0 w-32 truncate">{upd.people}</span>
+                    <span className="text-xs font-medium text-gray-800 flex-1 truncate">{upd.title}</span>
+                    <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  {expandedUpdate === upd.id && (
+                    <div className="px-4 pb-4 border-t border-[#e2e8f0] bg-gray-50/50">
+                      {upd.description && (
+                        <div className="mt-3">
+                          <p className="text-[10px] font-bold text-gray-400 mb-1">תיאור</p>
+                          <p className="text-xs text-gray-700 whitespace-pre-wrap">{upd.description}</p>
+                        </div>
+                      )}
+                      {upd.tasks && (
+                        <div className="mt-3">
+                          <p className="text-[10px] font-bold text-gray-400 mb-1">משימות לביצוע</p>
+                          <p className="text-xs text-gray-700 whitespace-pre-wrap">{upd.tasks}</p>
+                        </div>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={async () => {
+                            if (confirm('למחוק עדכון זה?')) {
+                              await supabase.from('project_updates').delete().eq('id', upd.id);
+                              await load();
+                            }
+                          }}
+                          className="text-[10px] text-red-400 hover:text-red-600"
+                        >
+                          מחק עדכון
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לג׳מה על פגישה.</p>
           )}
         </section>
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface AiMessage {
   role: 'user' | 'ai';
@@ -158,7 +159,30 @@ export default function FloatingChat() {
       if (data.error) {
         setMessages((prev) => [...prev, { role: 'ai', text: `שגיאה: ${data.error}` }]);
       } else {
-        setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+        // Auto-execute project_updates
+        if (data.target_table === 'project_updates' && data.action === 'create' && data.data) {
+          const projectName = data.target_label || data.data.project_name;
+          if (projectName) {
+            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+            if (proj) {
+              await supabase.from('project_updates').insert({
+                project_id: proj.id,
+                update_date: data.data.update_date || new Date().toISOString().substring(0, 10),
+                people: data.data.people || '',
+                title: data.data.title || '',
+                description: data.data.description || '',
+                tasks: data.data.tasks || '',
+              });
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.` }]);
+            } else {
+              setMessages((prev) => [...prev, { role: 'ai', text: `${data.summary}\n\n⚠️ לא מצאתי פרויקט בשם "${projectName}". העדכון לא נשמר.` }]);
+            }
+          } else {
+            setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+          }
+        } else {
+          setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+        }
       }
     } catch {
       setMessages((prev) => [...prev, { role: 'ai', text: 'שגיאה בתקשורת. נסה שוב.' }]);
