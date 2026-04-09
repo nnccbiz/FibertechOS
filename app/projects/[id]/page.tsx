@@ -906,7 +906,16 @@ Do NOT return JSON — return plain text only.`;
                         }}
                         className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
                       >
-                        📧 פתח במייל
+                        📧 מייל
+                      </button>
+                      <button
+                        onClick={() => {
+                          const text = encodeURIComponent(exportEmail);
+                          window.open(`https://wa.me/?text=${text}`);
+                        }}
+                        className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-green-700 hover:bg-[#c5f0a4] transition-colors font-medium"
+                      >
+                        💬 וואטסאפ
                       </button>
                     </div>
                   </div>
