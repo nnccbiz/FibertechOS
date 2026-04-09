@@ -85,6 +85,12 @@ export default function ProjectDetailPage() {
   const [expandedUpdate, setExpandedUpdate] = useState<string | null>(null);
   const [showAddUpdate, setShowAddUpdate] = useState(false);
   const [newUpdate, setNewUpdate] = useState({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' });
+  const [exportUpdate, setExportUpdate] = useState<any>(null);
+  const [exportLang, setExportLang] = useState<'he' | 'en'>('he');
+  const [exportRecipient, setExportRecipient] = useState('');
+  const [exportEmail, setExportEmail] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
 
   // Edit states per section
   const [editInfo, setEditInfo] = useState(false);
@@ -145,6 +151,48 @@ export default function ProjectDetailPage() {
 
   function updateDetailForm(key: string, val: any) {
     setDetailForm((prev: any) => ({ ...prev, [key]: val }));
+  }
+
+  async function generateExportEmail(upd: any, lang: 'he' | 'en', recipient: string) {
+    setExportLoading(true);
+    setExportEmail('');
+    try {
+      const projectName = project?.name || '';
+      const prompt = lang === 'he'
+        ? `כתוב מייל עדכון מקצועי בעברית לגבי פרויקט "${projectName}".
+הנמען: ${recipient || 'לא צוין'}
+תאריך עדכון: ${upd.update_date}
+אנשים מעורבים: ${upd.people}
+כותרת: ${upd.title}
+תיאור: ${upd.description || 'לא צוין'}
+משימות: ${upd.tasks || 'לא צוינו'}
+
+כתוב מייל מקצועי ומנומס הכולל נושא (Subject), גוף המייל עם סיכום העדכון והמשימות. החתימה: צוות פיברטק תשתיות.
+אל תחזיר JSON — החזר טקסט רגיל בלבד.`
+        : `Write a professional project update email in English about project "${projectName}".
+Recipient: ${recipient || 'not specified'}
+Update date: ${upd.update_date}
+People involved: ${upd.people}
+Title: ${upd.title}
+Description: ${upd.description || 'N/A'}
+Tasks: ${upd.tasks || 'N/A'}
+
+Write a professional and polite email including Subject line, body with update summary and action items. Sign off as: Fibertech Infrastructure Team.
+Do NOT return JSON — return plain text only.`;
+
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: prompt }),
+      });
+      const data = await res.json();
+      const emailText = data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
+      setExportEmail(emailText);
+    } catch {
+      setExportEmail(lang === 'he' ? 'שגיאה ביצירת המייל. נסה שוב.' : 'Error generating email. Please try again.');
+    } finally {
+      setExportLoading(false);
+    }
   }
 
   async function saveInfo() {
@@ -686,6 +734,18 @@ export default function ProjectDetailPage() {
                       )}
                       <div className="mt-3 flex gap-2">
                         <button
+                          onClick={() => {
+                            setExportUpdate(upd);
+                            setExportLang('he');
+                            setExportRecipient('');
+                            setExportEmail('');
+                            setExportCopied(false);
+                          }}
+                          className="text-[10px] text-[#1a56db] hover:text-blue-700 font-medium"
+                        >
+                          📤 ייצא
+                        </button>
+                        <button
                           onClick={async () => {
                             if (confirm('למחוק עדכון זה?')) {
                               await supabase.from('project_updates').delete().eq('id', upd.id);
@@ -706,6 +766,92 @@ export default function ProjectDetailPage() {
             <p className="text-xs text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לג׳מה על פגישה.</p>
           )}
         </section>
+
+        {/* Export email modal */}
+        {exportUpdate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
+                <h3 className="text-sm font-bold text-gray-700">📤 ייצוא עדכון כמייל</h3>
+                <button onClick={() => setExportUpdate(null)} className="text-gray-400 hover:text-gray-600">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">נמען</label>
+                  <input
+                    type="text"
+                    placeholder="שם או מייל הנמען..."
+                    value={exportRecipient}
+                    onChange={(e) => setExportRecipient(e.target.value)}
+                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                    list="contact-suggestions"
+                  />
+                  <datalist id="contact-suggestions">
+                    {contacts.map((c, i) => (
+                      <option key={i} value={`${c.name}${c.email ? ` <${c.email}>` : ''}`} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">שפה</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setExportLang('he')}
+                      className={`flex-1 text-xs py-2 rounded-lg border transition-colors ${exportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                    >
+                      עברית
+                    </button>
+                    <button
+                      onClick={() => setExportLang('en')}
+                      className={`flex-1 text-xs py-2 rounded-lg border transition-colors ${exportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                    >
+                      English
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => generateExportEmail(exportUpdate, exportLang, exportRecipient)}
+                  disabled={exportLoading}
+                  className="w-full bg-[#1a56db] text-white text-xs font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {exportLoading ? 'ג׳מה מכינה את המייל...' : '✨ הפק מייל'}
+                </button>
+                {exportEmail && (
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-semibold text-gray-500">תוצאה</label>
+                    <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={exportLang === 'he' ? 'rtl' : 'ltr'}>
+                      {exportEmail}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(exportEmail);
+                          setExportCopied(true);
+                          setTimeout(() => setExportCopied(false), 2000);
+                        }}
+                        className="flex-1 text-xs py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
+                      >
+                        {exportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const subject = encodeURIComponent(exportUpdate.title || 'Project Update');
+                          const body = encodeURIComponent(exportEmail);
+                          window.open(`mailto:?subject=${subject}&body=${body}`);
+                        }}
+                        className="flex-1 text-xs py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
+                      >
+                        📧 פתח במייל
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Story & intelligence */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
