@@ -80,20 +80,32 @@ export default function ProjectsListPage() {
 
   const totalValue = filtered.reduce((sum, p) => sum + (p.order_value || 0), 0);
 
-  function getDeliveryMonths(projectId: string): number[] {
+  const currentYear = new Date().getFullYear();
+
+  function getAllDeliveryEntries(projectId: string): string[] {
     const det = projectDetails.find((d) => d.project_id === projectId);
     if (!det?.delivery_months_list) return [];
-    return det.delivery_months_list.split(',').filter(Boolean).map(Number);
+    return det.delivery_months_list.split(',').filter(Boolean);
   }
 
-  async function toggleMonth(projectId: string, month: number) {
-    const current = getDeliveryMonths(projectId);
-    const next = current.includes(month)
-      ? current.filter((m) => m !== month)
-      : [...current, month].sort((a, b) => a - b);
+  function getDeliveryMonthsForYear(projectId: string, year: number): number[] {
+    return getAllDeliveryEntries(projectId)
+      .filter((e) => e.startsWith(`${year}-`))
+      .map((e) => parseInt(e.split('-')[1]));
+  }
+
+  function hasEntry(projectId: string, year: number, month: number): boolean {
+    return getAllDeliveryEntries(projectId).includes(`${year}-${month}`);
+  }
+
+  async function toggleMonth(projectId: string, year: number, month: number) {
+    const entries = getAllDeliveryEntries(projectId);
+    const key = `${year}-${month}`;
+    const next = entries.includes(key)
+      ? entries.filter((e) => e !== key)
+      : [...entries, key].sort();
     const value = next.join(',') || null;
 
-    // Optimistic update
     setProjectDetails((prev) => {
       const exists = prev.find((d) => d.project_id === projectId);
       if (exists) {
@@ -102,7 +114,6 @@ export default function ProjectsListPage() {
       return [...prev, { project_id: projectId, delivery_months_list: value }];
     });
 
-    // Upsert to DB
     const { data: existing } = await supabase.from('project_details').select('id').eq('project_id', projectId).maybeSingle();
     if (existing) {
       await supabase.from('project_details').update({ delivery_months_list: value }).eq('project_id', projectId);
@@ -199,7 +210,7 @@ export default function ProjectsListPage() {
                   </thead>
                   <tbody>
                     {filtered.map((project, idx) => {
-                      const months = getDeliveryMonths(project.id);
+                      const currentYearMonths = getDeliveryMonthsForYear(project.id, currentYear);
 
                       return (
                         <tr
@@ -242,9 +253,9 @@ export default function ProjectsListPage() {
                               onClick={() => setMonthPickerOpen(monthPickerOpen === project.id ? null : project.id)}
                               className="w-full text-right"
                             >
-                              {months.length > 0 ? (
+                              {currentYearMonths.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {months.map((m) => (
+                                  {currentYearMonths.map((m) => (
                                     <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
                                       {MONTH_NAMES[m]}
                                     </span>
@@ -255,19 +266,26 @@ export default function ProjectsListPage() {
                               )}
                             </button>
                             {monthPickerOpen === project.id && (
-                              <div className="absolute top-full left-0 z-40 bg-white border border-[#e2e8f0] rounded-xl shadow-lg p-2 mt-1 w-[200px] grid grid-cols-3 gap-1">
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                  <button
-                                    key={m}
-                                    onClick={() => toggleMonth(project.id, m)}
-                                    className={`text-[10px] px-2 py-1.5 rounded-lg transition-colors ${
-                                      months.includes(m)
-                                        ? 'bg-[#1a56db] text-white'
-                                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                                    }`}
-                                  >
-                                    {MONTH_NAMES[m]}
-                                  </button>
+                              <div className="absolute top-full left-0 z-40 bg-white border border-[#e2e8f0] rounded-xl shadow-lg p-3 mt-1 w-[220px] space-y-3">
+                                {[currentYear, currentYear + 1].map((year) => (
+                                  <div key={year}>
+                                    <p className="text-[10px] font-bold text-gray-500 mb-1.5 text-center">{year}</p>
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                        <button
+                                          key={m}
+                                          onClick={() => toggleMonth(project.id, year, m)}
+                                          className={`text-[10px] px-2 py-1.5 rounded-lg transition-colors ${
+                                            hasEntry(project.id, year, m)
+                                              ? 'bg-[#1a56db] text-white'
+                                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                          }`}
+                                        >
+                                          {MONTH_NAMES[m]}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
                             )}

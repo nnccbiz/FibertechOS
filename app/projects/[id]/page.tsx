@@ -526,40 +526,59 @@ Do NOT return JSON — return plain text only.`;
 
           {/* Delivery months picker */}
           <div className="border-t border-[#e2e8f0] mt-4 pt-4">
-            <h3 className="text-xs font-bold text-gray-500 mb-2">חודשי אספקה</h3>
+            <h3 className="text-xs font-bold text-gray-500 mb-3">חודשי אספקה</h3>
             {editDates ? (
-              <div className="flex flex-wrap gap-1.5">
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-                  const selected = (detailForm.delivery_months_list || '').split(',').filter(Boolean).map(Number).includes(m);
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => {
-                        const current = (detailForm.delivery_months_list || '').split(',').filter(Boolean).map(Number);
-                        const next = selected ? current.filter((x: number) => x !== m) : [...current, m].sort((a: number, b: number) => a - b);
-                        updateDetailForm('delivery_months_list', next.join(','));
-                      }}
-                      className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
-                        selected
-                          ? 'bg-[#1a56db] text-white border-[#1a56db]'
-                          : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'
-                      }`}
-                    >
-                      {MONTH_NAMES[m]}
-                    </button>
-                  );
-                })}
+              <div className="space-y-4">
+                {[new Date().getFullYear(), new Date().getFullYear() + 1].map((year) => (
+                  <div key={year}>
+                    <p className="text-[11px] font-bold text-gray-400 mb-1.5">{year}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                        const key = `${year}-${m}`;
+                        const entries = (detailForm.delivery_months_list || '').split(',').filter(Boolean);
+                        const selected = entries.includes(key);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              const next = selected ? entries.filter((e: string) => e !== key) : [...entries, key].sort();
+                              updateDetailForm('delivery_months_list', next.join(','));
+                            }}
+                            className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
+                              selected
+                                ? 'bg-[#1a56db] text-white border-[#1a56db]'
+                                : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'
+                            }`}
+                          >
+                            {MONTH_NAMES[m]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {(d.delivery_months_list || '').split(',').filter(Boolean).map(Number).length > 0 ? (
-                  (d.delivery_months_list || '').split(',').filter(Boolean).map(Number).map((m: number) => (
-                    <span key={m} className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
-                      {MONTH_NAMES[m]}
-                    </span>
-                  ))
-                ) : (
+              <div className="space-y-2">
+                {[new Date().getFullYear(), new Date().getFullYear() + 1].map((year) => {
+                  const entries = (d.delivery_months_list || '').split(',').filter(Boolean);
+                  const yearMonths = entries.filter((e: string) => e.startsWith(`${year}-`)).map((e: string) => parseInt(e.split('-')[1]));
+                  if (yearMonths.length === 0) return null;
+                  return (
+                    <div key={year}>
+                      <p className="text-[10px] text-gray-400 mb-1">{year}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {yearMonths.map((m: number) => (
+                          <span key={m} className="text-[11px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
+                            {MONTH_NAMES[m]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!(d.delivery_months_list || '').split(',').filter(Boolean).length && (
                   <span className="text-xs text-gray-400">לא נבחרו חודשי אספקה</span>
                 )}
               </div>
