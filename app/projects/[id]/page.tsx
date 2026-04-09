@@ -92,6 +92,11 @@ export default function ProjectDetailPage() {
   const [exportEmail, setExportEmail] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
+  const [showProjectExport, setShowProjectExport] = useState(false);
+  const [projectExportLang, setProjectExportLang] = useState<'he' | 'en'>('he');
+  const [projectExportText, setProjectExportText] = useState('');
+  const [projectExportLoading, setProjectExportLoading] = useState(false);
+  const [projectExportCopied, setProjectExportCopied] = useState(false);
 
   // Edit states per section
   const [editInfo, setEditInfo] = useState(false);
@@ -193,6 +198,81 @@ Do NOT return JSON — return plain text only.`;
       setExportEmail(lang === 'he' ? 'שגיאה ביצירת המייל. נסה שוב.' : 'Error generating email. Please try again.');
     } finally {
       setExportLoading(false);
+    }
+  }
+
+  async function generateProjectExport(lang: 'he' | 'en') {
+    setProjectExportLoading(true);
+    setProjectExportText('');
+    try {
+      const d = details || {};
+      const projectInfo = `שם: ${project?.name || ''}
+יזם: ${project?.developer_name || ''}
+משרד תכנון: ${project?.planning_office || ''}
+מיקום: ${d.location || ''}
+סטטוס: ${d.project_status || ''}
+ערך הזמנה: ${project?.order_value || ''}
+קבלן זוכה: ${d.winning_contractor || ''}
+סוג פרויקט: ${d.project_type || ''}
+סוג התקנה: ${d.installation_type || ''}
+תיאור: ${d.description || project?.description || ''}
+סיפור הפרויקט: ${d.project_story || ''}`;
+
+      const contactsInfo = contacts.length > 0
+        ? contacts.map((c: any) => `${c.role}: ${c.name} (${c.phone || ''} ${c.email || ''})`).join('\n')
+        : 'אין';
+
+      const specsInfo = pipeSpecs.length > 0
+        ? pipeSpecs.map((s: any) => `DN${s.diameter_mm} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
+        : 'אין';
+
+      const updatesInfo = updates.length > 0
+        ? updates.slice(0, 5).map((u: any) => `${u.update_date}: ${u.title} (${u.people})`).join('\n')
+        : 'אין';
+
+      const prompt = lang === 'he'
+        ? `כתוב סיכום מקצועי ומקיף בעברית של הפרויקט הבא. הסיכום צריך לכלול: מידע כללי, אנשי קשר, מפרט צינורות, ועדכונים אחרונים. כתוב בצורה מסודרת ונקיה.
+
+פרטי הפרויקט:
+${projectInfo}
+
+אנשי קשר:
+${contactsInfo}
+
+מפרט צינורות:
+${specsInfo}
+
+עדכונים אחרונים:
+${updatesInfo}
+
+אל תחזיר JSON — החזר טקסט רגיל בלבד. כתוב סיכום מקצועי.`
+        : `Write a comprehensive professional summary in English of the following project. Include: general info, contacts, pipe specifications, and recent updates. Write in a clean, organized format.
+
+Project details:
+${projectInfo}
+
+Contacts:
+${contactsInfo}
+
+Pipe specifications:
+${specsInfo}
+
+Recent updates:
+${updatesInfo}
+
+Do NOT return JSON — return plain text only. Write a professional summary.`;
+
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: prompt }),
+      });
+      const data = await res.json();
+      setProjectExportText(data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data)));
+    } catch {
+      setProjectExportText(lang === 'he' ? 'שגיאה ביצירת הסיכום. נסה שוב.' : 'Error generating summary. Please try again.');
+    } finally {
+      setProjectExportLoading(false);
     }
   }
 
@@ -425,9 +505,17 @@ Do NOT return JSON — return plain text only.`;
             <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
             <p className="text-[13px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
           </div>
-          <button onClick={() => router.push('/projects/list')} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
-            ← חזרה לפרויקטים
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowProjectExport(true); setProjectExportText(''); setProjectExportCopied(false); }}
+              className="text-sm bg-blue-50 text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+            >
+              📤 ייצוא פרויקט
+            </button>
+            <button onClick={() => router.push('/projects/list')} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
+              ← חזרה לפרויקטים
+            </button>
+          </div>
         </div>
       </header>
 
@@ -936,6 +1024,85 @@ Do NOT return JSON — return plain text only.`;
           </div>
         </section>
       </div>
+
+      {/* Project export modal */}
+      {showProjectExport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProjectExport(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
+              <h3 className="text-lg font-bold text-gray-700">📤 ייצוא כרטיס פרויקט</h3>
+              <button onClick={() => setShowProjectExport(false)} className="text-gray-400 hover:text-gray-600">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-[12px] font-semibold text-gray-500 mb-1">שפה</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setProjectExportLang('he')}
+                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                  >
+                    עברית
+                  </button>
+                  <button
+                    onClick={() => setProjectExportLang('en')}
+                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => generateProjectExport(projectExportLang)}
+                disabled={projectExportLoading}
+                className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {projectExportLoading ? 'רקסי מכין את הסיכום...' : '✨ הפק סיכום פרויקט'}
+              </button>
+              {projectExportText && (
+                <div className="space-y-2">
+                  <label className="block text-[12px] font-semibold text-gray-500">תוצאה</label>
+                  <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={projectExportLang === 'he' ? 'rtl' : 'ltr'}>
+                    {projectExportText}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(projectExportText);
+                        setProjectExportCopied(true);
+                        setTimeout(() => setProjectExportCopied(false), 2000);
+                      }}
+                      className="flex-1 text-sm py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
+                    >
+                      {projectExportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const subject = encodeURIComponent(`${project?.name || 'Project'} - Summary`);
+                        const body = encodeURIComponent(projectExportText);
+                        window.open(`mailto:?subject=${subject}&body=${body}`);
+                      }}
+                      className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
+                    >
+                      📧 מייל
+                    </button>
+                    <button
+                      onClick={() => {
+                        const text = encodeURIComponent(projectExportText);
+                        window.open(`https://wa.me/?text=${text}`);
+                      }}
+                      className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-green-700 hover:bg-[#c5f0a4] transition-colors font-medium"
+                    >
+                      💬 וואטסאפ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
