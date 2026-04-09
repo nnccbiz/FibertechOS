@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { formatILS, MONTH_NAMES } from '@/lib/revenue';
 import KpiCard from '@/components/dashboard/KpiCard';
 import AlertsList from '@/components/dashboard/AlertsList';
 import ProjectsTable from '@/components/dashboard/ProjectsTable';
@@ -37,6 +38,10 @@ export default function DashboardPage() {
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [quickUpdate, setQuickUpdate] = useState({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' });
   const [savingUpdate, setSavingUpdate] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportCopied, setReportCopied] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -123,6 +128,154 @@ export default function DashboardPage() {
     } else {
       setShowQuickUpdate(false);
     }
+  }
+
+  async function openReport() {
+    setShowReport(true);
+    setReportLoading(true);
+    setReportCopied(false);
+    try {
+      const currentYear = new Date().getFullYear();
+      const yearStart = `${currentYear}-01-01`;
+      const yearEnd = `${currentYear}-12-31`;
+
+      const [projRes, detRes] = await Promise.all([
+        supabase.from('projects').select('id, name, developer_name, order_value, realization_status, probability_percent, order_execution_date, status'),
+        supabase.from('project_details').select('project_id, delivery_months_list'),
+      ]);
+
+      const allProj = projRes.data || [];
+      const allDet = detRes.data || [];
+      const detMap: Record<string, string> = {};
+      allDet.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
+
+      // 1. Orders completed this year (realization_status = 'הזמנה')
+      const orders = allProj.filter((p: any) =>
+        p.realization_status === 'הזמנה' &&
+        p.order_execution_date &&
+        p.order_execution_date >= yearStart &&
+        p.order_execution_date <= yearEnd
+      );
+      const totalOrders = orders.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
+
+      // 2. 100% certain (realization_status = 'הזמנה') — all, not just this year
+      const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
+      const totalCertain = certain.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
+
+      // 3. High probability (realization_status = 'גבוהה')
+      const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה');
+      const totalHighProb = highProb.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
+
+      // 4. Expected deliveries this year by month
+      const deliveriesByMonth: Record<number, { total: number; projects: { name: string; value: number }[] }> = {};
+      for (let m = 1; m <= 12; m++) deliveriesByMonth[m] = { total: 0, projects: [] };
+
+      allProj.forEach((p: any) => {
+        const monthsList = detMap[p.id];
+        if (!monthsList) return;
+        const entries = monthsList.split(',').filter(Boolean);
+        const thisYearMonths = entries
+          .filter((e: string) => e.startsWith(`${currentYear}-`))
+          .map((e: string) => parseInt(e.split('-')[1]));
+
+        if (thisYearMonths.length === 0) return;
+        const perMonth = (p.order_value || 0) / thisYearMonths.length;
+        thisYearMonths.forEach((m: number) => {
+          deliveriesByMonth[m].total += perMonth;
+          deliveriesByMonth[m].projects.push({ name: p.name, value: perMonth });
+        });
+      });
+
+      const totalExpectedDeliveries = Object.values(deliveriesByMonth).reduce((s, m) => s + m.total, 0);
+
+      setReportData({
+        currentYear,
+        orders,
+        totalOrders,
+        certain,
+        totalCertain,
+        highProb,
+        totalHighProb,
+        deliveriesByMonth,
+        totalExpectedDeliveries,
+      });
+    } catch (err: any) {
+      console.error('Report error:', err);
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+  function generateReportText() {
+    if (!reportData) return '';
+    const r = reportData;
+    const fmtILS = (v: number) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
+
+    let text = `📊 דוח הנהלה — ${r.currentYear}\n`;
+    text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
+    text += `${'═'.repeat(40)}\n\n`;
+
+    text += `📋 הזמנות שנכנסו השנה (${r.currentYear})\n`;
+    text += `${'─'.repeat(30)}\n`;
+    if (r.orders.length > 0) {
+      r.orders.forEach((p: any) => {
+        text += `• ${p.name} — ${fmtILS(p.order_value || 0)}`;
+        if (p.order_execution_date) text += ` (${p.order_execution_date})`;
+        text += '\n';
+      });
+      text += `סה"כ הזמנות השנה: ${fmtILS(r.totalOrders)}\n`;
+    } else {
+      text += `אין הזמנות עד כה\n`;
+    }
+
+    text += `\n💯 פרויקטים בסטטוס "הזמנה" (100%)\n`;
+    text += `${'─'.repeat(30)}\n`;
+    r.certain.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
+    text += `סה"כ: ${fmtILS(r.totalCertain)}\n`;
+
+    text += `\n📈 פרויקטים בהסתברות גבוהה\n`;
+    text += `${'─'.repeat(30)}\n`;
+    if (r.highProb.length > 0) {
+      r.highProb.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
+      text += `סה"כ צפוי: ${fmtILS(r.totalHighProb)}\n`;
+    } else {
+      text += `אין פרויקטים בהסתברות גבוהה\n`;
+    }
+
+    text += `\n🚚 אספקות (חשבוניות) צפויות עד סוף ${r.currentYear}\n`;
+    text += `${'─'.repeat(30)}\n`;
+    for (let m = 1; m <= 12; m++) {
+      const md = r.deliveriesByMonth[m];
+      if (md.total > 0) {
+        text += `${MONTH_NAMES[m]}: ${fmtILS(Math.round(md.total))}`;
+        if (md.projects.length <= 3) {
+          text += ` (${md.projects.map((p: any) => p.name).join(', ')})`;
+        }
+        text += '\n';
+      }
+    }
+    text += `סה"כ אספקות צפויות: ${fmtILS(Math.round(r.totalExpectedDeliveries))}\n`;
+
+    return text;
+  }
+
+  function copyReport() {
+    const text = generateReportText();
+    navigator.clipboard.writeText(text);
+    setReportCopied(true);
+    setTimeout(() => setReportCopied(false), 2000);
+  }
+
+  function emailReport() {
+    const text = generateReportText();
+    const subject = encodeURIComponent(`דוח הנהלה — ${reportData?.currentYear}`);
+    const body = encodeURIComponent(text);
+    window.open(`mailto:?subject=${subject}&body=${body}`);
+  }
+
+  function whatsappReport() {
+    const text = generateReportText();
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
   }
 
   const filteredProjects = allProjects.filter((p) => {
@@ -234,7 +387,10 @@ export default function DashboardPage() {
               <span>📝</span>
               <span>עדכון פרויקט</span>
             </button>
-            <button className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+            <button
+              onClick={openReport}
+              className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+            >
               <span>📈</span>
               <span>יצירת דוחות</span>
             </button>
@@ -403,6 +559,190 @@ export default function DashboardPage() {
                       {savingUpdate ? 'שומר...' : 'שמור עדכון'}
                     </button>
                   </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Management Report Modal */}
+        {showReport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowReport(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-gray-700">📊 דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
+                <div className="flex items-center gap-2">
+                  {reportData && (
+                    <>
+                      <button onClick={copyReport} className="text-sm bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                        {reportCopied ? '✓ הועתק' : '📋 העתק'}
+                      </button>
+                      <button onClick={emailReport} className="text-sm bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
+                        📧 מייל
+                      </button>
+                      <button onClick={whatsappReport} className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors">
+                        💬 WhatsApp
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setShowReport(false)} className="text-gray-400 hover:text-gray-600 mr-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
+                {reportLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="text-center space-y-3">
+                      <div className="w-10 h-10 border-4 border-[#1a56db] border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-sm text-gray-500">טוען נתונים...</p>
+                    </div>
+                  </div>
+                ) : reportData ? (
+                  <>
+                    {/* Summary cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-green-600 font-semibold">הזמנות השנה</p>
+                        <p className="text-lg font-bold text-green-700">{formatILS(reportData.totalOrders)}</p>
+                        <p className="text-[11px] text-green-500">{reportData.orders.length} פרויקטים</p>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-blue-600 font-semibold">סה"כ הזמנות (100%)</p>
+                        <p className="text-lg font-bold text-blue-700">{formatILS(reportData.totalCertain)}</p>
+                        <p className="text-[11px] text-blue-500">{reportData.certain.length} פרויקטים</p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-purple-600 font-semibold">הסתברות גבוהה</p>
+                        <p className="text-lg font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
+                        <p className="text-[11px] text-purple-500">{reportData.highProb.length} פרויקטים</p>
+                      </div>
+                      <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-orange-600 font-semibold">אספקות צפויות</p>
+                        <p className="text-lg font-bold text-orange-700">{formatILS(Math.round(reportData.totalExpectedDeliveries))}</p>
+                        <p className="text-[11px] text-orange-500">עד סוף {reportData.currentYear}</p>
+                      </div>
+                    </div>
+
+                    {/* Orders this year */}
+                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span>📋</span> הזמנות שנכנסו ב-{reportData.currentYear}
+                      </h4>
+                      {reportData.orders.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {reportData.orders.map((p: any) => (
+                            <div key={p.id} className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">{p.name}</p>
+                                {p.developer_name && <p className="text-[11px] text-gray-400">{p.developer_name}</p>}
+                              </div>
+                              <div className="text-left">
+                                <p className="text-sm font-bold text-green-700">{formatILS(p.order_value || 0)}</p>
+                                {p.order_execution_date && <p className="text-[11px] text-gray-400">{p.order_execution_date}</p>}
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-2 border-t border-green-100">
+                            <p className="text-sm font-bold text-gray-700">סה"כ</p>
+                            <p className="text-sm font-bold text-green-700">{formatILS(reportData.totalOrders)}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 text-center py-3">אין הזמנות עד כה</p>
+                      )}
+                    </div>
+
+                    {/* 100% Certain */}
+                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span>💯</span> פרויקטים בסטטוס "הזמנה" (100%)
+                      </h4>
+                      {reportData.certain.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {reportData.certain.map((p: any) => (
+                            <div key={p.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-gray-700">{p.name}</p>
+                              <p className="text-sm font-bold text-blue-700">{formatILS(p.order_value || 0)}</p>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                            <p className="text-sm font-bold text-gray-700">סה"כ</p>
+                            <p className="text-sm font-bold text-blue-700">{formatILS(reportData.totalCertain)}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 text-center py-3">אין פרויקטים בסטטוס הזמנה</p>
+                      )}
+                    </div>
+
+                    {/* High probability */}
+                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span>📈</span> פרויקטים בהסתברות גבוהה
+                      </h4>
+                      {reportData.highProb.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {reportData.highProb.map((p: any) => (
+                            <div key={p.id} className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-gray-700">{p.name}</p>
+                              <p className="text-sm font-bold text-purple-700">{formatILS(p.order_value || 0)}</p>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-2 border-t border-purple-100">
+                            <p className="text-sm font-bold text-gray-700">סה"כ צפוי</p>
+                            <p className="text-sm font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 text-center py-3">אין פרויקטים בהסתברות גבוהה</p>
+                      )}
+                    </div>
+
+                    {/* Expected deliveries by month */}
+                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span>🚚</span> אספקות (חשבוניות) צפויות עד סוף {reportData.currentYear}
+                      </h4>
+                      <div className="space-y-1.5">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
+                          const md = reportData.deliveriesByMonth[m];
+                          if (!md || md.total === 0) return null;
+                          const isPast = m < new Date().getMonth() + 1;
+                          return (
+                            <div key={m} className={`rounded-lg px-3 py-2 ${isPast ? 'bg-gray-50' : 'bg-orange-50'}`}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-bold ${isPast ? 'text-gray-500' : 'text-orange-700'}`}>{MONTH_NAMES[m]}</span>
+                                  {isPast && <span className="text-[10px] text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">עבר</span>}
+                                </div>
+                                <span className={`text-sm font-bold ${isPast ? 'text-gray-500' : 'text-orange-700'}`}>{formatILS(Math.round(md.total))}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {md.projects.map((p: any, i: number) => (
+                                  <span key={i} className="text-[11px] text-gray-500 bg-white border border-gray-200 rounded px-1.5 py-0.5">{p.name}</span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {Object.values(reportData.deliveriesByMonth).every((m: any) => m.total === 0) && (
+                          <p className="text-sm text-gray-400 text-center py-3">אין אספקות צפויות (לא הוגדרו חודשי אספקה)</p>
+                        )}
+                      </div>
+                      {reportData.totalExpectedDeliveries > 0 && (
+                        <div className="flex items-center justify-between pt-3 mt-3 border-t border-orange-100">
+                          <p className="text-sm font-bold text-gray-700">סה"כ אספקות צפויות</p>
+                          <p className="text-sm font-bold text-orange-700">{formatILS(Math.round(reportData.totalExpectedDeliveries))}</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-red-500 text-center py-8">שגיאה בטעינת הדוח</p>
                 )}
               </div>
             </div>
