@@ -43,6 +43,8 @@ export default function ProjectsListPage() {
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [monthPickerOpen, setMonthPickerOpen] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   async function fetchData() {
     try {
@@ -120,6 +122,28 @@ export default function ProjectsListPage() {
     } else {
       await supabase.from('project_details').insert({ project_id: projectId, delivery_months_list: value });
     }
+  }
+
+  function startEdit(projectId: string, field: string, currentValue: string) {
+    setEditingCell({ id: projectId, field });
+    setEditValue(currentValue);
+  }
+
+  async function saveInlineEdit(projectId: string, field: string, value: string) {
+    setEditingCell(null);
+    const updateData: any = {};
+    if (field === 'probability_percent') {
+      updateData.probability_percent = value ? parseInt(value) : null;
+    } else if (field === 'order_value') {
+      updateData.order_value = value ? parseFloat(value) : null;
+    } else if (field === 'order_execution_date') {
+      updateData.order_execution_date = value || null;
+    } else if (field === 'realization_status') {
+      updateData.realization_status = value;
+    }
+    updateData.last_updated_at = new Date().toISOString();
+    setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, ...updateData } : p));
+    await supabase.from('projects').update(updateData).eq('id', projectId);
   }
 
   return (
@@ -228,25 +252,60 @@ export default function ProjectsListPage() {
                           <td className="py-2 px-2 text-gray-600 whitespace-nowrap">{project.planning_office || '—'}</td>
                           <td className="py-2 px-2 font-semibold text-gray-800">{project.name}</td>
                           <td className="py-2 px-2 text-gray-500 max-w-[150px] truncate">{project.description || '—'}</td>
-                          <td className="py-2 px-2 text-center">
-                            <span className="text-[13px] font-bold text-gray-700">
-                              {project.probability_percent != null ? `${project.probability_percent}%` : '—'}
-                            </span>
+                          <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            {editingCell?.id === project.id && editingCell?.field === 'probability_percent' ? (
+                              <input type="number" min="0" max="100" value={editValue} onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => saveInlineEdit(project.id, 'probability_percent', editValue)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveInlineEdit(project.id, 'probability_percent', editValue)}
+                                className="w-16 text-center border border-[#1a56db] rounded px-1 py-0.5 text-sm focus:outline-none" autoFocus dir="ltr" />
+                            ) : (
+                              <span className="text-[13px] font-bold text-gray-700 cursor-pointer hover:text-[#1a56db]"
+                                onClick={() => startEdit(project.id, 'probability_percent', String(project.probability_percent ?? ''))}>
+                                {project.probability_percent != null ? `${project.probability_percent}%` : '—'}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2 px-2 font-semibold text-gray-800 whitespace-nowrap">
-                            {formatILS(project.order_value)}
+                          <td className="py-2 px-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            {editingCell?.id === project.id && editingCell?.field === 'order_value' ? (
+                              <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => saveInlineEdit(project.id, 'order_value', editValue)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveInlineEdit(project.id, 'order_value', editValue)}
+                                className="w-24 border border-[#1a56db] rounded px-1 py-0.5 text-sm focus:outline-none" autoFocus dir="ltr" />
+                            ) : (
+                              <span className="font-semibold text-gray-800 cursor-pointer hover:text-[#1a56db]"
+                                onClick={() => startEdit(project.id, 'order_value', String(project.order_value || ''))}>
+                                {formatILS(project.order_value)}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2 px-2 text-center text-gray-600 whitespace-nowrap">
-                            {project.order_execution_date
-                              ? new Date(project.order_execution_date).toLocaleDateString('he-IL')
-                              : '—'}
+                          <td className="py-2 px-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            {editingCell?.id === project.id && editingCell?.field === 'order_execution_date' ? (
+                              <input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => saveInlineEdit(project.id, 'order_execution_date', editValue)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveInlineEdit(project.id, 'order_execution_date', editValue)}
+                                className="border border-[#1a56db] rounded px-1 py-0.5 text-sm focus:outline-none" autoFocus />
+                            ) : (
+                              <span className="text-gray-600 cursor-pointer hover:text-[#1a56db]"
+                                onClick={() => startEdit(project.id, 'order_execution_date', project.order_execution_date?.substring(0, 10) || '')}>
+                                {project.order_execution_date ? new Date(project.order_execution_date).toLocaleDateString('he-IL') : '—'}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2 px-2 text-center">
-                            <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
-                              STATUS_COLORS[project.realization_status] || 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {project.realization_status || '—'}
-                            </span>
+                          <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            {editingCell?.id === project.id && editingCell?.field === 'realization_status' ? (
+                              <select value={editValue} onChange={(e) => saveInlineEdit(project.id, 'realization_status', e.target.value)}
+                                onBlur={() => setEditingCell(null)}
+                                className="border border-[#1a56db] rounded px-1 py-0.5 text-sm focus:outline-none" autoFocus>
+                                <option value="">—</option>
+                                {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            ) : (
+                              <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${
+                                STATUS_COLORS[project.realization_status] || 'bg-gray-100 text-gray-600'
+                              }`} onClick={() => startEdit(project.id, 'realization_status', project.realization_status || '')}>
+                                {project.realization_status || '—'}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 px-2 relative" onClick={(e) => e.stopPropagation()}>
                             <button
