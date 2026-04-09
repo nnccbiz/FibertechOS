@@ -254,7 +254,7 @@ export default function ProjectsListPage() {
                               className="w-full text-right"
                             >
                               {currentYearMonths.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1 flex-row-reverse justify-end">
                                   {currentYearMonths.map((m) => (
                                     <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
                                       {MONTH_NAMES[m]}
