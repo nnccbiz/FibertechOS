@@ -6,12 +6,70 @@ import { supabase } from '@/lib/supabase';
 import StatusTracker from '@/components/projects/StatusTracker';
 
 function formatDate(d: string | null) {
-  if (!d) return '—';
+  if (!d) return '';
   return new Date(d).toLocaleDateString('he-IL');
+}
+
+function formatDateInput(d: string | null) {
+  if (!d) return '';
+  return d.substring(0, 10);
 }
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
+}
+
+interface EditableFieldProps {
+  label: string;
+  value: string;
+  editing: boolean;
+  type?: 'text' | 'date' | 'number' | 'textarea' | 'select';
+  options?: string[];
+  onChange: (val: string) => void;
+}
+
+function EditableField({ label, value, editing, type = 'text', options, onChange }: EditableFieldProps) {
+  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+
+  return (
+    <div className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
+      <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{label}</span>
+      {editing ? (
+        type === 'textarea' ? (
+          <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-[60px]`} />
+        ) : type === 'select' && options ? (
+          <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+            <option value="">—</option>
+            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
+        )
+      ) : (
+        <span className="text-xs font-medium text-gray-800">{value || '—'}</span>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ title, icon, editing, onToggle, onSave, saving }: {
+  title: string; icon: string; editing: boolean; onToggle: () => void; onSave: () => void; saving: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-sm font-bold text-gray-700">{icon} {title}</h2>
+      <div className="flex gap-2">
+        {editing && (
+          <button onClick={onSave} disabled={saving} className="text-[11px] bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {saving ? 'שומר...' : 'שמור'}
+          </button>
+        )}
+        <button onClick={onToggle} className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${editing ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+          {editing ? 'ביטול' : 'עריכה'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ProjectDetailPage() {
@@ -22,31 +80,246 @@ export default function ProjectDetailPage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Edit states per section
+  const [editInfo, setEditInfo] = useState(false);
+  const [editDates, setEditDates] = useState(false);
+  const [editType, setEditType] = useState(false);
+  const [editStory, setEditStory] = useState(false);
+  const [editContacts, setEditContacts] = useState(false);
+  const [editSpecs, setEditSpecs] = useState(false);
+
+  // Editable form data
+  const [form, setForm] = useState<any>({});
+  const [detailForm, setDetailForm] = useState<any>({});
+  const [contactsForm, setContactsForm] = useState<any[]>([]);
+  const [specsForm, setSpecsForm] = useState<any[]>([]);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const id = params.id as string;
-
-        const [projRes, detRes, conRes, specRes] = await Promise.all([
-          supabase.from('projects').select('*').eq('id', id).single(),
-          supabase.from('project_details').select('*').eq('project_id', id).single(),
-          supabase.from('project_contacts').select('*').eq('project_id', id),
-          supabase.from('pipe_specs').select('*').eq('project_id', id),
-        ]);
-
-        if (projRes.data) setProject(projRes.data);
-        if (detRes.data) setDetails(detRes.data);
-        if (conRes.data) setContacts(conRes.data);
-        if (specRes.data) setPipeSpecs(specRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
     load();
   }, [params.id]);
+
+  async function load() {
+    try {
+      const id = params.id as string;
+      const [projRes, detRes, conRes, specRes] = await Promise.all([
+        supabase.from('projects').select('*').eq('id', id).single(),
+        supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
+        supabase.from('project_contacts').select('*').eq('project_id', id),
+        supabase.from('pipe_specs').select('*').eq('project_id', id),
+      ]);
+
+      const proj = projRes.data;
+      const det = detRes.data || {};
+      const cons = conRes.data || [];
+      const specs = specRes.data || [];
+
+      setProject(proj);
+      setDetails(det);
+      setContacts(cons);
+      setPipeSpecs(specs);
+
+      if (proj) setForm({ ...proj });
+      setDetailForm({ ...det });
+      setContactsForm(cons.map((c: any) => ({ ...c })));
+      setSpecsForm(specs.map((s: any) => ({ ...s })));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateForm(key: string, val: any) {
+    setForm((prev: any) => ({ ...prev, [key]: val }));
+  }
+
+  function updateDetailForm(key: string, val: any) {
+    setDetailForm((prev: any) => ({ ...prev, [key]: val }));
+  }
+
+  async function saveInfo() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      await supabase.from('projects').update({
+        name: form.name,
+        order_value: form.order_value ? parseFloat(form.order_value) : null,
+        developer_name: form.developer_name,
+        planning_office: form.planning_office,
+        description: form.description,
+        probability_percent: form.probability_percent ? parseInt(form.probability_percent) : 0,
+        realization_status: form.realization_status,
+        delivery_months: form.delivery_months ? parseInt(form.delivery_months) : null,
+        status: form.status,
+        last_updated_at: new Date().toISOString(),
+      }).eq('id', id);
+
+      // Upsert project_details
+      const detailData = {
+        project_id: id,
+        location: detailForm.location,
+        project_number: detailForm.project_number ? parseInt(detailForm.project_number) : null,
+        ordering_entity: detailForm.ordering_entity,
+        responsible_party: detailForm.responsible_party,
+      };
+
+      if (detailForm.id) {
+        await supabase.from('project_details').update(detailData).eq('id', detailForm.id);
+      } else {
+        await supabase.from('project_details').insert(detailData);
+      }
+
+      setEditInfo(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveDates() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      const data = {
+        project_id: id,
+        order_received_date: detailForm.order_received_date || null,
+        approved_order_date: detailForm.approved_order_date || null,
+        pipe_installation_start: detailForm.pipe_installation_start || null,
+        tender_submission_date: detailForm.tender_submission_date || null,
+        winning_contractor: detailForm.winning_contractor,
+        winning_date: detailForm.winning_date || null,
+        expected_pipe_order_date: detailForm.expected_pipe_order_date || null,
+      };
+
+      if (detailForm.id) {
+        await supabase.from('project_details').update(data).eq('id', detailForm.id);
+      } else {
+        await supabase.from('project_details').insert(data);
+      }
+
+      setEditDates(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveType() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      const data = {
+        project_id: id,
+        description: detailForm.description,
+        project_type: detailForm.project_type,
+        installation_type: detailForm.installation_type,
+        special_requirements: detailForm.special_requirements,
+        field_supervision: detailForm.field_supervision,
+        soil_type: detailForm.soil_type,
+        push_depth: detailForm.push_depth,
+        manhole_type: detailForm.manhole_type,
+        connection_method: detailForm.connection_method,
+      };
+
+      if (detailForm.id) {
+        await supabase.from('project_details').update(data).eq('id', detailForm.id);
+      } else {
+        await supabase.from('project_details').insert(data);
+      }
+
+      setEditType(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveStory() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      const data = {
+        project_id: id,
+        project_story: detailForm.project_story,
+        competitors: detailForm.competitors,
+        assessments: detailForm.assessments,
+        politics: detailForm.politics,
+      };
+
+      if (detailForm.id) {
+        await supabase.from('project_details').update(data).eq('id', detailForm.id);
+      } else {
+        await supabase.from('project_details').insert(data);
+      }
+
+      setEditStory(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveContacts() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      // Delete existing and re-insert
+      await supabase.from('project_contacts').delete().eq('project_id', id);
+      const valid = contactsForm.filter((c) => c.name?.trim());
+      if (valid.length > 0) {
+        await supabase.from('project_contacts').insert(
+          valid.map((c) => ({
+            project_id: id,
+            role: c.role || '',
+            name: c.name,
+            phone: c.phone || '',
+            email: c.email || '',
+          }))
+        );
+      }
+      setEditContacts(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSpecs() {
+    setSaving(true);
+    try {
+      const id = params.id as string;
+      await supabase.from('pipe_specs').delete().eq('project_id', id);
+      const valid = specsForm.filter((s) => s.diameter_mm);
+      if (valid.length > 0) {
+        await supabase.from('pipe_specs').insert(
+          valid.map((s) => ({
+            project_id: id,
+            diameter_mm: parseInt(s.diameter_mm),
+            line_length_m: s.line_length_m ? parseFloat(s.line_length_m) : null,
+            unit_length_m: s.unit_length_m ? parseFloat(s.unit_length_m) : null,
+            stiffness_pascal: s.stiffness_pascal ? parseInt(s.stiffness_pascal) : null,
+            pressure_bar: s.pressure_bar ? parseFloat(s.pressure_bar) : null,
+            notes: s.notes || '',
+          }))
+        );
+      }
+      setEditSpecs(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelEdit(section: string) {
+    if (section === 'info') { setForm({ ...project }); setDetailForm({ ...details }); setEditInfo(false); }
+    if (section === 'dates') { setDetailForm({ ...details }); setEditDates(false); }
+    if (section === 'type') { setDetailForm({ ...details }); setEditType(false); }
+    if (section === 'story') { setDetailForm({ ...details }); setEditStory(false); }
+    if (section === 'contacts') { setContactsForm(contacts.map((c) => ({ ...c }))); setEditContacts(false); }
+    if (section === 'specs') { setSpecsForm(pipeSpecs.map((s) => ({ ...s }))); setEditSpecs(false); }
+  }
 
   if (loading) {
     return (
@@ -64,48 +337,17 @@ export default function ProjectDetailPage() {
       <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center" dir="rtl">
         <div className="text-center">
           <p className="text-gray-500">פרויקט לא נמצא</p>
-          <button onClick={() => router.push('/')} className="text-sm text-[#1a56db] hover:underline mt-2">
-            חזרה לדשבורד
+          <button onClick={() => router.push('/projects/list')} className="text-sm text-[#1a56db] hover:underline mt-2">
+            חזרה לפרויקטים
           </button>
         </div>
       </div>
     );
   }
 
-  const d = details || {};
-
-  const infoRows = [
-    { label: 'שם הפרויקט', value: project.name },
-    { label: 'מיקום', value: d.location },
-    { label: 'מספר פרויקט פיברטק', value: d.project_number },
-    { label: 'מזמין הפרויקט', value: d.ordering_entity },
-    { label: 'הגורם שהפרויקט באחריותו', value: d.responsible_party },
-    { label: 'ערך הזמנה', value: project.order_value ? formatCurrency(project.order_value) : null },
-  ];
-
-  const dateRows = [
-    { label: 'תאריך קבלת ההזמנה', value: formatDate(d.order_received_date) },
-    { label: 'תאריך ההזמנה המאושרת', value: formatDate(d.approved_order_date) },
-    { label: 'תאריך התחלת הנחת צנרת', value: formatDate(d.pipe_installation_start) },
-    { label: 'מועד הגשת המכרז', value: formatDate(d.tender_submission_date) },
-    { label: 'קבלן זוכה', value: d.winning_contractor },
-    { label: 'תאריך הכרזה', value: formatDate(d.winning_date) },
-  ];
-
-  const projectRows = [
-    { label: 'תיאור הפרויקט', value: d.description },
-    { label: 'סוג פרויקט', value: d.project_type },
-    { label: 'סוג התקנה', value: d.installation_type },
-    { label: 'דרישות מיוחדות לצנרת', value: d.special_requirements },
-    { label: 'פיקוח שרות שדה', value: d.field_supervision },
-  ];
-
-  const pushRows = d.installation_type === 'דחיקה' ? [
-    { label: 'סוג הקרקע באתר הדחיקה', value: d.soil_type },
-    { label: 'עומק הדחיקה', value: d.push_depth },
-    { label: 'סוג השוחות', value: d.manhole_type },
-    { label: 'אופן התחברות לשוחות', value: d.connection_method },
-  ] : [];
+  const d = detailForm;
+  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
     <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
@@ -113,10 +355,10 @@ export default function ProjectDetailPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-800">{project.name}</h1>
-            <p className="text-[11px] text-gray-400">כרטיס פרויקט #{d.project_number || '—'}</p>
+            <p className="text-[11px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
           </div>
-          <button onClick={() => router.push('/')} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">
-            ← חזרה לדשבורד
+          <button onClick={() => router.push('/projects/list')} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">
+            ← חזרה לפרויקטים
           </button>
         </div>
       </header>
@@ -125,9 +367,18 @@ export default function ProjectDetailPage() {
         {/* Status */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <h2 className="text-sm font-bold text-gray-700 mb-3">📌 סטטוס</h2>
-          <StatusTracker currentStatus={d.project_status || 'תכנון כללי'} onChange={() => {}} />
-
-          {/* Expected pipe order highlight */}
+          <StatusTracker
+            currentStatus={d.project_status || 'תכנון כללי'}
+            onChange={async (status) => {
+              const id = params.id as string;
+              if (detailForm.id) {
+                await supabase.from('project_details').update({ project_status: status }).eq('id', detailForm.id);
+              } else {
+                await supabase.from('project_details').insert({ project_id: id, project_status: status });
+              }
+              await load();
+            }}
+          />
           {d.expected_pipe_order_date && (
             <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
               <span className="text-lg">📦</span>
@@ -141,34 +392,58 @@ export default function ProjectDetailPage() {
 
         {/* Basic info */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">🏗️ מידע בסיסי</h2>
+          <SectionHeader title="מידע בסיסי" icon="🏗️" editing={editInfo} onToggle={() => editInfo ? cancelEdit('info') : setEditInfo(true)} onSave={saveInfo} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {infoRows.map((row) => (
-              <div key={row.label} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-                <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{row.label}</span>
-                <span className="text-xs font-medium text-gray-800">{row.value || '—'}</span>
-              </div>
-            ))}
+            <EditableField label="שם הפרויקט" value={form.name || ''} editing={editInfo} onChange={(v) => updateForm('name', v)} />
+            <EditableField label="יזם" value={form.developer_name || ''} editing={editInfo} onChange={(v) => updateForm('developer_name', v)} />
+            <EditableField label="משרד תכנון" value={form.planning_office || ''} editing={editInfo} onChange={(v) => updateForm('planning_office', v)} />
+            <EditableField label="מיקום" value={d.location || ''} editing={editInfo} onChange={(v) => updateDetailForm('location', v)} />
+            <EditableField label="מספר פרויקט" value={String(d.project_number || '')} editing={editInfo} type="number" onChange={(v) => updateDetailForm('project_number', v)} />
+            <EditableField label="מזמין הפרויקט" value={d.ordering_entity || ''} editing={editInfo} onChange={(v) => updateDetailForm('ordering_entity', v)} />
+            <EditableField label="אחראי פרויקט" value={d.responsible_party || ''} editing={editInfo} onChange={(v) => updateDetailForm('responsible_party', v)} />
+            <EditableField label="ערך הזמנה" value={editInfo ? String(form.order_value || '') : (form.order_value ? formatCurrency(form.order_value) : '')} editing={editInfo} type="number" onChange={(v) => updateForm('order_value', v)} />
+            <EditableField label="סטטוס פרויקט" value={form.status || ''} editing={editInfo} onChange={(v) => updateForm('status', v)} />
+            <EditableField label="סטטוס הסתברות" value={form.realization_status || ''} editing={editInfo} type="select" options={['הזמנה', 'גבוהה', 'בינוני', 'נמוך']} onChange={(v) => updateForm('realization_status', v)} />
+            <EditableField label="הסתברות %" value={String(form.probability_percent || '')} editing={editInfo} type="number" onChange={(v) => updateForm('probability_percent', v)} />
+            <EditableField label="חודשי אספקה" value={String(form.delivery_months || '')} editing={editInfo} type="number" onChange={(v) => updateForm('delivery_months', v)} />
+            <EditableField label="תיאור" value={form.description || ''} editing={editInfo} type="textarea" onChange={(v) => updateForm('description', v)} />
           </div>
         </section>
 
         {/* Dates */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">📅 תאריכים</h2>
+          <SectionHeader title="תאריכים" icon="📅" editing={editDates} onToggle={() => editDates ? cancelEdit('dates') : setEditDates(true)} onSave={saveDates} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {dateRows.map((row) => (
-              <div key={row.label} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-                <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{row.label}</span>
-                <span className="text-xs font-medium text-gray-800">{row.value || '—'}</span>
-              </div>
-            ))}
+            <EditableField label="תאריך קבלת ההזמנה" value={editDates ? formatDateInput(d.order_received_date) : formatDate(d.order_received_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('order_received_date', v)} />
+            <EditableField label="תאריך ההזמנה המאושרת" value={editDates ? formatDateInput(d.approved_order_date) : formatDate(d.approved_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('approved_order_date', v)} />
+            <EditableField label="תאריך התחלת הנחת צנרת" value={editDates ? formatDateInput(d.pipe_installation_start) : formatDate(d.pipe_installation_start)} editing={editDates} type="date" onChange={(v) => updateDetailForm('pipe_installation_start', v)} />
+            <EditableField label="מועד הגשת המכרז" value={editDates ? formatDateInput(d.tender_submission_date) : formatDate(d.tender_submission_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('tender_submission_date', v)} />
+            <EditableField label="קבלן זוכה" value={d.winning_contractor || ''} editing={editDates} onChange={(v) => updateDetailForm('winning_contractor', v)} />
+            <EditableField label="תאריך הכרזה" value={editDates ? formatDateInput(d.winning_date) : formatDate(d.winning_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('winning_date', v)} />
+            <EditableField label="צפי מועד להזמנת צנרת" value={editDates ? formatDateInput(d.expected_pipe_order_date) : formatDate(d.expected_pipe_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('expected_pipe_order_date', v)} />
           </div>
         </section>
 
         {/* Contacts */}
-        {contacts.length > 0 && (
-          <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">👥 אנשי קשר</h2>
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <SectionHeader title="אנשי קשר" icon="👥" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
+          {editContacts ? (
+            <div className="space-y-2">
+              {contactsForm.map((c, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-28`}>
+                    <option value="">תפקיד</option>
+                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <input type="text" placeholder="שם" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
+                  <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-32`} dir="ltr" />
+                  <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
+                  <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                </div>
+              ))}
+              <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+            </div>
+          ) : contacts.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -191,39 +466,53 @@ export default function ProjectDetailPage() {
                 </tbody>
               </table>
             </div>
-          </section>
-        )}
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-3">אין אנשי קשר. לחץ עריכה להוסיף.</p>
+          )}
+        </section>
 
         {/* Project type & installation */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">⚙️ סוג פרויקט והתקנה</h2>
+          <SectionHeader title="סוג פרויקט והתקנה" icon="⚙️" editing={editType} onToggle={() => editType ? cancelEdit('type') : setEditType(true)} onSave={saveType} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {projectRows.map((row) => (
-              <div key={row.label} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-                <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{row.label}</span>
-                <span className="text-xs font-medium text-gray-800">{row.value || '—'}</span>
-              </div>
-            ))}
+            <EditableField label="תיאור הפרויקט" value={d.description || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('description', v)} />
+            <EditableField label="סוג פרויקט" value={d.project_type || ''} editing={editType} type="select" options={['ביוב', 'מים', 'תשתית', 'ניקוז', 'קולחין', 'בוצה', 'אחר']} onChange={(v) => updateDetailForm('project_type', v)} />
+            <EditableField label="סוג התקנה" value={d.installation_type || ''} editing={editType} type="select" options={['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה']} onChange={(v) => updateDetailForm('installation_type', v)} />
+            <EditableField label="דרישות מיוחדות" value={d.special_requirements || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('special_requirements', v)} />
+            <EditableField label="פיקוח שרות שדה" value={d.field_supervision || ''} editing={editType} type="select" options={['כן', 'לא', 'לא נדרש']} onChange={(v) => updateDetailForm('field_supervision', v)} />
           </div>
-          {pushRows.length > 0 && (
+          {(editType || d.installation_type === 'דחיקה') && (
             <div className="border-t border-[#e2e8f0] mt-3 pt-3">
               <h3 className="text-xs font-bold text-gray-500 mb-2">פרטי דחיקה</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                {pushRows.map((row) => (
-                  <div key={row.label} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-                    <span className="text-[11px] text-gray-500 w-40 flex-shrink-0">{row.label}</span>
-                    <span className="text-xs font-medium text-gray-800">{row.value || '—'}</span>
-                  </div>
-                ))}
+                <EditableField label="סוג הקרקע" value={d.soil_type || ''} editing={editType} onChange={(v) => updateDetailForm('soil_type', v)} />
+                <EditableField label="עומק הדחיקה" value={d.push_depth || ''} editing={editType} onChange={(v) => updateDetailForm('push_depth', v)} />
+                <EditableField label="סוג השוחות" value={d.manhole_type || ''} editing={editType} onChange={(v) => updateDetailForm('manhole_type', v)} />
+                <EditableField label="אופן התחברות" value={d.connection_method || ''} editing={editType} onChange={(v) => updateDetailForm('connection_method', v)} />
               </div>
             </div>
           )}
         </section>
 
         {/* Pipe specs */}
-        {pipeSpecs.length > 0 && (
-          <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">🔧 מאפייני הצינור והשוחות</h2>
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <SectionHeader title="מאפייני הצינור והשוחות" icon="🔧" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
+          {editSpecs ? (
+            <div className="space-y-2">
+              {specsForm.map((s, i) => (
+                <div key={i} className="flex gap-2 items-center flex-wrap">
+                  <input type="number" placeholder="קוטר (מ״מ)" value={s.diameter_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], diameter_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                  <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
+                  <input type="number" placeholder="אורך יחידה" value={s.unit_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
+                  <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                  <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                  <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
+                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">✕</button>
+                </div>
+              ))}
+              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+            </div>
+          ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -250,41 +539,21 @@ export default function ProjectDetailPage() {
                 </tbody>
               </table>
             </div>
-          </section>
-        )}
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+          )}
+        </section>
 
         {/* Story & intelligence */}
-        {(d.project_story || d.competitors || d.assessments || d.politics) && (
-          <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">📖 סיפור הפרויקט ואינטליגנציה</h2>
-            <div className="space-y-4">
-              {d.project_story && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 mb-1">סיפור הפרויקט</h3>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{d.project_story}</p>
-                </div>
-              )}
-              {d.competitors && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 mb-1">מתחרים</h3>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{d.competitors}</p>
-                </div>
-              )}
-              {d.assessments && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 mb-1">הערכות</h3>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{d.assessments}</p>
-                </div>
-              )}
-              {d.politics && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 mb-1">פוליטיקה</h3>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{d.politics}</p>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <SectionHeader title="סיפור הפרויקט ואינטליגנציה" icon="📖" editing={editStory} onToggle={() => editStory ? cancelEdit('story') : setEditStory(true)} onSave={saveStory} saving={saving} />
+          <div className="space-y-4">
+            <EditableField label="סיפור הפרויקט" value={d.project_story || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('project_story', v)} />
+            <EditableField label="מתחרים" value={d.competitors || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('competitors', v)} />
+            <EditableField label="הערכות" value={d.assessments || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('assessments', v)} />
+            <EditableField label="פוליטיקה" value={d.politics || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('politics', v)} />
+          </div>
+        </section>
       </div>
     </div>
   );
