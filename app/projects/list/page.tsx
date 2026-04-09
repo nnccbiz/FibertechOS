@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
-import AiSidebar from '@/components/ai/AiSidebar';
 
 interface Project {
   id: string;
@@ -97,14 +96,8 @@ export default function ProjectsListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] flex" dir="rtl">
-      {/* AI Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-40">
-        <AiSidebar context="projects" onDataExtracted={handleAiData} />
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 lg:ml-[320px]">
+    <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
+      <div className="flex-1">
         {/* Header */}
         <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">

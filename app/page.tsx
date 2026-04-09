@@ -3,15 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import Sidebar from '@/components/ui/Sidebar';
-import BottomNav from '@/components/ui/BottomNav';
 import KpiCard from '@/components/dashboard/KpiCard';
 import AlertsList from '@/components/dashboard/AlertsList';
 import ProjectsTable from '@/components/dashboard/ProjectsTable';
 import Pipeline from '@/components/dashboard/Pipeline';
 import TeamStatus from '@/components/dashboard/TeamStatus';
 import InventoryWidget from '@/components/dashboard/InventoryWidget';
-import CommandBar from '@/components/ai/CommandBar';
 import ActivityLog from '@/components/ai/ActivityLog';
 
 interface DashboardData {
@@ -31,10 +28,8 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [activeNav, setActiveNav] = useState('dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [aiRefresh, setAiRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,12 +138,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" dir="rtl">
-      <Sidebar activeKey={activeNav} onNavigate={setActiveNav} />
-      <BottomNav activeKey={activeNav} onNavigate={setActiveNav} />
-      <CommandBar onActionComplete={() => { setAiRefresh((n) => n + 1); window.location.reload(); }} />
-
-      {/* Main content area */}
-      <main className="md:mr-[220px] pb-20 md:pb-6">
         {/* Header */}
         <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -228,7 +217,7 @@ export default function DashboardPage() {
             <div className="w-full lg:w-[320px] flex-shrink-0 space-y-5">
               {/* AI Activity Log */}
               <div className="animate-fade-in-up-delay-1">
-                <ActivityLog refreshTrigger={aiRefresh} />
+                <ActivityLog refreshTrigger={0} />
               </div>
 
               {/* Shipments en route */}
@@ -272,7 +261,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </main>
     </div>
   );
 }

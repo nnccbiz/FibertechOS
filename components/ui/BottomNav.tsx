@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+
 const navItems = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
@@ -11,12 +13,17 @@ const navItems = [
   { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings' },
 ];
 
-interface BottomNavProps {
-  activeKey: string;
-  onNavigate?: (key: string) => void;
-}
+export default function BottomNav() {
+  const pathname = usePathname();
 
-export default function BottomNav({ activeKey, onNavigate }: BottomNavProps) {
+  function getActiveKey() {
+    if (pathname === '/') return 'dashboard';
+    const match = navItems.find((item) => item.href !== '/' && pathname.startsWith(item.href));
+    return match?.key || 'dashboard';
+  }
+
+  const activeKey = getActiveKey();
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] z-40">
       <div className="flex overflow-x-auto py-2 px-1 gap-1 scrollbar-hide">
@@ -24,7 +31,6 @@ export default function BottomNav({ activeKey, onNavigate }: BottomNavProps) {
           <a
             key={item.key}
             href={item.href}
-            onClick={() => onNavigate?.(item.key)}
             className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors no-underline ${
               activeKey === item.key
                 ? 'bg-blue-50 text-[#1a56db]'
