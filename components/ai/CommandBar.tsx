@@ -341,7 +341,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
             <div className="px-4 pb-3">
               <div className="border-2 border-dashed border-[#1a56db] rounded-xl p-6 text-center">
                 <p className="text-sm text-[#1a56db] font-medium">📄 שחרר קבצים כאן</p>
-                <p className="text-[10px] text-blue-400 mt-1">תמונות, PDF, Excel, Word — ג׳מה תחלץ את הנתונים</p>
+                <p className="text-[10px] text-blue-400 mt-1">תמונות, PDF, Excel, Word — רקסי תחלץ את הנתונים</p>
               </div>
             </div>
           )}

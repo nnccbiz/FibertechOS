@@ -42,7 +42,7 @@ export default function FloatingChat() {
 
   // Initialize welcome message
   useEffect(() => {
-    setMessages([{ role: 'ai', text: `היי! אני ג׳מה. איך אפשר לעזור?` }]);
+    setMessages([{ role: 'ai', text: `היי! אני רקסי. איך אפשר לעזור?` }]);
   }, []);
 
   // Ctrl+K / Cmd+K to toggle
@@ -202,7 +202,7 @@ export default function FloatingChat() {
         className={`fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 ${
           open ? 'bg-gray-700 text-white rotate-45' : 'bg-[#1a56db] text-white'
         }`}
-        title={`ג׳מה AI (${shortcutLabel})`}
+        title={`רקסי AI (${shortcutLabel})`}
       >
         {open ? (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -229,7 +229,7 @@ export default function FloatingChat() {
             <div className="flex items-center gap-2">
               <span className="text-lg">✨</span>
               <div>
-                <p className="text-sm font-bold text-[#1a56db]">ג׳מה AI</p>
+                <p className="text-sm font-bold text-[#1a56db]">רקסי AI</p>
                 <p className="text-[10px] text-[#1a56db]/60">{context}</p>
               </div>
             </div>
@@ -338,7 +338,7 @@ export default function FloatingChat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="שאל את ג׳מה..."
+                placeholder="שאל את רקסי..."
                 className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 disabled={loading}
               />

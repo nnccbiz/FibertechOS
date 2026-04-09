@@ -127,7 +127,7 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
       {entries.length === 0 ? (
         <div className="text-center py-4">
           <p className="text-sm text-gray-400">אין פעולות עדיין</p>
-          <p className="text-[10px] text-gray-300 mt-1">לחץ ⌘K להפעלת ג׳מה</p>
+          <p className="text-[10px] text-gray-300 mt-1">לחץ ⌘K להפעלת רקסי</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[300px] overflow-y-auto">

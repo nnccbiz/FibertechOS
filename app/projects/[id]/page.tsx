@@ -763,7 +763,7 @@ Do NOT return JSON — return plain text only.`;
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לג׳מה על פגישה.</p>
+            <p className="text-xs text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
           )}
         </section>
 
@@ -816,7 +816,7 @@ Do NOT return JSON — return plain text only.`;
                   disabled={exportLoading}
                   className="w-full bg-[#1a56db] text-white text-xs font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {exportLoading ? 'ג׳מה מכינה את המייל...' : '✨ הפק מייל'}
+                  {exportLoading ? 'רקסי מכינה את המייל...' : '✨ הפק מייל'}
                 </button>
                 {exportEmail && (
                   <div className="space-y-2">

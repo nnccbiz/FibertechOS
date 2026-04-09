@@ -56,7 +56,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
   const [messages, setMessages] = useState<AiMessage[]>([
     {
       role: 'ai',
-      text: `היי! אני ג׳מה, פה בשביל ${CONTEXT_LABELS[context]}.\nתאר מה לעדכן ואני אמלא את השדות.`,
+      text: `היי! אני רקסי, פה בשביל ${CONTEXT_LABELS[context]}.\nתאר מה לעדכן ואני אמלא את השדות.`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -149,7 +149,7 @@ export default function AiSidebar({ context, formData, onDataExtracted }: AiSide
       <div className="px-4 py-3 bg-[#fce4ec] flex items-center gap-2 flex-shrink-0">
         <span className="text-lg">✨</span>
         <div>
-          <p className="text-sm font-bold text-[#1a56db]">ג׳מה AI</p>
+          <p className="text-sm font-bold text-[#1a56db]">רקסי AI</p>
           <p className="text-[10px] text-[#1a56db]/60">{CONTEXT_LABELS[context]}</p>
         </div>
       </div>

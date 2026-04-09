@@ -17,7 +17,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([
     {
       role: 'ai',
-      text: 'היי! אני ג׳מה, העוזרת של FibertechOS.\nתאר לי את הפרויקט בכמה משפטים ואני אמלא את כל השדות בטופס.',
+      text: 'היי! אני רקסי, העוזרת של FibertechOS.\nתאר לי את הפרויקט בכמה משפטים ואני אמלא את כל השדות בטופס.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -83,7 +83,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-24 md:bottom-6 left-6 w-14 h-14 bg-[#1a56db] text-white rounded-full shadow-lg flex items-center justify-center text-2xl hover:bg-blue-700 transition-all hover:scale-105 z-50"
-        title="שיחה עם ג׳מה AI"
+        title="שיחה עם רקסי AI"
       >
         ✨
       </button>
@@ -97,7 +97,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
         <div className="flex items-center gap-2">
           <span className="text-lg">✨</span>
           <div>
-            <p className="text-sm font-bold text-white">ג׳מה AI</p>
+            <p className="text-sm font-bold text-white">רקסי AI</p>
             <p className="text-[10px] text-blue-200">עוזרת FibertechOS</p>
           </div>
         </div>
