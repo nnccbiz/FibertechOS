@@ -45,6 +45,8 @@ export default function ProjectsListPage() {
   const [monthPickerOpen, setMonthPickerOpen] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [sortField, setSortField] = useState<string>('last_updated_at');
+  const [sortAsc, setSortAsc] = useState(false);
 
   async function fetchData() {
     try {
@@ -74,11 +76,32 @@ export default function ProjectsListPage() {
     return () => document.removeEventListener('click', handleClick);
   }, [monthPickerOpen]);
 
-  const filtered = projects.filter((p) => {
-    if (filter !== 'all' && p.realization_status !== filter) return false;
-    if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
-    return true;
-  });
+  function toggleSort(field: string) {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(field === 'name' || field === 'developer_name' || field === 'planning_office');
+    }
+  }
+
+  const filtered = projects
+    .filter((p) => {
+      if (filter !== 'all' && p.realization_status !== filter) return false;
+      if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const f = sortField as keyof Project;
+      let aVal = a[f] ?? '';
+      let bVal = b[f] ?? '';
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortAsc ? aVal - bVal : bVal - aVal;
+      }
+      aVal = String(aVal);
+      bVal = String(bVal);
+      return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
 
   const totalValue = filtered.reduce((sum, p) => sum + (p.order_value || 0), 0);
 
@@ -219,17 +242,27 @@ export default function ProjectsListPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-[#e2e8f0]">
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap sticky right-0 bg-gray-50 z-10">#</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">עדכון</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">יזם</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">משרד תכנון</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap min-w-[140px]">שם פרויקט</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">תיאור</th>
-                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">הסתברות</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סך הפרויקט</th>
-                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">מועד הזמנה</th>
-                      <th className="text-center text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">סטטוס</th>
-                      <th className="text-right text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap">חודשי אספקה</th>
+                      {[
+                        { key: 'serial_number', label: '#', align: 'right', sticky: true },
+                        { key: 'last_updated_at', label: 'עדכון', align: 'right' },
+                        { key: 'developer_name', label: 'יזם', align: 'right' },
+                        { key: 'planning_office', label: 'משרד תכנון', align: 'right' },
+                        { key: 'name', label: 'שם פרויקט', align: 'right', minW: true },
+                        { key: 'description', label: 'תיאור', align: 'right' },
+                        { key: 'probability_percent', label: 'הסתברות', align: 'center' },
+                        { key: 'order_value', label: 'סך הפרויקט', align: 'right' },
+                        { key: 'order_execution_date', label: 'מועד הזמנה', align: 'center' },
+                        { key: 'realization_status', label: 'סטטוס', align: 'center' },
+                        { key: '', label: 'חודשי אספקה', align: 'right' },
+                      ].map((col) => (
+                        <th
+                          key={col.label}
+                          onClick={() => col.key && toggleSort(col.key)}
+                          className={`text-${col.align} text-[12px] text-gray-500 font-medium py-2.5 px-2 whitespace-nowrap ${col.sticky ? 'sticky right-0 bg-gray-50 z-10' : ''} ${col.minW ? 'min-w-[140px]' : ''} ${col.key ? 'cursor-pointer hover:text-[#1a56db] select-none' : ''}`}
+                        >
+                          {col.label}{sortField === col.key ? (sortAsc ? ' ▲' : ' ▼') : ''}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
