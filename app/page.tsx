@@ -109,7 +109,7 @@ export default function DashboardPage() {
   async function saveQuickUpdate() {
     if (!selectedProject || !quickUpdate.title.trim()) return;
     setSavingUpdate(true);
-    await supabase.from('project_updates').insert({
+    const { error } = await supabase.from('project_updates').insert({
       project_id: selectedProject.id,
       update_date: quickUpdate.update_date,
       people: quickUpdate.people,
@@ -118,7 +118,11 @@ export default function DashboardPage() {
       tasks: quickUpdate.tasks,
     });
     setSavingUpdate(false);
-    setShowQuickUpdate(false);
+    if (error) {
+      alert(`שגיאה בשמירה: ${error.message}`);
+    } else {
+      setShowQuickUpdate(false);
+    }
   }
 
   const filteredProjects = allProjects.filter((p) => {
