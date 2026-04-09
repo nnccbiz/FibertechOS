@@ -42,6 +42,7 @@ export default function ProjectsListPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [monthPickerOpen, setMonthPickerOpen] = useState<string | null>(null);
 
   async function fetchData() {
     try {
@@ -64,6 +65,13 @@ export default function ProjectsListPage() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (!monthPickerOpen) return;
+    function handleClick() { setMonthPickerOpen(null); }
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [monthPickerOpen]);
+
   const filtered = projects.filter((p) => {
     if (filter !== 'all' && p.realization_status !== filter) return false;
     if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
@@ -76,6 +84,31 @@ export default function ProjectsListPage() {
     const det = projectDetails.find((d) => d.project_id === projectId);
     if (!det?.delivery_months_list) return [];
     return det.delivery_months_list.split(',').filter(Boolean).map(Number);
+  }
+
+  async function toggleMonth(projectId: string, month: number) {
+    const current = getDeliveryMonths(projectId);
+    const next = current.includes(month)
+      ? current.filter((m) => m !== month)
+      : [...current, month].sort((a, b) => a - b);
+    const value = next.join(',') || null;
+
+    // Optimistic update
+    setProjectDetails((prev) => {
+      const exists = prev.find((d) => d.project_id === projectId);
+      if (exists) {
+        return prev.map((d) => d.project_id === projectId ? { ...d, delivery_months_list: value } : d);
+      }
+      return [...prev, { project_id: projectId, delivery_months_list: value }];
+    });
+
+    // Upsert to DB
+    const { data: existing } = await supabase.from('project_details').select('id').eq('project_id', projectId).maybeSingle();
+    if (existing) {
+      await supabase.from('project_details').update({ delivery_months_list: value }).eq('project_id', projectId);
+    } else {
+      await supabase.from('project_details').insert({ project_id: projectId, delivery_months_list: value });
+    }
   }
 
   return (
@@ -204,16 +237,40 @@ export default function ProjectsListPage() {
                               {project.realization_status || '—'}
                             </span>
                           </td>
-                          <td className="py-2 px-2">
-                            {months.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {months.map((m) => (
-                                  <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                          <td className="py-2 px-2 relative" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setMonthPickerOpen(monthPickerOpen === project.id ? null : project.id)}
+                              className="w-full text-right"
+                            >
+                              {months.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {months.map((m) => (
+                                    <span key={m} className="text-[9px] bg-blue-50 text-[#1a56db] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                      {MONTH_NAMES[m]}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 hover:text-[#1a56db]">+ בחר חודשים</span>
+                              )}
+                            </button>
+                            {monthPickerOpen === project.id && (
+                              <div className="absolute top-full left-0 z-40 bg-white border border-[#e2e8f0] rounded-xl shadow-lg p-2 mt-1 w-[200px] grid grid-cols-3 gap-1">
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                  <button
+                                    key={m}
+                                    onClick={() => toggleMonth(project.id, m)}
+                                    className={`text-[10px] px-2 py-1.5 rounded-lg transition-colors ${
+                                      months.includes(m)
+                                        ? 'bg-[#1a56db] text-white'
+                                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                  >
                                     {MONTH_NAMES[m]}
-                                  </span>
+                                  </button>
                                 ))}
                               </div>
-                            ) : '—'}
+                            )}
                           </td>
                         </tr>
                       );
