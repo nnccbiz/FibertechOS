@@ -31,6 +31,8 @@ export default function FloatingChat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; base64: string; mimeType: string; preview?: string }[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +72,45 @@ export default function FloatingChat() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  function toggleRecording() {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setMessages((prev) => [...prev, { role: 'ai', text: 'הדפדפן לא תומך בהקלטה קולית. נסה Chrome או Safari.' }]);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'he-IL';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('');
+      setInput(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
 
   function processFiles(fileList: FileList) {
     Array.from(fileList).forEach((file) => {
@@ -248,6 +289,23 @@ export default function FloatingChat() {
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              <button
+                onClick={toggleRecording}
+                disabled={loading}
+                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                  isRecording
+                    ? 'text-red-500 bg-red-50 animate-pulse'
+                    : 'text-gray-400 hover:text-[#1a56db] hover:bg-blue-50'
+                }`}
+                title={isRecording ? 'עצור הקלטה' : 'הקלט קולי'}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
               </button>
               <input
