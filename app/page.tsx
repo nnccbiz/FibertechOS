@@ -31,6 +31,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showQuickUpdate, setShowQuickUpdate] = useState(false);
+  const [allProjects, setAllProjects] = useState<any[]>([]);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [quickUpdate, setQuickUpdate] = useState({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' });
+  const [savingUpdate, setSavingUpdate] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -90,6 +96,38 @@ export default function DashboardPage() {
 
     fetchData();
   }, []);
+
+  async function openQuickUpdate() {
+    setShowQuickUpdate(true);
+    setSelectedProject(null);
+    setProjectSearch('');
+    setQuickUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' });
+    const { data: projs } = await supabase.from('projects').select('id, name, developer_name, planning_office, last_updated_at').order('last_updated_at', { ascending: false });
+    setAllProjects(projs || []);
+  }
+
+  async function saveQuickUpdate() {
+    if (!selectedProject || !quickUpdate.title.trim()) return;
+    setSavingUpdate(true);
+    await supabase.from('project_updates').insert({
+      project_id: selectedProject.id,
+      update_date: quickUpdate.update_date,
+      people: quickUpdate.people,
+      title: quickUpdate.title,
+      description: quickUpdate.description,
+      tasks: quickUpdate.tasks,
+    });
+    setSavingUpdate(false);
+    setShowQuickUpdate(false);
+  }
+
+  const filteredProjects = allProjects.filter((p) => {
+    if (!projectSearch) return true;
+    const q = projectSearch.toLowerCase();
+    return (p.name || '').toLowerCase().includes(q) ||
+      (p.developer_name || '').toLowerCase().includes(q) ||
+      (p.planning_office || '').toLowerCase().includes(q);
+  });
 
   const kpiCards = [
     {
@@ -185,6 +223,13 @@ export default function DashboardPage() {
               <span>➕</span>
               <span>פרויקט חדש</span>
             </button>
+            <button
+              onClick={openQuickUpdate}
+              className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <span>📝</span>
+              <span>עדכון פרויקט</span>
+            </button>
             <button className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
               <span>📈</span>
               <span>יצירת דוחות</span>
@@ -261,6 +306,104 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Quick update modal */}
+        {showQuickUpdate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuickUpdate(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-gray-700">📝 עדכון מהיר לפרויקט</h3>
+                <button onClick={() => setShowQuickUpdate(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
+                {/* Project selector */}
+                {!selectedProject ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="חפש פרויקט, יזם או מתכנן..."
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                      className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                      autoFocus
+                    />
+                    <div className="max-h-[300px] overflow-y-auto space-y-1">
+                      {filteredProjects.slice(0, 20).map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedProject(p)}
+                          className="w-full text-right px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-between group"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">{p.name}</p>
+                            <p className="text-[12px] text-gray-400">
+                              {p.developer_name || '—'}{p.planning_office ? ` · ${p.planning_office}` : ''}
+                            </p>
+                          </div>
+                          {p.last_updated_at && (
+                            <span className="text-[11px] text-gray-300 group-hover:text-gray-400">
+                              {new Date(p.last_updated_at).toLocaleDateString('he-IL')}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      {filteredProjects.length === 0 && (
+                        <p className="text-sm text-gray-400 text-center py-4">לא נמצאו פרויקטים</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Selected project header */}
+                    <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-bold text-[#1a56db]">{selectedProject.name}</p>
+                        <p className="text-[12px] text-[#1a56db]/60">{selectedProject.developer_name || ''}</p>
+                      </div>
+                      <button onClick={() => setSelectedProject(null)} className="text-[12px] text-[#1a56db] hover:underline">
+                        שנה פרויקט
+                      </button>
+                    </div>
+
+                    {/* Update form */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[12px] font-semibold text-gray-500 mb-1">תאריך</label>
+                        <input type="date" value={quickUpdate.update_date} onChange={(e) => setQuickUpdate({ ...quickUpdate, update_date: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
+                        <input type="text" placeholder="שמות, מופרדים בפסיק" value={quickUpdate.people} onChange={(e) => setQuickUpdate({ ...quickUpdate, people: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">כותרת</label>
+                      <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={quickUpdate.title} onChange={(e) => setQuickUpdate({ ...quickUpdate, title: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
+                      <textarea placeholder="פירוט הפגישה / העדכון..." value={quickUpdate.description} onChange={(e) => setQuickUpdate({ ...quickUpdate, description: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[80px]" />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
+                      <textarea placeholder="משימה 1, משימה 2..." value={quickUpdate.tasks} onChange={(e) => setQuickUpdate({ ...quickUpdate, tasks: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[50px]" />
+                    </div>
+                    <button
+                      onClick={saveQuickUpdate}
+                      disabled={savingUpdate || !quickUpdate.title.trim()}
+                      className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {savingUpdate ? 'שומר...' : 'שמור עדכון'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
