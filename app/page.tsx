@@ -49,11 +49,12 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        const [projectsRes, alertsRes, leadsRes, teamRes] = await Promise.all([
+        const [projectsRes, alertsRes, leadsRes, teamRes, detailsRes] = await Promise.all([
           supabase.from('projects').select('*'),
-          supabase.from('alerts').select('*'),
+          supabase.from('alerts').select('*').order('created_at', { ascending: false }),
           supabase.from('leads').select('*'),
           supabase.from('team_members').select('*'),
+          supabase.from('project_details').select('project_id, winning_contractor'),
         ]);
 
         if (projectsRes.error) throw projectsRes.error;
@@ -65,20 +66,34 @@ export default function DashboardPage() {
         const alerts = alertsRes.data || [];
         const leads = leadsRes.data || [];
         const teamMembers = teamRes.data || [];
+        const details = detailsRes.data || [];
 
-        const activeProjects = projects.filter((p) => p.status === 'active');
+        // Active projects = have winning_contractor AND not yet at completion stage (8+)
+        const projectsWithContractor = new Set(
+          details
+            .filter((d: any) => d.winning_contractor && d.winning_contractor.trim() !== '')
+            .map((d: any) => d.project_id)
+        );
+        const COMPLETED_STAGES = ['ח׳ דוח גמר', 'ט׳ אחריות', 'י׳ סיכום שיווקי', 'תעודת גמר', 'אחריות', 'סיכום'];
+        const activeProjects = projects.filter((p) => {
+          if (!projectsWithContractor.has(p.id)) return false;
+          const stage = (p.stage_label || '').trim();
+          if (COMPLETED_STAGES.some((s) => stage.includes(s))) return false;
+          if (typeof p.current_stage === 'number' && p.current_stage >= 8) return false;
+          return true;
+        });
+
         const openAlerts = alerts.filter((a) => !a.is_resolved);
-        const clientAlerts = openAlerts.filter((a) => a.type === 'client');
-        const supplierAlerts = openAlerts.filter((a) => a.type === 'supplier');
-        const shipmentAlerts = openAlerts.filter((a) => a.type === 'shipment');
 
         const monthlyRevenue = activeProjects.reduce(
           (sum, p) => sum + (p.order_value || 0),
           0
         );
 
+        const shipmentAlerts = alerts.filter((a) => a.type === 'shipment' && !a.is_resolved);
+
         setData({
-          projects,
+          projects: activeProjects,
           alerts,
           leads,
           teamMembers,
@@ -86,8 +101,8 @@ export default function DashboardPage() {
             activeProjects: activeProjects.length,
             monthlyRevenue,
             openAlerts: openAlerts.length,
-            clientIssues: clientAlerts.length,
-            supplierIssues: supplierAlerts.length,
+            clientIssues: 0,
+            supplierIssues: 0,
             shipmentsEnRoute: shipmentAlerts.length,
           },
         });

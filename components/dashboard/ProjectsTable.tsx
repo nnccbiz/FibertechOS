@@ -50,7 +50,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
   }
 
   const router = useRouter();
-  const activeProjects = projects.filter((p) => p.status === 'active');
+  const activeProjects = projects;
 
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">

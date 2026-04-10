@@ -173,13 +173,43 @@ export default function FloatingChat() {
                 description: data.data.description || '',
                 tasks: data.data.tasks || '',
               });
-              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.` }]);
+              // Auto-create tasks as alerts
+              const tasksText = data.data.tasks || '';
+              if (tasksText.trim()) {
+                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+                for (const task of taskLines) {
+                  await supabase.from('alerts').insert({
+                    project_id: proj.id,
+                    type: 'task',
+                    message: task,
+                    is_resolved: false,
+                    assigned_to: projectName,
+                  });
+                }
+              }
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.${tasksText.trim() ? '\n📌 המשימות נוספו ללוח הבקרה.' : ''}` }]);
             } else {
               setMessages((prev) => [...prev, { role: 'ai', text: `${data.summary}\n\n⚠️ לא מצאתי פרויקט בשם "${projectName}". העדכון לא נשמר.` }]);
             }
           } else {
             setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
           }
+        // Auto-execute alerts/tasks
+        } else if (data.target_table === 'alerts' && data.action === 'create' && data.data) {
+          let projectId = null;
+          const projectName = data.target_label || data.data.project_name;
+          if (projectName) {
+            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+            if (proj) projectId = proj.id;
+          }
+          await supabase.from('alerts').insert({
+            project_id: projectId,
+            type: data.data.type || 'task',
+            message: data.data.message || data.summary,
+            is_resolved: false,
+            assigned_to: data.data.assigned_to || projectName || null,
+          });
+          setMessages((prev) => [...prev, { role: 'ai', text: `📌 ${data.summary}\n\nהמשימה נוספה ללוח הבקרה.` }]);
         } else {
           setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
         }
