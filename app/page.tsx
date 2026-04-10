@@ -149,14 +149,32 @@ export default function DashboardPage() {
       const detMap: Record<string, string> = {};
       allDet.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
 
-      // 1. Orders completed this year (realization_status = 'הזמנה')
-      const orders = allProj.filter((p: any) =>
-        p.realization_status === 'הזמנה' &&
-        p.order_execution_date &&
-        p.order_execution_date >= yearStart &&
-        p.order_execution_date <= yearEnd
-      );
-      const totalOrders = orders.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
+      // 1. Expected revenue in the next 3 months (projects with deliveries)
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const next3Months: { month: number; year: number; key: string; label: string }[] = [];
+      for (let i = 0; i < 3; i++) {
+        const m = ((currentMonth - 1 + i) % 12) + 1;
+        const y = currentYear + Math.floor((currentMonth - 1 + i) / 12);
+        next3Months.push({ month: m, year: y, key: `${y}-${m}`, label: `${MONTH_NAMES[m]} ${y}` });
+      }
+
+      const next3MonthsData: { month: string; projects: { name: string; value: number }[]; total: number }[] = [];
+      next3Months.forEach((nm) => {
+        const monthProjects: { name: string; value: number }[] = [];
+        allProj.forEach((p: any) => {
+          const monthsList = detMap[p.id];
+          if (!monthsList) return;
+          const entries = monthsList.split(',').filter(Boolean);
+          if (!entries.includes(nm.key)) return;
+          const totalMonths = entries.length || 1;
+          const perMonth = (p.order_value || 0) / totalMonths;
+          monthProjects.push({ name: p.name, value: perMonth });
+        });
+        const total = monthProjects.reduce((s, mp) => s + mp.value, 0);
+        next3MonthsData.push({ month: nm.label, projects: monthProjects, total });
+      });
+      const totalNext3 = next3MonthsData.reduce((s, m) => s + m.total, 0);
 
       // 2. 100% certain (realization_status = 'הזמנה') — all, not just this year
       const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
@@ -190,8 +208,8 @@ export default function DashboardPage() {
 
       setReportData({
         currentYear,
-        orders,
-        totalOrders,
+        next3MonthsData,
+        totalNext3,
         certain,
         totalCertain,
         highProb,
@@ -215,17 +233,19 @@ export default function DashboardPage() {
     text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
     text += `${'═'.repeat(40)}\n\n`;
 
-    text += `📋 הזמנות שנכנסו השנה (${r.currentYear})\n`;
+    text += `📋 הכנסות צפויות לשלושה חודשים הקרובים\n`;
     text += `${'─'.repeat(30)}\n`;
-    if (r.orders.length > 0) {
-      r.orders.forEach((p: any) => {
-        text += `• ${p.name} — ${fmtILS(p.order_value || 0)}`;
-        if (p.order_execution_date) text += ` (${p.order_execution_date})`;
-        text += '\n';
+    if (r.totalNext3 > 0) {
+      r.next3MonthsData.forEach((m: any) => {
+        if (m.total > 0) {
+          text += `${m.month}: ${fmtILS(Math.round(m.total))}`;
+          if (m.projects.length <= 3) text += ` (${m.projects.map((p: any) => p.name).join(', ')})`;
+          text += '\n';
+        }
       });
-      text += `סה"כ הזמנות השנה: ${fmtILS(r.totalOrders)}\n`;
+      text += `סה"כ 3 חודשים: ${fmtILS(Math.round(r.totalNext3))}\n`;
     } else {
-      text += `אין הזמנות עד כה\n`;
+      text += `אין אספקות צפויות\n`;
     }
 
     text += `\n💯 פרויקטים בסטטוס "הזמנה" (100%)\n`;
@@ -233,7 +253,7 @@ export default function DashboardPage() {
     r.certain.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
     text += `סה"כ: ${fmtILS(r.totalCertain)}\n`;
 
-    text += `\n📈 פרויקטים בהסתברות גבוהה\n`;
+    text += `\n📈 פרויקטים בהסתברות גבוהה לביצוע בשנת ${r.currentYear}\n`;
     text += `${'─'.repeat(30)}\n`;
     if (r.highProb.length > 0) {
       r.highProb.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
@@ -606,9 +626,9 @@ export default function DashboardPage() {
                     {/* Summary cards */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-green-600 font-semibold">הזמנות השנה</p>
-                        <p className="text-lg font-bold text-green-700">{formatILS(reportData.totalOrders)}</p>
-                        <p className="text-[11px] text-green-500">{reportData.orders.length} פרויקטים</p>
+                        <p className="text-[12px] text-green-600 font-semibold">3 חודשים קרובים</p>
+                        <p className="text-lg font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
+                        <p className="text-[11px] text-green-500">הכנסות צפויות</p>
                       </div>
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
                         <p className="text-[12px] text-blue-600 font-semibold">סה"כ הזמנות (100%)</p>
@@ -616,7 +636,7 @@ export default function DashboardPage() {
                         <p className="text-[11px] text-blue-500">{reportData.certain.length} פרויקטים</p>
                       </div>
                       <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-purple-600 font-semibold">הסתברות גבוהה</p>
+                        <p className="text-[12px] text-purple-600 font-semibold">הסתברות גבוהה {reportData.currentYear}</p>
                         <p className="text-lg font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
                         <p className="text-[11px] text-purple-500">{reportData.highProb.length} פרויקטים</p>
                       </div>
@@ -627,32 +647,38 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Orders this year */}
+                    {/* Expected revenue — next 3 months */}
                     <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
                       <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                        <span>📋</span> הזמנות שנכנסו ב-{reportData.currentYear}
+                        <span>📋</span> הכנסות צפויות לשלושה חודשים הקרובים
                       </h4>
-                      {reportData.orders.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {reportData.orders.map((p: any) => (
-                            <div key={p.id} className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
-                              <div>
-                                <p className="text-sm font-medium text-gray-700">{p.name}</p>
-                                {p.developer_name && <p className="text-[11px] text-gray-400">{p.developer_name}</p>}
+                      {reportData.totalNext3 > 0 ? (
+                        <div className="space-y-2">
+                          {reportData.next3MonthsData.map((m: any, idx: number) => (
+                            <div key={idx} className="rounded-lg border border-green-100 overflow-hidden">
+                              <div className="flex items-center justify-between bg-green-50 px-3 py-2">
+                                <span className="text-sm font-bold text-green-700">{m.month}</span>
+                                <span className="text-sm font-bold text-green-700">{formatILS(Math.round(m.total))}</span>
                               </div>
-                              <div className="text-left">
-                                <p className="text-sm font-bold text-green-700">{formatILS(p.order_value || 0)}</p>
-                                {p.order_execution_date && <p className="text-[11px] text-gray-400">{p.order_execution_date}</p>}
-                              </div>
+                              {m.projects.length > 0 && (
+                                <div className="px-3 py-1.5 space-y-1">
+                                  {m.projects.map((p: any, j: number) => (
+                                    <div key={j} className="flex items-center justify-between text-[12px]">
+                                      <span className="text-gray-600">{p.name}</span>
+                                      <span className="text-gray-500">{formatILS(Math.round(p.value))}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                           <div className="flex items-center justify-between pt-2 border-t border-green-100">
-                            <p className="text-sm font-bold text-gray-700">סה"כ</p>
-                            <p className="text-sm font-bold text-green-700">{formatILS(reportData.totalOrders)}</p>
+                            <p className="text-sm font-bold text-gray-700">סה"כ 3 חודשים</p>
+                            <p className="text-sm font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-400 text-center py-3">אין הזמנות עד כה</p>
+                        <p className="text-sm text-gray-400 text-center py-3">אין אספקות צפויות ב-3 חודשים הקרובים</p>
                       )}
                     </div>
 
@@ -682,7 +708,7 @@ export default function DashboardPage() {
                     {/* High probability */}
                     <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
                       <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                        <span>📈</span> פרויקטים בהסתברות גבוהה
+                        <span>📈</span> פרויקטים בהסתברות גבוהה לביצוע בשנת {reportData.currentYear}
                       </h4>
                       {reportData.highProb.length > 0 ? (
                         <div className="space-y-1.5">
