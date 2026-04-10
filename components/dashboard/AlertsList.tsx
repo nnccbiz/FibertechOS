@@ -1,5 +1,8 @@
 'use client';
 
+import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
+
 interface Alert {
   id: string;
   type: string;
@@ -7,25 +10,12 @@ interface Alert {
   created_at: string;
   is_resolved: boolean;
   assigned_to: string | null;
+  project_id: string | null;
 }
 
 interface AlertsListProps {
   alerts: Alert[];
   loading: boolean;
-}
-
-function getAlertTypeStyle(type: string) {
-  switch (type) {
-    case 'urgent':
-    case 'critical':
-      return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: '🔴' };
-    case 'warning':
-      return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: '🟡' };
-    case 'delay':
-      return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', icon: '🟠' };
-    default:
-      return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', icon: '🔵' };
-  }
 }
 
 function timeAgo(dateStr: string) {
@@ -43,6 +33,17 @@ function timeAgo(dateStr: string) {
 }
 
 export default function AlertsList({ alerts, loading }: AlertsListProps) {
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+
+  async function toggleResolved(id: string) {
+    setResolvedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    await supabase.from('alerts').update({ is_resolved: true }).eq('id', id);
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
@@ -56,45 +57,46 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
     );
   }
 
-  const unresolvedAlerts = alerts.filter((a) => !a.is_resolved);
-
-  if (unresolvedAlerts.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-        <h3 className="text-sm font-bold text-gray-700 mb-3">⚠️ התראות דחופות</h3>
-        <p className="text-sm text-gray-400 text-center py-4">אין התראות פתוחות</p>
-      </div>
-    );
-  }
+  const unresolvedAlerts = alerts.filter((a) => !a.is_resolved && !resolvedIds.has(a.id));
 
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-700">⚠️ התראות דחופות</h3>
-        <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
-          {unresolvedAlerts.length}
-        </span>
+        <h3 className="text-lg font-bold text-gray-700">📌 משימות לביצוע</h3>
+        {unresolvedAlerts.length > 0 && (
+          <span className="text-[12px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
+            {unresolvedAlerts.length}
+          </span>
+        )}
       </div>
-      <div className="space-y-2">
-        {unresolvedAlerts.slice(0, 5).map((alert) => {
-          const style = getAlertTypeStyle(alert.type);
-          return (
+      {unresolvedAlerts.length === 0 ? (
+        <p className="text-lg text-gray-400 text-center py-4">אין משימות פתוחות</p>
+      ) : (
+        <div className="space-y-2">
+          {unresolvedAlerts.slice(0, 10).map((alert) => (
             <div
               key={alert.id}
-              className={`${style.bg} ${style.border} border rounded-lg px-3 py-2.5 flex items-start gap-2`}
+              className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2"
             >
-              <span className="text-sm mt-0.5">{style.icon}</span>
+              <button
+                onClick={() => toggleResolved(alert.id)}
+                className="mt-0.5 w-5 h-5 rounded border-2 border-amber-400 flex items-center justify-center hover:bg-amber-100 transition-colors flex-shrink-0"
+                title="סמן כבוצע"
+              >
+              </button>
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${style.text}`}>{alert.type}</p>
-                <p className="text-xs text-gray-700 mt-0.5 truncate">{alert.message}</p>
+                <p className="text-sm text-gray-700">{alert.message}</p>
+                {alert.assigned_to && (
+                  <p className="text-[11px] text-gray-400 mt-0.5">{alert.assigned_to}</p>
+                )}
               </div>
-              <span className="text-[10px] text-gray-400 whitespace-nowrap mt-0.5">
+              <span className="text-[11px] text-gray-400 whitespace-nowrap mt-0.5 flex-shrink-0">
                 {alert.created_at ? timeAgo(alert.created_at) : ''}
               </span>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

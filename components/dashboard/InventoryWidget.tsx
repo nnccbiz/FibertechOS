@@ -82,11 +82,11 @@ export default function InventoryWidget() {
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-700">📦 מלאי מהיר</h3>
+        <h3 className="text-lg font-bold text-gray-700">📦 מלאי מהיר</h3>
         {pipeItems.length > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-[#1a56db] hover:underline"
+            className="text-[12px] text-[#1a56db] hover:underline"
           >
             {expanded ? 'סגור' : 'פירוט'}
           </button>
@@ -97,9 +97,9 @@ export default function InventoryWidget() {
       <div className="grid grid-cols-3 gap-2">
         {categories.map((cat) => (
           <div key={cat.label} className="bg-gray-50 rounded-lg p-3 text-center">
-            <span className="text-lg block mb-1">{cat.icon}</span>
-            <p className="text-[10px] text-gray-500 font-medium">{cat.label}</p>
-            <p className="text-sm font-bold text-gray-700 mt-0.5">
+            <span className="text-2xl block mb-1">{cat.icon}</span>
+            <p className="text-[12px] text-gray-500 font-medium">{cat.label}</p>
+            <p className="text-lg font-bold text-gray-700 mt-0.5">
               {cat.count > 0 ? cat.count : '—'}
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function InventoryWidget() {
       {/* Expanded table for pipes */}
       {expanded && pipeItems.length > 0 && (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-[10px]">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-[#e2e8f0]">
                 <th className="text-right text-gray-500 font-medium pb-1.5 pr-1">יצרן</th>

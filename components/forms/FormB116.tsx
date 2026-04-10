@@ -59,7 +59,7 @@ export default function FormB116() {
   function numInput(key: keyof typeof form, label: string, unit?: string) {
     return (
       <div>
-        <label className="block text-sm text-gray-600">{label} {unit && <span className="text-gray-400">({unit})</span>}</label>
+        <label className="block text-lg text-gray-600">{label} {unit && <span className="text-gray-400">({unit})</span>}</label>
         <input type="number" step="any" value={form[key] as string} onChange={(e) => set(key, e.target.value as any)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
     );
@@ -72,22 +72,22 @@ export default function FormB116() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto p-4" dir="rtl">
-      <h2 className="text-xl font-bold">B-116 — דוח פיקוח שדה שוטף</h2>
+      <h2 className="text-2xl font-bold">B-116 — דוח פיקוח שדה שוטף</h2>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">מספר דו״ח</label>
+          <label className="block text-lg font-medium text-gray-700">מספר דו״ח</label>
           <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">תאריך פיקוח</label>
+          <label className="block text-lg font-medium text-gray-700">תאריך פיקוח</label>
           <input type="date" value={form.inspection_date} onChange={(e) => set('inspection_date', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
         </div>
       </div>
 
       {/* Pipe Specs — ממצאי הפיקוח */}
       <fieldset className="border rounded-lg p-4 space-y-3">
-        <legend className="text-sm font-semibold px-2">ממצאי הפיקוח — מפרט צנרת</legend>
+        <legend className="text-lg font-semibold px-2">ממצאי הפיקוח — מפרט צנרת</legend>
         <div className="grid grid-cols-2 gap-3">
           {numInput('pit_dimensions_m', 'מידות פיר דחיקה', 'מ׳')}
           {numInput('segment_length_m', 'אורך סגמנט צינור', 'מ׳')}
@@ -96,7 +96,7 @@ export default function FormB116() {
           {numInput('max_jacking_force_kn', 'כוח דחיקה מותר', 'KN')}
           {numInput('max_jacking_force_ton', 'כוח דחיקה מותר', 'טון')}
           <div>
-            <label className="block text-sm text-gray-600">סוג מחבר (שרוול)</label>
+            <label className="block text-lg text-gray-600">סוג מחבר (שרוול)</label>
             <select value={form.connector_type} onChange={(e) => set('connector_type', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm">
               <option value="GRP">GRP</option>
               <option value="נירוסטה">נירוסטה</option>
@@ -111,7 +111,7 @@ export default function FormB116() {
           {numInput('plate_inner_dia', 'קוטר פנים פלטת דחיקה', 'מ״מ')}
           <label className="flex items-center gap-2 col-span-2">
             <input type="checkbox" checked={form.plate_surface_ok} onChange={(e) => set('plate_surface_ok', e.target.checked)} className="h-5 w-5 rounded" />
-            <span className="text-sm">פני שטח ישרים וחלקים</span>
+            <span className="text-lg">פני שטח ישרים וחלקים</span>
           </label>
           {numInput('push_base_width', 'רוחב כן דחיקה', 'מ״מ')}
         </div>
@@ -119,14 +119,14 @@ export default function FormB116() {
 
       {/* 3-Stage Jacking Data */}
       <fieldset className="border rounded-lg p-4 space-y-3">
-        <legend className="text-sm font-semibold px-2">נתוני דחיקה — 3 שלבים</legend>
+        <legend className="text-lg font-semibold px-2">נתוני דחיקה — 3 שלבים</legend>
         <div className="grid grid-cols-2 gap-3">
           {numInput('current_pipe_number', 'מס׳ צינור נוכחי', '')}
           {numInput('total_jacked_length_m', 'אורך קו שנדחק', 'מ׳')}
         </div>
         {[1, 2, 3].map((stage) => (
           <div key={stage} className="bg-gray-50 rounded p-3">
-            <h4 className="text-sm font-medium mb-2">שלב {stage}</h4>
+            <h4 className="text-lg font-medium mb-2">שלב {stage}</h4>
             <div className="grid grid-cols-3 gap-2">
               {numInput(`stage${stage}_pressure_bar` as any, 'לחץ', 'Bar')}
               {numInput(`stage${stage}_force_kn` as any, 'כוח', 'KN')}
@@ -147,26 +147,26 @@ export default function FormB116() {
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">תקלות בעת הדחיקה</label>
+        <label className="block text-lg font-medium text-gray-700">תקלות בעת הדחיקה</label>
         <textarea value={form.defects_during_push} onChange={(e) => set('defects_during_push', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">הערות לקבלן</label>
+        <label className="block text-lg font-medium text-gray-700">הערות לקבלן</label>
         <textarea value={form.contractor_notes} onChange={(e) => set('contractor_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">הערות כלליות</label>
+        <label className="block text-lg font-medium text-gray-700">הערות כלליות</label>
         <textarea value={form.general_notes} onChange={(e) => set('general_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">שם מנהל עבודה</label>
+        <label className="block text-lg font-medium text-gray-700">שם מנהל עבודה</label>
         <input type="text" value={form.site_manager_name} onChange={(e) => set('site_manager_name', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
       </div>
 
       <SignaturePad label="חתימת מפקח" onSave={setInspectorSig} />
 
-      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700">
+      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-2xl font-semibold hover:bg-blue-700">
         שלח דו״ח B-116
       </button>
     </form>

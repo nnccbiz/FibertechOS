@@ -41,9 +41,9 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
 
   return (
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-      <h3 className="text-sm font-bold text-gray-700 mb-3">👥 סטטוס הצוות</h3>
+      <h3 className="text-lg font-bold text-gray-700 mb-3">👥 סטטוס הצוות</h3>
       {members.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-3">אין חברי צוות</p>
+        <p className="text-lg text-gray-400 text-center py-3">אין חברי צוות</p>
       ) : (
         <div className="space-y-2">
           {[...members]
@@ -62,13 +62,13 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
             return (
               <div key={member.id} className="flex items-center gap-2.5 py-1.5">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0"
                   style={{ backgroundColor: color }}
                 >
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-700 truncate">{member.name}</p>
+                  <p className="text-sm font-medium text-gray-700 truncate">{member.name}</p>
                 </div>
                 <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="מחובר" />
               </div>

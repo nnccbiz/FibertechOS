@@ -59,6 +59,39 @@ export default function NewProjectPage() {
   const [contacts, setContacts] = useState<ProjectContact[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<PipeSpec[]>([]);
 
+  // Handle AI-extracted data
+  function handleAiData(data: any) {
+    if (data.name) setName(data.name);
+    if (data.location) setLocation(data.location);
+    if (data.project_number) setProjectNumber(String(data.project_number));
+    if (data.order_value) setOrderValue(String(data.order_value));
+    if (data.ordering_entity) setOrderingEntity(data.ordering_entity);
+    if (data.responsible_party) setResponsibleParty(data.responsible_party);
+    if (data.description) setDescription(data.description);
+    if (data.project_type) setProjectType(data.project_type);
+    if (data.installation_type) setInstallationType(data.installation_type);
+    if (data.special_requirements) setSpecialRequirements(data.special_requirements);
+    if (data.field_supervision) setFieldSupervision(data.field_supervision);
+    if (data.soil_type) setSoilType(data.soil_type);
+    if (data.push_depth) setPushDepth(data.push_depth);
+    if (data.manhole_type) setManholeType(data.manhole_type);
+    if (data.connection_method) setConnectionMethod(data.connection_method);
+    if (data.project_status) setProjectStatus(data.project_status);
+    if (data.winning_contractor) setWinningContractor(data.winning_contractor);
+    if (data.project_story) setProjectStory(data.project_story);
+    if (data.competitors) setCompetitors(data.competitors);
+    if (data.assessments) setAssessments(data.assessments);
+    if (data.politics) setPolitics(data.politics);
+    if (data.contacts?.length > 0) {
+      const validContacts = data.contacts.filter((c: any) => c.name);
+      if (validContacts.length > 0) setContacts(validContacts);
+    }
+    if (data.pipe_specs?.length > 0) {
+      const validSpecs = data.pipe_specs.filter((s: any) => s.diameter_mm > 0);
+      if (validSpecs.length > 0) setPipeSpecs(validSpecs);
+    }
+  }
+
   // Auto-calculate expected pipe order (2 months after winning date)
   function handleWinningDateChange(date: string) {
     setWinningDate(date);
@@ -164,29 +197,30 @@ export default function NewProjectPage() {
   }
 
   const inputClass =
-    'w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] transition-colors';
-  const labelClass = 'block text-xs font-semibold text-gray-600 mb-1';
+    'w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-lg focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] transition-colors';
+  const labelClass = 'block text-sm font-semibold text-gray-600 mb-1';
 
   return (
     <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
+      <div className="flex-1 min-h-screen">
       {/* Header */}
       <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-800">פרויקט חדש</h1>
-            <p className="text-[11px] text-gray-400">כרטיס פרויקט — B-80</p>
+            <h1 className="text-2xl font-bold text-gray-800">פרויקט חדש</h1>
+            <p className="text-[13px] text-gray-400">כרטיס פרויקט — B-80</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.push('/')}
-              className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2"
+              className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
             >
               ביטול
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="text-xs bg-[#1a56db] text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
+              className="text-sm bg-[#1a56db] text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
             >
               {saving ? 'שומר...' : 'שמור פרויקט'}
             </button>
@@ -196,20 +230,20 @@ export default function NewProjectPage() {
 
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-600">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-lg text-red-600">
             {error}
           </div>
         )}
 
         {/* === סטטוס פרויקט === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up">
-          <h2 className="text-sm font-bold text-gray-700 mb-3">📌 סטטוס פרויקט</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-3">📌 סטטוס פרויקט</h2>
           <StatusTracker currentStatus={projectStatus} onChange={setProjectStatus} />
         </section>
 
         {/* === מידע בסיסי === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-1">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">🏗️ מידע בסיסי</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">🏗️ מידע בסיסי</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>שם הפרויקט *</label>
@@ -249,7 +283,7 @@ export default function NewProjectPage() {
 
         {/* === תאריכים === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-2">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">📅 תאריכים</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">📅 תאריכים</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>תאריך קבלת ההזמנה</label>
@@ -267,7 +301,7 @@ export default function NewProjectPage() {
 
           {/* Tender & winning contractor */}
           <div className="border-t border-[#e2e8f0] mt-4 pt-4">
-            <h3 className="text-xs font-bold text-gray-500 mb-3">מכרז וצפי הזמנה</h3>
+            <h3 className="text-sm font-bold text-gray-500 mb-3">מכרז וצפי הזמנה</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>מועד הגשת המכרז</label>
@@ -284,7 +318,7 @@ export default function NewProjectPage() {
               <div>
                 <label className={labelClass}>
                   צפי מועד להזמנת צנרת
-                  <span className="text-[10px] text-gray-400 font-normal mr-1">(~חודשיים מהכרזה)</span>
+                  <span className="text-[12px] text-gray-400 font-normal mr-1">(~חודשיים מהכרזה)</span>
                 </label>
                 <input type="date" value={expectedPipeOrder} onChange={(e) => setExpectedPipeOrder(e.target.value)} className={`${inputClass} bg-green-50 border-green-200 font-semibold`} dir="ltr" />
               </div>
@@ -294,13 +328,13 @@ export default function NewProjectPage() {
 
         {/* === אנשי קשר === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-3">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">👥 אנשי קשר</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">👥 אנשי קשר</h2>
           <ContactsInput contacts={contacts} onChange={setContacts} />
         </section>
 
         {/* === סוג פרויקט והתקנה === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-3">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">⚙️ סוג פרויקט והתקנה</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">⚙️ סוג פרויקט והתקנה</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>תיאור הפרויקט</label>
@@ -333,7 +367,7 @@ export default function NewProjectPage() {
           {/* Push-specific fields */}
           {installationType === 'דחיקה' && (
             <div className="border-t border-[#e2e8f0] mt-4 pt-4">
-              <h3 className="text-xs font-bold text-gray-500 mb-3">פרטי דחיקה</h3>
+              <h3 className="text-sm font-bold text-gray-500 mb-3">פרטי דחיקה</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>סוג הקרקע באתר הדחיקה</label>
@@ -358,13 +392,13 @@ export default function NewProjectPage() {
 
         {/* === מפרט צינורות === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-4">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">🔧 מאפייני הצינור והשוחות</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">🔧 מאפייני הצינור והשוחות</h2>
           <PipeSpecsInput specs={pipeSpecs} onChange={setPipeSpecs} />
         </section>
 
         {/* === סיפור ואינטליגנציה === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">📖 סיפור הפרויקט ואינטליגנציה</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">📖 סיפור הפרויקט ואינטליגנציה</h2>
           <div className="space-y-4">
             <div>
               <label className={labelClass}>סיפור הפרויקט</label>
@@ -389,18 +423,19 @@ export default function NewProjectPage() {
         <div className="flex justify-end gap-3 pb-10">
           <button
             onClick={() => router.push('/')}
-            className="text-sm text-gray-500 hover:text-gray-700 px-5 py-2.5"
+            className="text-lg text-gray-500 hover:text-gray-700 px-5 py-2.5"
           >
             ביטול
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-sm bg-[#1a56db] text-white px-8 py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
+            className="text-lg bg-[#1a56db] text-white px-8 py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
           >
             {saving ? 'שומר...' : 'שמור פרויקט'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

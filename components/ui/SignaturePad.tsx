@@ -67,7 +67,7 @@ export default function SignaturePad({ label, onSave }: SignaturePadProps) {
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
+      <label className="block text-lg font-medium text-gray-700">{label}</label>
       <canvas
         ref={canvasRef}
         width={400}
@@ -82,14 +82,14 @@ export default function SignaturePad({ label, onSave }: SignaturePadProps) {
         onTouchEnd={endDraw}
       />
       <div className="flex gap-2">
-        <button type="button" onClick={clear} className="px-3 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">
+        <button type="button" onClick={clear} className="px-3 py-1 text-lg rounded bg-gray-200 hover:bg-gray-300">
           נקה
         </button>
         <button
           type="button"
           onClick={save}
           disabled={!hasSignature}
-          className="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          className="px-3 py-1 text-lg rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           שמור חתימה
         </button>

@@ -64,11 +64,11 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
       {/* Table of existing specs */}
       {specs.length > 0 && (
         <div className="overflow-x-auto mb-3">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#e2e8f0]">
                 {COLUMNS.map((col) => (
-                  <th key={col} className="text-right text-[11px] text-gray-500 font-medium pb-2 px-2">
+                  <th key={col} className="text-right text-[13px] text-gray-500 font-medium pb-2 px-2">
                     {col}
                   </th>
                 ))}
@@ -88,7 +88,7 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
                     <button
                       type="button"
                       onClick={() => removeSpec(i)}
-                      className="text-red-400 hover:text-red-600 text-xs"
+                      className="text-red-400 hover:text-red-600 text-sm"
                     >
                       ✕
                     </button>
@@ -105,7 +105,7 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
         <button
           type="button"
           onClick={() => setShowRaw(true)}
-          className="text-xs text-[#1a56db] hover:underline"
+          className="text-sm text-[#1a56db] hover:underline"
         >
           + הוסף שורות צנרת
         </button>
@@ -113,28 +113,28 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
 
       {showRaw && (
         <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-[10px] text-gray-500 mb-2">
+          <p className="text-[12px] text-gray-500 mb-2">
             הזן שורה לכל צינור — מופרד בפסיקים: קוטר, אורך קו, אורך יחידה, קשיחות, לחץ, הערות
           </p>
           <textarea
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
             placeholder={`700, 1350, 5.7, 10000, 2\n800, 95, 5.7, 10000, 2\n500, 75, 5.7, 10000, 2`}
-            className="w-full border border-[#e2e8f0] rounded-lg p-2.5 text-xs font-mono text-gray-700 resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+            className="w-full border border-[#e2e8f0] rounded-lg p-2.5 text-sm font-mono text-gray-700 resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
             dir="ltr"
           />
           <div className="flex gap-2 mt-2">
             <button
               type="button"
               onClick={handleParse}
-              className="text-xs bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+              className="text-sm bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
             >
               הוסף לטבלה
             </button>
             <button
               type="button"
               onClick={() => { setShowRaw(false); setRawInput(''); }}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-sm text-gray-500 hover:text-gray-700"
             >
               ביטול
             </button>

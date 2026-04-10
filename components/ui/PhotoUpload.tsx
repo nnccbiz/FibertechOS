@@ -27,7 +27,7 @@ export default function PhotoUpload({ label, maxFiles = 5, onUpload }: PhotoUplo
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
+      <label className="block text-lg font-medium text-gray-700">{label}</label>
       <input
         ref={inputRef}
         type="file"
@@ -40,7 +40,7 @@ export default function PhotoUpload({ label, maxFiles = 5, onUpload }: PhotoUplo
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 w-full justify-center text-lg"
+        className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 w-full justify-center text-2xl"
       >
         📷 צלם / העלה תמונה
       </button>
@@ -52,7 +52,7 @@ export default function PhotoUpload({ label, maxFiles = 5, onUpload }: PhotoUplo
               <button
                 type="button"
                 onClick={() => removePreview(i)}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-sm flex items-center justify-center"
               >
                 ×
               </button>
