@@ -184,28 +184,6 @@ export default function DashboardPage() {
       const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה');
       const totalHighProb = highProb.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
 
-      // 4. Expected deliveries this year by month
-      const deliveriesByMonth: Record<number, { total: number; projects: { name: string; value: number }[] }> = {};
-      for (let m = 1; m <= 12; m++) deliveriesByMonth[m] = { total: 0, projects: [] };
-
-      allProj.forEach((p: any) => {
-        const monthsList = detMap[p.id];
-        if (!monthsList) return;
-        const entries = monthsList.split(',').filter(Boolean);
-        const thisYearMonths = entries
-          .filter((e: string) => e.startsWith(`${currentYear}-`))
-          .map((e: string) => parseInt(e.split('-')[1]));
-
-        if (thisYearMonths.length === 0) return;
-        const perMonth = (p.order_value || 0) / thisYearMonths.length;
-        thisYearMonths.forEach((m: number) => {
-          deliveriesByMonth[m].total += perMonth;
-          deliveriesByMonth[m].projects.push({ name: p.name, value: perMonth });
-        });
-      });
-
-      const totalExpectedDeliveries = Object.values(deliveriesByMonth).reduce((s, m) => s + m.total, 0);
-
       setReportData({
         currentYear,
         next3MonthsData,
@@ -214,8 +192,6 @@ export default function DashboardPage() {
         totalCertain,
         highProb,
         totalHighProb,
-        deliveriesByMonth,
-        totalExpectedDeliveries,
       });
     } catch (err: any) {
       console.error('Report error:', err);
@@ -261,20 +237,6 @@ export default function DashboardPage() {
     } else {
       text += `אין פרויקטים בהסתברות גבוהה\n`;
     }
-
-    text += `\n🚚 אספקות (חשבוניות) צפויות עד סוף ${r.currentYear}\n`;
-    text += `${'─'.repeat(30)}\n`;
-    for (let m = 1; m <= 12; m++) {
-      const md = r.deliveriesByMonth[m];
-      if (md.total > 0) {
-        text += `${MONTH_NAMES[m]}: ${fmtILS(Math.round(md.total))}`;
-        if (md.projects.length <= 3) {
-          text += ` (${md.projects.map((p: any) => p.name).join(', ')})`;
-        }
-        text += '\n';
-      }
-    }
-    text += `סה"כ אספקות צפויות: ${fmtILS(Math.round(r.totalExpectedDeliveries))}\n`;
 
     return text;
   }
@@ -624,7 +586,7 @@ export default function DashboardPage() {
                 ) : reportData ? (
                   <>
                     {/* Summary cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
                         <p className="text-[12px] text-green-600 font-semibold">3 חודשים קרובים</p>
                         <p className="text-lg font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
@@ -639,11 +601,6 @@ export default function DashboardPage() {
                         <p className="text-[12px] text-purple-600 font-semibold">הסתברות גבוהה {reportData.currentYear}</p>
                         <p className="text-lg font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
                         <p className="text-[11px] text-purple-500">{reportData.highProb.length} פרויקטים</p>
-                      </div>
-                      <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-orange-600 font-semibold">אספקות צפויות</p>
-                        <p className="text-lg font-bold text-orange-700">{formatILS(Math.round(reportData.totalExpectedDeliveries))}</p>
-                        <p className="text-[11px] text-orange-500">עד סוף {reportData.currentYear}</p>
                       </div>
                     </div>
 
@@ -725,45 +682,6 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <p className="text-sm text-gray-400 text-center py-3">אין פרויקטים בהסתברות גבוהה</p>
-                      )}
-                    </div>
-
-                    {/* Expected deliveries by month */}
-                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                        <span>🚚</span> אספקות (חשבוניות) צפויות עד סוף {reportData.currentYear}
-                      </h4>
-                      <div className="space-y-1.5">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
-                          const md = reportData.deliveriesByMonth[m];
-                          if (!md || md.total === 0) return null;
-                          const isPast = m < new Date().getMonth() + 1;
-                          return (
-                            <div key={m} className={`rounded-lg px-3 py-2 ${isPast ? 'bg-gray-50' : 'bg-orange-50'}`}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-bold ${isPast ? 'text-gray-500' : 'text-orange-700'}`}>{MONTH_NAMES[m]}</span>
-                                  {isPast && <span className="text-[10px] text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">עבר</span>}
-                                </div>
-                                <span className={`text-sm font-bold ${isPast ? 'text-gray-500' : 'text-orange-700'}`}>{formatILS(Math.round(md.total))}</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {md.projects.map((p: any, i: number) => (
-                                  <span key={i} className="text-[11px] text-gray-500 bg-white border border-gray-200 rounded px-1.5 py-0.5">{p.name}</span>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {Object.values(reportData.deliveriesByMonth).every((m: any) => m.total === 0) && (
-                          <p className="text-sm text-gray-400 text-center py-3">אין אספקות צפויות (לא הוגדרו חודשי אספקה)</p>
-                        )}
-                      </div>
-                      {reportData.totalExpectedDeliveries > 0 && (
-                        <div className="flex items-center justify-between pt-3 mt-3 border-t border-orange-100">
-                          <p className="text-sm font-bold text-gray-700">סה"כ אספקות צפויות</p>
-                          <p className="text-sm font-bold text-orange-700">{formatILS(Math.round(reportData.totalExpectedDeliveries))}</p>
-                        </div>
                       )}
                     </div>
                   </>
