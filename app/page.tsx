@@ -301,7 +301,7 @@ export default function DashboardPage() {
       color: '#1a56db',
     },
     {
-      title: 'הכנסה החודש',
+      title: `חשבוניות ${MONTH_NAMES[new Date().getMonth() + 1]}`,
       value: data
         ? new Intl.NumberFormat('he-IL', {
             style: 'currency',
