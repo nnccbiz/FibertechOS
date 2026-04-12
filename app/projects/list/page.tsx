@@ -40,14 +40,32 @@ export default function ProjectsListPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectDetails, setProjectDetails] = useState<ProjectDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
+  const [filter, setFilter] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [monthPickerOpen, setMonthPickerOpen] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [sortField, setSortField] = useState<string>('last_updated_at');
   const [sortAsc, setSortAsc] = useState(false);
-  const [probFilter, setProbFilter] = useState<string>('all');
+  const [probFilter, setProbFilter] = useState<Set<string>>(new Set());
+
+  function toggleFilter(value: string) {
+    setFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  function toggleProbFilter(value: string) {
+    setProbFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
 
   async function fetchData() {
     try {
@@ -88,9 +106,12 @@ export default function ProjectsListPage() {
 
   const filtered = projects
     .filter((p) => {
-      if (filter !== 'all' && p.realization_status !== filter) return false;
-      if (probFilter === '100' && (p.probability_percent || 0) !== 100) return false;
-      if (probFilter === 'under100' && (p.probability_percent || 0) >= 100) return false;
+      if (filter.size > 0 && !filter.has(p.realization_status)) return false;
+      if (probFilter.size > 0) {
+        const prob = p.probability_percent || 0;
+        const is100 = prob === 100;
+        if (!((probFilter.has('100') && is100) || (probFilter.has('under100') && !is100))) return false;
+      }
       if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
       return true;
     })
@@ -217,11 +238,11 @@ export default function ProjectsListPage() {
               placeholder="חיפוש פרויקט או יזם..."
               className="border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
             />
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               <button
-                onClick={() => setFilter('all')}
+                onClick={() => { setFilter(new Set()); setProbFilter(new Set()); }}
                 className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
-                  filter === 'all' ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  filter.size === 0 && probFilter.size === 0 ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 הכל
@@ -229,9 +250,9 @@ export default function ProjectsListPage() {
               {STATUS_OPTIONS.map((s) => (
                 <button
                   key={s}
-                  onClick={() => setFilter(s)}
+                  onClick={() => toggleFilter(s)}
                   className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
-                    filter === s ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    filter.has(s) ? 'bg-[#1a56db] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   {s}
@@ -239,17 +260,17 @@ export default function ProjectsListPage() {
               ))}
               <span className="w-px bg-gray-300 mx-1" />
               <button
-                onClick={() => setProbFilter(probFilter === '100' ? 'all' : '100')}
+                onClick={() => toggleProbFilter('100')}
                 className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
-                  probFilter === '100' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  probFilter.has('100') ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 100%
               </button>
               <button
-                onClick={() => setProbFilter(probFilter === 'under100' ? 'all' : 'under100')}
+                onClick={() => toggleProbFilter('under100')}
                 className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
-                  probFilter === 'under100' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  probFilter.has('under100') ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 0-99%
