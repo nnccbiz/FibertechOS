@@ -103,8 +103,6 @@ export default function ProjectsListPage() {
       return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     });
 
-  const totalValue = filtered.reduce((sum, p) => sum + (p.order_value || 0), 0);
-
   const currentYear = new Date().getFullYear();
 
   function getAllDeliveryEntries(projectId: string): string[] {
@@ -112,6 +110,16 @@ export default function ProjectsListPage() {
     if (!det?.delivery_months_list) return [];
     return det.delivery_months_list.split(',').filter(Boolean);
   }
+
+  const totalValue = filtered.reduce((sum, p) => {
+    const allEntries = getAllDeliveryEntries(p.id);
+    const totalMonths = allEntries.length;
+    const monthsThisYear = allEntries.filter((e) => e.startsWith(`${currentYear}-`)).length;
+    if (totalMonths === 0 || monthsThisYear === 0) return sum;
+    const perMonth = (p.order_value || 0) / totalMonths;
+    const prob = (p.probability_percent || 0) / 100;
+    return sum + perMonth * monthsThisYear * prob;
+  }, 0);
 
   function getDeliveryMonthsForYear(projectId: string, year: number): number[] {
     return getAllDeliveryEntries(projectId)
