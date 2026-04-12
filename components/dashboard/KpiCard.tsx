@@ -27,8 +27,8 @@ export default function KpiCard({ title, value, icon, color, loading }: KpiCardP
     <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-          <p className="text-3xl font-bold text-gray-800 mt-1 truncate">{value}</p>
+          <p className="text-sm text-gray-500 font-medium">{title}</p>
+          <p className="text-xl font-bold text-gray-800 mt-1">{value}</p>
         </div>
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
