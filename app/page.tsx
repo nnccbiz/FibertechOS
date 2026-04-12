@@ -293,6 +293,13 @@ export default function DashboardPage() {
       (p.planning_office || '').toLowerCase().includes(q);
   });
 
+  function formatCompact(value: number): string {
+    if (!value) return '₪0';
+    if (value >= 1_000_000) return `₪${(value / 1_000_000).toFixed(2)}M`;
+    if (value >= 1_000) return `₪${(value / 1_000).toFixed(0)}K`;
+    return `₪${value.toFixed(0)}`;
+  }
+
   const kpiCards = [
     {
       title: 'פרויקטים פעילים',
@@ -303,11 +310,7 @@ export default function DashboardPage() {
     {
       title: `חשבוניות ${MONTH_NAMES[new Date().getMonth() + 1]}`,
       value: data
-        ? new Intl.NumberFormat('he-IL', {
-            style: 'currency',
-            currency: 'ILS',
-            maximumFractionDigits: 0,
-          }).format(data.kpi.monthlyRevenue)
+        ? formatCompact(data.kpi.monthlyRevenue)
         : '—',
       icon: '💰',
       color: '#059669',
