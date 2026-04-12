@@ -54,7 +54,7 @@ export default function DashboardPage() {
           supabase.from('alerts').select('*').order('created_at', { ascending: false }),
           supabase.from('leads').select('*'),
           supabase.from('team_members').select('*'),
-          supabase.from('project_details').select('project_id, winning_contractor'),
+          supabase.from('project_details').select('project_id, winning_contractor, delivery_months_list'),
         ]);
 
         if (projectsRes.error) throw projectsRes.error;
@@ -85,10 +85,20 @@ export default function DashboardPage() {
 
         const openAlerts = alerts.filter((a) => !a.is_resolved);
 
-        const monthlyRevenue = activeProjects.reduce(
-          (sum, p) => sum + (p.order_value || 0),
-          0
-        );
+        // Monthly revenue = sum of (order_value / total_delivery_months) for projects delivering this month
+        const now = new Date();
+        const thisMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+        const detMap: Record<string, string> = {};
+        details.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
+
+        const monthlyRevenue = projects.reduce((sum, p) => {
+          const monthsList = detMap[p.id];
+          if (!monthsList) return sum;
+          const entries = monthsList.split(',').filter(Boolean);
+          if (!entries.includes(thisMonthKey)) return sum;
+          const totalMonths = entries.length;
+          return sum + (p.order_value || 0) / totalMonths;
+        }, 0);
 
         const shipmentAlerts = alerts.filter((a) => a.type === 'shipment' && !a.is_resolved);
 
