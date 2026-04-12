@@ -47,6 +47,7 @@ export default function ProjectsListPage() {
   const [editValue, setEditValue] = useState('');
   const [sortField, setSortField] = useState<string>('last_updated_at');
   const [sortAsc, setSortAsc] = useState(false);
+  const [probFilter, setProbFilter] = useState<string>('all');
 
   async function fetchData() {
     try {
@@ -88,6 +89,8 @@ export default function ProjectsListPage() {
   const filtered = projects
     .filter((p) => {
       if (filter !== 'all' && p.realization_status !== filter) return false;
+      if (probFilter === '100' && (p.probability_percent || 0) !== 100) return false;
+      if (probFilter === 'under100' && (p.probability_percent || 0) >= 100) return false;
       if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
       return true;
     })
@@ -234,6 +237,23 @@ export default function ProjectsListPage() {
                   {s}
                 </button>
               ))}
+              <span className="w-px bg-gray-300 mx-1" />
+              <button
+                onClick={() => setProbFilter(probFilter === '100' ? 'all' : '100')}
+                className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
+                  probFilter === '100' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                100%
+              </button>
+              <button
+                onClick={() => setProbFilter(probFilter === 'under100' ? 'all' : 'under100')}
+                className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
+                  probFilter === 'under100' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                0-99%
+              </button>
             </div>
           </div>
 
