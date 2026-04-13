@@ -565,7 +565,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         }));
         setEditingCostItems(items);
         setEditingCostInput(costInputId);
-        alert(`Roxy חילצה ${items.length} פריטים מהקובץ. בדוק ולחץ שמור.`);
+        const currency = data.currency || '';
+        alert(`Roxy חילצה ${items.length} פריטים מהקובץ${currency ? ` (מטבע: ${currency})` : ''}. בדוק ולחץ שמור.`);
       } else {
         alert(data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
       }
