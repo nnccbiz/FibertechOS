@@ -106,6 +106,15 @@ export default function ProjectDetailPage() {
   const [editContacts, setEditContacts] = useState(false);
   const [editSpecs, setEditSpecs] = useState(false);
 
+  // Quotes
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [quoteItems, setQuoteItems] = useState<Record<string, any[]>>({});
+  const [showNewQuote, setShowNewQuote] = useState(false);
+  const [newQuote, setNewQuote] = useState({ client_name: '', notes: '' });
+  const [editingQuote, setEditingQuote] = useState<string | null>(null);
+  const [editingItems, setEditingItems] = useState<any[]>([]);
+  const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+
   // Editable form data
   const [form, setForm] = useState<any>({});
   const [detailForm, setDetailForm] = useState<any>({});
@@ -120,24 +129,39 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, quotesRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('quotes').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       ]);
 
       const proj = projRes.data;
       const det = detRes.data || {};
       const cons = conRes.data || [];
       const specs = specRes.data || [];
+      const qts = quotesRes.data || [];
 
       setProject(proj);
       setDetails(det);
       setContacts(cons);
       setPipeSpecs(specs);
       setUpdates(updRes.data || []);
+      setQuotes(qts);
+
+      // Load items for all quotes
+      if (qts.length > 0) {
+        const itemsRes = await supabase.from('quote_items').select('*').in('quote_id', qts.map((q: any) => q.id)).order('sort_order');
+        const items = itemsRes.data || [];
+        const grouped: Record<string, any[]> = {};
+        items.forEach((item: any) => {
+          if (!grouped[item.quote_id]) grouped[item.quote_id] = [];
+          grouped[item.quote_id].push(item);
+        });
+        setQuoteItems(grouped);
+      }
 
       if (proj) setForm({ ...proj });
       setDetailForm({ ...det });
@@ -459,6 +483,110 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
       setSaving(false);
     }
   }
+
+  // === Quotes functions ===
+  async function createQuote() {
+    if (!newQuote.client_name.trim()) return;
+    const id = params.id as string;
+    const num = `Q-${Date.now().toString(36).toUpperCase()}`;
+    const { data: q, error } = await supabase.from('quotes').insert({
+      project_id: id,
+      quote_number: num,
+      client_name: newQuote.client_name,
+      status: 'draft',
+      total_amount: 0,
+      notes: newQuote.notes,
+    }).select().single();
+    if (error) { alert(`שגיאה: ${error.message}`); return; }
+    setShowNewQuote(false);
+    setNewQuote({ client_name: '', notes: '' });
+    setQuotes((prev) => [q, ...prev]);
+    setEditingQuote(q.id);
+    setEditingItems([{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }]);
+    setExpandedQuote(q.id);
+  }
+
+  function startEditQuote(quoteId: string) {
+    const items = quoteItems[quoteId] || [];
+    setEditingQuote(quoteId);
+    setEditingItems(items.length > 0
+      ? items.map((i) => ({ ...i }))
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }]
+    );
+  }
+
+  function updateItem(idx: number, field: string, val: any) {
+    setEditingItems((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      if (field === 'quantity' || field === 'unit_price') {
+        const qty = field === 'quantity' ? parseFloat(val) || 0 : parseFloat(next[idx].quantity) || 0;
+        const price = field === 'unit_price' ? parseFloat(val) || 0 : parseFloat(next[idx].unit_price) || 0;
+        next[idx].total_price = qty * price;
+      }
+      return next;
+    });
+  }
+
+  async function saveQuoteItems(quoteId: string) {
+    setSaving(true);
+    try {
+      await supabase.from('quote_items').delete().eq('quote_id', quoteId);
+      const valid = editingItems.filter((i) => i.product_name?.trim());
+      if (valid.length > 0) {
+        await supabase.from('quote_items').insert(
+          valid.map((i, idx) => ({
+            quote_id: quoteId,
+            product_name: i.product_name,
+            dn_size: i.dn_size || null,
+            quantity: parseFloat(i.quantity) || 0,
+            unit: i.unit || 'מטר',
+            unit_price: parseFloat(i.unit_price) || 0,
+            total_price: parseFloat(i.total_price) || 0,
+            notes: i.notes || '',
+            sort_order: idx,
+          }))
+        );
+      }
+      const total = valid.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+      await supabase.from('quotes').update({ total_amount: total, updated_at: new Date().toISOString() }).eq('id', quoteId);
+      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, total_amount: total } : q));
+      setQuoteItems((prev) => ({ ...prev, [quoteId]: valid }));
+      setEditingQuote(null);
+    } catch (err: any) {
+      alert(`שגיאה: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateQuoteStatus(quoteId: string, status: string) {
+    await supabase.from('quotes').update({ status, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
+
+    // If signed, recalculate project order_value from all signed quotes
+    if (status === 'signed') {
+      const signedQuotes = quotes.map((q) => q.id === quoteId ? { ...q, status: 'signed' } : q).filter((q) => q.status === 'signed');
+      const totalValue = signedQuotes.reduce((s, q) => s + (q.total_amount || 0), 0);
+      await supabase.from('projects').update({ order_value: totalValue, last_updated_at: new Date().toISOString() }).eq('id', params.id as string);
+      setProject((prev: any) => ({ ...prev, order_value: totalValue }));
+      setForm((prev: any) => ({ ...prev, order_value: totalValue }));
+    }
+  }
+
+  async function deleteQuote(quoteId: string) {
+    await supabase.from('quotes').delete().eq('id', quoteId);
+    setQuotes((prev) => prev.filter((q) => q.id !== quoteId));
+    setQuoteItems((prev) => { const next = { ...prev }; delete next[quoteId]; return next; });
+    if (editingQuote === quoteId) setEditingQuote(null);
+  }
+
+  const QUOTE_STATUS_MAP: Record<string, { label: string; color: string }> = {
+    draft: { label: 'טיוטה', color: 'bg-gray-100 text-gray-600' },
+    sent: { label: 'נשלח', color: 'bg-blue-100 text-blue-700' },
+    signed: { label: 'נחתם', color: 'bg-green-100 text-green-700' },
+    rejected: { label: 'נדחה', color: 'bg-red-100 text-red-700' },
+  };
 
   function cancelEdit(section: string) {
     if (section === 'info') { setForm({ ...project }); setDetailForm({ ...details }); setContractorsForm(contacts.filter((c) => c.role === 'קבלן מבצע').map((c) => c.name || '')); setEditInfo(false); }
@@ -791,6 +919,173 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+          )}
+        </section>
+
+        {/* Quotes */}
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-700">💰 הצעות מחיר</h2>
+            <button
+              onClick={() => setShowNewQuote(!showNewQuote)}
+              className="text-sm bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {showNewQuote ? 'ביטול' : '+ הצעה חדשה'}
+            </button>
+          </div>
+
+          {/* New quote form */}
+          {showNewQuote && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם לקוח / קבלן</label>
+                  <input type="text" value={newQuote.client_name} onChange={(e) => setNewQuote({ ...newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">הערות</label>
+                  <input type="text" value={newQuote.notes} onChange={(e) => setNewQuote({ ...newQuote, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="הערות (אופציונלי)" />
+                </div>
+              </div>
+              <button onClick={createQuote} disabled={!newQuote.client_name.trim()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+                צור הצעה
+              </button>
+            </div>
+          )}
+
+          {/* Quotes list */}
+          {quotes.length === 0 && !showNewQuote ? (
+            <p className="text-sm text-gray-400 text-center py-3">אין הצעות מחיר. לחץ "+ הצעה חדשה" להוסיף.</p>
+          ) : (
+            <div className="space-y-3">
+              {quotes.map((q) => {
+                const st = QUOTE_STATUS_MAP[q.status] || QUOTE_STATUS_MAP.draft;
+                const isExpanded = expandedQuote === q.id;
+                const isEditing = editingQuote === q.id;
+                const items = quoteItems[q.id] || [];
+                return (
+                  <div key={q.id} className="border border-[#e2e8f0] rounded-xl overflow-hidden">
+                    {/* Quote header */}
+                    <div
+                      className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => setExpandedQuote(isExpanded ? null : q.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-mono text-gray-400">{q.quote_number}</span>
+                        <span className="text-sm font-bold text-gray-700">{q.client_name}</span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-gray-700">{formatCurrency(q.total_amount || 0)}</span>
+                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                      </div>
+                    </div>
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div className="px-4 py-3 border-t border-[#e2e8f0]">
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          {!isEditing && (
+                            <button onClick={() => startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">
+                              ✏️ ערוך פריטים
+                            </button>
+                          )}
+                          {q.status === 'draft' && (
+                            <button onClick={() => updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-blue-50 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">
+                              📤 סמן כנשלח
+                            </button>
+                          )}
+                          {(q.status === 'sent' || q.status === 'draft') && (
+                            <button onClick={() => updateQuoteStatus(q.id, 'signed')} className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">
+                              ✅ נחתם
+                            </button>
+                          )}
+                          {q.status !== 'rejected' && q.status !== 'signed' && (
+                            <button onClick={() => updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                              ❌ נדחה
+                            </button>
+                          )}
+                          {q.status === 'draft' && (
+                            <button onClick={() => { if (confirm('למחוק הצעה זו?')) deleteQuote(q.id); }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">
+                              🗑️ מחק
+                            </button>
+                          )}
+                        </div>
+
+                        {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
+
+                        {/* Items table — edit mode */}
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-[1fr_80px_60px_80px_80px_90px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
+                              <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר</span><span>סה"כ</span><span></span>
+                            </div>
+                            {editingItems.map((item, idx) => (
+                              <div key={idx} className="grid grid-cols-[1fr_80px_60px_80px_80px_90px_32px] gap-1">
+                                <input type="text" value={item.product_name} onChange={(e) => updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
+                                <input type="text" value={item.dn_size || ''} onChange={(e) => updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
+                                <input type="number" value={item.quantity || ''} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
+                                <input type="text" value={item.unit || 'מטר'} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
+                                <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
+                                <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+                                <button onClick={() => setEditingItems((prev) => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between pt-2">
+                              <button onClick={() => setEditingItems((prev) => [...prev, { product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }])} className="text-[12px] text-[#1a56db] hover:underline">
+                                + הוסף שורה
+                              </button>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-gray-700">סה"כ: {formatCurrency(editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))}</span>
+                                <button onClick={() => setEditingQuote(null)} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">ביטול</button>
+                                <button onClick={() => saveQuoteItems(q.id)} disabled={saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+                                  {saving ? 'שומר...' : 'שמור'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : items.length > 0 ? (
+                          /* Items table — display mode */
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-[#e2e8f0]">
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1">מוצר</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">קוטר</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר יח׳</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה"כ</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {items.map((item: any) => (
+                                  <tr key={item.id} className="border-b border-gray-50">
+                                    <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
+                                    <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
+                                    <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
+                                    <td className="py-1.5 text-gray-500">{formatCurrency(item.unit_price)}</td>
+                                    <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_price)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t border-[#e2e8f0]">
+                                  <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה"כ</td>
+                                  <td className="py-2 font-bold text-gray-700">{formatCurrency(q.total_amount)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400 text-center py-2">אין פריטים. לחץ "ערוך פריטים" להוסיף.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
 
