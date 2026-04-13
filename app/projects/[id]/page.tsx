@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
+import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -106,14 +107,23 @@ export default function ProjectDetailPage() {
   const [editContacts, setEditContacts] = useState(false);
   const [editSpecs, setEditSpecs] = useState(false);
 
-  // Quotes
+  // Quotes & Pricing
+  const [costInputs, setCostInputs] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [quoteItems, setQuoteItems] = useState<Record<string, any[]>>({});
+  const [costInputItems, setCostInputItems] = useState<Record<string, any[]>>({});
+  const [showNewCostInput, setShowNewCostInput] = useState(false);
   const [showNewQuote, setShowNewQuote] = useState(false);
-  const [newQuote, setNewQuote] = useState({ client_name: '', notes: '' });
+  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '' });
+  const [newQuote, setNewQuote] = useState({ client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '', default_overheads_pct: 23, default_profit_pct: 25, disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '' });
   const [editingQuote, setEditingQuote] = useState<string | null>(null);
   const [editingItems, setEditingItems] = useState<any[]>([]);
+  const [editingCostInput, setEditingCostInput] = useState<string | null>(null);
+  const [editingCostItems, setEditingCostItems] = useState<any[]>([]);
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+  const [expandedCostInput, setExpandedCostInput] = useState<string | null>(null);
+  const [pricingTab, setPricingTab] = useState<'costs' | 'quotes' | 'orders'>('quotes');
 
   // Editable form data
   const [form, setForm] = useState<any>({});
@@ -129,13 +139,15 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes, quotesRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, quotesRes, costRes, ordersRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
         supabase.from('quotes').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('cost_inputs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('orders').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       ]);
 
       const proj = projRes.data;
@@ -143,6 +155,8 @@ export default function ProjectDetailPage() {
       const cons = conRes.data || [];
       const specs = specRes.data || [];
       const qts = quotesRes.data || [];
+      const costs = costRes.data || [];
+      const ords = ordersRes.data || [];
 
       setProject(proj);
       setDetails(det);
@@ -150,6 +164,8 @@ export default function ProjectDetailPage() {
       setPipeSpecs(specs);
       setUpdates(updRes.data || []);
       setQuotes(qts);
+      setCostInputs(costs);
+      setOrders(ords);
 
       // Load items for all quotes
       if (qts.length > 0) {
@@ -161,6 +177,18 @@ export default function ProjectDetailPage() {
           grouped[item.quote_id].push(item);
         });
         setQuoteItems(grouped);
+      }
+
+      // Load cost input items
+      if (costs.length > 0) {
+        const ciRes = await supabase.from('cost_input_items').select('*').in('cost_input_id', costs.map((c: any) => c.id)).order('sort_order');
+        const ciItems = ciRes.data || [];
+        const ciGrouped: Record<string, any[]> = {};
+        ciItems.forEach((item: any) => {
+          if (!ciGrouped[item.cost_input_id]) ciGrouped[item.cost_input_id] = [];
+          ciGrouped[item.cost_input_id].push(item);
+        });
+        setCostInputItems(ciGrouped);
       }
 
       if (proj) setForm({ ...proj });
@@ -484,34 +512,99 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     }
   }
 
+  // === Cost Input functions ===
+  async function createCostInput() {
+    if (!newCostInput.source_name.trim()) return;
+    const id = params.id as string;
+    const { data: ci, error } = await supabase.from('cost_inputs').insert({
+      project_id: id, source_type: newCostInput.source_type, source_name: newCostInput.source_name, notes: newCostInput.notes,
+    }).select().single();
+    if (error) { alert(`שגיאה: ${error.message}`); return; }
+    setShowNewCostInput(false);
+    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '' });
+    setCostInputs((prev) => [ci, ...prev]);
+    setExpandedCostInput(ci.id);
+    setEditingCostInput(ci.id);
+    setEditingCostItems([{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }]);
+  }
+
+  function updateCostItem(idx: number, field: string, val: any) {
+    setEditingCostItems((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      if (field === 'quantity' || field === 'cost_price') {
+        const qty = field === 'quantity' ? parseFloat(val) || 0 : parseFloat(next[idx].quantity) || 0;
+        const price = field === 'cost_price' ? parseFloat(val) || 0 : parseFloat(next[idx].cost_price) || 0;
+        next[idx].total_cost = qty * price;
+      }
+      return next;
+    });
+  }
+
+  async function saveCostInputItems(costInputId: string) {
+    setSaving(true);
+    try {
+      await supabase.from('cost_input_items').delete().eq('cost_input_id', costInputId);
+      const valid = editingCostItems.filter((i) => i.product_name?.trim());
+      if (valid.length > 0) {
+        await supabase.from('cost_input_items').insert(valid.map((i, idx) => ({
+          cost_input_id: costInputId, product_name: i.product_name, dn_size: i.dn_size || null,
+          quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
+          cost_price: parseFloat(i.cost_price) || 0, total_cost: parseFloat(i.total_cost) || 0,
+          sort_order: idx,
+        })));
+      }
+      setCostInputItems((prev) => ({ ...prev, [costInputId]: valid }));
+      setEditingCostInput(null);
+    } finally { setSaving(false); }
+  }
+
   // === Quotes functions ===
   async function createQuote() {
     if (!newQuote.client_name.trim()) return;
     const id = params.id as string;
     const num = `Q-${Date.now().toString(36).toUpperCase()}`;
+    const disclaimer = DISCLAIMER_TEMPLATES[newQuote.disclaimer_type]?.text || '';
     const { data: q, error } = await supabase.from('quotes').insert({
-      project_id: id,
-      quote_number: num,
-      client_name: newQuote.client_name,
-      status: 'draft',
-      total_amount: 0,
-      notes: newQuote.notes,
+      project_id: id, quote_number: num, client_name: newQuote.client_name,
+      status: 'draft', cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
+      cost_input_id: newQuote.cost_input_id || null,
+      default_overheads_pct: newQuote.cost_source === 'internal' ? 0 : newQuote.default_overheads_pct,
+      default_profit_pct: newQuote.default_profit_pct,
+      payment_terms: newQuote.payment_terms, disclaimer_type: newQuote.disclaimer_type,
+      disclaimer_text: disclaimer, total_amount: 0, total_cost: 0, notes: newQuote.notes,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewQuote(false);
-    setNewQuote({ client_name: '', notes: '' });
+
+    // If linked to cost input, pre-populate items
+    const ciItems = newQuote.cost_input_id ? (costInputItems[newQuote.cost_input_id] || []) : [];
+    const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct || 23);
+    const pr = newQuote.default_profit_pct || 25;
+    const preItems = ciItems.length > 0
+      ? ciItems.map((ci: any) => {
+          const costWithOH = (parseFloat(ci.cost_price) || 0) * (1 + oh / 100);
+          const unitPrice = Math.round(costWithOH * (1 + pr / 100) * 100) / 100;
+          return { product_name: ci.product_name, dn_size: ci.dn_size, quantity: ci.quantity, unit: ci.unit, cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr, unit_price: unitPrice, total_price: (ci.quantity || 0) * unitPrice, notes: '' };
+        })
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }];
+
+    setNewQuote({ client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '', default_overheads_pct: 23, default_profit_pct: 25, disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '' });
     setQuotes((prev) => [q, ...prev]);
     setEditingQuote(q.id);
-    setEditingItems([{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }]);
+    setEditingItems(preItems);
     setExpandedQuote(q.id);
   }
 
   function startEditQuote(quoteId: string) {
+    const q = quotes.find((x) => x.id === quoteId);
     const items = quoteItems[quoteId] || [];
+    const oh = q?.default_overheads_pct ?? 23;
+    const pr = q?.default_profit_pct ?? 25;
     setEditingQuote(quoteId);
     setEditingItems(items.length > 0
       ? items.map((i) => ({ ...i }))
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }]
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }]
     );
   }
 
@@ -519,10 +612,16 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     setEditingItems((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
-      if (field === 'quantity' || field === 'unit_price') {
-        const qty = field === 'quantity' ? parseFloat(val) || 0 : parseFloat(next[idx].quantity) || 0;
-        const price = field === 'unit_price' ? parseFloat(val) || 0 : parseFloat(next[idx].unit_price) || 0;
-        next[idx].total_price = qty * price;
+      if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price'].includes(field)) {
+        const cost = parseFloat(next[idx].cost_price) || 0;
+        const oh = parseFloat(next[idx].overheads_pct) || 0;
+        const pr = parseFloat(next[idx].profit_pct) || 0;
+        const qty = parseFloat(next[idx].quantity) || 0;
+        if (field !== 'unit_price') {
+          const costWithOH = cost * (1 + oh / 100);
+          next[idx].unit_price = Math.round(costWithOH * (1 + pr / 100) * 100) / 100;
+        }
+        next[idx].total_price = qty * (parseFloat(next[idx].unit_price) || 0);
       }
       return next;
     });
@@ -534,40 +633,39 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
       await supabase.from('quote_items').delete().eq('quote_id', quoteId);
       const valid = editingItems.filter((i) => i.product_name?.trim());
       if (valid.length > 0) {
-        await supabase.from('quote_items').insert(
-          valid.map((i, idx) => ({
-            quote_id: quoteId,
-            product_name: i.product_name,
-            dn_size: i.dn_size || null,
-            quantity: parseFloat(i.quantity) || 0,
-            unit: i.unit || 'מטר',
-            unit_price: parseFloat(i.unit_price) || 0,
-            total_price: parseFloat(i.total_price) || 0,
-            notes: i.notes || '',
-            sort_order: idx,
-          }))
-        );
+        await supabase.from('quote_items').insert(valid.map((i, idx) => ({
+          quote_id: quoteId, product_name: i.product_name, dn_size: i.dn_size || null,
+          quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
+          cost_price: parseFloat(i.cost_price) || 0, overheads_pct: parseFloat(i.overheads_pct) || 0,
+          profit_pct: parseFloat(i.profit_pct) || 0,
+          unit_price: parseFloat(i.unit_price) || 0, total_price: parseFloat(i.total_price) || 0,
+          notes: i.notes || '', sort_order: idx,
+        })));
       }
-      const total = valid.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
-      await supabase.from('quotes').update({ total_amount: total, updated_at: new Date().toISOString() }).eq('id', quoteId);
-      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, total_amount: total } : q));
+      const totalSell = valid.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+      const totalCost = valid.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0);
+      await supabase.from('quotes').update({ total_amount: totalSell, total_cost: totalCost, updated_at: new Date().toISOString() }).eq('id', quoteId);
+      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, total_amount: totalSell, total_cost: totalCost } : q));
       setQuoteItems((prev) => ({ ...prev, [quoteId]: valid }));
       setEditingQuote(null);
-    } catch (err: any) {
-      alert(`שגיאה: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { alert(`שגיאה: ${err.message}`); } finally { setSaving(false); }
   }
 
   async function updateQuoteStatus(quoteId: string, status: string) {
     await supabase.from('quotes').update({ status, updated_at: new Date().toISOString() }).eq('id', quoteId);
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
-
-    // If signed, recalculate project order_value from all signed quotes
     if (status === 'signed') {
-      const signedQuotes = quotes.map((q) => q.id === quoteId ? { ...q, status: 'signed' } : q).filter((q) => q.status === 'signed');
-      const totalValue = signedQuotes.reduce((s, q) => s + (q.total_amount || 0), 0);
+      // Create order from quote
+      const q = quotes.find((x) => x.id === quoteId);
+      const orderNum = `ORD-${Date.now().toString(36).toUpperCase()}`;
+      const { data: ord } = await supabase.from('orders').insert({
+        project_id: params.id as string, quote_id: quoteId, order_number: orderNum,
+        status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
+      }).select().single();
+      if (ord) setOrders((prev) => [ord, ...prev]);
+      // Recalculate project order_value
+      const signedQuotes = quotes.map((x) => x.id === quoteId ? { ...x, status: 'signed' } : x).filter((x) => x.status === 'signed');
+      const totalValue = signedQuotes.reduce((s, x) => s + (x.total_amount || 0), 0);
       await supabase.from('projects').update({ order_value: totalValue, last_updated_at: new Date().toISOString() }).eq('id', params.id as string);
       setProject((prev: any) => ({ ...prev, order_value: totalValue }));
       setForm((prev: any) => ({ ...prev, order_value: totalValue }));
@@ -577,8 +675,12 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
   async function deleteQuote(quoteId: string) {
     await supabase.from('quotes').delete().eq('id', quoteId);
     setQuotes((prev) => prev.filter((q) => q.id !== quoteId));
-    setQuoteItems((prev) => { const next = { ...prev }; delete next[quoteId]; return next; });
     if (editingQuote === quoteId) setEditingQuote(null);
+  }
+
+  async function updateOrderStatus(orderId: string, status: string) {
+    await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
   }
 
   const QUOTE_STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -586,6 +688,14 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     sent: { label: 'נשלח', color: 'bg-blue-100 text-blue-700' },
     signed: { label: 'נחתם', color: 'bg-green-100 text-green-700' },
     rejected: { label: 'נדחה', color: 'bg-red-100 text-red-700' },
+  };
+
+  const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
+    pending: { label: 'ממתין', color: 'bg-yellow-100 text-yellow-700' },
+    confirmed: { label: 'מאושר', color: 'bg-blue-100 text-blue-700' },
+    in_production: { label: 'בייצור', color: 'bg-purple-100 text-purple-700' },
+    delivered: { label: 'סופק', color: 'bg-green-100 text-green-700' },
+    completed: { label: 'הושלם', color: 'bg-gray-100 text-gray-600' },
   };
 
   function cancelEdit(section: string) {
@@ -922,10 +1032,146 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           )}
         </section>
 
-        {/* Quotes */}
+        {/* Pricing & Quotes */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-700">💰 הצעות מחיר</h2>
+            <h2 className="text-lg font-bold text-gray-700">💰 תמחור והצעות מחיר</h2>
+          </div>
+          {/* Tabs */}
+          <div className="flex gap-1 mb-4 border-b border-[#e2e8f0] pb-2">
+            {([['costs', 'תמחור'], ['quotes', 'הצעות מחיר'], ['orders', 'הזמנות']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setPricingTab(key as any)} className={`text-sm px-4 py-1.5 rounded-t-lg transition-colors ${pricingTab === key ? 'bg-[#1a56db] text-white font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {label}{key === 'costs' && costInputs.length > 0 ? ` (${costInputs.length})` : ''}{key === 'quotes' && quotes.length > 0 ? ` (${quotes.length})` : ''}{key === 'orders' && orders.length > 0 ? ` (${orders.length})` : ''}
+              </button>
+            ))}
+          </div>
+
+          {/* === COSTS TAB === */}
+          {pricingTab === 'costs' && (
+            <div>
+              <div className="flex justify-end mb-3">
+                <button onClick={() => setShowNewCostInput(!showNewCostInput)} className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 transition-colors">
+                  {showNewCostInput ? 'ביטול' : '+ תמחור חדש'}
+                </button>
+              </div>
+              {showNewCostInput && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג מקור</label>
+                      <div className="flex gap-3 mt-1">
+                        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="radio" checked={newCostInput.source_type === 'supplier'} onChange={() => setNewCostInput({ ...newCostInput, source_type: 'supplier' })} /> ספק חיצוני
+                        </label>
+                        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="radio" checked={newCostInput.source_type === 'internal'} onChange={() => setNewCostInput({ ...newCostInput, source_type: 'internal' })} /> תמחור פנימי
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם מקור</label>
+                      <input type="text" value={newCostInput.source_name} onChange={(e) => setNewCostInput({ ...newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={newCostInput.source_type === 'supplier' ? 'מוחמד' : 'הלל'} autoFocus />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">הערות</label>
+                      <input type="text" value={newCostInput.notes} onChange={(e) => setNewCostInput({ ...newCostInput, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="אופציונלי" />
+                    </div>
+                  </div>
+                  <button onClick={createCostInput} disabled={!newCostInput.source_name.trim()} className="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50">צור תמחור</button>
+                </div>
+              )}
+              {costInputs.length === 0 && !showNewCostInput ? (
+                <p className="text-sm text-gray-400 text-center py-3">אין תמחורים. לחץ &quot;+ תמחור חדש&quot; להוסיף.</p>
+              ) : (
+                <div className="space-y-3">
+                  {costInputs.map((ci) => {
+                    const isExp = expandedCostInput === ci.id;
+                    const isEdit = editingCostInput === ci.id;
+                    const citems = costInputItems[ci.id] || [];
+                    const ciTotal = citems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0);
+                    return (
+                      <div key={ci.id} className="border border-[#e2e8f0] rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 bg-amber-50/50 cursor-pointer hover:bg-amber-50 transition-colors" onClick={() => setExpandedCostInput(isExp ? null : ci.id)}>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
+                            <span className="text-sm font-bold text-gray-700">{ci.source_name}</span>
+                            <span className="text-[11px] text-gray-400">{formatDate(ci.created_at)}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold text-gray-700">{formatCurrency(ciTotal)}</span>
+                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                          </div>
+                        </div>
+                        {isExp && (
+                          <div className="px-4 py-3 border-t border-[#e2e8f0]">
+                            {!isEdit && <button onClick={() => { setEditingCostInput(ci.id); setEditingCostItems(citems.length > 0 ? citems.map((i: any) => ({ ...i })) : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }]); }} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors mb-3">✏️ ערוך פריטים</button>}
+                            {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
+                            {isEdit ? (
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-[1fr_80px_60px_80px_90px_90px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
+                                  <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
+                                </div>
+                                {editingCostItems.map((item: any, idx: number) => (
+                                  <div key={idx} className="grid grid-cols-[1fr_80px_60px_80px_90px_90px_32px] gap-1">
+                                    <input type="text" value={item.product_name} onChange={(e) => updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                    <input type="text" value={item.dn_size || ''} onChange={(e) => updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                    <input type="number" value={item.quantity || ''} onChange={(e) => updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                    <input type="text" value={item.unit || 'מטר'} onChange={(e) => updateCostItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                    <input type="number" value={item.cost_price || ''} onChange={(e) => updateCostItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                    <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_cost) || 0)}</span>
+                                    <button onClick={() => setEditingCostItems((prev: any[]) => prev.filter((_: any, i: number) => i !== idx))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                                  </div>
+                                ))}
+                                <div className="flex items-center justify-between pt-2">
+                                  <button onClick={() => setEditingCostItems((prev: any[]) => [...prev, { product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }])} className="text-[12px] text-amber-700 hover:underline">+ הוסף שורה</button>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-700">סה״כ: {formatCurrency(editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
+                                    <button onClick={() => setEditingCostInput(null)} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100">ביטול</button>
+                                    <button onClick={() => saveCostInputItems(ci.id)} disabled={saving} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{saving ? 'שומר...' : 'שמור'}</button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : citems.length > 0 ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead><tr className="border-b border-[#e2e8f0]">
+                                    <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1">מוצר</th>
+                                    <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">קוטר</th>
+                                    <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
+                                    <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר עלות</th>
+                                    <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
+                                  </tr></thead>
+                                  <tbody>{citems.map((item: any) => (
+                                    <tr key={item.id} className="border-b border-gray-50">
+                                      <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
+                                      <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
+                                      <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
+                                      <td className="py-1.5 text-gray-500">{formatCurrency(item.cost_price)}</td>
+                                      <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_cost)}</td>
+                                    </tr>
+                                  ))}</tbody>
+                                  <tfoot><tr className="border-t border-[#e2e8f0]">
+                                    <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה״כ עלות</td>
+                                    <td className="py-2 font-bold text-gray-700">{formatCurrency(ciTotal)}</td>
+                                  </tr></tfoot>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-400 text-center py-2">אין פריטים. לחץ &quot;ערוך פריטים&quot; להוסיף.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === QUOTES TAB === */}
+          {pricingTab === 'quotes' && (<>
+          <div className="flex justify-end mb-3">
             <button
               onClick={() => setShowNewQuote(!showNewQuote)}
               className="text-sm bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
@@ -943,9 +1189,53 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <input type="text" value={newQuote.client_name} onChange={(e) => setNewQuote({ ...newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">הערות</label>
-                  <input type="text" value={newQuote.notes} onChange={(e) => setNewQuote({ ...newQuote, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="הערות (אופציונלי)" />
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">מקור תמחור</label>
+                  <div className="flex gap-3 mt-1">
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input type="radio" checked={newQuote.cost_source === 'supplier'} onChange={() => setNewQuote({ ...newQuote, cost_source: 'supplier', default_overheads_pct: 23 })} /> ספק (+ תקורות)
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input type="radio" checked={newQuote.cost_source === 'internal'} onChange={() => setNewQuote({ ...newQuote, cost_source: 'internal', default_overheads_pct: 0 })} /> פנימי (ללא תקורות)
+                    </label>
+                  </div>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {costInputs.length > 0 && (
+                  <div>
+                    <label className="block text-[12px] font-semibold text-gray-500 mb-1">קישור לתמחור</label>
+                    <select value={newQuote.cost_input_id} onChange={(e) => setNewQuote({ ...newQuote, cost_input_id: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                      <option value="">ללא קישור</option>
+                      {costInputs.map((ci) => <option key={ci.id} value={ci.id}>{ci.source_name} ({ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})</option>)}
+                    </select>
+                  </div>
+                )}
+                {newQuote.cost_source === 'supplier' && (
+                  <div>
+                    <label className="block text-[12px] font-semibold text-gray-500 mb-1">% תקורות</label>
+                    <input type="number" value={newQuote.default_overheads_pct} onChange={(e) => setNewQuote({ ...newQuote, default_overheads_pct: parseFloat(e.target.value) || 0 })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">% רווח</label>
+                  <input type="number" value={newQuote.default_profit_pct} onChange={(e) => setNewQuote({ ...newQuote, default_profit_pct: parseFloat(e.target.value) || 0 })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הערות משפטיות</label>
+                  <select value={newQuote.disclaimer_type} onChange={(e) => setNewQuote({ ...newQuote, disclaimer_type: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                    {DISCLAIMER_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום</label>
+                  <input type="text" value={newQuote.payment_terms} onChange={(e) => setNewQuote({ ...newQuote, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-gray-500 mb-1">הערות</label>
+                <input type="text" value={newQuote.notes} onChange={(e) => setNewQuote({ ...newQuote, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="אופציונלי" />
               </div>
               <button onClick={createQuote} disabled={!newQuote.client_name.trim()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
                 צור הצעה
@@ -1018,26 +1308,32 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         {/* Items table — edit mode */}
                         {isEditing ? (
                           <div className="space-y-2">
-                            <div className="grid grid-cols-[1fr_80px_60px_80px_80px_90px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
-                              <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר</span><span>סה"כ</span><span></span>
-                            </div>
-                            {editingItems.map((item, idx) => (
-                              <div key={idx} className="grid grid-cols-[1fr_80px_60px_80px_80px_90px_32px] gap-1">
-                                <input type="text" value={item.product_name} onChange={(e) => updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
-                                <input type="text" value={item.dn_size || ''} onChange={(e) => updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
-                                <input type="number" value={item.quantity || ''} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
-                                <input type="text" value={item.unit || 'מטר'} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
-                                <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a56db]/30" />
-                                <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
-                                <button onClick={() => setEditingItems((prev) => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                            <div className="overflow-x-auto">
+                              <div className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[750px]">
+                                <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>סה״כ</span><span></span>
                               </div>
-                            ))}
+                              {editingItems.map((item, idx) => (
+                                <div key={idx} className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 min-w-[750px]">
+                                  <input type="text" value={item.product_name} onChange={(e) => updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="text" value={item.dn_size || ''} onChange={(e) => updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="number" value={item.quantity || ''} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="text" value={item.unit || 'מטר'} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="number" value={item.cost_price || ''} onChange={(e) => updateItem(idx, 'cost_price', e.target.value)} placeholder="עלות ₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="number" value={item.profit_pct ?? ''} onChange={(e) => updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                                  <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm bg-blue-50" />
+                                  <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+                                  <button onClick={() => setEditingItems((prev) => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                                </div>
+                              ))}
+                            </div>
                             <div className="flex items-center justify-between pt-2">
-                              <button onClick={() => setEditingItems((prev) => [...prev, { product_name: '', dn_size: '', quantity: 0, unit: 'מטר', unit_price: 0, total_price: 0, notes: '' }])} className="text-[12px] text-[#1a56db] hover:underline">
+                              <button onClick={() => setEditingItems((prev) => [...prev, { product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: q.default_overheads_pct ?? 23, profit_pct: q.default_profit_pct ?? 25, unit_price: 0, total_price: 0, notes: '' }])} className="text-[12px] text-[#1a56db] hover:underline">
                                 + הוסף שורה
                               </button>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-gray-700">סה"כ: {formatCurrency(editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))}</span>
+                                <span className="text-[12px] text-gray-400">עלות: {formatCurrency(editingItems.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0))}</span>
+                                <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))}</span>
                                 <button onClick={() => setEditingQuote(null)} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">ביטול</button>
                                 <button onClick={() => saveQuoteItems(q.id)} disabled={saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
                                   {saving ? 'שומר...' : 'שמור'}
@@ -1054,8 +1350,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                                   <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1">מוצר</th>
                                   <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">קוטר</th>
                                   <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
-                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר יח׳</th>
-                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה"כ</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">עלות</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">תקורות%</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
+                                  <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1064,6 +1363,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                                     <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
                                     <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
                                     <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
+                                    <td className="py-1.5 text-gray-500">{formatCurrency(item.cost_price)}</td>
+                                    <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
+                                    <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
                                     <td className="py-1.5 text-gray-500">{formatCurrency(item.unit_price)}</td>
                                     <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_price)}</td>
                                   </tr>
@@ -1071,11 +1373,23 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                               </tbody>
                               <tfoot>
                                 <tr className="border-t border-[#e2e8f0]">
-                                  <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה"כ</td>
+                                  <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
+                                  <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
                                   <td className="py-2 font-bold text-gray-700">{formatCurrency(q.total_amount)}</td>
                                 </tr>
                               </tfoot>
                             </table>
+                            {q.disclaimer_text && (
+                              <div className="mt-3 p-3 bg-gray-50 rounded-lg text-[11px] text-gray-500 whitespace-pre-line border border-gray-100">
+                                <span className="font-semibold text-gray-600">הערות משפטיות:</span><br/>{q.disclaimer_text}
+                              </div>
+                            )}
+                            {q.payment_terms && (
+                              <p className="mt-2 text-[12px] text-gray-500">💳 תנאי תשלום: {q.payment_terms}</p>
+                            )}
+                            {q.cost_input_id && (
+                              <p className="mt-1 text-[11px] text-blue-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setPricingTab('costs'); setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-gray-400 text-center py-2">אין פריטים. לחץ "ערוך פריטים" להוסיף.</p>
@@ -1085,6 +1399,59 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   </div>
                 );
               })}
+            </div>
+          )}
+          </>)}
+
+          {/* === ORDERS TAB === */}
+          {pricingTab === 'orders' && (
+            <div>
+              {orders.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">אין הזמנות. הזמנות נוצרות אוטומטית כשהצעת מחיר נחתמת.</p>
+              ) : (
+                <div className="space-y-3">
+                  {orders.map((ord) => {
+                    const ost = ORDER_STATUS_MAP[ord.status] || ORDER_STATUS_MAP.pending;
+                    const linkedQuote = quotes.find((q) => q.id === ord.quote_id);
+                    return (
+                      <div key={ord.id} className="border border-[#e2e8f0] rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-mono text-gray-400">{ord.order_number}</span>
+                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ost.color}`}>{ost.label}</span>
+                          </div>
+                          <span className="text-sm font-bold text-gray-700">{formatCurrency(ord.total_amount || 0)}</span>
+                        </div>
+                        {linkedQuote && (
+                          <p className="text-[12px] text-blue-500 mb-2 cursor-pointer hover:underline" onClick={() => { setPricingTab('quotes'); setExpandedQuote(linkedQuote.id); }}>
+                            🔗 הצעה: {linkedQuote.quote_number} — {linkedQuote.client_name}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 text-[12px] text-gray-500 mb-3">
+                          <span>מקדמה {ord.advance_percent}%: {ord.advance_paid ? '✅ שולם' : '⏳ טרם שולם'}</span>
+                          <span className="text-gray-300">|</span>
+                          <span>יתרה: {ord.balance_paid ? '✅ שולם' : '⏳ טרם שולם'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {ord.status === 'pending' && (
+                            <button onClick={() => updateOrderStatus(ord.id, 'confirmed')} className="text-[12px] bg-blue-50 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✅ אשר הזמנה</button>
+                          )}
+                          {ord.status === 'confirmed' && (
+                            <button onClick={() => updateOrderStatus(ord.id, 'in_production')} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100 transition-colors">🏭 בייצור</button>
+                          )}
+                          {ord.status === 'in_production' && (
+                            <button onClick={() => updateOrderStatus(ord.id, 'delivered')} className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">🚚 סופק</button>
+                          )}
+                          {ord.status === 'delivered' && (
+                            <button onClick={() => updateOrderStatus(ord.id, 'completed')} className="text-[12px] bg-gray-100 text-gray-600 px-3 py-1 rounded-lg hover:bg-gray-200 transition-colors">✔️ הושלם</button>
+                          )}
+                        </div>
+                        {ord.notes && <p className="text-[12px] text-gray-500 mt-2">📌 {ord.notes}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </section>
