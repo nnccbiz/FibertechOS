@@ -124,6 +124,7 @@ export default function ProjectDetailPage() {
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [expandedCostInput, setExpandedCostInput] = useState<string | null>(null);
   const [pricingTab, setPricingTab] = useState<'costs' | 'quotes' | 'orders'>('quotes');
+  const [parsingCostFile, setParsingCostFile] = useState(false);
 
   // Editable form data
   const [form, setForm] = useState<any>({});
@@ -526,6 +527,53 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     setExpandedCostInput(ci.id);
     setEditingCostInput(ci.id);
     setEditingCostItems([{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }]);
+  }
+
+  async function parseCostFile(fileList: FileList, costInputId: string) {
+    setParsingCostFile(true);
+    try {
+      const filesArr: { base64: string; mimeType: string; name: string }[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.readAsDataURL(file);
+        });
+        filesArr.push({ base64, mimeType: file.type, name: file.name });
+      }
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'חלץ את כל פריטי התמחור מהקובץ המצורף. זהו קובץ תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.',
+          files: filesArr,
+        }),
+      });
+      const data = await res.json();
+      if (data.target_table === 'cost_input_items' && Array.isArray(data.data)) {
+        const items = data.data.map((item: any) => ({
+          product_name: item.product_name || '',
+          dn_size: item.dn_size || '',
+          quantity: parseFloat(item.quantity) || 0,
+          unit: item.unit || 'מטר',
+          cost_price: parseFloat(item.cost_price) || 0,
+          total_cost: parseFloat(item.total_cost) || (parseFloat(item.quantity) || 0) * (parseFloat(item.cost_price) || 0),
+        }));
+        setEditingCostItems(items);
+        setEditingCostInput(costInputId);
+        alert(`Roxy חילצה ${items.length} פריטים מהקובץ. בדוק ולחץ שמור.`);
+      } else {
+        alert(data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
+      }
+    } catch (err: any) {
+      alert(`שגיאה: ${err.message}`);
+    } finally {
+      setParsingCostFile(false);
+    }
   }
 
   function updateCostItem(idx: number, field: string, val: any) {
@@ -1104,7 +1152,15 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         </div>
                         {isExp && (
                           <div className="px-4 py-3 border-t border-[#e2e8f0]">
-                            {!isEdit && <button onClick={() => { setEditingCostInput(ci.id); setEditingCostItems(citems.length > 0 ? citems.map((i: any) => ({ ...i })) : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }]); }} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors mb-3">✏️ ערוך פריטים</button>}
+                            {!isEdit && (
+                              <div className="flex items-center gap-2 mb-3">
+                                <button onClick={() => { setEditingCostInput(ci.id); setEditingCostItems(citems.length > 0 ? citems.map((i: any) => ({ ...i })) : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0 }]); }} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>
+                                <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
+                                  {parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
+                                  <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={parsingCostFile} onChange={(e) => { if (e.target.files?.length) { parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
+                                </label>
+                              </div>
+                            )}
                             {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
                             {isEdit ? (
                               <div className="space-y-2">

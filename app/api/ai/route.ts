@@ -11,7 +11,7 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 מבנה התשובה:
 {
   "action": "create" | "update" | "delete" | "import" | "generate" | "query",
-  "target_table": "projects" | "project_details" | "project_contacts" | "pipe_specs" | "alerts" | "leads" | "inventory" | "team_members",
+  "target_table": "projects" | "project_details" | "project_contacts" | "pipe_specs" | "alerts" | "leads" | "inventory" | "team_members" | "cost_input_items",
   "target_label": "תיאור קריא של היעד",
   "summary": "משפט אחד שמתאר מה ביצעת",
   "fields_count": 0,
@@ -51,6 +51,13 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
    - חפש את הפרויקט לפי שם ב-target_label
    - ה-title צריך להיות תיאור קצר של העדכון עצמו (לא "עדכון פגישה" גנרי)
    - הפרד בין תיאור העדכון למשימות
+9. כשמשתמש מעלה קובץ תמחור (הצעת מחיר מספק, מחירון, טבלת עלויות) — חלץ את כל הפריטים והחזר:
+   - target_table: "cost_input_items"
+   - action: "import"
+   - data: מערך של פריטים, כל פריט: { product_name: "שם המוצר/צינור", dn_size: "קוטר DN", quantity: מספר, unit: "מטר"/"יח'", cost_price: מחיר ליחידה, total_cost: סה"כ }
+   - חלץ את כל השורות מהטבלה/מסמך, כולל קוטר, כמות, מחיר
+   - אם יש קוטר DN — שים אותו ב-dn_size
+   - summary: "חולצו X פריטים מהקובץ"
 1. החזר רק JSON תקין
 2. אם שדה לא הוזכר — אל תכלול אותו ב-data
 3. המר ערכים מספריים למספרים
