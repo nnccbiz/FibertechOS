@@ -276,6 +276,31 @@ export default function FloatingChat() {
         } else if (data.target_table === 'supplier_quote' && data.action === 'import' && Array.isArray(data.data)) {
           const qi = data.quote_info || {};
           const items = data.data;
+
+          // Auto-fill missing quote_info from user message and item data
+          if (!qi.project_name) {
+            const projMatch = userMsg.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.]|$)/i);
+            if (projMatch) qi.project_name = projMatch[1].trim();
+          }
+          if (!qi.supplier_name) {
+            const allDesc = items.map((it: any) => it.description || '').join(' ');
+            if (/flowtite|amiblu/i.test(allDesc)) qi.supplier_name = 'Amiblu';
+            else if (/hobas/i.test(allDesc)) qi.supplier_name = 'Hobas';
+            else {
+              const supMatch = userMsg.match(/(?:מ-|של|from)\s*([A-Za-zא-ת]+)/i);
+              if (supMatch) qi.supplier_name = supMatch[1].trim();
+            }
+          }
+          if (!qi.currency) {
+            const firstCur = items.find((it: any) => it.currency)?.currency;
+            if (firstCur) qi.currency = firstCur;
+          }
+          if (!qi.quote_ref) {
+            const allDesc = items.map((it: any) => it.description || '').join(' ');
+            const refMatch = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+|REF[\s:-]*([\w.-]+))/i);
+            if (refMatch) qi.quote_ref = refMatch[1];
+          }
+
           const itemLines = items.map((it: any, i: number) =>
             `${i + 1}. ${it.item_type} | DN${it.dn || '?'} SN${it.sn || '?'} | ${it.length_m ? it.length_m + 'm' : ''} | ${it.unit_price} ${it.currency || qi.currency || '?'}/${it.price_per || 'meter'}${it.description ? ' — ' + it.description : ''}`
           ).join('\n');
