@@ -17,42 +17,77 @@ interface CachedRate {
 const cache: Record<string, CachedRate> = {};
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-const BOI_URL = 'https://www.boi.org.il/currency.xml';
-
-// Currency codes in BOI XML
+// Currency codes supported
 const CURRENCY_MAP: Record<string, string> = {
   USD: 'USD',
   EUR: 'EUR',
   GBP: 'GBP',
 };
 
-async function fetchFromBOI(currency: string): Promise<{ rate: number; date: string } | null> {
-  try {
-    const res = await fetch(BOI_URL, { next: { revalidate: 3600 } });
-    if (!res.ok) return null;
+// Try multiple BOI endpoints in order
+const BOI_ENDPOINTS = [
+  (currency: string) => `https://boi.org.il/PublicApi/GetExchangeRate?key=${currency}&asXml=true`,
+  () => `https://boi.org.il/PublicApi/GetExchangeRates?asXml=true`,
+  () => `https://www.boi.org.il/currency.xml`,
+];
 
-    const xml = await res.text();
+function parseRateFromXml(xml: string, currency: string): { rate: number; date: string } | null {
+  const currencyCode = CURRENCY_MAP[currency] || currency;
 
-    // Parse rate from BOI XML — format: <CURRENCY>...<CURRENCYCODE>USD</CURRENCYCODE><RATE>3.65</RATE>...</CURRENCY>
-    const currencyCode = CURRENCY_MAP[currency] || currency;
-    const regex = new RegExp(
-      `<CURRENCY>\\s*<NAME>[^<]*</NAME>\\s*<UNIT>\\d+</UNIT>\\s*<CURRENCYCODE>${currencyCode}</CURRENCYCODE>\\s*<COUNTRY>[^<]*</COUNTRY>\\s*<RATE>([\\d.]+)</RATE>`,
-      's'
-    );
-    const match = xml.match(regex);
-    if (!match) return null;
+  // Try multiple XML formats (BOI has different response formats per endpoint)
+  const patterns = [
+    // Format: <ExchangeRate>...<Key>USD</Key>...<CurrentExchangeRate>3.65</CurrentExchangeRate>...</ExchangeRate>
+    new RegExp(`<Key>${currencyCode}</Key>[\\s\\S]*?<CurrentExchangeRate>([\\d.]+)</CurrentExchangeRate>`, 's'),
+    // Format: <CURRENCYCODE>USD</CURRENCYCODE>...<RATE>3.65</RATE>
+    new RegExp(`<CURRENCYCODE>${currencyCode}</CURRENCYCODE>[\\s\\S]*?<RATE>([\\d.]+)</RATE>`, 's'),
+    // Format: <RATE>3.65</RATE> (single currency endpoint)
+    /<CurrentExchangeRate>([\d.]+)<\/CurrentExchangeRate>/,
+    /<RATE>([\d.]+)<\/RATE>/,
+  ];
 
-    const rate = parseFloat(match[1]);
-    if (isNaN(rate) || rate <= 0) return null;
-
-    // Extract date from XML: <LAST_UPDATE>2026-04-15</LAST_UPDATE>
-    const dateMatch = xml.match(/<LAST_UPDATE>(\d{4}-\d{2}-\d{2})<\/LAST_UPDATE>/);
-    const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
-
-    return { rate, date };
-  } catch {
-    return null;
+  let rate = 0;
+  for (const pattern of patterns) {
+    const match = xml.match(pattern);
+    if (match) {
+      rate = parseFloat(match[1]);
+      if (!isNaN(rate) && rate > 0) break;
+    }
   }
+  if (!rate) return null;
+
+  // Extract date
+  const datePatterns = [
+    /<LastUpdate>(\d{4}-\d{2}-\d{2})/,
+    /<LAST_UPDATE>(\d{4}-\d{2}-\d{2})/,
+    /<CurrentExchangeRateDateTime>(\d{4}-\d{2}-\d{2})/,
+  ];
+  let date = new Date().toISOString().split('T')[0];
+  for (const dp of datePatterns) {
+    const m = xml.match(dp);
+    if (m) { date = m[1]; break; }
+  }
+
+  return { rate, date };
+}
+
+async function fetchFromBOI(currency: string): Promise<{ rate: number; date: string } | null> {
+  for (const getUrl of BOI_ENDPOINTS) {
+    try {
+      const url = getUrl(currency);
+      const res = await fetch(url, {
+        next: { revalidate: 3600 },
+        headers: { 'Accept': 'application/xml, text/xml, */*' },
+      });
+      if (!res.ok) continue;
+
+      const xml = await res.text();
+      const result = parseRateFromXml(xml, currency);
+      if (result) return result;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
