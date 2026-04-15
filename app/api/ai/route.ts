@@ -154,6 +154,32 @@ export async function POST(request: NextRequest) {
       parsed = { action: 'query', summary: text, message: text };
     }
 
+    // Post-process supplier quotes — fill missing quote_info from user message & items
+    if (parsed.target_table === 'supplier_quote' && parsed.action === 'import' && Array.isArray(parsed.data)) {
+      if (!parsed.quote_info) parsed.quote_info = {};
+      const qi = parsed.quote_info;
+      const items = parsed.data;
+      const allDesc = items.map((it: any) => it.description || '').join(' ');
+      const userText = userMessage || '';
+
+      if (!qi.project_name) {
+        const m = userText.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.\n]|$)/i);
+        if (m) qi.project_name = m[1].trim();
+      }
+      if (!qi.supplier_name) {
+        if (/flowtite|amiblu/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Amiblu';
+        else if (/hobas/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Hobas';
+      }
+      if (!qi.currency) {
+        const fc = items.find((it: any) => it.currency);
+        if (fc) qi.currency = fc.currency;
+      }
+      if (!qi.quote_ref) {
+        const rm = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+)/i);
+        if (rm) qi.quote_ref = rm[1];
+      }
+    }
+
     return NextResponse.json(parsed);
   } catch (error: any) {
     console.error('AI route error:', error);
