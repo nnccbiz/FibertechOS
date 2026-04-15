@@ -554,19 +554,20 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         }),
       });
       const data = await res.json();
-      if (data.target_table === 'cost_input_items' && Array.isArray(data.data)) {
+      if ((data.target_table === 'supplier_quote' || data.target_table === 'cost_input_items') && Array.isArray(data.data)) {
+        const qi = data.quote_info || {};
+        const currency = qi.currency || data.currency || '';
         const items = data.data.map((item: any) => ({
-          product_name: item.product_name || '',
-          dn_size: item.dn_size || '',
-          quantity: parseFloat(item.quantity) || 0,
-          unit: item.unit || 'מטר',
-          cost_price: parseFloat(item.cost_price) || 0,
-          total_cost: parseFloat(item.total_cost) || (parseFloat(item.quantity) || 0) * (parseFloat(item.cost_price) || 0),
+          product_name: item.description || item.product_name || `${item.item_type || ''} DN${item.dn || ''}`.trim(),
+          dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
+          quantity: parseFloat(item.quantity) || 1,
+          unit: item.price_per === 'unit' ? 'יח\'' : 'מטר',
+          cost_price: parseFloat(item.unit_price || item.cost_price) || 0,
+          total_cost: parseFloat(item.total_cost) || (parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price || item.cost_price) || 0),
         }));
         setEditingCostItems(items);
         setEditingCostInput(costInputId);
-        const currency = data.currency || '';
-        alert(`Roxy חילצה ${items.length} פריטים מהקובץ${currency ? ` (מטבע: ${currency})` : ''}. בדוק ולחץ שמור.`);
+        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''}${currency ? ` — מטבע: ${currency}` : ''}.\nבדוק ולחץ שמור.`);
       } else {
         alert(data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
       }

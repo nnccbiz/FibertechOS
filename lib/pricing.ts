@@ -89,3 +89,33 @@ export function compareQuoteToProforma(
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * Calculate true cost per meter for a pipe + coupling combo.
+ * @param pipeBarePrice - מחיר צינור ללא מחבר למטר
+ * @param couplingPrice - מחיר מחבר ליחידה
+ * @param pipeLength - אורך הצינור במטרים (5.7, 6, 12 וכו')
+ */
+export function calcCostPerMeter(
+  pipeBarePrice: number,
+  couplingPrice: number,
+  pipeLength: number
+): number {
+  if (pipeLength <= 0) return pipeBarePrice;
+  return round2(pipeBarePrice + (couplingPrice / pipeLength));
+}
+
+/**
+ * Calculate roker (short pipe section) cost.
+ * @param pipeBarePrice - מחיר צינור ללא מחבר למטר
+ * @param dn - קוטר נומינלי במ"מ (1400, 1200 וכו')
+ * @param couplingPrice - מחיר מחבר ליחידה
+ */
+export function calcRokerCost(
+  pipeBarePrice: number,
+  dn: number,
+  couplingPrice: number
+): number {
+  const rokerLength = (dn / 1000) * 2;
+  return round2((pipeBarePrice * rokerLength) + couplingPrice);
+}
