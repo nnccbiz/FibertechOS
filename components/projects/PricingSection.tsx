@@ -86,8 +86,8 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
       {/* New cost input form */}
       {p.showNewCostInput && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[140px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג מקור</label>
               <div className="flex gap-3 mt-1">
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -98,12 +98,12 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
                 </label>
               </div>
             </div>
-            <div>
+            <div className="flex-1 min-w-[150px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם מקור</label>
               <input type="text" value={p.newCostInput.source_name} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={p.newCostInput.source_type === 'supplier' ? 'Amiblu' : 'הלל'} autoFocus />
             </div>
             {p.newCostInput.source_type === 'supplier' && (
-              <div>
+              <div className="min-w-[120px]">
                 <label className="block text-[12px] font-semibold text-gray-500 mb-1">מטבע</label>
                 <select value={p.newCostInput.currency} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, currency: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
                   <option value="USD">$ דולר</option>
@@ -112,7 +112,7 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
                 </select>
               </div>
             )}
-            <div>
+            <div className="flex-1 min-w-[150px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">הערות</label>
               <input type="text" value={p.newCostInput.notes} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="אופציונלי" />
             </div>
