@@ -377,22 +377,27 @@ export default function FloatingChat() {
 
           {/* Uploaded files */}
           {uploadedFiles.length > 0 && (
-            <div className="px-3 py-2 border-t border-[#e2e8f0] flex flex-wrap gap-1.5 flex-shrink-0">
-              {uploadedFiles.map((file, i) => (
-                <div key={i} className="relative group">
-                  {file.preview ? (
-                    <img src={file.preview} alt={file.name} className="w-10 h-10 object-cover rounded border border-[#e2e8f0]" />
-                  ) : (
-                    <div className="w-10 h-10 bg-gray-50 rounded border border-[#e2e8f0] flex items-center justify-center text-lg">📄</div>
-                  )}
-                  <button
-                    onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute -top-1 -left-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+            <div className="px-3 py-2 border-t border-[#e2e8f0] space-y-1.5 flex-shrink-0 max-h-[120px] overflow-y-auto">
+              {uploadedFiles.map((file, i) => {
+                const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                const icon = file.mimeType.startsWith('image/') ? '🖼️'
+                  : ext === 'pdf' ? '📕'
+                  : ['xls', 'xlsx', 'csv'].includes(ext) ? '📊'
+                  : ['doc', 'docx'].includes(ext) ? '📝'
+                  : '📄';
+                return (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5 group">
+                    <span className="text-lg flex-shrink-0">{icon}</span>
+                    <span className="text-[12px] text-gray-700 truncate flex-1" dir="ltr">{file.name}</span>
+                    <button
+                      onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
+                      className="text-gray-300 hover:text-red-500 text-sm flex-shrink-0 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
