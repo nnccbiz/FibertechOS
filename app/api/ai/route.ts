@@ -55,6 +55,9 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
    - target_table: "supplier_quote"
    - action: "import"
    - quote_info: { supplier_name: "שם הספק", quote_ref: "מספר ref", quote_date: "YYYY-MM-DD", project_name: "שם הפרויקט", currency: "USD/EUR/ILS" }
+   - חובה למלא quote_info.project_name — אם לא מופיע במסמך, קח מהודעת המשתמש (למשל "קוטציה לפרויקט מטש שמשון" → project_name: "מטש שמשון")
+   - חובה למלא quote_info.quote_ref — חפש מספר ref/quote/reference/הצעה במסמך
+   - חובה למלא quote_info.supplier_name — חפש שם ספק/חברה במסמך (Amiblu, Flowtite וכו')
    - data: מערך של פריטים, כל פריט: { item_type: "pipe_with_coupling/pipe_bare/coupling/elbow/flange/reducer/other", dn: מספר, sn: מספר, pn: מספר, length_m: אורך במטרים, unit_price: מחיר ליחידה, price_per: "meter"/"unit", currency: "USD/EUR", description: "תיאור מלא מהמסמך" }
    - זהה את המטבע מהמסמך (USD, EUR, ILS, GBP וכו'). אל תניח שזה שקלים — בדוק סימנים ($, €, ₪, £), כיתוב (דולר, יורו, שקל) או כל רמז אחר.
    - שמור על המחירים המקוריים כפי שמופיעים במסמך.
