@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
@@ -76,6 +76,7 @@ function SectionHeader({ title, icon, editing, onToggle, onSave, saving }: {
 }
 
 export default function ProjectDetailPage() {
+  const supabase = createClient();
   const params = useParams();
   const router = useRouter();
   const [project, setProject] = useState<any>(null);

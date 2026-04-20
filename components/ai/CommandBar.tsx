@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface CommandBarProps {
   onActionComplete?: () => void;
@@ -90,6 +90,7 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
 
     setLoading(true);
     setFeedback(null);
+    const supabase = createClient();
 
     try {
       const res = await fetch('/api/ai', {

@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useState } from 'react';
 
 interface Alert {
@@ -36,6 +36,7 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
   async function toggleResolved(id: string) {
+    const supabase = createClient();
     setResolvedIds((prev) => {
       const next = new Set(prev);
       next.add(id);

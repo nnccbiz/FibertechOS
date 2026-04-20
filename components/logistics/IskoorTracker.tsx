@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface IskoorRow {
   lot_number: string;
@@ -67,6 +67,7 @@ export default function IskoorTracker() {
 
   useEffect(() => {
     async function load() {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('v_iskoor_tracking')
         .select('*')

@@ -1,8 +1,17 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { usePermissions } from '@/lib/auth/permissions-context';
+import { AppModule } from '@/lib/auth/permissions';
 
-const navItems = [
+interface NavItem {
+  icon: string;
+  label: string;
+  key: AppModule;
+  href: string;
+}
+
+const navItems: NavItem[] = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
   { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
@@ -15,6 +24,7 @@ const navItems = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { canAccess, loading } = usePermissions();
 
   function getActiveKey() {
     if (pathname === '/') return 'dashboard';
@@ -23,11 +33,12 @@ export default function BottomNav() {
   }
 
   const activeKey = getActiveKey();
+  const visibleItems = loading ? navItems : navItems.filter((item) => canAccess(item.key));
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] z-40">
       <div className="flex overflow-x-auto py-2 px-1 gap-1 scrollbar-hide">
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <a
             key={item.key}
             href={item.href}
