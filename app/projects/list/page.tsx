@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
 
 interface ProjectDetail {
@@ -68,6 +68,7 @@ export default function ProjectsListPage() {
   }
 
   async function fetchData() {
+    const supabase = createClient();
     try {
       setLoading(true);
       const [projRes, detRes] = await Promise.all([
@@ -156,6 +157,7 @@ export default function ProjectsListPage() {
   }
 
   async function toggleMonth(projectId: string, year: number, month: number) {
+    const supabase = createClient();
     const entries = getAllDeliveryEntries(projectId);
     const key = `${year}-${month}`;
     const next = entries.includes(key)
@@ -185,6 +187,7 @@ export default function ProjectsListPage() {
   }
 
   async function saveInlineEdit(projectId: string, field: string, value: string) {
+    const supabase = createClient();
     setEditingCell(null);
     const updateData: any = {};
     if (field === 'probability_percent') {

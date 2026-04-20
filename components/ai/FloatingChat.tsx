@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface AiMessage {
   role: 'user' | 'ai';
@@ -136,6 +136,7 @@ export default function FloatingChat() {
 
   async function handleSend() {
     if ((!input.trim() && uploadedFiles.length === 0) || loading) return;
+    const supabase = createClient();
 
     const userMsg = input.trim() || `חלץ נתונים מ-${uploadedFiles.map((f) => f.name).join(', ')}`;
     setInput('');

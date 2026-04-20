@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface InventoryItem {
   id: string;
@@ -28,6 +28,7 @@ export default function InventoryWidget() {
 
   useEffect(() => {
     async function fetchInventory() {
+      const supabase = createClient();
       try {
         const { data, error } = await supabase
           .from('inventory')

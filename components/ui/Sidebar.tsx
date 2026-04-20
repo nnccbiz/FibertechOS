@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { usePermissions } from '@/lib/auth/permissions-context';
+import { AppModule } from '@/lib/auth/permissions';
 
 interface NavItem {
   icon: string;
   label: string;
-  key: string;
+  key: AppModule;
   href: string;
 }
 
@@ -26,6 +28,7 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { canAccess, loading } = usePermissions();
 
   async function handleLogout() {
     const supabase = createClient();
@@ -41,6 +44,7 @@ export default function Sidebar() {
   }
 
   const activeKey = getActiveKey();
+  const visibleItems = loading ? navItems : navItems.filter((item) => canAccess(item.key));
 
   return (
     <aside
@@ -66,7 +70,7 @@ export default function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 py-2 overflow-y-auto">
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <a
             key={item.key}
             href={item.href}

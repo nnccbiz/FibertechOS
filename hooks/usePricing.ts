@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice } from '@/lib/pricing';
@@ -64,6 +64,7 @@ export interface UsePricingReturn {
 }
 
 export function usePricing(projectId: string): UsePricingReturn {
+  const supabase = createClient();
   // Data
   const [costInputs, setCostInputs] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<any[]>([]);

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
@@ -107,6 +107,7 @@ export default function NewProjectPage() {
       setError('שם פרויקט הוא שדה חובה');
       return;
     }
+    const supabase = createClient();
 
     try {
       setSaving(true);
