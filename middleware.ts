@@ -2,8 +2,10 @@
  * Next.js middleware: protects all routes behind authentication.
  * Runs on every request. Unauthenticated users are redirected to /login.
  */
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+
+type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 // Routes that anonymous users are allowed to visit
 const PUBLIC_ROUTES = [
@@ -50,7 +52,7 @@ export async function middleware(req: NextRequest) {
         getAll() {
           return req.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
           response = NextResponse.next({ request: req });
           cookiesToSet.forEach(({ name, value, options }) =>
