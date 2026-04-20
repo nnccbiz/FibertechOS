@@ -26,7 +26,10 @@ export default function SetPasswordPage() {
 
     startTransition(async () => {
       const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({ password: pw });
+      const { error } = await supabase.auth.updateUser({
+        password: pw,
+        data: { must_change_password: false },
+      });
       if (error) {
         setErrors([error.message]);
         return;

@@ -73,6 +73,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Force password change on first login (temp passwords set must_change_password=true)
+  const mustChangePassword = user.user_metadata?.must_change_password === true;
+  if (mustChangePassword && pathname !== '/set-password') {
+    return NextResponse.redirect(new URL('/set-password', req.url));
+  }
+
   // User has a session. Allow. RLS policies enforce what they can read/write.
   return response;
 }
