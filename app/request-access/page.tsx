@@ -9,7 +9,7 @@ type Outcome =
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_domain:
-    'ניתן לבקש גישה רק מכתובת מייל של פיברטק (סיומת @fibertech.co.il).',
+    'ניתן לבקש גישה רק מכתובת מייל של פיברטק, מאיה גרופ או פריזמה.',
   already_pending:
     'בקשתך כבר נשלחה והיא ממתינה לאישור מנהל. הודעה תישלח אלייך במייל.',
   cooldown_active:
@@ -112,19 +112,22 @@ export default function RequestAccessPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                מייל פיברטק
+                מייל ארגוני
               </label>
               <input
                 type="email"
                 required
-                pattern=".+@fibertech\.co\.il"
-                title="חובה להשתמש במייל של פיברטק (@fibertech.co.il)"
+                pattern=".+@(fibertech\.co\.il|maya-group\.co\.il|prizma-ind\.co\.il)"
+                title="חובה להשתמש במייל של פיברטק, מאיה גרופ או פריזמה"
                 dir="ltr"
                 className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30"
                 placeholder="you@fibertech.co.il"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              <p className="text-[11px] text-gray-400 mt-1">
+                מותר: @fibertech.co.il · @maya-group.co.il · @prizma-ind.co.il
+              </p>
             </div>
 
             <div>
