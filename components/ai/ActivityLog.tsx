@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface LogEntry {
   id: string;
@@ -57,6 +57,7 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
   const [loading, setLoading] = useState(true);
 
   async function fetchLog() {
+    const supabase = createClient();
     try {
       const { data, error } = await supabase
         .from('ai_activity_log')
@@ -79,6 +80,7 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
 
   async function handleUndo(entry: LogEntry) {
     if (!entry.previous_values || !entry.target_id) return;
+    const supabase = createClient();
 
     try {
       // Restore previous values

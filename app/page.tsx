@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
 import KpiCard from '@/components/dashboard/KpiCard';
 import AlertsList from '@/components/dashboard/AlertsList';
@@ -45,6 +45,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchData() {
+      const supabase = createClient();
       try {
         setLoading(true);
         setError(null);
@@ -128,6 +129,7 @@ export default function DashboardPage() {
   }, []);
 
   async function openQuickUpdate() {
+    const supabase = createClient();
     setShowQuickUpdate(true);
     setSelectedProject(null);
     setProjectSearch('');
@@ -138,6 +140,7 @@ export default function DashboardPage() {
 
   async function saveQuickUpdate() {
     if (!selectedProject || !quickUpdate.title.trim()) return;
+    const supabase = createClient();
     setSavingUpdate(true);
     const { error } = await supabase.from('project_updates').insert({
       project_id: selectedProject.id,
@@ -156,6 +159,7 @@ export default function DashboardPage() {
   }
 
   async function openReport() {
+    const supabase = createClient();
     setShowReport(true);
     setReportLoading(true);
     setReportCopied(false);
