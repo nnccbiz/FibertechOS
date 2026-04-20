@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 interface NavItem {
   icon: string;
@@ -24,6 +25,14 @@ const navItems: NavItem[] = [
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  }
 
   function getActiveKey() {
     if (pathname === '/') return 'dashboard';
@@ -77,6 +86,18 @@ export default function Sidebar() {
           </a>
         ))}
       </nav>
+
+      {/* Logout */}
+      <button
+        onClick={handleLogout}
+        className={`border-t border-[#e2e8f0] flex items-center gap-3 py-3 text-lg font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 ${
+          expanded ? 'px-4' : 'px-0 justify-center'
+        }`}
+        title={!expanded ? 'התנתק' : undefined}
+      >
+        <span className="text-2xl flex-shrink-0">🚪</span>
+        {expanded && <span className="whitespace-nowrap">התנתק</span>}
+      </button>
 
       {/* Footer */}
       <div className={`border-t border-[#e2e8f0] flex items-center ${expanded ? 'p-3 gap-2' : 'p-2 justify-center'}`}>
