@@ -85,6 +85,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
     default_overheads_pct: 17, default_profit_pct: 25,
     disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+    tier: 'contractor_pre_tender',
   });
   const [editingQuote, setEditingQuote] = useState<string | null>(null);
   const [editingItems, setEditingItems] = useState<any[]>([]);
@@ -349,7 +350,7 @@ export function usePricing(projectId: string): UsePricingReturn {
 
     const { data: q, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: newQuote.client_name,
-      status: 'draft', cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
+      status: 'draft', tier: newQuote.tier, cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
       cost_input_id: newQuote.cost_input_id || null,
       default_overheads_pct: oh,
       default_profit_pct: pr,
@@ -376,6 +377,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
       default_overheads_pct: 17, default_profit_pct: 25,
       disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+      tier: 'contractor_pre_tender',
     });
     setQuotes((prev) => [q, ...prev]);
     setEditingQuote(q.id);

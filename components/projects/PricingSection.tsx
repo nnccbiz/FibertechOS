@@ -27,6 +27,18 @@ const ITEM_TYPES = [
   { value: 'other', label: 'אחר' },
 ];
 
+const QUOTE_TIER_MAP: Record<string, { label: string; color: string }> = {
+  planner_estimate:      { label: 'הערכת מתכנן',  color: 'bg-purple-100 text-purple-700' },
+  contractor_pre_tender: { label: 'טרום מכרז',     color: 'bg-amber-100 text-amber-700' },
+  contractor_final:      { label: 'הצעה סופית',    color: 'bg-blue-100 text-blue-800' },
+};
+
+const QUOTE_TIERS = [
+  { value: 'planner_estimate',      label: 'הערכת מתכנן' },
+  { value: 'contractor_pre_tender', label: 'טרום מכרז' },
+  { value: 'contractor_final',      label: 'הצעה סופית' },
+];
+
 const QUOTE_STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: 'טיוטה', color: 'bg-gray-100 text-gray-600' },
   sent: { label: 'נשלח', color: 'bg-blue-100 text-blue-700' },
@@ -369,6 +381,14 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
               <input type="text" value={p.newQuote.client_name} onChange={(e) => p.setNewQuote({ ...p.newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
             </div>
             <div>
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הצעה</label>
+              <select value={p.newQuote.tier} onChange={(e) => p.setNewQuote({ ...p.newQuote, tier: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                {QUOTE_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">מקור תמחור</label>
               <div className="flex gap-3 mt-1">
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -435,6 +455,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
 
 function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const st = QUOTE_STATUS_MAP[q.status] || QUOTE_STATUS_MAP.draft;
+  const tier = QUOTE_TIER_MAP[q.tier] || QUOTE_TIER_MAP.contractor_pre_tender;
   const isExpanded = p.expandedQuote === q.id;
   const isEditing = p.editingQuote === q.id;
   const items = p.quoteItems[q.id] || [];
@@ -445,6 +466,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
         <div className="flex items-center gap-3">
           <span className="text-sm font-mono text-gray-400">{q.quote_number}</span>
           <span className="text-sm font-bold text-gray-700">{q.client_name}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${tier.color}`}>{tier.label}</span>
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
         </div>
         <div className="flex items-center gap-3">
