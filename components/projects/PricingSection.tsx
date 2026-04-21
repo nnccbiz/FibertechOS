@@ -3,7 +3,15 @@
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
-import { calcCostPerMeter, calcRokerCostPerMeter } from '@/lib/pricing';
+import {
+  calcCostPerMeter,
+  calcRokerCostPerMeter,
+  calcItemPrice,
+  calcQuoteSummary,
+  validateQuoteMargins,
+  type QuoteLineItem,
+  type QuoteLineItemPriced,
+} from '@/lib/pricing';
 import ExchangeRateWidget from './ExchangeRateWidget';
 
 function formatCurrency(v: number) {
@@ -496,14 +504,8 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             )}
           </div>
 
-          {/* Margin summary */}
-          {q.total_cost > 0 && q.total_amount > 0 && (
-            <div className="flex items-center gap-4 text-[11px] text-gray-500 mb-3 bg-gray-50 rounded px-3 py-1.5">
-              <span>עלות: {formatCurrency(q.total_cost)}</span>
-              <span>מכירה: {formatCurrency(q.total_amount)}</span>
-              <span className="font-bold text-green-700">מרווח: {((1 - q.total_cost / q.total_amount) * 100).toFixed(1)}%</span>
-            </div>
-          )}
+          {/* Margin summary with category breakdown + warnings */}
+          {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
 
           {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
 
@@ -557,6 +559,11 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
 }
 
 function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnType<typeof usePricing> }) {
+  const linkedCost = q.cost_input_id ? p.costInputs.find((c) => c.id === q.cost_input_id) : null;
+  const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
+  const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
+  const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -570,27 +577,56 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
+            <th className="pb-1.5 w-6"></th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item: any) => (
-            <tr key={item.id} className="border-b border-gray-50">
-              <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
-              <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
-              <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
-              <td className="py-1.5 text-gray-500">{formatCurrency(item.cost_price)}</td>
-              <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
-              <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
-              <td className="py-1.5 text-gray-500">{formatCurrency(item.unit_price)}</td>
-              <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_price)}</td>
-            </tr>
-          ))}
+          {items.map((item: any) => {
+            const cost = parseFloat(item.cost_price) || 0;
+            const qty = parseFloat(item.quantity) || 0;
+            const ohPct = parseFloat(item.overheads_pct) || 0;
+            const prPct = parseFloat(item.profit_pct) || 0;
+            const unit = parseFloat(item.unit_price) || 0;
+            const tot = parseFloat(item.total_price) || 0;
+            const costTot = cost * qty;
+            const ohAmt = costTot * (ohPct / 100);
+            const profitAmt = tot - costTot - ohAmt;
+            const originalCost = forexRate > 0 ? cost / forexRate : 0;
+
+            const tooltip = [
+              forexCurrency && originalCost > 0 ? `מחיר מקורי: ${forexSym}${originalCost.toFixed(2)} × ${forexRate.toFixed(2)} = ₪${cost.toFixed(2)}` : `עלות ליחידה: ₪${cost.toFixed(2)}`,
+              `× ${qty} ${item.unit} = ₪${costTot.toFixed(2)}`,
+              `+ תקורות ${ohPct}% = ₪${ohAmt.toFixed(2)}`,
+              `+ רווח ${prPct}% = ₪${profitAmt.toFixed(2)}`,
+              `= מכירה: ₪${tot.toFixed(2)}`,
+            ].join('\n');
+
+            return (
+              <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
+                <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
+                <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
+                <td className="py-1.5 text-gray-500">{formatCurrency(cost)}</td>
+                <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
+                <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
+                <td className="py-1.5 text-gray-500">{formatCurrency(unit)}</td>
+                <td className="py-1.5 font-medium text-gray-700">{formatCurrency(tot)}</td>
+                <td className="py-1.5">
+                  <span
+                    title={tooltip}
+                    className="cursor-help text-gray-300 hover:text-[#1a56db] text-[13px]"
+                  >ⓘ</span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
         <tfoot>
           <tr className="border-t border-[#e2e8f0]">
             <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
             <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
             <td className="py-2 font-bold text-gray-700">{formatCurrency(q.total_amount)}</td>
+            <td className="py-2"></td>
           </tr>
         </tfoot>
       </table>
@@ -606,6 +642,109 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
     </div>
   );
 }
+
+function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnType<typeof usePricing> }) {
+  // Build priced items via calcItemPrice for accurate margins
+  const priced: QuoteLineItemPriced[] = items.map((it) => {
+    const lineItem: QuoteLineItem = {
+      item_type: it.item_type ?? undefined,
+      product_name: it.product_name,
+      dn_size: it.dn_size ?? undefined,
+      quantity: parseFloat(it.quantity) || 0,
+      unit: it.unit || 'מטר',
+      cost_price: parseFloat(it.cost_price) || 0,
+      overheads_pct: parseFloat(it.overheads_pct) || 0,
+      profit_pct: parseFloat(it.profit_pct) || 0,
+      length_m: parseFloat(it.length_m) || undefined,
+    };
+    // If DB row already has a stored unit_price (manually overridden), trust it
+    if (it.unit_price && parseFloat(it.unit_price) > 0) {
+      const cost = lineItem.cost_price * lineItem.quantity;
+      const overheads = cost * (lineItem.overheads_pct / 100);
+      const selling = parseFloat(it.unit_price) * lineItem.quantity;
+      const profit = selling - cost - overheads;
+      const margin = selling > 0 ? (profit / selling) * 100 : 0;
+      return {
+        ...lineItem,
+        unit_price: parseFloat(it.unit_price),
+        total_price: Math.round(selling * 100) / 100,
+        overheads_amount: Math.round(overheads * 100) / 100,
+        profit_amount: Math.round(profit * 100) / 100,
+        margin_pct: Math.round(margin * 100) / 100,
+      };
+    }
+    return calcItemPrice(lineItem);
+  });
+
+  const summary = calcQuoteSummary(priced);
+  const warnings = validateQuoteMargins(priced);
+
+  // Foreign currency equivalent (if quote is linked to a forex cost input)
+  const linkedCost = q.cost_input_id ? p.costInputs.find((c) => c.id === q.cost_input_id) : null;
+  const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
+  const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
+  const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
+  const sellingForex = forexRate > 0 ? summary.totalSelling / forexRate : 0;
+
+  return (
+    <div className="mb-3 bg-gray-50 rounded-lg p-3 space-y-2">
+      {/* Main totals row */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+        <span className="text-gray-500">עלות: <strong className="text-gray-700">{formatCurrency(summary.totalCost)}</strong></span>
+        <span className="text-gray-500">תקורות: <strong className="text-gray-700">{formatCurrency(summary.totalOverheads)}</strong></span>
+        <span className="text-gray-500">רווח: <strong className="text-green-700">{formatCurrency(summary.totalProfit)}</strong></span>
+        <span className="text-gray-500">מכירה: <strong className="text-gray-700">{formatCurrency(summary.totalSelling)}</strong></span>
+        <span className={`font-bold ${summary.avgMarginPct < 10 ? 'text-red-600' : summary.avgMarginPct > 60 ? 'text-amber-600' : 'text-green-700'}`}>
+          מרווח ממוצע: {summary.avgMarginPct.toFixed(1)}%
+        </span>
+        {forexCurrency && forexRate > 0 && (
+          <span className="text-blue-600">
+            ≈ {forexSym}{sellingForex.toLocaleString('he-IL', { maximumFractionDigits: 0 })} @ {forexRate.toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      {/* Category breakdown */}
+      {Object.keys(summary.byCategory).length > 1 && (
+        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-200">
+          {Object.entries(summary.byCategory).map(([cat, v]) => {
+            const pct = summary.totalSelling > 0 ? (v.selling / summary.totalSelling) * 100 : 0;
+            return (
+              <span key={cat} className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-600">
+                <strong className="text-gray-700">{cat}</strong>
+                <span className="mx-1 text-gray-300">·</span>
+                <span>{formatCurrency(v.selling)}</span>
+                <span className="text-gray-400 ml-1">({pct.toFixed(0)}%)</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-200">
+          {warnings.map((w, i) => {
+            const { bg, icon, msg } = WARNING_STYLE[w.issue];
+            return (
+              <span key={i} className={`text-[11px] rounded px-2 py-0.5 ${bg}`}>
+                {icon} <strong>{w.product_name || `שורה ${w.index + 1}`}</strong>
+                <span className="mx-1">—</span>
+                <span>{msg}{w.issue !== 'zero_cost' ? ` (${w.margin_pct.toFixed(1)}%)` : ''}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WARNING_STYLE: Record<'low_margin' | 'high_margin' | 'zero_cost', { bg: string; icon: string; msg: string }> = {
+  low_margin:  { bg: 'bg-red-50 text-red-700 border border-red-200',     icon: '⚠️', msg: 'מרווח נמוך מ-10%' },
+  high_margin: { bg: 'bg-amber-50 text-amber-700 border border-amber-200', icon: '⚡', msg: 'מרווח גבוה מ-60%' },
+  zero_cost:   { bg: 'bg-purple-50 text-purple-700 border border-purple-200', icon: '🔍', msg: 'עלות אפס' },
+};
 
 function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
   if (p.orders.length === 0) {
