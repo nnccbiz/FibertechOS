@@ -392,16 +392,16 @@ export function validateQuoteMargins(
   minMarginPct = 10,
   maxMarginPct = 60,
 ): MarginWarning[] {
-  return items.flatMap((item, i) => {
+  const warnings: MarginWarning[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     if (item.cost_price === 0) {
-      return [{ index: i, product_name: item.product_name ?? '', margin_pct: 0, issue: 'zero_cost' as const }];
+      warnings.push({ index: i, product_name: item.product_name ?? '', margin_pct: 0, issue: 'zero_cost' });
+    } else if (item.margin_pct < minMarginPct) {
+      warnings.push({ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'low_margin' });
+    } else if (item.margin_pct > maxMarginPct) {
+      warnings.push({ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'high_margin' });
     }
-    if (item.margin_pct < minMarginPct) {
-      return [{ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'low_margin' as const }];
-    }
-    if (item.margin_pct > maxMarginPct) {
-      return [{ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'high_margin' as const }];
-    }
-    return [];
-  });
+  }
+  return warnings;
 }
