@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/exchange-rate?currency=USD
  *
  * Fetches exchange rates from Bank of Israel XML feed.
- * Supports USD and EUR (to ILS).
- * Caches in memory for 1 hour.
+ * Cache hierarchy: in-memory (1h) → Supabase exchange_rate_log (24h) → 503
  */
 
 interface CachedRate {
@@ -14,17 +14,16 @@ interface CachedRate {
   fetchedAt: number;
 }
 
-const cache: Record<string, CachedRate> = {};
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const memCache: Record<string, CachedRate> = {};
+const MEM_TTL = 60 * 60 * 1000;        // 1 hour
+const DB_MAX_AGE_HOURS = 24;
 
-// Currency codes supported
 const CURRENCY_MAP: Record<string, string> = {
   USD: 'USD',
   EUR: 'EUR',
   GBP: 'GBP',
 };
 
-// Try multiple BOI endpoints in order
 const BOI_ENDPOINTS = [
   (currency: string) => `https://boi.org.il/PublicApi/GetExchangeRate?key=${currency}&asXml=true`,
   () => `https://boi.org.il/PublicApi/GetExchangeRates?asXml=true`,
@@ -32,15 +31,9 @@ const BOI_ENDPOINTS = [
 ];
 
 function parseRateFromXml(xml: string, currency: string): { rate: number; date: string } | null {
-  const currencyCode = CURRENCY_MAP[currency] || currency;
-
-  // Try multiple XML formats (BOI has different response formats per endpoint)
   const patterns = [
-    // Format: <ExchangeRate>...<Key>USD</Key>...<CurrentExchangeRate>3.65</CurrentExchangeRate>...</ExchangeRate>
-    new RegExp(`<Key>${currencyCode}</Key>[\\s\\S]*?<CurrentExchangeRate>([\\d.]+)</CurrentExchangeRate>`, 's'),
-    // Format: <CURRENCYCODE>USD</CURRENCYCODE>...<RATE>3.65</RATE>
-    new RegExp(`<CURRENCYCODE>${currencyCode}</CURRENCYCODE>[\\s\\S]*?<RATE>([\\d.]+)</RATE>`, 's'),
-    // Format: <RATE>3.65</RATE> (single currency endpoint)
+    new RegExp(`<Key>${currency}</Key>[\\s\\S]*?<CurrentExchangeRate>([\\d.]+)</CurrentExchangeRate>`, 's'),
+    new RegExp(`<CURRENCYCODE>${currency}</CURRENCYCODE>[\\s\\S]*?<RATE>([\\d.]+)</RATE>`, 's'),
     /<CurrentExchangeRate>([\d.]+)<\/CurrentExchangeRate>/,
     /<RATE>([\d.]+)<\/RATE>/,
   ];
@@ -55,7 +48,6 @@ function parseRateFromXml(xml: string, currency: string): { rate: number; date: 
   }
   if (!rate) return null;
 
-  // Extract date
   const datePatterns = [
     /<LastUpdate>(\d{4}-\d{2}-\d{2})/,
     /<LAST_UPDATE>(\d{4}-\d{2}-\d{2})/,
@@ -79,7 +71,6 @@ async function fetchFromBOI(currency: string): Promise<{ rate: number; date: str
         headers: { 'Accept': 'application/xml, text/xml, */*' },
       });
       if (!res.ok) continue;
-
       const xml = await res.text();
       const result = parseRateFromXml(xml, currency);
       if (result) return result;
@@ -88,6 +79,41 @@ async function fetchFromBOI(currency: string): Promise<{ rate: number; date: str
     }
   }
   return null;
+}
+
+async function logToSupabase(currency: string, rate: number): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    await supabase.from('exchange_rate_log').insert({
+      currency_pair: `${currency}/ILS`,
+      rate,
+      source: 'boi',
+    });
+  } catch {
+    // Non-fatal — logging failure should not break the response
+  }
+}
+
+async function fetchFromSupabase(currency: string): Promise<{ rate: number; date: string } | null> {
+  try {
+    const supabase = createAdminClient();
+    const cutoff = new Date(Date.now() - DB_MAX_AGE_HOURS * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('exchange_rate_log')
+      .select('rate, fetched_at')
+      .eq('currency_pair', `${currency}/ILS`)
+      .gte('fetched_at', cutoff)
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (!data) return null;
+    return {
+      rate: data.rate,
+      date: new Date(data.fetched_at).toISOString().split('T')[0],
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -103,49 +129,38 @@ export async function GET(request: NextRequest) {
 
   const cacheKey = `${currency}/ILS`;
 
-  // Check cache
-  const cached = cache[cacheKey];
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+  // 1. In-memory cache
+  const cached = memCache[cacheKey];
+  if (cached && Date.now() - cached.fetchedAt < MEM_TTL) {
     return NextResponse.json({
-      rate: cached.rate,
-      currency,
-      target: 'ILS',
-      date: cached.date,
-      source: 'boi',
-      cached: true,
+      rate: cached.rate, currency, target: 'ILS', date: cached.date, source: 'boi', cached: true,
     });
   }
 
-  // Fetch fresh rate
-  const result = await fetchFromBOI(currency);
-
-  if (result) {
-    cache[cacheKey] = {
-      rate: result.rate,
-      date: result.date,
-      fetchedAt: Date.now(),
-    };
-
+  // 2. Fetch fresh from BOI
+  const fresh = await fetchFromBOI(currency);
+  if (fresh) {
+    memCache[cacheKey] = { rate: fresh.rate, date: fresh.date, fetchedAt: Date.now() };
+    // Fire-and-forget log to Supabase
+    logToSupabase(currency, fresh.rate);
     return NextResponse.json({
-      rate: result.rate,
-      currency,
-      target: 'ILS',
-      date: result.date,
-      source: 'boi',
-      cached: false,
+      rate: fresh.rate, currency, target: 'ILS', date: fresh.date, source: 'boi', cached: false,
     });
   }
 
-  // Fallback to cached (even if stale)
+  // 3. Supabase fallback (survives server restarts, up to 24h old)
+  const dbRate = await fetchFromSupabase(currency);
+  if (dbRate) {
+    memCache[cacheKey] = { rate: dbRate.rate, date: dbRate.date, fetchedAt: Date.now() - MEM_TTL + 5 * 60 * 1000 };
+    return NextResponse.json({
+      rate: dbRate.rate, currency, target: 'ILS', date: dbRate.date, source: 'boi', cached: true, stale: true,
+    });
+  }
+
+  // 4. In-memory stale (any age)
   if (cached) {
     return NextResponse.json({
-      rate: cached.rate,
-      currency,
-      target: 'ILS',
-      date: cached.date,
-      source: 'boi',
-      cached: true,
-      stale: true,
+      rate: cached.rate, currency, target: 'ILS', date: cached.date, source: 'boi', cached: true, stale: true,
     });
   }
 

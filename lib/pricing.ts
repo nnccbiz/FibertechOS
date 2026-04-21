@@ -255,3 +255,153 @@ export function calcAccessoryCost(input: AccessoryCostInput): AccessoryCostResul
 export function calcSellingPrice(costILS: number, overheadsPct: number, profitPct: number): number {
   return round2(costILS * (1 + overheadsPct / 100) * (1 + profitPct / 100));
 }
+
+// =========================================================
+// Extended pricing engine — unified item pricing + summary
+// =========================================================
+
+export type ItemType =
+  | 'pipe_with_coupling'
+  | 'pipe_bare'
+  | 'coupling'
+  | 'roker'
+  | 'elbow'
+  | 'flange'
+  | 'reducer'
+  | 'other';
+
+export interface QuoteLineItem {
+  item_type?: ItemType;
+  product_name?: string;
+  dn_size?: number | string;   // DN in mm
+  sn?: number;
+  quantity: number;
+  unit: string;                // 'מטר' | 'יחידה' | etc.
+  cost_price: number;          // cost in ILS per unit
+  overheads_pct: number;
+  profit_pct: number;
+  unit_price?: number;         // selling price per unit (ILS)
+  total_price?: number;        // selling price × quantity
+  length_m?: number;           // for pipe: standard length in meters (used for roker calc)
+}
+
+export interface QuoteLineItemPriced extends QuoteLineItem {
+  unit_price: number;
+  total_price: number;
+  overheads_amount: number;
+  profit_amount: number;
+  margin_pct: number;          // actual gross margin % = profit / selling price
+}
+
+/**
+ * Price a single quote line item.
+ * Routes roker items through the roker cost chain when dn_size is provided.
+ */
+export function calcItemPrice(item: QuoteLineItem): QuoteLineItemPriced {
+  const dn = typeof item.dn_size === 'string' ? parseInt(item.dn_size, 10) : (item.dn_size ?? 0);
+  let unitPrice: number;
+
+  if (item.item_type === 'roker' && dn > 0 && item.length_m && item.length_m > 0) {
+    // For roker: cost_price is treated as cost-per-meter ILS; recalculate via roker formula
+    const rokerLength = round2((dn / 1000) * 2);
+    const withOverheads = round2(item.cost_price * (1 + item.overheads_pct / 100));
+    unitPrice = round2(withOverheads * (1 + item.profit_pct / 100) * rokerLength);
+  } else {
+    unitPrice = calcSellingPrice(item.cost_price, item.overheads_pct, item.profit_pct);
+  }
+
+  const totalPrice = round2(unitPrice * item.quantity);
+  const costTotal = round2(item.cost_price * item.quantity);
+  const overheadsAmount = round2(costTotal * (item.overheads_pct / 100));
+  const profitAmount = round2(totalPrice - costTotal - overheadsAmount);
+  const marginPct = totalPrice > 0 ? round2((profitAmount / totalPrice) * 100) : 0;
+
+  return {
+    ...item,
+    unit_price: unitPrice,
+    total_price: totalPrice,
+    overheads_amount: overheadsAmount,
+    profit_amount: profitAmount,
+    margin_pct: marginPct,
+  };
+}
+
+export interface QuoteSummary {
+  totalCost: number;
+  totalOverheads: number;
+  totalProfit: number;
+  totalSelling: number;
+  avgMarginPct: number;
+  byCategory: Record<string, { cost: number; selling: number; count: number }>;
+}
+
+const ITEM_CATEGORY: Record<string, string> = {
+  pipe_with_coupling: 'צינורות',
+  pipe_bare:          'צינורות',
+  coupling:           'מחברים',
+  roker:              'רוקרים',
+  elbow:              'ברכיים',
+  flange:             'אוגנים',
+  reducer:            'מעברים',
+  other:              'אחר',
+};
+
+/**
+ * Aggregate priced line items into a quote summary with category breakdown.
+ */
+export function calcQuoteSummary(items: QuoteLineItemPriced[]): QuoteSummary {
+  let totalCost = 0, totalOverheads = 0, totalProfit = 0, totalSelling = 0;
+  const byCategory: Record<string, { cost: number; selling: number; count: number }> = {};
+
+  for (const item of items) {
+    const cost = round2(item.cost_price * item.quantity);
+    totalCost += cost;
+    totalOverheads += item.overheads_amount;
+    totalProfit += item.profit_amount;
+    totalSelling += item.total_price;
+
+    const cat = ITEM_CATEGORY[item.item_type ?? 'other'] ?? 'אחר';
+    if (!byCategory[cat]) byCategory[cat] = { cost: 0, selling: 0, count: 0 };
+    byCategory[cat].cost = round2(byCategory[cat].cost + cost);
+    byCategory[cat].selling = round2(byCategory[cat].selling + item.total_price);
+    byCategory[cat].count += item.quantity;
+  }
+
+  totalCost = round2(totalCost);
+  totalOverheads = round2(totalOverheads);
+  totalProfit = round2(totalProfit);
+  totalSelling = round2(totalSelling);
+  const avgMarginPct = totalSelling > 0 ? round2((totalProfit / totalSelling) * 100) : 0;
+
+  return { totalCost, totalOverheads, totalProfit, totalSelling, avgMarginPct, byCategory };
+}
+
+/**
+ * Validate that quote margins are within acceptable bounds.
+ * Returns warnings for items outside normal ranges.
+ */
+export interface MarginWarning {
+  index: number;
+  product_name: string;
+  margin_pct: number;
+  issue: 'low_margin' | 'high_margin' | 'zero_cost';
+}
+
+export function validateQuoteMargins(
+  items: QuoteLineItemPriced[],
+  minMarginPct = 10,
+  maxMarginPct = 60,
+): MarginWarning[] {
+  return items.flatMap((item, i) => {
+    if (item.cost_price === 0) {
+      return [{ index: i, product_name: item.product_name ?? '', margin_pct: 0, issue: 'zero_cost' as const }];
+    }
+    if (item.margin_pct < minMarginPct) {
+      return [{ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'low_margin' as const }];
+    }
+    if (item.margin_pct > maxMarginPct) {
+      return [{ index: i, product_name: item.product_name ?? '', margin_pct: item.margin_pct, issue: 'high_margin' as const }];
+    }
+    return [];
+  });
+}
