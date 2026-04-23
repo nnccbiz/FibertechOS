@@ -80,7 +80,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [pricingTab, setPricingTab] = useState<'costs' | 'quotes' | 'orders'>('quotes');
   const [showNewCostInput, setShowNewCostInput] = useState(false);
   const [showNewQuote, setShowNewQuote] = useState(false);
-  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD' });
+  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
   const [newQuote, setNewQuote] = useState({
     client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
     default_overheads_pct: 17, default_profit_pct: 25,
@@ -179,10 +179,11 @@ export function usePricing(projectId: string): UsePricingReturn {
       currency: newCostInput.currency || 'ILS',
       exchange_rate: rate,
       exchange_rate_date: rateDate,
+      payment_terms: newCostInput.payment_terms,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewCostInput(false);
-    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD' });
+    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
     setCostInputs((prev) => [ci, ...prev]);
     setExpandedCostInput(ci.id);
     setEditingCostInput(ci.id);

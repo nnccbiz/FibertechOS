@@ -137,12 +137,18 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
               <input type="text" value={p.newCostInput.notes} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="אופציונלי" />
             </div>
           </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום לספק</label>
+              <input type="text" value={p.newCostInput.payment_terms} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="למשל: 30% מקדמה, יתרה שוטף +60" />
+            </div>
+          </div>
           {p.newCostInput.source_type === 'supplier' && p.newCostInput.currency !== 'ILS' && (
             <div className="text-[12px] text-gray-500">
               שער {CURRENCY_SYMBOLS[p.newCostInput.currency] || ''}/₪: <strong>{p.exchangeRates[p.newCostInput.currency]?.rate?.toFixed(4) || 'טוען...'}</strong>
             </div>
           )}
-          <button onClick={p.createCostInput} disabled={!p.newCostInput.source_name.trim()} className="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50">צור תמחור</button>
+          <button onClick={p.createCostInput} disabled={!p.newCostInput.source_name.trim()} className="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50">צור מסמך תמחור</button>
         </div>
       )}
 
@@ -195,6 +201,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
               </label>
             </div>
           )}
+          {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
           {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
 
           {/* Edit mode */}
