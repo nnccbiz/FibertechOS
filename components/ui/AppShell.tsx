@@ -11,7 +11,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <BottomNav />
       <FloatingChat />
-      <main className="md:mr-[60px] pb-20 md:pb-6">
+      <main className="md:mr-[60px] pb-20 md:pb-6 overflow-x-hidden">
         {children}
       </main>
     </PermissionsProvider>
