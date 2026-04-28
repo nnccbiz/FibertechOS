@@ -760,7 +760,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           <SectionHeader title="מאפייני הצינור והשוחות" icon="🔧" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-green-300">
               {specsForm.map((s, i) => (
                 <div key={i} className="flex gap-2 items-center flex-wrap py-3 first:pt-0">
                   <div className="flex gap-1 items-center">
@@ -778,12 +778,18 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>
-                    <div className="flex gap-2 items-center flex-wrap">
+                    <div className="flex gap-2 items-center flex-nowrap">
+                      <input type="number" step="0.1" placeholder="אחר" value={(() => { const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean); const custom = vals.find((v: number) => ![11.7, 5.7, 3.8, 2.8].includes(v)); return custom ?? ''; })()} onChange={(e) => {
+                        const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
+                        const predefined = vals.filter((v: number) => [11.7, 5.7, 3.8, 2.8].includes(v));
+                        const newVals = e.target.value ? [...predefined, parseFloat(e.target.value)] : predefined;
+                        const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
+                      }} className={`${inputClass} w-20`} />
                       {[11.7, 5.7, 3.8, 2.8].map((len) => {
                         const selected = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
                         const isChecked = selected.includes(len);
                         return (
-                          <label key={len} className="flex items-center gap-1 text-sm cursor-pointer">
+                          <label key={len} className="flex items-center gap-1 text-sm cursor-pointer whitespace-nowrap">
                             <input type="checkbox" checked={isChecked} onChange={() => {
                               const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
                               const newVals = isChecked ? vals.filter((v: number) => v !== len) : [...vals, len];
@@ -793,12 +799,6 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                           </label>
                         );
                       })}
-                      <input type="number" step="0.1" placeholder="אחר" value={(() => { const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean); const custom = vals.find((v: number) => ![11.7, 5.7, 3.8, 2.8].includes(v)); return custom ?? ''; })()} onChange={(e) => {
-                        const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
-                        const predefined = vals.filter((v: number) => [11.7, 5.7, 3.8, 2.8].includes(v));
-                        const newVals = e.target.value ? [...predefined, parseFloat(e.target.value)] : predefined;
-                        const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
-                      }} className={`${inputClass} w-20`} />
                     </div>
                   </div>
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
