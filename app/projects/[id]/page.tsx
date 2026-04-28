@@ -26,7 +26,7 @@ interface EditableFieldProps {
   label: string;
   value: string;
   editing: boolean;
-  type?: 'text' | 'date' | 'number' | 'textarea' | 'select';
+  type?: 'text' | 'date' | 'number' | 'textarea' | 'select' | 'multiselect' | 'toggle';
   options?: string[];
   onChange: (val: string) => void;
 }
@@ -45,11 +45,33 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
             <option value="">—</option>
             {options.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
+        ) : type === 'multiselect' && options ? (
+          <div className="flex gap-3 flex-wrap">
+            {options.map((o) => {
+              const selected = value ? value.split(',').map(s => s.trim()) : [];
+              const isChecked = selected.includes(o);
+              return (
+                <label key={o} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input type="checkbox" checked={isChecked} onChange={() => {
+                    const vals = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                    const newVals = isChecked ? vals.filter(v => v !== o) : [...vals, o];
+                    onChange(newVals.join(','));
+                  }} className="accent-[#1a56db]" />
+                  {o}
+                </label>
+              );
+            })}
+          </div>
+        ) : type === 'toggle' ? (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={value === 'כן'} onChange={(e) => onChange(e.target.checked ? 'כן' : 'לא')} className="accent-[#1a56db] w-4 h-4" />
+            <span className="text-sm text-gray-700">{value === 'כן' ? 'כן' : 'לא'}</span>
+          </label>
         ) : (
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
         )
       ) : (
-        <span className="text-sm font-medium text-gray-800">{value || '—'}</span>
+        <span className="text-sm font-medium text-gray-800">{type === 'multiselect' && value ? value.split(',').join(', ') : (value || '—')}</span>
       )}
     </div>
   );
@@ -731,12 +753,12 @@ ${updatesInfo}`;
           <SectionHeader title="סוג פרויקט והתקנה" icon="⚙️" editing={editType} onToggle={() => editType ? cancelEdit('type') : setEditType(true)} onSave={saveType} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="תיאור הפרויקט" value={d.description || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('description', v)} />
-            <EditableField label="סוג פרויקט" value={d.project_type || ''} editing={editType} type="select" options={['ביוב', 'מים', 'תשתית', 'ניקוז', 'קולחין', 'בוצה', 'אחר']} onChange={(v) => updateDetailForm('project_type', v)} />
-            <EditableField label="סוג התקנה" value={d.installation_type || ''} editing={editType} type="select" options={['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה']} onChange={(v) => updateDetailForm('installation_type', v)} />
+            <EditableField label="סוג פרויקט" value={d.project_type || ''} editing={editType} type="multiselect" options={['ביוב', 'מים', 'תשתית', 'ניקוז', 'קולחין', 'בוצה', 'אחר']} onChange={(v) => updateDetailForm('project_type', v)} />
+            <EditableField label="סוג התקנה" value={d.installation_type || ''} editing={editType} type="multiselect" options={['הטמנה', 'חפירה פתוחה', 'דחיקה', 'השחלה', 'עילי', 'ביאקסיאלי']} onChange={(v) => updateDetailForm('installation_type', v)} />
             <EditableField label="דרישות מיוחדות" value={d.special_requirements || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('special_requirements', v)} />
-            <EditableField label="פיקוח שרות שדה" value={d.field_supervision || ''} editing={editType} type="select" options={['כן', 'לא', 'לא נדרש']} onChange={(v) => updateDetailForm('field_supervision', v)} />
+            <EditableField label="פיקוח שירות שדה" value={d.field_supervision || ''} editing={editType} type="toggle" onChange={(v) => updateDetailForm('field_supervision', v)} />
           </div>
-          {(editType || d.installation_type === 'דחיקה') && (
+          {(editType || (d.installation_type && d.installation_type.includes('דחיקה'))) && (
             <div className="border-t border-[#e2e8f0] mt-3 pt-3">
               <h3 className="text-sm font-bold text-gray-500 mb-2">פרטי דחיקה</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
