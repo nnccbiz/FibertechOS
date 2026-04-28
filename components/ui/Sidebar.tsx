@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
@@ -26,11 +26,14 @@ const navItems: NavItem[] = [
 
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
+  const [canHover, setCanHover] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
   const { canAccess, loading } = usePermissions();
 
-  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+  useEffect(() => {
+    setCanHover(window.matchMedia('(hover: hover)').matches);
+  }, []);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -50,8 +53,8 @@ export default function Sidebar() {
 
   return (
     <aside
-      onMouseEnter={() => !isTouchDevice && setExpanded(true)}
-      onMouseLeave={() => !isTouchDevice && setExpanded(false)}
+      onMouseEnter={() => canHover && setExpanded(true)}
+      onMouseLeave={() => canHover && setExpanded(false)}
       className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-[#e2e8f0] flex-col z-40 transition-all duration-300 ${
         expanded ? 'w-[200px] shadow-lg' : 'w-[60px]'
       }`}
