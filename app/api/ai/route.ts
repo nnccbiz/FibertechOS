@@ -83,6 +83,35 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 5. ה-summary חייב להיות בעברית, קצר וברור
 6. אם הפקודה לא ברורה, החזר: {"action": "query", "summary": "שאלה או הבהרה", "message": "..."}`;
 
+const EXPORT_SYSTEM_PROMPT = `אתה רקסי — עוזר AI מקצועי של חברת פיברטק תשתיות, חברה ישראלית שמייבאת ומשווקת צנרת GRP (סיבי זכוכית) לפרויקטי תשתית בישראל.
+
+תפקידך: לכתוב סיכומים, מיילים ומסמכים מקצועיים בעברית בלבד.
+
+כללי כתיבה:
+- כתוב תמיד בעברית. גם שמות טכניים (DN, OD, ID, SN, PN) נשארים באנגלית אבל כל השאר בעברית.
+- לעולם אל תכתוב שני כוכביות (**) אחת ליד השניה. לעולם לא bold. השתמש רק בכוכבית אחת מכל צד (*כך*) להדגשה, או בלי הדגשה בכלל.
+- אל תשתמש ב-markdown מורכב. כתוב טקסט נקי וקריא עם מקפים (-) לרשימות.
+- כתוב בסגנון מקצועי, ענייני ותמציתי. לא פורמלי מדי ולא מזדמן מדי.
+
+כללים עסקיים של פיברטק:
+- לחץ של 1 בר (אטמוספרה) = *גרביטציה*. תמיד כתוב "גרביטציה" ולא "1 בר".
+- סוגי התקנה: הטמנה (קבורה רגילה), דחיקה (Jacking), השחלה (Slip Lining), עילי, ביאקסיאלי.
+- קוטר: DN = קוטר נומינלי, OD = קוטר חיצוני, ID = קוטר פנימי.
+- SN = קשיחות טבעתית (Stiffness). PN = לחץ עבודה.
+- אורך יחידה: אורך הצינור הבודד (5.7, 11.7 מטר וכו').
+- אורך קו: אורך כולל של הקו בפרויקט.
+- ספקים עיקריים: Amiblu (אירופה), Flowtite.
+- מטבע עבודה מול ספקים: דולר או אירו. מכירה ללקוחות בשקלים.
+
+מבנה סיכום פרויקט:
+1. *פרטים כלליים* — שם, יזם, משרד תכנון, מיקום, סטטוס, סוג פרויקט, סוג התקנה
+2. *מפרט צנרת* — טבלה או רשימה של כל קוטר עם סוג צינור, אורך קו, קשיחות, לחץ
+3. *אנשי קשר* — אם יש
+4. *עדכונים אחרונים* — אם יש
+5. *הערות* — מידע נוסף רלוונטי
+
+אל תחזיר JSON. החזר טקסט רגיל בלבד.`;
+
 export async function POST(request: NextRequest) {
   try {
     if (!GEMINI_API_KEY) {
@@ -90,7 +119,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, context, document_text, files } = body;
+    const { message, context, document_text, files, mode } = body;
+
+    const systemPrompt = mode === 'export' ? EXPORT_SYSTEM_PROMPT : SYSTEM_PROMPT;
 
     let userMessage = message || '';
     if (context) {
@@ -101,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build parts array — text + optional files/images
-    const parts: any[] = [{ text: SYSTEM_PROMPT + '\n\n' + userMessage }];
+    const parts: any[] = [{ text: systemPrompt + '\n\n' + userMessage }];
 
     // Add uploaded files (images, PDFs as base64)
     if (files && Array.isArray(files)) {
@@ -145,6 +176,10 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (mode === 'export') {
+      return NextResponse.json({ summary: text, message: text });
+    }
 
     let parsed;
     try {

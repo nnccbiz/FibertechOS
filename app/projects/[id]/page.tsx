@@ -169,8 +169,7 @@ export default function ProjectDetailPage() {
     setExportEmail('');
     try {
       const projectName = project?.name || '';
-      const prompt = lang === 'he'
-        ? `כתוב מייל עדכון מקצועי בעברית לגבי פרויקט "${projectName}".
+      const prompt = `כתוב מייל עדכון מקצועי בעברית לגבי פרויקט "${projectName}".
 הנמען: ${recipient || 'לא צוין'}
 תאריך עדכון: ${upd.update_date}
 אנשים מעורבים: ${upd.people}
@@ -178,23 +177,12 @@ export default function ProjectDetailPage() {
 תיאור: ${upd.description || 'לא צוין'}
 משימות: ${upd.tasks || 'לא צוינו'}
 
-כתוב מייל מקצועי ומנומס הכולל נושא (Subject), גוף המייל עם סיכום העדכון והמשימות. החתימה: צוות פיברטק תשתיות.
-אל תחזיר JSON — החזר טקסט רגיל בלבד.`
-        : `Write a professional project update email in English about project "${projectName}".
-Recipient: ${recipient || 'not specified'}
-Update date: ${upd.update_date}
-People involved: ${upd.people}
-Title: ${upd.title}
-Description: ${upd.description || 'N/A'}
-Tasks: ${upd.tasks || 'N/A'}
-
-Write a professional and polite email including Subject line, body with update summary and action items. Sign off as: Fibertech Infrastructure Team.
-Do NOT return JSON — return plain text only.`;
+כתוב מייל מקצועי ומנומס הכולל נושא (Subject), גוף המייל עם סיכום העדכון והמשימות. החתימה: צוות פיברטק תשתיות.`;
 
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: prompt, mode: 'export' }),
       });
       const data = await res.json();
       const emailText = data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
@@ -228,15 +216,14 @@ Do NOT return JSON — return plain text only.`;
         : 'אין';
 
       const specsInfo = pipeSpecs.length > 0
-        ? pipeSpecs.map((s: any) => `DN${s.dn_mm || '—'}${s.od_mm ? ` OD${s.od_mm}` : ''}${s.id_mm ? ` ID${s.id_mm}` : ''} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
+        ? pipeSpecs.map((s: any) => `סוג: ${s.pipe_type || 'הטמנה'} | DN${s.dn_mm || '—'}${s.od_mm ? ` OD${s.od_mm}` : ''}${s.id_mm ? ` ID${s.id_mm}` : ''} | אורך קו: ${s.line_length_m || '—'}מ׳${s.unit_length_m ? ` | אורך יחידה: ${s.unit_length_m}מ׳` : ''} | קשיחות: ${s.stiffness_pascal ? 'SN' + s.stiffness_pascal : '—'} | לחץ: ${s.pressure_bar}בר`).join('\n')
         : 'אין';
 
       const updatesInfo = updates.length > 0
         ? updates.slice(0, 5).map((u: any) => `${u.update_date}: ${u.title} (${u.people})`).join('\n')
         : 'אין';
 
-      const prompt = lang === 'he'
-        ? `כתוב סיכום מקצועי ומקיף בעברית של הפרויקט הבא. הסיכום צריך לכלול: מידע כללי, אנשי קשר, מפרט צינורות, ועדכונים אחרונים. כתוב בצורה מסודרת ונקיה.
+      const prompt = `כתוב סיכום פרויקט מקצועי לפי המבנה שהוגדר לך.
 
 פרטי הפרויקט:
 ${projectInfo}
@@ -244,33 +231,16 @@ ${projectInfo}
 אנשי קשר:
 ${contactsInfo}
 
-מפרט צינורות:
+מפרט צנרת:
 ${specsInfo}
 
 עדכונים אחרונים:
-${updatesInfo}
-
-אל תחזיר JSON — החזר טקסט רגיל בלבד. כתוב סיכום מקצועי.`
-        : `Write a comprehensive professional summary in English of the following project. Include: general info, contacts, pipe specifications, and recent updates. Write in a clean, organized format.
-
-Project details:
-${projectInfo}
-
-Contacts:
-${contactsInfo}
-
-Pipe specifications:
-${specsInfo}
-
-Recent updates:
-${updatesInfo}
-
-Do NOT return JSON — return plain text only. Write a professional summary.`;
+${updatesInfo}`;
 
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: prompt, mode: 'export' }),
       });
       const data = await res.json();
       setProjectExportText(data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data)));
