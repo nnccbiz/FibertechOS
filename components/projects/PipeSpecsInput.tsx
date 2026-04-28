@@ -8,7 +8,7 @@ export interface PipeSpec {
   id_mm: number | null;
   pipe_type: string;
   line_length_m: number | null;
-  unit_length_m: number | null;
+  unit_length_m: string;
   stiffness_pascal: number | null;
   pressure_bar: number | null;
   notes: string;
@@ -48,7 +48,7 @@ function parseLine(line: string): PipeSpec | null {
     id_mm: num(parts[2]),
     pipe_type: parts[3] || 'הטמנה',
     line_length_m: num(parts[4]),
-    unit_length_m: num(parts[5]),
+    unit_length_m: parts[5] || '',
     stiffness_pascal: num(parts[6]),
     pressure_bar: num(parts[7]),
     notes: parts[8] || '',
@@ -97,7 +97,7 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
                   <td className="py-2 px-2 text-gray-600">{spec.id_mm || '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.unit_length_m ?? '—'}</td>
+                  <td className="py-2 px-2 text-gray-600" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.pressure_bar ?? '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.notes || '—'}</td>
