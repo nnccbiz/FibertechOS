@@ -169,7 +169,8 @@ export default function ProjectDetailPage() {
     setExportEmail('');
     try {
       const projectName = project?.name || '';
-      const prompt = `כתוב מייל עדכון מקצועי בעברית לגבי פרויקט "${projectName}".
+      const prompt = lang === 'he'
+        ? `כתוב מייל עדכון מקצועי בעברית לגבי פרויקט "${projectName}".
 הנמען: ${recipient || 'לא צוין'}
 תאריך עדכון: ${upd.update_date}
 אנשים מעורבים: ${upd.people}
@@ -177,12 +178,21 @@ export default function ProjectDetailPage() {
 תיאור: ${upd.description || 'לא צוין'}
 משימות: ${upd.tasks || 'לא צוינו'}
 
-כתוב מייל מקצועי ומנומס הכולל נושא (Subject), גוף המייל עם סיכום העדכון והמשימות. החתימה: צוות פיברטק תשתיות.`;
+כתוב מייל מקצועי ומנומס הכולל נושא (Subject), גוף המייל עם סיכום העדכון והמשימות. החתימה: צוות פיברטק תשתיות.`
+        : `Write a professional project update email in English about project "${projectName}".
+Recipient: ${recipient || 'not specified'}
+Update date: ${upd.update_date}
+People involved: ${upd.people}
+Title: ${upd.title}
+Description: ${upd.description || 'N/A'}
+Tasks: ${upd.tasks || 'N/A'}
+
+Write a professional and polite email including Subject line, body with update summary and action items. Sign off as: Fibertech Infrastructure Team.`;
 
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt, mode: 'export' }),
+        body: JSON.stringify({ message: prompt, mode: 'export', lang }),
       });
       const data = await res.json();
       const emailText = data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
@@ -223,7 +233,8 @@ export default function ProjectDetailPage() {
         ? updates.slice(0, 5).map((u: any) => `${u.update_date}: ${u.title} (${u.people})`).join('\n')
         : 'אין';
 
-      const prompt = `כתוב סיכום פרויקט מקצועי לפי המבנה שהוגדר לך.
+      const prompt = lang === 'he'
+        ? `כתוב סיכום פרויקט מקצועי בעברית לפי המבנה שהוגדר לך.
 
 פרטי הפרויקט:
 ${projectInfo}
@@ -235,12 +246,25 @@ ${contactsInfo}
 ${specsInfo}
 
 עדכונים אחרונים:
+${updatesInfo}`
+        : `Write a professional project summary in English following your defined structure.
+
+Project details:
+${projectInfo}
+
+Contacts:
+${contactsInfo}
+
+Pipe specifications:
+${specsInfo}
+
+Recent updates:
 ${updatesInfo}`;
 
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt, mode: 'export' }),
+        body: JSON.stringify({ message: prompt, mode: 'export', lang }),
       });
       const data = await res.json();
       setProjectExportText(data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data)));
