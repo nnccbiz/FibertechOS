@@ -30,6 +30,8 @@ export default function Sidebar() {
   const router = useRouter();
   const { canAccess, loading } = usePermissions();
 
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -48,8 +50,8 @@ export default function Sidebar() {
 
   return (
     <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseEnter={() => !isTouchDevice && setExpanded(true)}
+      onMouseLeave={() => !isTouchDevice && setExpanded(false)}
       className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-[#e2e8f0] flex-col z-40 transition-all duration-300 ${
         expanded ? 'w-[200px] shadow-lg' : 'w-[60px]'
       }`}
