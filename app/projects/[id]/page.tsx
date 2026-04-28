@@ -815,10 +815,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
-                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">DN</th>
+                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">סוג צינור</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">DN</th>
                     <th className="text-right text-gray-500 font-medium pb-2">OD</th>
                     <th className="text-right text-gray-500 font-medium pb-2">ID</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">סוג צינור</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך קו (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך יחידה (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">קשיחות (פסקל)</th>
@@ -829,12 +829,12 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <tbody>
                   {pipeSpecs.map((spec) => (
                     <tr key={spec.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
+                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.pipe_type || 'הטמנה'}</td>
+                      <td className="py-2 text-gray-600">{spec.dn_mm || '—'}</td>
                       <td className="py-2 text-gray-600">{spec.od_mm || '—'}</td>
                       <td className="py-2 text-gray-600">{spec.id_mm || '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                       <td className="py-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
-                      <td className="py-2 text-gray-600" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
                       <td className="py-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.pressure_bar ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.notes || '—'}</td>
