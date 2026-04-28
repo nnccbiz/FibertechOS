@@ -760,6 +760,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               {specsForm.map((s, i) => (
                 <div key={i} className="flex gap-2 items-center flex-wrap">
                   <input type="number" placeholder="קוטר (מ״מ)" value={s.diameter_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], diameter_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                  <select value={s.pipe_type || 'הטמנה'} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-36`}>
+                    <option value="הטמנה">הטמנה</option>
+                    <option value="דחיקה">דחיקה (Jacking)</option>
+                    <option value="השחלה">השחלה (Slip Lining)</option>
+                    <option value="עילי">עילי</option>
+                    <option value="ביאקסיאלי">ביאקסיאלי</option>
+                  </select>
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <input type="number" placeholder="אורך יחידה" value={s.unit_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
@@ -768,7 +775,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
@@ -776,6 +783,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
                     <th className="text-right text-gray-500 font-medium pb-2 pr-2">קוטר (מ"מ)</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">סוג צינור</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך קו (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך יחידה (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">קשיחות (פסקל)</th>
@@ -787,6 +795,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   {pipeSpecs.map((spec) => (
                     <tr key={spec.id} className="border-b border-gray-50">
                       <td className="py-2 pr-2 font-semibold text-gray-800">{spec.diameter_mm}</td>
+                      <td className="py-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                       <td className="py-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.unit_length_m ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
