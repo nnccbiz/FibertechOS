@@ -65,7 +65,7 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
         ) : type === 'toggle' ? (
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={value === 'כן'} onChange={(e) => onChange(e.target.checked ? 'כן' : 'לא')} className="accent-[#1a56db] w-4 h-4" />
-            <span className="text-sm text-gray-700">{value === 'כן' ? 'כן' : 'לא'}</span>
+            <span className="text-sm text-gray-700">כן</span>
           </label>
         ) : (
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
