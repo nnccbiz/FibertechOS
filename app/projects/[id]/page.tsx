@@ -760,8 +760,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           <SectionHeader title="מאפייני הצינור והשוחות" icon="🔧" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
+            <div className="divide-y divide-gray-200">
               {specsForm.map((s, i) => (
-                <div key={i} className="flex gap-2 items-center flex-wrap">
+                <div key={i} className="flex gap-2 items-center flex-wrap py-3 first:pt-0">
                   <div className="flex gap-1 items-center">
                     <input type="number" placeholder="DN" value={s.dn_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], dn_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר נומינלי" />
                     <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
@@ -775,14 +776,26 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <option value="ביאקסיאלי">ביאקסיאלי</option>
                   </select>
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
-                  <input type="number" placeholder="אורך יחידה" value={s.unit_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>
+                    <div className="flex gap-2 items-center flex-wrap">
+                      {[11.7, 5.7, 3.8, 2.8].map((len) => (
+                        <label key={len} className="flex items-center gap-1 text-sm cursor-pointer">
+                          <input type="checkbox" checked={parseFloat(s.unit_length_m) === len} onChange={() => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: parseFloat(s.unit_length_m) === len ? '' : len }; setSpecsForm(next); }} className="accent-[#1a56db]" />
+                          {len}
+                        </label>
+                      ))}
+                      <input type="number" step="0.1" placeholder="אחר" value={![11.7, 5.7, 3.8, 2.8].includes(parseFloat(s.unit_length_m)) ? (s.unit_length_m || '') : ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} />
+                    </div>
+                  </div>
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
                   <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+            </div>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline mt-3 block">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
