@@ -177,7 +177,10 @@ export default function NewProjectPage() {
       if (pipeSpecs.length > 0) {
         const specRows = pipeSpecs.map((s) => ({
           project_id: project.id,
-          diameter_mm: s.diameter_mm,
+          dn_mm: s.dn_mm,
+          od_mm: s.od_mm,
+          id_mm: s.id_mm,
+          pipe_type: s.pipe_type || 'הטמנה',
           line_length_m: s.line_length_m,
           unit_length_m: s.unit_length_m,
           stiffness_pascal: s.stiffness_pascal,

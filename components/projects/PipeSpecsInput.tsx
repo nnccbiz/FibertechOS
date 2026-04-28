@@ -3,12 +3,14 @@
 import { useState } from 'react';
 
 export interface PipeSpec {
-  diameter_mm: number;
+  dn_mm: number | null;
+  od_mm: number | null;
+  id_mm: number | null;
+  pipe_type: string;
   line_length_m: number | null;
   unit_length_m: number | null;
   stiffness_pascal: number | null;
   pressure_bar: number | null;
-  pipe_type: string;
   notes: string;
 }
 
@@ -25,7 +27,7 @@ interface PipeSpecsInputProps {
   onChange: (specs: PipeSpec[]) => void;
 }
 
-const COLUMNS = ['קוטר (מ"מ)', 'סוג צינור', 'אורך קו (מ׳)', 'אורך יחידה (מ׳)', 'קשיחות (פסקל)', 'לחץ (בר)', 'הערות'];
+const COLUMNS = ['DN', 'OD', 'ID', 'סוג צינור', 'אורך קו (מ׳)', 'אורך יחידה (מ׳)', 'קשיחות (פסקל)', 'לחץ (בר)', 'הערות'];
 
 function parseLine(line: string): PipeSpec | null {
   const parts = line.split(/[,،\t;]+/).map((s) => s.trim());
@@ -37,17 +39,19 @@ function parseLine(line: string): PipeSpec | null {
     return isNaN(n) ? null : n;
   };
 
-  const diameter = num(parts[0]);
-  if (diameter === null) return null;
+  const dn = num(parts[0]);
+  if (dn === null && num(parts[1]) === null && num(parts[2]) === null) return null;
 
   return {
-    diameter_mm: diameter,
-    pipe_type: parts[1] || 'הטמנה',
-    line_length_m: num(parts[2]),
-    unit_length_m: num(parts[3]),
-    stiffness_pascal: num(parts[4]),
-    pressure_bar: num(parts[5]),
-    notes: parts[6] || '',
+    dn_mm: dn,
+    od_mm: num(parts[1]),
+    id_mm: num(parts[2]),
+    pipe_type: parts[3] || 'הטמנה',
+    line_length_m: num(parts[4]),
+    unit_length_m: num(parts[5]),
+    stiffness_pascal: num(parts[6]),
+    pressure_bar: num(parts[7]),
+    notes: parts[8] || '',
   };
 }
 
@@ -88,7 +92,9 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
             <tbody>
               {specs.map((spec, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2 px-2 font-semibold text-gray-800">{spec.diameter_mm}</td>
+                  <td className="py-2 px-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
+                  <td className="py-2 px-2 text-gray-600">{spec.od_mm || '—'}</td>
+                  <td className="py-2 px-2 text-gray-600">{spec.id_mm || '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
                   <td className="py-2 px-2 text-gray-600">{spec.unit_length_m ?? '—'}</td>

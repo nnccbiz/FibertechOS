@@ -228,7 +228,7 @@ Do NOT return JSON — return plain text only.`;
         : 'אין';
 
       const specsInfo = pipeSpecs.length > 0
-        ? pipeSpecs.map((s: any) => `DN${s.diameter_mm} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
+        ? pipeSpecs.map((s: any) => `DN${s.dn_mm || '—'}${s.od_mm ? ` OD${s.od_mm}` : ''}${s.id_mm ? ` ID${s.id_mm}` : ''} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
         : 'אין';
 
       const updatesInfo = updates.length > 0
@@ -444,12 +444,15 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     try {
       const id = params.id as string;
       await supabase.from('pipe_specs').delete().eq('project_id', id);
-      const valid = specsForm.filter((s) => s.diameter_mm);
+      const valid = specsForm.filter((s) => s.dn_mm || s.od_mm || s.id_mm);
       if (valid.length > 0) {
         await supabase.from('pipe_specs').insert(
           valid.map((s) => ({
             project_id: id,
-            diameter_mm: parseInt(s.diameter_mm),
+            dn_mm: s.dn_mm ? parseInt(s.dn_mm) : null,
+            od_mm: s.od_mm ? parseInt(s.od_mm) : null,
+            id_mm: s.id_mm ? parseInt(s.id_mm) : null,
+            pipe_type: s.pipe_type || 'הטמנה',
             line_length_m: s.line_length_m ? parseFloat(s.line_length_m) : null,
             unit_length_m: s.unit_length_m ? parseFloat(s.unit_length_m) : null,
             stiffness_pascal: s.stiffness_pascal ? parseInt(s.stiffness_pascal) : null,
@@ -759,7 +762,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <div className="space-y-2">
               {specsForm.map((s, i) => (
                 <div key={i} className="flex gap-2 items-center flex-wrap">
-                  <input type="number" placeholder="קוטר (מ״מ)" value={s.diameter_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], diameter_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                  <div className="flex gap-1 items-center">
+                    <input type="number" placeholder="DN" value={s.dn_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], dn_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר נומינלי" />
+                    <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
+                    <input type="number" placeholder="ID" value={s.id_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], id_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר פנימי" />
+                  </div>
                   <select value={s.pipe_type || 'הטמנה'} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-36`}>
                     <option value="הטמנה">הטמנה</option>
                     <option value="דחיקה">דחיקה (Jacking)</option>
@@ -775,14 +782,16 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
-                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">קוטר (מ"מ)</th>
+                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">DN</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">OD</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">ID</th>
                     <th className="text-right text-gray-500 font-medium pb-2">סוג צינור</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך קו (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך יחידה (מ׳)</th>
@@ -794,7 +803,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <tbody>
                   {pipeSpecs.map((spec) => (
                     <tr key={spec.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.diameter_mm}</td>
+                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.od_mm || '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.id_mm || '—'}</td>
                       <td className="py-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                       <td className="py-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.unit_length_m ?? '—'}</td>
