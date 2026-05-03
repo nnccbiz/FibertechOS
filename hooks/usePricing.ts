@@ -61,6 +61,7 @@ export interface UsePricingReturn {
   removeEditingItem: (idx: number) => void;
   addCostItem: () => void;
   removeCostItem: (idx: number) => void;
+  toggleArchiveCostInput: (ciId: string) => Promise<void>;
 }
 
 export function usePricing(projectId: string): UsePricingReturn {
@@ -502,6 +503,14 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingCostItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  async function toggleArchiveCostInput(ciId: string) {
+    const ci = costInputs.find((c) => c.id === ciId);
+    if (!ci) return;
+    const newVal = !ci.is_archived;
+    await supabase.from('cost_inputs').update({ is_archived: newVal }).eq('id', ciId);
+    setCostInputs((prev) => prev.map((c) => c.id === ciId ? { ...c, is_archived: newVal } : c));
+  }
+
   return {
     costInputs, quotes, orders, quoteItems, costInputItems,
     exchangeRates, rateLoading, refreshRate,
@@ -520,5 +529,6 @@ export function usePricing(projectId: string): UsePricingReturn {
     createQuote, startEditQuote, updateItem, saveQuoteItems,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
+    toggleArchiveCostInput,
   };
 }
