@@ -140,7 +140,7 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום לספק</label>
-              <input type="text" value={p.newCostInput.payment_terms} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="למשל: 30% מקדמה, יתרה שוטף +60" />
+              <textarea value={p.newCostInput.payment_terms} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[60px] resize-y" placeholder="למשל: 30% מקדמה, יתרה שוטף +60" />
             </div>
           </div>
           {p.newCostInput.source_type === 'supplier' && p.newCostInput.currency !== 'ILS' && (
@@ -218,7 +218,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
               <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '📁 סיים תמחור'}</button>
             </div>
           )}
-          {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
+          {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2 whitespace-pre-line">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
           {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
 
           {/* Edit mode */}
@@ -460,7 +460,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום</label>
-              <input type="text" value={p.newQuote.payment_terms} onChange={(e) => p.setNewQuote({ ...p.newQuote, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+              <textarea value={p.newQuote.payment_terms} onChange={(e) => p.setNewQuote({ ...p.newQuote, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[60px] resize-y" />
             </div>
           </div>
           <div>
@@ -659,7 +659,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           <span className="font-semibold text-gray-600">הערות משפטיות:</span><br/>{q.disclaimer_text}
         </div>
       )}
-      {q.payment_terms && <p className="mt-2 text-[12px] text-gray-500">💳 תנאי תשלום: {q.payment_terms}</p>}
+      {q.payment_terms && <p className="mt-2 text-[12px] text-gray-500 whitespace-pre-line">💳 תנאי תשלום: {q.payment_terms}</p>}
       {q.cost_input_id && (
         <p className="mt-1 text-[11px] text-blue-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>
       )}
