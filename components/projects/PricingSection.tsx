@@ -77,7 +77,7 @@ export default function PricingSection({ projectId }: { projectId: string }) {
       <div className="flex gap-1 mb-4 border-b border-[#e2e8f0] pb-2">
         {([['costs', 'תמחור'], ['quotes', 'הצעות מחיר'], ['orders', 'הזמנות']] as const).map(([key, label]) => (
           <button key={key} onClick={() => p.setPricingTab(key as any)} className={`text-sm px-4 py-1.5 rounded-t-lg transition-colors ${p.pricingTab === key ? 'bg-[#1a56db] text-white font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {label}{key === 'costs' && p.costInputs.length > 0 ? ` (${p.costInputs.length})` : ''}{key === 'quotes' && p.quotes.length > 0 ? ` (${p.quotes.length})` : ''}{key === 'orders' && p.orders.length > 0 ? ` (${p.orders.length})` : ''}
+            {label}{key === 'costs' && p.costInputs.filter((c: any) => !c.is_archived).length > 0 ? ` (${p.costInputs.filter((c: any) => !c.is_archived).length})` : ''}{key === 'quotes' && p.quotes.length > 0 ? ` (${p.quotes.length})` : ''}{key === 'orders' && p.orders.length > 0 ? ` (${p.orders.length})` : ''}
           </button>
         ))}
       </div>
@@ -156,11 +156,23 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
       {p.costInputs.length === 0 && !p.showNewCostInput ? (
         <p className="text-sm text-gray-400 text-center py-3">אין תמחורים. לחץ &quot;+ תמחור חדש&quot; להוסיף.</p>
       ) : (
-        <div className="space-y-3">
-          {p.costInputs.map((ci) => (
-            <CostInputCard key={ci.id} ci={ci} p={p} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {p.costInputs.filter((ci) => !ci.is_archived).map((ci) => (
+              <CostInputCard key={ci.id} ci={ci} p={p} />
+            ))}
+          </div>
+          {p.costInputs.some((ci) => ci.is_archived) && (
+            <div className="mt-4">
+              <p className="text-[12px] text-gray-400 mb-2">ארכיון</p>
+              <div className="space-y-2">
+                {p.costInputs.filter((ci) => ci.is_archived).map((ci) => (
+                  <CostInputCard key={ci.id} ci={ci} p={p} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -174,17 +186,19 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
   const isForex = ci.currency && ci.currency !== 'ILS';
   const sym = CURRENCY_SYMBOLS[ci.currency] || '₪';
 
+  const archived = ci.is_archived;
+
   return (
-    <div className="border border-[#e2e8f0] rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-amber-50/50 cursor-pointer hover:bg-amber-50 transition-colors" onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
+    <div className={`border rounded-xl overflow-hidden ${archived ? 'border-gray-200 opacity-60' : 'border-[#e2e8f0]'}`}>
+      <div className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${archived ? 'bg-gray-50 hover:bg-gray-100' : 'bg-amber-50/50 hover:bg-amber-50'}`} onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
         <div className="flex items-center gap-3">
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
-          <span className="text-sm font-bold text-gray-700">{ci.source_name}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${archived ? 'bg-gray-200 text-gray-500' : ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
+          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{ci.source_name}</span>
           {isForex && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{ci.currency} {ci.exchange_rate ? `@ ${parseFloat(ci.exchange_rate).toFixed(2)}` : ''}</span>}
           <span className="text-[11px] text-gray-400">{formatDate(ci.created_at)}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-gray-700">{formatCurrency(ciTotal)}</span>
+          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{formatCurrency(ciTotal)}</span>
           <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
         </div>
       </div>
@@ -194,11 +208,14 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
           {/* Action buttons */}
           {!isEdit && (
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>
-              <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
-                {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
-                <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
-              </label>
+              {!archived && <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>}
+              {!archived && (
+                <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
+                  {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
+                  <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
+                </label>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '📁 סיים תמחור'}</button>
             </div>
           )}
           {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
