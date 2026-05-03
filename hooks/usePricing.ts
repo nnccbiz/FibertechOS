@@ -410,9 +410,15 @@ export function usePricing(projectId: string): UsePricingReturn {
       if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price'].includes(field)) {
         const cost = parseFloat(next[idx].cost_price) || 0;
         const oh = parseFloat(next[idx].overheads_pct) || 0;
-        const pr = parseFloat(next[idx].profit_pct) || 0;
         const qty = parseFloat(next[idx].quantity) || 0;
-        if (field !== 'unit_price') {
+        if (field === 'unit_price') {
+          const up = parseFloat(val) || 0;
+          const costWithOH = cost * (1 + oh / 100);
+          if (costWithOH > 0) {
+            next[idx].profit_pct = Math.round(((up / costWithOH) - 1) * 10000) / 100;
+          }
+        } else {
+          const pr = parseFloat(next[idx].profit_pct) || 0;
           next[idx].unit_price = calcSellingPrice(cost, oh, pr);
         }
         next[idx].total_price = qty * (parseFloat(next[idx].unit_price) || 0);
