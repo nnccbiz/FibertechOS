@@ -56,6 +56,7 @@ export interface UsePricingReturn {
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
+  updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
@@ -357,7 +358,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       default_overheads_pct: oh,
       default_profit_pct: pr,
       payment_terms: newQuote.payment_terms, disclaimer_type: newQuote.disclaimer_type,
-      disclaimer_text: disclaimer, total_amount: 0, total_cost: 0, notes: newQuote.notes,
+      disclaimer_text: disclaimer, global_discount_pct: 0, total_amount: 0, total_cost: 0, notes: newQuote.notes,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewQuote(false);
@@ -369,11 +370,11 @@ export function usePricing(projectId: string): UsePricingReturn {
           const unitPrice = calcSellingPrice(parseFloat(ci.cost_price) || 0, oh, pr);
           return {
             product_name: ci.product_name, dn_size: ci.dn_size, quantity: ci.quantity, unit: ci.unit,
-            cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr,
+            cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr, discount_pct: 0,
             unit_price: unitPrice, total_price: (ci.quantity || 0) * unitPrice, notes: '',
           };
         })
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }];
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }];
 
     setNewQuote({
       client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
@@ -395,7 +396,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingQuote(quoteId);
     setEditingItems(items.length > 0
       ? items.map((i) => ({ ...i }))
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }]
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }]
     );
   }
 
@@ -407,10 +408,11 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingItems((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
-      if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price'].includes(field)) {
+      if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price', 'discount_pct'].includes(field)) {
         const cost = parseFloat(next[idx].cost_price) || 0;
         const oh = parseFloat(next[idx].overheads_pct) || 0;
         const qty = parseFloat(next[idx].quantity) || 0;
+        const disc = parseFloat(next[idx].discount_pct) || 0;
         if (field === 'unit_price') {
           const up = parseFloat(val) || 0;
           const costWithOH = cost * (1 + oh / 100);
@@ -421,7 +423,8 @@ export function usePricing(projectId: string): UsePricingReturn {
           const pr = parseFloat(next[idx].profit_pct) || 0;
           next[idx].unit_price = calcSellingPrice(cost, oh, pr);
         }
-        next[idx].total_price = qty * (parseFloat(next[idx].unit_price) || 0);
+        const lineTotal = qty * (parseFloat(next[idx].unit_price) || 0);
+        next[idx].total_price = disc > 0 ? Math.round(lineTotal * (1 - disc / 100) * 100) / 100 : lineTotal;
       }
       return next;
     });
@@ -437,7 +440,7 @@ export function usePricing(projectId: string): UsePricingReturn {
           quote_id: quoteId, product_name: i.product_name, dn_size: i.dn_size || null,
           quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
           cost_price: parseFloat(i.cost_price) || 0, overheads_pct: parseFloat(i.overheads_pct) || 0,
-          profit_pct: parseFloat(i.profit_pct) || 0,
+          profit_pct: parseFloat(i.profit_pct) || 0, discount_pct: parseFloat(i.discount_pct) || 0,
           unit_price: parseFloat(i.unit_price) || 0, total_price: parseFloat(i.total_price) || 0,
           notes: i.notes || '', sort_order: idx,
         })));
@@ -478,6 +481,11 @@ export function usePricing(projectId: string): UsePricingReturn {
     if (editingQuote === quoteId) setEditingQuote(null);
   }
 
+  async function updateGlobalDiscount(quoteId: string, pct: number) {
+    await supabase.from('quotes').update({ global_discount_pct: pct, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, global_discount_pct: pct } : q));
+  }
+
   async function updateOrderStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
@@ -489,7 +497,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0,
       overheads_pct: defaults?.overheads_pct ?? q?.default_overheads_pct ?? 17,
       profit_pct: defaults?.profit_pct ?? q?.default_profit_pct ?? 25,
-      unit_price: 0, total_price: 0, notes: '', ...defaults,
+      discount_pct: 0, unit_price: 0, total_price: 0, notes: '', ...defaults,
     }]);
   }
 
@@ -533,7 +541,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput,
   };

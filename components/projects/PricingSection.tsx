@@ -526,6 +526,13 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             {q.status === 'draft' && (
               <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">🗑️ מחק</button>
             )}
+            {!isEditing && items.length > 0 && (
+              <div className="flex items-center gap-1 text-[12px] text-gray-500">
+                <span>הנחה כללית:</span>
+                <input type="number" value={q.global_discount_pct || ''} onChange={(e) => p.updateGlobalDiscount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" className="w-14 border border-[#e2e8f0] rounded px-1.5 py-0.5 text-[12px] text-center bg-orange-50" />
+                <span>%</span>
+              </div>
+            )}
           </div>
 
           {/* Margin summary with category breakdown + warnings */}
@@ -548,14 +555,22 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 }
 
 function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
+  const subtotal = p.editingItems.reduce((s, i) => {
+    const qty = parseFloat(i.quantity) || 0;
+    const up = parseFloat(i.unit_price) || 0;
+    return s + qty * up;
+  }, 0);
+  const totalAfterDisc = p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const hasAnyDiscount = p.editingItems.some((i) => parseFloat(i.discount_pct) > 0);
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[750px]">
-          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>סה״כ</span><span></span>
+        <div className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_60px_90px_28px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[820px]">
+          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => (
-          <div key={idx} className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 min-w-[750px]">
+          <div key={idx} className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_60px_90px_28px] gap-1 min-w-[820px]">
             <input type="text" value={item.product_name} onChange={(e) => p.updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
             <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
@@ -564,6 +579,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
             <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
             <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm bg-blue-50" />
+            <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm bg-orange-50" />
             <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
             <button onClick={() => p.removeEditingItem(idx)} className="text-red-400 hover:text-red-600 text-lg">×</button>
           </div>
@@ -573,7 +589,8 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <button onClick={() => p.addEditingItem()} className="text-[12px] text-[#1a56db] hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-gray-400">עלות: {formatCurrency(p.editingItems.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0))}</span>
-          <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))}</span>
+          {hasAnyDiscount && <span className="text-[12px] text-gray-400">לפני הנחה: {formatCurrency(subtotal)}</span>}
+          <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(totalAfterDisc)}</span>
           <button onClick={p.cancelEditQuote} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">ביטול</button>
           <button onClick={() => p.saveQuoteItems(q.id)} disabled={p.saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -587,6 +604,16 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
   const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
   const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
+  const hasAnyDiscount = items.some((i: any) => parseFloat(i.discount_pct) > 0);
+  const globalDisc = parseFloat(q.global_discount_pct) || 0;
+  const subtotalBeforeDisc = items.reduce((s: number, i: any) => {
+    const qty = parseFloat(i.quantity) || 0;
+    const up = parseFloat(i.unit_price) || 0;
+    return s + qty * up;
+  }, 0);
+  const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
+  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const colCount = hasAnyDiscount ? 10 : 9;
 
   return (
     <div className="overflow-x-auto">
@@ -600,6 +627,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">תקורות%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
+            {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-medium pb-1.5">הנחה%</th>}
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
             <th className="pb-1.5 w-6"></th>
           </tr>
@@ -612,6 +640,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             const prPct = parseFloat(item.profit_pct) || 0;
             const unit = parseFloat(item.unit_price) || 0;
             const tot = parseFloat(item.total_price) || 0;
+            const disc = parseFloat(item.discount_pct) || 0;
             const costTot = cost * qty;
             const ohAmt = costTot * (ohPct / 100);
             const profitAmt = tot - costTot - ohAmt;
@@ -622,8 +651,9 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
               `× ${qty} ${item.unit} = ₪${costTot.toFixed(2)}`,
               `+ תקורות ${ohPct}% = ₪${ohAmt.toFixed(2)}`,
               `+ רווח ${prPct}% = ₪${profitAmt.toFixed(2)}`,
+              disc > 0 ? `- הנחה ${disc}%` : null,
               `= מכירה: ₪${tot.toFixed(2)}`,
-            ].join('\n');
+            ].filter(Boolean).join('\n');
 
             return (
               <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
@@ -634,6 +664,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                 <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
                 <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
                 <td className="py-1.5 text-gray-500">{formatCurrency(unit)}</td>
+                {hasAnyDiscount && <td className="py-1.5 text-orange-600 font-medium">{disc > 0 ? `${disc}%` : '—'}</td>}
                 <td className="py-1.5 font-medium text-gray-700">{formatCurrency(tot)}</td>
                 <td className="py-1.5">
                   <span
@@ -646,10 +677,31 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           })}
         </tbody>
         <tfoot>
+          {(hasAnyDiscount || globalDisc > 0) && (
+            <tr className="border-t border-gray-100">
+              <td colSpan={colCount - 2} className="py-1.5 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1.5 text-left text-[12px] text-gray-500">סה״כ לפני הנחה</td>
+              <td className="py-1.5 text-[12px] text-gray-500">{formatCurrency(subtotalBeforeDisc)}</td>
+            </tr>
+          )}
+          {hasAnyDiscount && (
+            <tr>
+              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 text-left text-[12px] text-orange-600">הנחות שורה</td>
+              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
+            </tr>
+          )}
+          {globalDisc > 0 && (
+            <tr>
+              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 text-left text-[12px] text-orange-600">הנחה כללית {globalDisc}%</td>
+              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+            </tr>
+          )}
           <tr className="border-t border-[#e2e8f0]">
             <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
-            <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
-            <td className="py-2 font-bold text-gray-700">{formatCurrency(q.total_amount)}</td>
+            <td colSpan={colCount - 5} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
+            <td className="py-2 font-bold text-gray-700">{formatCurrency(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
         </tfoot>
