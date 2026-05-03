@@ -711,15 +711,17 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           </tr>
         </tfoot>
       </table>
-      {q.disclaimer_text && (
-        <div className="mt-3 p-3 bg-gray-50 rounded-lg text-[11px] text-gray-500 whitespace-pre-line border border-gray-100">
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-semibold text-gray-600">הערות משפטיות:</span>
-            <button onClick={() => { if (confirm('לרענן הערות משפטיות מהתבנית?')) p.refreshDisclaimer(q.id); }} className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline">🔄 רענן מתבנית</button>
-          </div>
-          {q.disclaimer_text}
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-semibold text-gray-600">הערות משפטיות:</span>
+          <button onClick={() => { if (confirm('לרענן מתבנית ברירת המחדל?')) p.refreshDisclaimer(q.id); }} className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline">🔄 רענן מתבנית</button>
         </div>
-      )}
+        <textarea
+          value={q.disclaimer_text || ''}
+          onChange={(e) => p.updateDisclaimerText(q.id, e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[80px] resize-y leading-relaxed"
+        />
+      </div>
       {q.payment_terms && <p className="mt-2 text-[12px] text-gray-500 whitespace-pre-line">💳 תנאי תשלום: {q.payment_terms}</p>}
       {q.cost_input_id && (
         <p className="mt-1 text-[11px] text-blue-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>

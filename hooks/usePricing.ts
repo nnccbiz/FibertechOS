@@ -58,6 +58,7 @@ export interface UsePricingReturn {
   deleteQuote: (quoteId: string) => Promise<void>;
   updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
   refreshDisclaimer: (quoteId: string) => Promise<void>;
+  updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
@@ -495,6 +496,11 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: newText } : x));
   }
 
+  async function updateDisclaimerText(quoteId: string, text: string) {
+    await supabase.from('quotes').update({ disclaimer_text: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: text } : x));
+  }
+
   async function updateOrderStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
@@ -550,7 +556,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput,
   };
