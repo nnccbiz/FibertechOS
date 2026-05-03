@@ -512,7 +512,12 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {/* Action buttons */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {!isEditing && (
-              <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
+              <>
+                <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
+                {items.length > 0 && (
+                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימה</a>
+                )}
+              </>
             )}
             {q.status === 'draft' && (
               <button onClick={() => p.updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-blue-50 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">📤 סמן כנשלח</button>
