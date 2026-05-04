@@ -59,6 +59,7 @@ export interface UsePricingReturn {
   updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
   refreshDisclaimer: (quoteId: string) => Promise<void>;
   updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
+  updateDeliveryTime: (quoteId: string, text: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
@@ -66,6 +67,8 @@ export interface UsePricingReturn {
   removeCostItem: (idx: number) => void;
   toggleArchiveCostInput: (ciId: string) => Promise<void>;
 }
+
+const DEFAULT_DELIVERY_TIME = '70 ימי עבודה מיום סגירת הזמנה - אישור הצעת מחיר, חתימה על שרטוט לייצור ותשלום מקדמה';
 
 export function usePricing(projectId: string): UsePricingReturn {
   const supabase = createClient();
@@ -361,6 +364,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       default_profit_pct: pr,
       payment_terms: newQuote.payment_terms, disclaimer_type: newQuote.disclaimer_type,
       disclaimer_text: disclaimer, global_discount_pct: 0, total_amount: 0, total_cost: 0, notes: newQuote.notes,
+      delivery_time: DEFAULT_DELIVERY_TIME,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewQuote(false);
@@ -501,6 +505,11 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: text } : x));
   }
 
+  async function updateDeliveryTime(quoteId: string, text: string) {
+    await supabase.from('quotes').update({ delivery_time: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, delivery_time: text } : x));
+  }
+
   async function updateOrderStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
@@ -556,7 +565,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput,
   };

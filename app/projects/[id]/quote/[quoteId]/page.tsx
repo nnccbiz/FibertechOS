@@ -50,13 +50,12 @@ export default function QuotePreviewPage() {
     );
   }
 
-  const hasDiscount = items.some((i) => parseFloat(i.discount_pct) > 0);
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const colCount = hasDiscount ? 8 : 7;
+  const colCount = 8;
 
   const whatsappText = encodeURIComponent(
     `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
@@ -135,7 +134,7 @@ export default function QuotePreviewPage() {
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
-                {hasDiscount && <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>}
+                <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">סה״כ</th>
               </tr>
             </thead>
@@ -150,7 +149,7 @@ export default function QuotePreviewPage() {
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
-                    {hasDiscount && <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>}
+                    <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>
                     <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
                   </tr>
                 );
@@ -177,23 +176,17 @@ export default function QuotePreviewPage() {
           </table>
 
           {/* Delivery time */}
-          <div className="mb-6">
-            <h3 className="text-sm font-bold text-gray-600 mb-1">זמן אספקה</h3>
-            <p className="text-sm text-gray-700">שלושה שבועות מיום סגירת הזמנה — אישור הצעת מחיר, חתימה על שרטוט לייצור ותשלום מקדמה.</p>
-          </div>
-
-          {/* Payment terms */}
-          {quote.payment_terms && (
+          {quote.delivery_time && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">תנאי תשלום</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.payment_terms}</p>
+              <h3 className="text-sm font-bold text-gray-600 mb-1">זמן אספקה</h3>
+              <p className="text-sm text-gray-700">{quote.delivery_time}</p>
             </div>
           )}
 
-          {/* Disclaimer */}
+          {/* Terms */}
           {quote.disclaimer_text && (
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">הערות והתניות</h3>
+              <h3 className="text-sm font-bold text-gray-600 mb-2">תנאי התקשרות</h3>
               <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
             </div>
           )}
