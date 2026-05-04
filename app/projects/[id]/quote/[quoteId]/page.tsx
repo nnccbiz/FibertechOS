@@ -59,7 +59,7 @@ export default function QuotePreviewPage() {
   const colCount = hasDiscount ? 8 : 7;
 
   const whatsappText = encodeURIComponent(
-    `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.project_name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
+    `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
   );
 
   return (
@@ -70,7 +70,7 @@ export default function QuotePreviewPage() {
           🖨️ הדפס / שמור PDF
         </button>
         <a
-          href={`mailto:?subject=${encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`)}&body=${encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.project_name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`)}`}
+          href={`mailto:?subject=${encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`)}&body=${encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`)}`}
           className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
         >
           📧 שלח במייל
@@ -120,7 +120,7 @@ export default function QuotePreviewPage() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-600 mb-2">פרויקט</h3>
-              <p className="text-base font-bold text-gray-800">{project.project_name || '—'}</p>
+              <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
               {project.location && <p className="text-sm text-gray-500">📍 {project.location}</p>}
             </div>
           </div>
