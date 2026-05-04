@@ -52,11 +52,11 @@ export default function QuotePreviewPage() {
 
   const hasDiscount = items.some((i) => parseFloat(i.discount_pct) > 0);
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
-  const subtotalBeforeDisc = items.reduce((s, i) => s + (parseFloat(i.unit_price) || 0) * (parseFloat(i.quantity) || 0), 0);
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
+  const colCount = hasDiscount ? 8 : 7;
 
   const whatsappText = encodeURIComponent(
     `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.project_name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
@@ -64,13 +64,13 @@ export default function QuotePreviewPage() {
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      {/* Print controls — hidden when printing */}
+      {/* Print controls */}
       <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
         <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           🖨️ הדפס / שמור PDF
         </button>
         <a
-          href={`mailto:?subject=${encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`)}&body=${encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.project_name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תשתיות`)}`}
+          href={`mailto:?subject=${encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`)}&body=${encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.project_name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`)}`}
           className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
         >
           📧 שלח במייל
@@ -95,9 +95,9 @@ export default function QuotePreviewPage() {
           {/* Header */}
           <div className="flex justify-between items-start mb-8 border-b-2 border-green-600 pb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">פיברטק תשתיות בע״מ</h1>
-              <p className="text-sm text-gray-500 mt-1">FIBERTECH Infrastructure Ltd.</p>
-              <p className="text-xs text-gray-400 mt-2">מפעל: קיבוץ להבות הבשן | טל׳: 04-6944777</p>
+              <h1 className="text-2xl font-bold text-gray-800">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
+              <p className="text-sm text-gray-500 mt-1">FIBERTECH Piping & Chemicals Industries Ltd.</p>
+              <p className="text-xs text-gray-400 mt-2">ח.פ 510931389 | מפעל: קיבוץ להבות הבשן | טל׳: 04-6944777</p>
             </div>
             <div className="text-left">
               <p className="text-lg font-bold text-green-700">הצעת מחיר</p>
@@ -155,33 +155,28 @@ export default function QuotePreviewPage() {
               })}
             </tbody>
             <tfoot>
-              {(hasDiscount || globalDisc > 0) && (
-                <tr className="bg-gray-50">
-                  <td colSpan={hasDiscount ? 7 : 6} className="py-2 px-3 text-left text-sm text-gray-500 border border-gray-200">סה״כ לפני הנחה</td>
-                  <td className="py-2 px-3 text-sm text-gray-500 border border-gray-200">{formatCurrency(subtotalBeforeDisc)}</td>
-                </tr>
-              )}
-              {hasDiscount && (
-                <tr>
-                  <td colSpan={hasDiscount ? 7 : 6} className="py-2 px-3 text-left text-sm text-orange-600 border border-gray-200">הנחות שורה</td>
-                  <td className="py-2 px-3 text-sm text-orange-600 border border-gray-200">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
-                </tr>
-              )}
               {globalDisc > 0 && (
-                <tr>
-                  <td colSpan={hasDiscount ? 7 : 6} className="py-2 px-3 text-left text-sm text-orange-600 border border-gray-200">הנחה כללית {globalDisc}%</td>
-                  <td className="py-2 px-3 text-sm text-orange-600 border border-gray-200">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
-                </tr>
+                <>
+                  <tr className="bg-gray-50">
+                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-gray-500 border border-gray-200">סה״כ לפני הנחה</td>
+                    <td className="py-2 px-3 text-sm text-gray-500 border border-gray-200">{formatCurrency(totalAfterLineDisc)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-orange-600 border border-gray-200">הנחה {globalDisc}%</td>
+                    <td className="py-2 px-3 text-sm text-orange-600 border border-gray-200">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+                  </tr>
+                </>
               )}
               <tr className="bg-green-50">
-                <td colSpan={hasDiscount ? 7 : 6} className="py-3 px-3 text-left font-bold text-lg text-gray-800 border border-gray-200">סה״כ</td>
+                <td colSpan={colCount - 1} className="py-3 px-3 text-left font-bold text-lg text-gray-800 border border-gray-200">סה״כ</td>
                 <td className="py-3 px-3 font-bold text-lg text-green-700 border border-gray-200">{formatCurrency(finalTotal)}</td>
               </tr>
             </tfoot>
           </table>
 
-          {/* VAT note */}
-          <p className="text-xs text-gray-400 mb-6">* המחירים אינם כוללים מע״מ</p>
+          {/* VAT + delivery note */}
+          <p className="text-xs text-gray-400 mb-1">* המחירים אינם כוללים מע״מ</p>
+          <p className="text-xs text-gray-400 mb-6">* אספקת הטובין תהיה במפעל פיברטק, קיבוץ להבות הבשן</p>
 
           {/* Payment terms */}
           {quote.payment_terms && (
