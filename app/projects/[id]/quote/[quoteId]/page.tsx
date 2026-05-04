@@ -219,9 +219,9 @@ export default function QuotePreviewPage() {
 
             {/* Company footer */}
             <div className="border-t border-[#1b3a6b] pt-4 text-center text-[10px] text-gray-500 leading-relaxed">
-              <p className="font-semibold text-[#1b3a6b] text-[11px] mb-1">פיברטק תעשיות צנרת פיברגלס מקבוצת מאיה אופקים</p>
-              <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | פקס: 09-7929442 | דוא״ל: orit@fibertech.co.il</p>
-              <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | פקס: 08-9396482 | דוא״ל: Karina@maya-group.co.il</p>
+              <p className="font-semibold text-[#1b3a6b] text-[11px] mb-1">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
+              <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+              <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
               <p className="mt-1 font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
             </div>
           </div>
