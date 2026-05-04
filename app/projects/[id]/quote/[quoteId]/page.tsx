@@ -93,11 +93,13 @@ export default function QuotePreviewPage() {
         <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
 
           {/* Header */}
-          <div className="flex justify-between items-start mb-8 border-b-2 border-green-600 pb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
-              <p className="text-sm text-gray-500 mt-1">FIBERTECH Piping & Chemicals Industries Ltd.</p>
-              <p className="text-xs text-gray-400 mt-2">ח.פ 510931389 | מפעל: קיבוץ להבות הבשן | טל׳: 04-6944777</p>
+          <div className="flex justify-between items-start mb-8 border-b-2 border-[#1b3a6b] pb-6">
+            <div className="flex items-center gap-4">
+              <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
+              <div>
+                <h1 className="text-xl font-bold text-[#1b3a6b]">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
+                <p className="text-xs text-gray-400 mt-1">ח.פ 510931389 | מקבוצת מאיה אופקים</p>
+              </div>
             </div>
             <div className="text-left">
               <p className="text-lg font-bold text-green-700">הצעת מחיר</p>
@@ -204,7 +206,7 @@ export default function QuotePreviewPage() {
 
           {/* Signature */}
           <div className="mt-12 pt-6 border-t border-gray-200">
-            <div className="grid grid-cols-2 gap-8">
+            <div className="grid grid-cols-2 gap-8 mb-10">
               <div>
                 <p className="text-sm font-bold text-gray-600 mb-8">חתימת פיברטק</p>
                 <div className="border-b border-gray-300 w-48"></div>
@@ -213,6 +215,14 @@ export default function QuotePreviewPage() {
                 <p className="text-sm font-bold text-gray-600 mb-8">חתימת הלקוח</p>
                 <div className="border-b border-gray-300 w-48"></div>
               </div>
+            </div>
+
+            {/* Company footer */}
+            <div className="border-t border-[#1b3a6b] pt-4 text-center text-[10px] text-gray-500 leading-relaxed">
+              <p className="font-semibold text-[#1b3a6b] text-[11px] mb-1">פיברטק תעשיות צנרת פיברגלס מקבוצת מאיה אופקים</p>
+              <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | פקס: 09-7929442 | דוא״ל: orit@fibertech.co.il</p>
+              <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | פקס: 08-9396482 | דוא״ל: Karina@maya-group.co.il</p>
+              <p className="mt-1 font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
             </div>
           </div>
         </div>
