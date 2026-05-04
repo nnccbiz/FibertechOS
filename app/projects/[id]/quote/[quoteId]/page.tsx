@@ -89,7 +89,7 @@ export default function QuotePreviewPage() {
       </div>
 
       {/* A4 page */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none" style={{ minHeight: '297mm' }}>
+      <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
         <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
 
           {/* Header */}
@@ -176,9 +176,11 @@ export default function QuotePreviewPage() {
             </tfoot>
           </table>
 
-          {/* VAT + delivery note */}
-          <p className="text-xs text-gray-400 mb-1">* המחירים אינם כוללים מע״מ</p>
-          <p className="text-xs text-gray-400 mb-6">* אספקת הטובין תהיה במפעל פיברטק, קיבוץ להבות הבשן</p>
+          {/* Delivery time */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-600 mb-1">זמן אספקה</h3>
+            <p className="text-sm text-gray-700">שלושה שבועות מיום סגירת הזמנה — אישור הצעת מחיר, חתימה על שרטוט לייצור ותשלום מקדמה.</p>
+          </div>
 
           {/* Payment terms */}
           {quote.payment_terms && (
@@ -206,7 +208,7 @@ export default function QuotePreviewPage() {
 
           {/* Signature */}
           <div className="mt-12 pt-6 border-t border-gray-200">
-            <div className="grid grid-cols-2 gap-8 mb-10">
+            <div className="grid grid-cols-2 gap-8">
               <div>
                 <p className="text-sm font-bold text-gray-600 mb-8">חתימת פיברטק</p>
                 <div className="border-b border-gray-300 w-48"></div>
@@ -216,15 +218,16 @@ export default function QuotePreviewPage() {
                 <div className="border-b border-gray-300 w-48"></div>
               </div>
             </div>
-
-            {/* Company footer */}
-            <div className="border-t border-[#1b3a6b] pt-4 text-center text-[10px] text-gray-500 leading-relaxed">
-              <p className="font-semibold text-[#1b3a6b] text-[11px] mb-1">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
-              <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
-              <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
-              <p className="mt-1 font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
-            </div>
           </div>
+
+        </div>
+
+        {/* Company footer — pinned to bottom */}
+        <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
+          <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
+          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+          <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
+          <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
         </div>
       </div>
 
