@@ -723,6 +723,16 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         />
       </div>
       <div className="mt-3">
+        <span className="text-[11px] font-semibold text-gray-600">תנאי תשלום:</span>
+        <input
+          type="text"
+          value={q.payment_terms || ''}
+          onChange={(e) => p.updatePaymentTerms(q.id, e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 mt-1"
+          placeholder="40% מקדמה, יתרה שוטף +30"
+        />
+      </div>
+      <div className="mt-3">
         <span className="text-[11px] font-semibold text-gray-600">זמן אספקה:</span>
         <input
           type="text"
@@ -732,7 +742,6 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           placeholder="70 ימי עבודה מיום סגירת הזמנה..."
         />
       </div>
-      {q.payment_terms && <p className="mt-2 text-[12px] text-gray-500 whitespace-pre-line">💳 תנאי תשלום: {q.payment_terms}</p>}
       {q.cost_input_id && (
         <p className="mt-1 text-[11px] text-blue-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>
       )}

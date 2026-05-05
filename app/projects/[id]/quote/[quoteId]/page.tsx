@@ -175,6 +175,14 @@ export default function QuotePreviewPage() {
             </tfoot>
           </table>
 
+          {/* Payment terms */}
+          {quote.payment_terms && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-600 mb-1">תנאי תשלום</h3>
+              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.payment_terms}</p>
+            </div>
+          )}
+
           {/* Delivery time */}
           {quote.delivery_time && (
             <div className="mb-6">
