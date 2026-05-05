@@ -61,6 +61,7 @@ export interface UsePricingReturn {
   updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
   updateDeliveryTime: (quoteId: string, text: string) => Promise<void>;
   updatePaymentTerms: (quoteId: string, text: string) => Promise<void>;
+  setQuoteField: (quoteId: string, field: string, value: any) => void;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
@@ -501,19 +502,23 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: newText } : x));
   }
 
+  function setQuoteField(quoteId: string, field: string, value: any) {
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, [field]: value } : x));
+  }
+
   async function updateDisclaimerText(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'disclaimer_text', text);
     await supabase.from('quotes').update({ disclaimer_text: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: text } : x));
   }
 
   async function updateDeliveryTime(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'delivery_time', text);
     await supabase.from('quotes').update({ delivery_time: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, delivery_time: text } : x));
   }
 
   async function updatePaymentTerms(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'payment_terms', text);
     await supabase.from('quotes').update({ payment_terms: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, payment_terms: text } : x));
   }
 
   async function updateOrderStatus(orderId: string, status: string) {
@@ -571,7 +576,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput,
   };

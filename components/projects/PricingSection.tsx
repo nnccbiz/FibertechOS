@@ -718,7 +718,8 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         </div>
         <textarea
           value={q.disclaimer_text || ''}
-          onChange={(e) => p.updateDisclaimerText(q.id, e.target.value)}
+          onChange={(e) => p.setQuoteField(q.id, 'disclaimer_text', e.target.value)}
+          onBlur={(e) => p.updateDisclaimerText(q.id, e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[80px] resize-y leading-relaxed"
         />
       </div>
@@ -727,7 +728,8 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         <input
           type="text"
           value={q.payment_terms || ''}
-          onChange={(e) => p.updatePaymentTerms(q.id, e.target.value)}
+          onChange={(e) => p.setQuoteField(q.id, 'payment_terms', e.target.value)}
+          onBlur={(e) => p.updatePaymentTerms(q.id, e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 mt-1"
           placeholder="40% מקדמה, יתרה שוטף +30"
         />
@@ -737,7 +739,8 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         <input
           type="text"
           value={q.delivery_time || ''}
-          onChange={(e) => p.updateDeliveryTime(q.id, e.target.value)}
+          onChange={(e) => p.setQuoteField(q.id, 'delivery_time', e.target.value)}
+          onBlur={(e) => p.updateDeliveryTime(q.id, e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 mt-1"
           placeholder="70 ימי עבודה מיום סגירת הזמנה..."
         />
