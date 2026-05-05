@@ -83,6 +83,8 @@ export default function ProjectDetailPage() {
   const [details, setDetails] = useState<any>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
+  const [projectAttachments, setProjectAttachments] = useState<any[]>([]);
+  const [projectQuotes, setProjectQuotes] = useState<any[]>([]);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -125,12 +127,14 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('attachments').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('quotes').select('id, quote_number, client_name').eq('project_id', id),
       ]);
 
       const proj = projRes.data;
@@ -143,6 +147,8 @@ export default function ProjectDetailPage() {
       setContacts(cons);
       setPipeSpecs(specs);
       setUpdates(updRes.data || []);
+      setProjectAttachments(attRes.data || []);
+      setProjectQuotes(qRes.data || []);
 
       if (proj) setForm({ ...proj });
       setDetailForm({ ...det });
@@ -757,7 +763,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Pipe specs */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <SectionHeader title="מאפייני הצינור והשוחות" icon="🔧" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
+          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="📐" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
             <div className="divide-y divide-green-300">
@@ -845,6 +851,30 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+          )}
+
+          {/* Attachments */}
+          {projectAttachments.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+              <h3 className="text-sm font-bold text-gray-600 mb-2">📎 שרטוטים ומסמכים ({projectAttachments.length})</h3>
+              <div className="space-y-1.5">
+                {projectAttachments.map((att: any) => {
+                  const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
+                  return (
+                    <div key={att.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                      <span className="text-gray-400 text-xs">{att.file_name.endsWith('.pdf') ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-[#1a56db] hover:underline truncate flex-1">{att.file_name}</a>
+                      {linkedQuote && (
+                        <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          הצעה {linkedQuote.quote_number}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </section>
 

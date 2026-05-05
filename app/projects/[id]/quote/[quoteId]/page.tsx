@@ -18,6 +18,7 @@ export default function QuotePreviewPage() {
   const [items, setItems] = useState<any[]>([]);
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -61,6 +62,39 @@ export default function QuotePreviewPage() {
     `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
   );
 
+  const emailSubject = encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`);
+  const emailBody = encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`);
+
+  async function handleEmailWithPdf() {
+    setGeneratingPdf(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const el = document.getElementById('quote-page-content');
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+        y += pageH;
+      }
+      pdf.save(`הצעת-מחיר-${quote.quote_number}.pdf`);
+      setTimeout(() => {
+        window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+      }, 600);
+    } catch {
+      window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   return (
     <div className="bg-gray-100 min-h-screen">
       {/* Print controls */}
@@ -68,12 +102,13 @@ export default function QuotePreviewPage() {
         <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           🖨️ הדפס / שמור PDF
         </button>
-        <a
-          href={`mailto:?subject=${encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`)}&body=${encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`)}`}
-          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+        <button
+          onClick={handleEmailWithPdf}
+          disabled={generatingPdf}
+          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
         >
-          📧 שלח במייל
-        </a>
+          {generatingPdf ? '⏳ מייצר PDF...' : '📧 שלח במייל'}
+        </button>
         <a
           href={`https://wa.me/?text=${whatsappText}`}
           target="_blank"
@@ -88,7 +123,7 @@ export default function QuotePreviewPage() {
       </div>
 
       {/* A4 page */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
+      <div id="quote-page-content" className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
         <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
 
           {/* Header */}

@@ -396,7 +396,7 @@ export default function NewProjectPage() {
 
         {/* === מפרט צינורות === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-4">
-          <h2 className="text-lg font-bold text-gray-700 mb-4">🔧 מאפייני הצינור והשוחות</h2>
+          <h2 className="text-lg font-bold text-gray-700 mb-4">📐 מפרטים טכניים ושרטוטים</h2>
           <PipeSpecsInput specs={pipeSpecs} onChange={setPipeSpecs} />
         </section>
 

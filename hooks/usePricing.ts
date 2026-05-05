@@ -13,6 +13,7 @@ export interface UsePricingReturn {
   orders: any[];
   quoteItems: Record<string, any[]>;
   costInputItems: Record<string, any[]>;
+  attachments: any[];
 
   // Exchange rate
   exchangeRates: Record<string, ExchangeRateInfo>;
@@ -68,6 +69,9 @@ export interface UsePricingReturn {
   addCostItem: () => void;
   removeCostItem: (idx: number) => void;
   toggleArchiveCostInput: (ciId: string) => Promise<void>;
+  uploadAttachment: (quoteId: string, file: File) => Promise<void>;
+  deleteAttachment: (id: string) => Promise<void>;
+  uploadingFile: boolean;
 }
 
 const DEFAULT_DELIVERY_TIME = '70 ימי עבודה מיום סגירת הזמנה - אישור הצעת מחיר, חתימה על שרטוט לייצור ותשלום מקדמה';
@@ -80,6 +84,8 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [orders, setOrders] = useState<any[]>([]);
   const [quoteItems, setQuoteItems] = useState<Record<string, any[]>>({});
   const [costInputItems, setCostInputItems] = useState<Record<string, any[]>>({});
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Exchange rates — keyed by currency code
   const [exchangeRates, setExchangeRates] = useState<Record<string, ExchangeRateInfo>>({});
@@ -146,6 +152,41 @@ export function usePricing(projectId: string): UsePricingReturn {
       });
       setCostInputItems(ciGrouped);
     }
+
+    const { data: atts } = await supabase.from('attachments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+    setAttachments(atts || []);
+  }
+
+  async function uploadAttachment(quoteId: string, file: File) {
+    setUploadingFile(true);
+    try {
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${projectId}/${quoteId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (uploadErr) { alert(`שגיאת העלאה: ${uploadErr.message}`); return; }
+      const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(path);
+      const { data: att, error: insertErr } = await supabase.from('attachments').insert({
+        entity_type: 'quote', entity_id: quoteId, project_id: projectId,
+        file_name: file.name, file_url: urlData.publicUrl || path,
+        file_type: 'drawing', file_size_bytes: file.size,
+      }).select().single();
+      if (insertErr) { alert(`שגיאה: ${insertErr.message}`); return; }
+      if (att) setAttachments((prev) => [att, ...prev]);
+    } catch (err: any) {
+      alert(`שגיאה: ${err.message}`);
+    } finally {
+      setUploadingFile(false);
+    }
+  }
+
+  async function deleteAttachment(id: string) {
+    const att = attachments.find((a) => a.id === id);
+    if (att?.file_url) {
+      const path = att.file_url.includes('/project-files/') ? att.file_url.split('/project-files/').pop() : null;
+      if (path) await supabase.storage.from('project-files').remove([path]);
+    }
+    await supabase.from('attachments').delete().eq('id', id);
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   async function loadExchangeRates() {
@@ -561,7 +602,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   return {
-    costInputs, quotes, orders, quoteItems, costInputItems,
+    costInputs, quotes, orders, quoteItems, costInputItems, attachments,
     exchangeRates, rateLoading, refreshRate,
     pricingTab, setPricingTab,
     showNewCostInput, setShowNewCostInput,
@@ -572,12 +613,12 @@ export function usePricing(projectId: string): UsePricingReturn {
     editingCostInput, editingCostItems,
     expandedQuote, setExpandedQuote,
     expandedCostInput, setExpandedCostInput,
-    parsingCostFile, saving,
+    parsingCostFile, saving, uploadingFile,
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
-    toggleArchiveCostInput,
+    toggleArchiveCostInput, uploadAttachment, deleteAttachment,
   };
 }
