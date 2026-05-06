@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 function formatCurrency(v: number) {
@@ -23,53 +23,77 @@ function calcDeadline(signedDate: string | null, deliveryTime: string | null): s
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: 'ממתין', color: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: 'מאושר', color: 'bg-blue-100 text-blue-700' },
+  confirmed: { label: 'הזמנה אושרה', color: 'bg-blue-100 text-blue-700' },
   in_production: { label: 'בייצור', color: 'bg-purple-100 text-purple-700' },
   delivered: { label: 'סופק', color: 'bg-green-100 text-green-700' },
   completed: { label: 'הושלם', color: 'bg-gray-100 text-gray-600' },
 };
 
+const STEPS = [
+  { status: 'confirmed', label: 'הזמנה אושרה', docType: 'signed_order', docLabel: 'הזמנה חתומה', icon: '📝' },
+  { status: 'in_production', label: 'בייצור', docType: 'signed_drawing', docLabel: 'שרטוט חתום', icon: '📐' },
+  { status: 'delivered', label: 'סופק', docType: 'delivery_certificate', docLabel: 'תעודת משלוח', icon: '🚚' },
+];
+
+const STATUS_ORDER = ['pending', 'confirmed', 'in_production', 'delivered', 'completed'];
+
 export default function ProductionPage() {
   const supabase = createClient();
   const [orders, setOrders] = useState<any[]>([]);
+  const [docsByOrder, setDocsByOrder] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('*, quotes(*), projects(name, client_name, location)')
-        .order('created_at', { ascending: false });
+  async function loadData() {
+    const { data: ordersData } = await supabase
+      .from('orders')
+      .select('*, quotes(*), projects(name, client_name, location)')
+      .order('created_at', { ascending: false });
 
-      if (ordersData) {
-        // Load quote items for each order
-        const quoteIds = ordersData.map((o: any) => o.quote_id).filter(Boolean);
-        let itemsByQuote: Record<string, any[]> = {};
-        if (quoteIds.length > 0) {
-          const { data: items } = await supabase
-            .from('quote_items')
-            .select('*')
-            .in('quote_id', quoteIds)
-            .order('sort_order');
-          if (items) {
-            items.forEach((item: any) => {
-              if (!itemsByQuote[item.quote_id]) itemsByQuote[item.quote_id] = [];
-              itemsByQuote[item.quote_id].push(item);
-            });
-          }
+    if (ordersData) {
+      const quoteIds = ordersData.map((o: any) => o.quote_id).filter(Boolean);
+      let itemsByQuote: Record<string, any[]> = {};
+      if (quoteIds.length > 0) {
+        const { data: items } = await supabase
+          .from('quote_items')
+          .select('*')
+          .in('quote_id', quoteIds)
+          .order('sort_order');
+        if (items) {
+          items.forEach((item: any) => {
+            if (!itemsByQuote[item.quote_id]) itemsByQuote[item.quote_id] = [];
+            itemsByQuote[item.quote_id].push(item);
+          });
         }
-
-        const enriched = ordersData.map((o: any) => ({
-          ...o,
-          items: itemsByQuote[o.quote_id] || [],
-          deadline: calcDeadline(o.created_at, o.quotes?.delivery_time),
-        }));
-        setOrders(enriched);
       }
-      setLoading(false);
+
+      const orderIds = ordersData.map((o: any) => o.id);
+      let docsMap: Record<string, any[]> = {};
+      if (orderIds.length > 0) {
+        const { data: docs } = await supabase
+          .from('order_documents')
+          .select('*')
+          .in('order_id', orderIds)
+          .order('created_at');
+        if (docs) {
+          docs.forEach((doc: any) => {
+            if (!docsMap[doc.order_id]) docsMap[doc.order_id] = [];
+            docsMap[doc.order_id].push(doc);
+          });
+        }
+      }
+      setDocsByOrder(docsMap);
+
+      const enriched = ordersData.map((o: any) => ({
+        ...o,
+        items: itemsByQuote[o.quote_id] || [],
+        deadline: calcDeadline(o.created_at, o.quotes?.delivery_time),
+      }));
+      setOrders(enriched);
     }
-    load();
-  }, []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadData(); }, []);
 
   if (loading) {
     return (
@@ -105,7 +129,7 @@ export default function ProductionPage() {
       {activeOrders.length > 0 && (
         <div className="space-y-4 mb-8">
           {activeOrders.map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} onUpdate={loadData} />
           ))}
         </div>
       )}
@@ -115,7 +139,7 @@ export default function ProductionPage() {
           <h2 className="text-lg font-bold text-gray-600 mb-3">הזמנות שהושלמו ({completedOrders.length})</h2>
           <div className="space-y-3 opacity-60">
             {completedOrders.map((order) => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} onUpdate={loadData} />
             ))}
           </div>
         </div>
@@ -124,11 +148,50 @@ export default function ProductionPage() {
   );
 }
 
-function OrderCard({ order }: { order: any }) {
+function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdate: () => void }) {
+  const supabase = createClient();
   const st = STATUS_MAP[order.status] || STATUS_MAP.pending;
   const project = order.projects;
   const quote = order.quotes;
   const isOverdue = order.deadline && new Date(order.deadline) < new Date() && order.status !== 'completed' && order.status !== 'delivered';
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const currentIdx = STATUS_ORDER.indexOf(order.status);
+
+  function hasDoc(docType: string) {
+    return docs.some((d) => d.doc_type === docType);
+  }
+
+  async function handleUploadAndAdvance(step: typeof STEPS[number], file: File) {
+    setUploading(step.docType);
+    try {
+      const path = `orders/${order.id}/${step.docType}_${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (uploadErr) { alert('שגיאה בהעלאת הקובץ'); return; }
+
+      await supabase.from('order_documents').insert({
+        order_id: order.id,
+        doc_type: step.docType,
+        file_name: file.name,
+        file_path: path,
+      });
+
+      await supabase.from('orders').update({
+        status: step.status,
+        updated_at: new Date().toISOString(),
+      }).eq('id', order.id);
+
+      onUpdate();
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function openDoc(doc: any) {
+    const { data } = await supabase.storage.from('project-files').createSignedUrl(doc.file_path, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
 
   return (
     <div className={`bg-white rounded-xl border ${isOverdue ? 'border-red-300' : 'border-gray-200'} overflow-hidden`}>
@@ -165,7 +228,7 @@ function OrderCard({ order }: { order: any }) {
 
         {/* Items to produce */}
         {order.items.length > 0 && (
-          <div className="border-t border-gray-100 pt-3">
+          <div className="border-t border-gray-100 pt-3 mb-3">
             <p className="text-[11px] text-gray-400 mb-1.5">אביזרים לייצור</p>
             <div className="flex flex-wrap gap-2">
               {order.items.map((item: any) => (
@@ -178,6 +241,74 @@ function OrderCard({ order }: { order: any }) {
             </div>
           </div>
         )}
+
+        {/* Status workflow */}
+        <div className="border-t border-gray-100 pt-3">
+          <div className="flex flex-wrap gap-2">
+            {STEPS.map((step, idx) => {
+              const stepIdx = STATUS_ORDER.indexOf(step.status);
+              const isCompleted = currentIdx >= stepIdx;
+              const isNext = stepIdx === currentIdx + 1;
+              const doc = docs.find((d) => d.doc_type === step.docType);
+              const isUploading = uploading === step.docType;
+
+              if (isCompleted && doc) {
+                return (
+                  <button
+                    key={step.docType}
+                    onClick={() => openDoc(doc)}
+                    className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                  >
+                    <span>{step.icon}</span>
+                    <span className="font-medium">{step.label}</span>
+                    <span className="text-green-500">✓</span>
+                  </button>
+                );
+              }
+
+              if (isNext && !isCompleted) {
+                return (
+                  <label
+                    key={step.docType}
+                    className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${
+                      isUploading
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-wait'
+                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer'
+                    }`}
+                  >
+                    <span>{step.icon}</span>
+                    <span className="font-medium">{isUploading ? 'מעלה...' : step.label}</span>
+                    <span className="text-[10px] text-blue-400">({step.docLabel})</span>
+                    <input
+                      ref={(el) => { fileInputRefs.current[step.docType] = el; }}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      disabled={isUploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        await handleUploadAndAdvance(step, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                );
+              }
+
+              return (
+                <div
+                  key={step.docType}
+                  className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-gray-50 text-gray-400 border border-gray-200"
+                >
+                  <span>{step.icon}</span>
+                  <span className="font-medium">{step.label}</span>
+                  <span className="text-[10px]">({step.docLabel})</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
