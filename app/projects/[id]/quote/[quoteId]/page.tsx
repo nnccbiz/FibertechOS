@@ -42,7 +42,17 @@ export default function QuotePreviewPage() {
         await Promise.all(
           imageAtts.map(async (att: any) => {
             try {
-              const { data } = await supabase.storage.from('project-files').download(att.file_url);
+              // Extract storage path from full URL or use as-is
+              let storagePath = att.file_url;
+              if (storagePath.startsWith('http')) {
+                const match = storagePath.match(/project-files\/(.+)$/);
+                if (match) storagePath = match[1];
+              }
+              const { data, error } = await supabase.storage.from('project-files').download(storagePath);
+              if (error) {
+                console.error('Download error for', att.file_name, error.message);
+                return;
+              }
               if (data) {
                 const url = await new Promise<string>((resolve) => {
                   const reader = new FileReader();
@@ -51,7 +61,9 @@ export default function QuotePreviewPage() {
                 });
                 urls[att.id] = url;
               }
-            } catch {}
+            } catch (err: any) {
+              console.error('Failed to load attachment', att.file_name, err?.message);
+            }
           })
         );
         setImageDataUrls(urls);

@@ -3,6 +3,7 @@
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
+import { createClient } from '@/lib/supabase/client';
 import {
   calcCostPerMeter,
   calcRokerCostPerMeter,
@@ -761,7 +762,16 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <div className="flex flex-wrap gap-2 mt-1">
               {qAtts.map((a: any) => (
                 <div key={a.id} className="flex items-center gap-1 bg-indigo-50 rounded px-2 py-1 text-[11px] text-indigo-700">
-                  <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="hover:underline truncate max-w-[180px]">{a.file_name}</a>
+                  <button onClick={async () => {
+                    let path = a.file_url;
+                    if (path.startsWith('http')) {
+                      const m = path.match(/project-files\/(.+)$/);
+                      if (m) path = m[1];
+                    }
+                    const sb = createClient();
+                    const { data } = await sb.storage.from('project-files').createSignedUrl(path, 300);
+                    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                  }} className="hover:underline truncate max-w-[180px] cursor-pointer">{a.file_name}</button>
                   <button onClick={() => { if (confirm('למחוק קובץ זה?')) p.deleteAttachment(a.id); }} className="text-red-400 hover:text-red-600 mr-1">×</button>
                 </div>
               ))}

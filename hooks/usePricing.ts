@@ -181,8 +181,12 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function deleteAttachment(id: string) {
     const att = attachments.find((a) => a.id === id);
     if (att?.file_url) {
-      const path = att.file_url.includes('/project-files/') ? att.file_url.split('/project-files/').pop() : null;
-      if (path) await supabase.storage.from('project-files').remove([path]);
+      let storagePath = att.file_url;
+      if (storagePath.startsWith('http')) {
+        const match = storagePath.match(/project-files\/(.+)$/);
+        if (match) storagePath = match[1];
+      }
+      await supabase.storage.from('project-files').remove([storagePath]);
     }
     await supabase.from('attachments').delete().eq('id', id);
     setAttachments((prev) => prev.filter((a) => a.id !== id));
