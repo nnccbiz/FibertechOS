@@ -144,9 +144,11 @@ export default function QuotePreviewPage() {
 
   async function handleEmailWithPdf() {
     setGeneratingPdf(true);
+    // Open window immediately in user-gesture context to avoid popup blocker
+    const win = window.open('about:blank', '_blank');
     try {
       const pdfBase64 = await generatePdfBase64();
-      if (!pdfBase64) return;
+      if (!pdfBase64) { win?.close(); return; }
       const boundary = 'boundary_' + Date.now();
       const pdfFilename = `quote-${quote.quote_number}.pdf`;
       const eml = [
@@ -172,14 +174,14 @@ export default function QuotePreviewPage() {
       ].join('\r\n');
       const blob = new Blob([eml], { type: 'message/rfc822' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `הצעת-מחיר-${quote.quote_number}.eml`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (win) {
+        win.location.href = url;
+      } else {
+        // Fallback if popup was blocked
+        window.location.href = url;
+      }
     } catch {
+      win?.close();
       alert('שגיאה ביצירת המייל');
     } finally {
       setGeneratingPdf(false);
