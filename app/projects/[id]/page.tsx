@@ -83,6 +83,8 @@ export default function ProjectDetailPage() {
   const [details, setDetails] = useState<any>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
+  const [projectAttachments, setProjectAttachments] = useState<any[]>([]);
+  const [projectQuotes, setProjectQuotes] = useState<any[]>([]);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -125,12 +127,14 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
         supabase.from('pipe_specs').select('*').eq('project_id', id),
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('attachments').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        supabase.from('quotes').select('id, quote_number, client_name').eq('project_id', id),
       ]);
 
       const proj = projRes.data;
@@ -143,6 +147,8 @@ export default function ProjectDetailPage() {
       setContacts(cons);
       setPipeSpecs(specs);
       setUpdates(updRes.data || []);
+      setProjectAttachments(attRes.data || []);
+      setProjectQuotes(qRes.data || []);
 
       if (proj) setForm({ ...proj });
       setDetailForm({ ...det });
@@ -228,7 +234,7 @@ Do NOT return JSON — return plain text only.`;
         : 'אין';
 
       const specsInfo = pipeSpecs.length > 0
-        ? pipeSpecs.map((s: any) => `DN${s.diameter_mm} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
+        ? pipeSpecs.map((s: any) => `DN${s.dn_mm || '—'}${s.od_mm ? ` OD${s.od_mm}` : ''}${s.id_mm ? ` ID${s.id_mm}` : ''} - ${s.line_length_m}מ׳ - SN${s.stiffness_pascal} - ${s.pressure_bar}בר`).join('\n')
         : 'אין';
 
       const updatesInfo = updates.length > 0
@@ -444,14 +450,17 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     try {
       const id = params.id as string;
       await supabase.from('pipe_specs').delete().eq('project_id', id);
-      const valid = specsForm.filter((s) => s.diameter_mm);
+      const valid = specsForm.filter((s) => s.dn_mm || s.od_mm || s.id_mm);
       if (valid.length > 0) {
         await supabase.from('pipe_specs').insert(
           valid.map((s) => ({
             project_id: id,
-            diameter_mm: parseInt(s.diameter_mm),
+            dn_mm: s.dn_mm ? parseInt(s.dn_mm) : null,
+            od_mm: s.od_mm ? parseInt(s.od_mm) : null,
+            id_mm: s.id_mm ? parseInt(s.id_mm) : null,
+            pipe_type: s.pipe_type || 'הטמנה',
             line_length_m: s.line_length_m ? parseFloat(s.line_length_m) : null,
-            unit_length_m: s.unit_length_m ? parseFloat(s.unit_length_m) : null,
+            unit_length_m: s.unit_length_m || null,
             stiffness_pascal: s.stiffness_pascal ? parseInt(s.stiffness_pascal) : null,
             pressure_bar: s.pressure_bar ? parseFloat(s.pressure_bar) : null,
             notes: s.notes || '',
@@ -754,28 +763,68 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Pipe specs */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <SectionHeader title="מאפייני הצינור והשוחות" icon="🔧" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
+          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="📐" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
+            <div className="divide-y divide-green-300">
               {specsForm.map((s, i) => (
-                <div key={i} className="flex gap-2 items-center flex-wrap">
-                  <input type="number" placeholder="קוטר (מ״מ)" value={s.diameter_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], diameter_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
+                <div key={i} className="flex gap-2 items-center flex-wrap py-3 first:pt-0">
+                  <div className="flex gap-1 items-center">
+                    <input type="number" placeholder="DN" value={s.dn_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], dn_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר נומינלי" />
+                    <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
+                    <input type="number" placeholder="ID" value={s.id_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], id_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר פנימי" />
+                  </div>
+                  <select value={s.pipe_type || 'הטמנה'} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-36`}>
+                    <option value="הטמנה">הטמנה</option>
+                    <option value="דחיקה">דחיקה (Jacking)</option>
+                    <option value="השחלה">השחלה (Slip Lining)</option>
+                    <option value="עילי">עילי</option>
+                    <option value="ביאקסיאלי">ביאקסיאלי</option>
+                  </select>
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
-                  <input type="number" placeholder="אורך יחידה" value={s.unit_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>
+                    <div className="flex gap-2 items-center flex-nowrap">
+                      <input type="number" step="0.1" placeholder="אחר" value={(() => { const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean); const custom = vals.find((v: number) => ![11.7, 5.7, 3.8, 2.8].includes(v)); return custom ?? ''; })()} onChange={(e) => {
+                        const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
+                        const predefined = vals.filter((v: number) => [11.7, 5.7, 3.8, 2.8].includes(v));
+                        const newVals = e.target.value ? [...predefined, parseFloat(e.target.value)] : predefined;
+                        const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
+                      }} className={`${inputClass} w-20`} />
+                      {[11.7, 5.7, 3.8, 2.8].map((len) => {
+                        const selected = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
+                        const isChecked = selected.includes(len);
+                        return (
+                          <label key={len} className="flex items-center gap-1 text-sm cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" checked={isChecked} onChange={() => {
+                              const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
+                              const newVals = isChecked ? vals.filter((v: number) => v !== len) : [...vals, len];
+                              const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
+                            }} className="accent-[#1a56db]" />
+                            {len}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
                   <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setSpecsForm((prev) => [...prev, { diameter_mm: '', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף מפרט צינור</button>
+            </div>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline mt-3 block">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e8f0]">
-                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">קוטר (מ"מ)</th>
+                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">DN</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">OD</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">ID</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">סוג צינור</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך קו (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">אורך יחידה (מ׳)</th>
                     <th className="text-right text-gray-500 font-medium pb-2">קשיחות (פסקל)</th>
@@ -786,9 +835,12 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <tbody>
                   {pipeSpecs.map((spec) => (
                     <tr key={spec.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.diameter_mm}</td>
+                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.od_mm || '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.id_mm || '—'}</td>
+                      <td className="py-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
                       <td className="py-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.unit_length_m ?? '—'}</td>
+                      <td className="py-2 text-gray-600" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
                       <td className="py-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.pressure_bar ?? '—'}</td>
                       <td className="py-2 text-gray-600">{spec.notes || '—'}</td>
@@ -799,6 +851,30 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+          )}
+
+          {/* Attachments */}
+          {projectAttachments.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+              <h3 className="text-sm font-bold text-gray-600 mb-2">📎 שרטוטים ומסמכים ({projectAttachments.length})</h3>
+              <div className="space-y-1.5">
+                {projectAttachments.map((att: any) => {
+                  const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
+                  return (
+                    <div key={att.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                      <span className="text-gray-400 text-xs">{att.file_name.endsWith('.pdf') ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-[#1a56db] hover:underline truncate flex-1">{att.file_name}</a>
+                      {linkedQuote && (
+                        <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          הצעה {linkedQuote.quote_number}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </section>
 

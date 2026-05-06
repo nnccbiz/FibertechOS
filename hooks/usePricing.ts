@@ -13,6 +13,7 @@ export interface UsePricingReturn {
   orders: any[];
   quoteItems: Record<string, any[]>;
   costInputItems: Record<string, any[]>;
+  attachments: any[];
 
   // Exchange rate
   exchangeRates: Record<string, ExchangeRateInfo>;
@@ -56,12 +57,24 @@ export interface UsePricingReturn {
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
+  updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
+  refreshDisclaimer: (quoteId: string) => Promise<void>;
+  updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
+  updateDeliveryTime: (quoteId: string, text: string) => Promise<void>;
+  updatePaymentTerms: (quoteId: string, text: string) => Promise<void>;
+  setQuoteField: (quoteId: string, field: string, value: any) => void;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
   addCostItem: () => void;
   removeCostItem: (idx: number) => void;
+  toggleArchiveCostInput: (ciId: string) => Promise<void>;
+  uploadAttachment: (quoteId: string, file: File) => Promise<void>;
+  deleteAttachment: (id: string) => Promise<void>;
+  uploadingFile: boolean;
 }
+
+const DEFAULT_DELIVERY_TIME = '70 ימי עבודה מיום סגירת הזמנה - אישור הצעת מחיר, חתימה על שרטוט לייצור ותשלום מקדמה';
 
 export function usePricing(projectId: string): UsePricingReturn {
   const supabase = createClient();
@@ -71,6 +84,8 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [orders, setOrders] = useState<any[]>([]);
   const [quoteItems, setQuoteItems] = useState<Record<string, any[]>>({});
   const [costInputItems, setCostInputItems] = useState<Record<string, any[]>>({});
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Exchange rates — keyed by currency code
   const [exchangeRates, setExchangeRates] = useState<Record<string, ExchangeRateInfo>>({});
@@ -80,11 +95,12 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [pricingTab, setPricingTab] = useState<'costs' | 'quotes' | 'orders'>('quotes');
   const [showNewCostInput, setShowNewCostInput] = useState(false);
   const [showNewQuote, setShowNewQuote] = useState(false);
-  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD' });
+  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
   const [newQuote, setNewQuote] = useState({
     client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
     default_overheads_pct: 17, default_profit_pct: 25,
     disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+    tier: 'contractor_pre_tender',
   });
   const [editingQuote, setEditingQuote] = useState<string | null>(null);
   const [editingItems, setEditingItems] = useState<any[]>([]);
@@ -136,6 +152,44 @@ export function usePricing(projectId: string): UsePricingReturn {
       });
       setCostInputItems(ciGrouped);
     }
+
+    const { data: atts } = await supabase.from('attachments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+    setAttachments(atts || []);
+  }
+
+  async function uploadAttachment(quoteId: string, file: File) {
+    setUploadingFile(true);
+    try {
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${projectId}/${quoteId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (uploadErr) { alert(`שגיאת העלאה: ${uploadErr.message}`); return; }
+      const { data: att, error: insertErr } = await supabase.from('attachments').insert({
+        entity_type: 'quote', entity_id: quoteId, project_id: projectId,
+        file_name: file.name, file_url: path,
+        file_type: 'drawing', file_size_bytes: file.size,
+      }).select().single();
+      if (insertErr) { alert(`שגיאה: ${insertErr.message}`); return; }
+      if (att) setAttachments((prev) => [att, ...prev]);
+    } catch (err: any) {
+      alert(`שגיאה: ${err.message}`);
+    } finally {
+      setUploadingFile(false);
+    }
+  }
+
+  async function deleteAttachment(id: string) {
+    const att = attachments.find((a) => a.id === id);
+    if (att?.file_url) {
+      let storagePath = att.file_url;
+      if (storagePath.startsWith('http')) {
+        const match = storagePath.match(/project-files\/(.+)$/);
+        if (match) storagePath = match[1];
+      }
+      await supabase.storage.from('project-files').remove([storagePath]);
+    }
+    await supabase.from('attachments').delete().eq('id', id);
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   async function loadExchangeRates() {
@@ -178,10 +232,11 @@ export function usePricing(projectId: string): UsePricingReturn {
       currency: newCostInput.currency || 'ILS',
       exchange_rate: rate,
       exchange_rate_date: rateDate,
+      payment_terms: newCostInput.payment_terms,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewCostInput(false);
-    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD' });
+    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
     setCostInputs((prev) => [ci, ...prev]);
     setExpandedCostInput(ci.id);
     setEditingCostInput(ci.id);
@@ -349,12 +404,13 @@ export function usePricing(projectId: string): UsePricingReturn {
 
     const { data: q, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: newQuote.client_name,
-      status: 'draft', cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
+      status: 'draft', tier: newQuote.tier, cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
       cost_input_id: newQuote.cost_input_id || null,
       default_overheads_pct: oh,
       default_profit_pct: pr,
       payment_terms: newQuote.payment_terms, disclaimer_type: newQuote.disclaimer_type,
-      disclaimer_text: disclaimer, total_amount: 0, total_cost: 0, notes: newQuote.notes,
+      disclaimer_text: disclaimer, global_discount_pct: 0, total_amount: 0, total_cost: 0, notes: newQuote.notes,
+      delivery_time: DEFAULT_DELIVERY_TIME,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewQuote(false);
@@ -366,16 +422,17 @@ export function usePricing(projectId: string): UsePricingReturn {
           const unitPrice = calcSellingPrice(parseFloat(ci.cost_price) || 0, oh, pr);
           return {
             product_name: ci.product_name, dn_size: ci.dn_size, quantity: ci.quantity, unit: ci.unit,
-            cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr,
+            cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr, discount_pct: 0,
             unit_price: unitPrice, total_price: (ci.quantity || 0) * unitPrice, notes: '',
           };
         })
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }];
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }];
 
     setNewQuote({
       client_name: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
       default_overheads_pct: 17, default_profit_pct: 25,
       disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+      tier: 'contractor_pre_tender',
     });
     setQuotes((prev) => [q, ...prev]);
     setEditingQuote(q.id);
@@ -391,7 +448,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingQuote(quoteId);
     setEditingItems(items.length > 0
       ? items.map((i) => ({ ...i }))
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, unit_price: 0, total_price: 0, notes: '' }]
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }]
     );
   }
 
@@ -403,15 +460,23 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingItems((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
-      if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price'].includes(field)) {
+      if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price', 'discount_pct'].includes(field)) {
         const cost = parseFloat(next[idx].cost_price) || 0;
         const oh = parseFloat(next[idx].overheads_pct) || 0;
-        const pr = parseFloat(next[idx].profit_pct) || 0;
         const qty = parseFloat(next[idx].quantity) || 0;
-        if (field !== 'unit_price') {
+        const disc = parseFloat(next[idx].discount_pct) || 0;
+        if (field === 'unit_price') {
+          const up = parseFloat(val) || 0;
+          const costWithOH = cost * (1 + oh / 100);
+          if (costWithOH > 0) {
+            next[idx].profit_pct = Math.round(((up / costWithOH) - 1) * 10000) / 100;
+          }
+        } else {
+          const pr = parseFloat(next[idx].profit_pct) || 0;
           next[idx].unit_price = calcSellingPrice(cost, oh, pr);
         }
-        next[idx].total_price = qty * (parseFloat(next[idx].unit_price) || 0);
+        const lineTotal = qty * (parseFloat(next[idx].unit_price) || 0);
+        next[idx].total_price = disc > 0 ? Math.round(lineTotal * (1 - disc / 100) * 100) / 100 : lineTotal;
       }
       return next;
     });
@@ -427,7 +492,7 @@ export function usePricing(projectId: string): UsePricingReturn {
           quote_id: quoteId, product_name: i.product_name, dn_size: i.dn_size || null,
           quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
           cost_price: parseFloat(i.cost_price) || 0, overheads_pct: parseFloat(i.overheads_pct) || 0,
-          profit_pct: parseFloat(i.profit_pct) || 0,
+          profit_pct: parseFloat(i.profit_pct) || 0, discount_pct: parseFloat(i.discount_pct) || 0,
           unit_price: parseFloat(i.unit_price) || 0, total_price: parseFloat(i.total_price) || 0,
           notes: i.notes || '', sort_order: idx,
         })));
@@ -468,6 +533,38 @@ export function usePricing(projectId: string): UsePricingReturn {
     if (editingQuote === quoteId) setEditingQuote(null);
   }
 
+  async function updateGlobalDiscount(quoteId: string, pct: number) {
+    await supabase.from('quotes').update({ global_discount_pct: pct, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, global_discount_pct: pct } : q));
+  }
+
+  async function refreshDisclaimer(quoteId: string) {
+    const q = quotes.find((x) => x.id === quoteId);
+    if (!q) return;
+    const newText = DISCLAIMER_TEMPLATES[q.disclaimer_type]?.text || '';
+    await supabase.from('quotes').update({ disclaimer_text: newText, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, disclaimer_text: newText } : x));
+  }
+
+  function setQuoteField(quoteId: string, field: string, value: any) {
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, [field]: value } : x));
+  }
+
+  async function updateDisclaimerText(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'disclaimer_text', text);
+    await supabase.from('quotes').update({ disclaimer_text: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
+  }
+
+  async function updateDeliveryTime(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'delivery_time', text);
+    await supabase.from('quotes').update({ delivery_time: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
+  }
+
+  async function updatePaymentTerms(quoteId: string, text: string) {
+    setQuoteField(quoteId, 'payment_terms', text);
+    await supabase.from('quotes').update({ payment_terms: text, updated_at: new Date().toISOString() }).eq('id', quoteId);
+  }
+
   async function updateOrderStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
@@ -479,7 +576,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0,
       overheads_pct: defaults?.overheads_pct ?? q?.default_overheads_pct ?? 17,
       profit_pct: defaults?.profit_pct ?? q?.default_profit_pct ?? 25,
-      unit_price: 0, total_price: 0, notes: '', ...defaults,
+      discount_pct: 0, unit_price: 0, total_price: 0, notes: '', ...defaults,
     }]);
   }
 
@@ -499,8 +596,16 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingCostItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  async function toggleArchiveCostInput(ciId: string) {
+    const ci = costInputs.find((c) => c.id === ciId);
+    if (!ci) return;
+    const newVal = !ci.is_archived;
+    await supabase.from('cost_inputs').update({ is_archived: newVal }).eq('id', ciId);
+    setCostInputs((prev) => prev.map((c) => c.id === ciId ? { ...c, is_archived: newVal } : c));
+  }
+
   return {
-    costInputs, quotes, orders, quoteItems, costInputItems,
+    costInputs, quotes, orders, quoteItems, costInputItems, attachments,
     exchangeRates, rateLoading, refreshRate,
     pricingTab, setPricingTab,
     showNewCostInput, setShowNewCostInput,
@@ -511,11 +616,12 @@ export function usePricing(projectId: string): UsePricingReturn {
     editingCostInput, editingCostItems,
     expandedQuote, setExpandedQuote,
     expandedCostInput, setExpandedCostInput,
-    parsingCostFile, saving,
+    parsingCostFile, saving, uploadingFile,
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     createQuote, startEditQuote, updateItem, saveQuoteItems,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
+    toggleArchiveCostInput, uploadAttachment, deleteAttachment,
   };
 }

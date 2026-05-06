@@ -1,9 +1,19 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
-import { calcCostPerMeter, calcRokerCostPerMeter } from '@/lib/pricing';
+import { createClient } from '@/lib/supabase/client';
+import {
+  calcCostPerMeter,
+  calcRokerCostPerMeter,
+  calcItemPrice,
+  calcQuoteSummary,
+  validateQuoteMargins,
+  type QuoteLineItem,
+  type QuoteLineItemPriced,
+} from '@/lib/pricing';
 import ExchangeRateWidget from './ExchangeRateWidget';
 
 function formatCurrency(v: number) {
@@ -25,6 +35,18 @@ const ITEM_TYPES = [
   { value: 'flange', label: 'אוגן' },
   { value: 'reducer', label: 'מעבר קטרים' },
   { value: 'other', label: 'אחר' },
+];
+
+const QUOTE_TIER_MAP: Record<string, { label: string; color: string }> = {
+  planner_estimate:      { label: 'הערכת מתכנן',  color: 'bg-purple-100 text-purple-700' },
+  contractor_pre_tender: { label: 'טרום מכרז',     color: 'bg-amber-100 text-amber-700' },
+  contractor_final:      { label: 'הצעה סופית',    color: 'bg-blue-100 text-blue-800' },
+};
+
+const QUOTE_TIERS = [
+  { value: 'planner_estimate',      label: 'הערכת מתכנן' },
+  { value: 'contractor_pre_tender', label: 'טרום מכרז' },
+  { value: 'contractor_final',      label: 'הצעה סופית' },
 ];
 
 const QUOTE_STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -57,7 +79,7 @@ export default function PricingSection({ projectId }: { projectId: string }) {
       <div className="flex gap-1 mb-4 border-b border-[#e2e8f0] pb-2">
         {([['costs', 'תמחור'], ['quotes', 'הצעות מחיר'], ['orders', 'הזמנות']] as const).map(([key, label]) => (
           <button key={key} onClick={() => p.setPricingTab(key as any)} className={`text-sm px-4 py-1.5 rounded-t-lg transition-colors ${p.pricingTab === key ? 'bg-[#1a56db] text-white font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {label}{key === 'costs' && p.costInputs.length > 0 ? ` (${p.costInputs.length})` : ''}{key === 'quotes' && p.quotes.length > 0 ? ` (${p.quotes.length})` : ''}{key === 'orders' && p.orders.length > 0 ? ` (${p.orders.length})` : ''}
+            {label}{key === 'costs' && p.costInputs.filter((c: any) => !c.is_archived).length > 0 ? ` (${p.costInputs.filter((c: any) => !c.is_archived).length})` : ''}{key === 'quotes' && p.quotes.length > 0 ? ` (${p.quotes.length})` : ''}{key === 'orders' && p.orders.length > 0 ? ` (${p.orders.length})` : ''}
           </button>
         ))}
       </div>
@@ -117,12 +139,18 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
               <input type="text" value={p.newCostInput.notes} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, notes: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="אופציונלי" />
             </div>
           </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום לספק</label>
+              <textarea value={p.newCostInput.payment_terms} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[60px] resize-y" placeholder="למשל: 30% מקדמה, יתרה שוטף +60" />
+            </div>
+          </div>
           {p.newCostInput.source_type === 'supplier' && p.newCostInput.currency !== 'ILS' && (
             <div className="text-[12px] text-gray-500">
               שער {CURRENCY_SYMBOLS[p.newCostInput.currency] || ''}/₪: <strong>{p.exchangeRates[p.newCostInput.currency]?.rate?.toFixed(4) || 'טוען...'}</strong>
             </div>
           )}
-          <button onClick={p.createCostInput} disabled={!p.newCostInput.source_name.trim()} className="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50">צור תמחור</button>
+          <button onClick={p.createCostInput} disabled={!p.newCostInput.source_name.trim()} className="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50">צור מסמך תמחור</button>
         </div>
       )}
 
@@ -130,11 +158,23 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
       {p.costInputs.length === 0 && !p.showNewCostInput ? (
         <p className="text-sm text-gray-400 text-center py-3">אין תמחורים. לחץ &quot;+ תמחור חדש&quot; להוסיף.</p>
       ) : (
-        <div className="space-y-3">
-          {p.costInputs.map((ci) => (
-            <CostInputCard key={ci.id} ci={ci} p={p} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {p.costInputs.filter((ci) => !ci.is_archived).map((ci) => (
+              <CostInputCard key={ci.id} ci={ci} p={p} />
+            ))}
+          </div>
+          {p.costInputs.some((ci) => ci.is_archived) && (
+            <div className="mt-4">
+              <p className="text-[12px] text-gray-400 mb-2">ארכיון</p>
+              <div className="space-y-2">
+                {p.costInputs.filter((ci) => ci.is_archived).map((ci) => (
+                  <CostInputCard key={ci.id} ci={ci} p={p} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -148,17 +188,19 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
   const isForex = ci.currency && ci.currency !== 'ILS';
   const sym = CURRENCY_SYMBOLS[ci.currency] || '₪';
 
+  const archived = ci.is_archived;
+
   return (
-    <div className="border border-[#e2e8f0] rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-amber-50/50 cursor-pointer hover:bg-amber-50 transition-colors" onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
+    <div className={`border rounded-xl overflow-hidden ${archived ? 'border-gray-200 opacity-60' : 'border-[#e2e8f0]'}`}>
+      <div className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${archived ? 'bg-gray-50 hover:bg-gray-100' : 'bg-amber-50/50 hover:bg-amber-50'}`} onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
         <div className="flex items-center gap-3">
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
-          <span className="text-sm font-bold text-gray-700">{ci.source_name}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${archived ? 'bg-gray-200 text-gray-500' : ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
+          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{ci.source_name}</span>
           {isForex && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{ci.currency} {ci.exchange_rate ? `@ ${parseFloat(ci.exchange_rate).toFixed(2)}` : ''}</span>}
           <span className="text-[11px] text-gray-400">{formatDate(ci.created_at)}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-gray-700">{formatCurrency(ciTotal)}</span>
+          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{formatCurrency(ciTotal)}</span>
           <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
         </div>
       </div>
@@ -168,13 +210,17 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
           {/* Action buttons */}
           {!isEdit && (
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>
-              <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
-                {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
-                <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
-              </label>
+              {!archived && <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>}
+              {!archived && (
+                <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
+                  {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
+                  <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
+                </label>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '📁 סיים תמחור'}</button>
             </div>
           )}
+          {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2 whitespace-pre-line">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
           {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
 
           {/* Edit mode */}
@@ -369,6 +415,14 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
               <input type="text" value={p.newQuote.client_name} onChange={(e) => p.setNewQuote({ ...p.newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
             </div>
             <div>
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הצעה</label>
+              <select value={p.newQuote.tier} onChange={(e) => p.setNewQuote({ ...p.newQuote, tier: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                {QUOTE_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">מקור תמחור</label>
               <div className="flex gap-3 mt-1">
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -408,7 +462,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום</label>
-              <input type="text" value={p.newQuote.payment_terms} onChange={(e) => p.setNewQuote({ ...p.newQuote, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+              <textarea value={p.newQuote.payment_terms} onChange={(e) => p.setNewQuote({ ...p.newQuote, payment_terms: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[60px] resize-y" />
             </div>
           </div>
           <div>
@@ -435,6 +489,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
 
 function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const st = QUOTE_STATUS_MAP[q.status] || QUOTE_STATUS_MAP.draft;
+  const tier = QUOTE_TIER_MAP[q.tier] || QUOTE_TIER_MAP.contractor_pre_tender;
   const isExpanded = p.expandedQuote === q.id;
   const isEditing = p.editingQuote === q.id;
   const items = p.quoteItems[q.id] || [];
@@ -445,6 +500,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
         <div className="flex items-center gap-3">
           <span className="text-sm font-mono text-gray-400">{q.quote_number}</span>
           <span className="text-sm font-bold text-gray-700">{q.client_name}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${tier.color}`}>{tier.label}</span>
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -458,7 +514,16 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {/* Action buttons */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {!isEditing && (
-              <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
+              <>
+                <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
+                {items.length > 0 && (
+                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימה</a>
+                )}
+                <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.uploadingFile ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+                  {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
+                  <input type="file" className="hidden" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx" disabled={p.uploadingFile} onChange={(e) => { if (e.target.files?.[0]) { p.uploadAttachment(q.id, e.target.files[0]); e.target.value = ''; } }} />
+                </label>
+              </>
             )}
             {q.status === 'draft' && (
               <button onClick={() => p.updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-blue-50 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">📤 סמן כנשלח</button>
@@ -472,16 +537,20 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             {q.status === 'draft' && (
               <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">🗑️ מחק</button>
             )}
+            {!isEditing && items.length > 0 && (
+              <div className="flex items-center gap-1 text-[12px] text-gray-500">
+                <span>הנחה כללית:</span>
+                <input type="number" value={q.global_discount_pct || ''} onChange={(e) => p.updateGlobalDiscount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" className="w-14 border border-[#e2e8f0] rounded px-1.5 py-0.5 text-[12px] text-center bg-orange-50" />
+                <span>%</span>
+              </div>
+            )}
           </div>
 
-          {/* Margin summary */}
-          {q.total_cost > 0 && q.total_amount > 0 && (
-            <div className="flex items-center gap-4 text-[11px] text-gray-500 mb-3 bg-gray-50 rounded px-3 py-1.5">
-              <span>עלות: {formatCurrency(q.total_cost)}</span>
-              <span>מכירה: {formatCurrency(q.total_amount)}</span>
-              <span className="font-bold text-green-700">מרווח: {((1 - q.total_cost / q.total_amount) * 100).toFixed(1)}%</span>
-            </div>
-          )}
+          {/* Margin summary with category breakdown + warnings */}
+          {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
+
+          {/* Views tracking panel */}
+          {!isEditing && <QuoteViewsPanel quoteId={q.id} />}
 
           {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
 
@@ -500,23 +569,32 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 }
 
 function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
+  const subtotal = p.editingItems.reduce((s, i) => {
+    const qty = parseFloat(i.quantity) || 0;
+    const up = parseFloat(i.unit_price) || 0;
+    return s + qty * up;
+  }, 0);
+  const totalAfterDisc = p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const hasAnyDiscount = p.editingItems.some((i) => parseFloat(i.discount_pct) > 0);
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[750px]">
-          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>סה״כ</span><span></span>
+        <div className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
+          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => (
-          <div key={idx} className="grid grid-cols-[1fr_70px_55px_70px_85px_65px_65px_85px_90px_28px] gap-1 min-w-[750px]">
-            <input type="text" value={item.product_name} onChange={(e) => p.updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-            <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm bg-blue-50" />
-            <span className="flex items-center text-sm font-medium text-gray-600 px-1">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+          <div key={idx} className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
+            <input type="text" value={item.product_name} onChange={(e) => p.updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
+            <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0 bg-blue-50" />
+            <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0 bg-orange-50" />
+            <span className="flex items-center text-[12px] font-medium text-gray-600 px-0.5 min-w-0 truncate">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
             <button onClick={() => p.removeEditingItem(idx)} className="text-red-400 hover:text-red-600 text-lg">×</button>
           </div>
         ))}
@@ -525,7 +603,8 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <button onClick={() => p.addEditingItem()} className="text-[12px] text-[#1a56db] hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-gray-400">עלות: {formatCurrency(p.editingItems.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0))}</span>
-          <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))}</span>
+          {hasAnyDiscount && <span className="text-[12px] text-gray-400">לפני הנחה: {formatCurrency(subtotal)}</span>}
+          <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(totalAfterDisc)}</span>
           <button onClick={p.cancelEditQuote} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">ביטול</button>
           <button onClick={() => p.saveQuoteItems(q.id)} disabled={p.saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -535,6 +614,21 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
 }
 
 function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnType<typeof usePricing> }) {
+  const linkedCost = q.cost_input_id ? p.costInputs.find((c) => c.id === q.cost_input_id) : null;
+  const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
+  const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
+  const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
+  const hasAnyDiscount = items.some((i: any) => parseFloat(i.discount_pct) > 0);
+  const globalDisc = parseFloat(q.global_discount_pct) || 0;
+  const subtotalBeforeDisc = items.reduce((s: number, i: any) => {
+    const qty = parseFloat(i.quantity) || 0;
+    const up = parseFloat(i.unit_price) || 0;
+    return s + qty * up;
+  }, 0);
+  const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
+  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const colCount = hasAnyDiscount ? 10 : 9;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -547,43 +641,254 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">תקורות%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
+            {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-medium pb-1.5">הנחה%</th>}
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
+            <th className="pb-1.5 w-6"></th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item: any) => (
-            <tr key={item.id} className="border-b border-gray-50">
-              <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
-              <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
-              <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
-              <td className="py-1.5 text-gray-500">{formatCurrency(item.cost_price)}</td>
-              <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
-              <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
-              <td className="py-1.5 text-gray-500">{formatCurrency(item.unit_price)}</td>
-              <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_price)}</td>
-            </tr>
-          ))}
+          {items.map((item: any) => {
+            const cost = parseFloat(item.cost_price) || 0;
+            const qty = parseFloat(item.quantity) || 0;
+            const ohPct = parseFloat(item.overheads_pct) || 0;
+            const prPct = parseFloat(item.profit_pct) || 0;
+            const unit = parseFloat(item.unit_price) || 0;
+            const tot = parseFloat(item.total_price) || 0;
+            const disc = parseFloat(item.discount_pct) || 0;
+            const costTot = cost * qty;
+            const ohAmt = costTot * (ohPct / 100);
+            const profitAmt = tot - costTot - ohAmt;
+            const originalCost = forexRate > 0 ? cost / forexRate : 0;
+
+            const tooltip = [
+              forexCurrency && originalCost > 0 ? `מחיר מקורי: ${forexSym}${originalCost.toFixed(2)} × ${forexRate.toFixed(2)} = ₪${cost.toFixed(2)}` : `עלות ליחידה: ₪${cost.toFixed(2)}`,
+              `× ${qty} ${item.unit} = ₪${costTot.toFixed(2)}`,
+              `+ תקורות ${ohPct}% = ₪${ohAmt.toFixed(2)}`,
+              `+ רווח ${prPct}% = ₪${profitAmt.toFixed(2)}`,
+              disc > 0 ? `- הנחה ${disc}%` : null,
+              `= מכירה: ₪${tot.toFixed(2)}`,
+            ].filter(Boolean).join('\n');
+
+            return (
+              <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
+                <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
+                <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
+                <td className="py-1.5 text-gray-500">{formatCurrency(cost)}</td>
+                <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
+                <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
+                <td className="py-1.5 text-gray-500">{formatCurrency(unit)}</td>
+                {hasAnyDiscount && <td className="py-1.5 text-orange-600 font-medium">{disc > 0 ? `${disc}%` : '—'}</td>}
+                <td className="py-1.5 font-medium text-gray-700">{formatCurrency(tot)}</td>
+                <td className="py-1.5">
+                  <span
+                    title={tooltip}
+                    className="cursor-help text-gray-300 hover:text-[#1a56db] text-[13px]"
+                  >ⓘ</span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
         <tfoot>
+          {(hasAnyDiscount || globalDisc > 0) && (
+            <tr className="border-t border-gray-100">
+              <td colSpan={colCount - 2} className="py-1.5 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1.5 text-left text-[12px] text-gray-500">סה״כ לפני הנחה</td>
+              <td className="py-1.5 text-[12px] text-gray-500">{formatCurrency(subtotalBeforeDisc)}</td>
+            </tr>
+          )}
+          {hasAnyDiscount && (
+            <tr>
+              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 text-left text-[12px] text-orange-600">הנחות שורה</td>
+              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
+            </tr>
+          )}
+          {globalDisc > 0 && (
+            <tr>
+              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 text-left text-[12px] text-orange-600">הנחה כללית {globalDisc}%</td>
+              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+            </tr>
+          )}
           <tr className="border-t border-[#e2e8f0]">
             <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
-            <td colSpan={4} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
-            <td className="py-2 font-bold text-gray-700">{formatCurrency(q.total_amount)}</td>
+            <td colSpan={colCount - 5} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
+            <td className="py-2 font-bold text-gray-700">{formatCurrency(finalTotal)}</td>
+            <td className="py-2"></td>
           </tr>
         </tfoot>
       </table>
-      {q.disclaimer_text && (
-        <div className="mt-3 p-3 bg-gray-50 rounded-lg text-[11px] text-gray-500 whitespace-pre-line border border-gray-100">
-          <span className="font-semibold text-gray-600">הערות משפטיות:</span><br/>{q.disclaimer_text}
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-semibold text-gray-600">הערות משפטיות:</span>
+          <button onClick={() => { if (confirm('לרענן מתבנית ברירת המחדל?')) p.refreshDisclaimer(q.id); }} className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline">🔄 רענן מתבנית</button>
         </div>
-      )}
-      {q.payment_terms && <p className="mt-2 text-[12px] text-gray-500">💳 תנאי תשלום: {q.payment_terms}</p>}
+        <textarea
+          value={q.disclaimer_text || ''}
+          onChange={(e) => p.setQuoteField(q.id, 'disclaimer_text', e.target.value)}
+          onBlur={(e) => p.updateDisclaimerText(q.id, e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[80px] resize-y leading-relaxed"
+        />
+      </div>
+      <div className="mt-3">
+        <span className="text-[11px] font-semibold text-gray-600">תנאי תשלום:</span>
+        <input
+          type="text"
+          value={q.payment_terms || ''}
+          onChange={(e) => p.setQuoteField(q.id, 'payment_terms', e.target.value)}
+          onBlur={(e) => p.updatePaymentTerms(q.id, e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 mt-1"
+          placeholder="40% מקדמה, יתרה שוטף +30"
+        />
+      </div>
+      <div className="mt-3">
+        <span className="text-[11px] font-semibold text-gray-600">זמן אספקה:</span>
+        <input
+          type="text"
+          value={q.delivery_time || ''}
+          onChange={(e) => p.setQuoteField(q.id, 'delivery_time', e.target.value)}
+          onBlur={(e) => p.updateDeliveryTime(q.id, e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 mt-1"
+          placeholder="70 ימי עבודה מיום סגירת הזמנה..."
+        />
+      </div>
       {q.cost_input_id && (
         <p className="mt-1 text-[11px] text-blue-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>
+      )}
+      {(() => {
+        const qAtts = p.attachments.filter((a) => a.entity_type === 'quote' && a.entity_id === q.id);
+        if (qAtts.length === 0) return null;
+        return (
+          <div className="mt-3 border-t border-gray-100 pt-2">
+            <span className="text-[11px] font-semibold text-gray-600">📎 שרטוטים ומסמכים ({qAtts.length}):</span>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {qAtts.map((a: any) => (
+                <div key={a.id} className="flex items-center gap-1 bg-indigo-50 rounded px-2 py-1 text-[11px] text-indigo-700">
+                  <button onClick={async () => {
+                    let path = a.file_url;
+                    if (path.startsWith('http')) {
+                      const m = path.match(/project-files\/(.+)$/);
+                      if (m) path = m[1];
+                    }
+                    const sb = createClient();
+                    const { data } = await sb.storage.from('project-files').createSignedUrl(path, 300);
+                    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                  }} className="hover:underline truncate max-w-[180px] cursor-pointer">{a.file_name}</button>
+                  <button onClick={() => { if (confirm('למחוק קובץ זה?')) p.deleteAttachment(a.id); }} className="text-red-400 hover:text-red-600 mr-1">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnType<typeof usePricing> }) {
+  // Build priced items via calcItemPrice for accurate margins
+  const priced: QuoteLineItemPriced[] = items.map((it) => {
+    const lineItem: QuoteLineItem = {
+      item_type: it.item_type ?? undefined,
+      product_name: it.product_name,
+      dn_size: it.dn_size ?? undefined,
+      quantity: parseFloat(it.quantity) || 0,
+      unit: it.unit || 'מטר',
+      cost_price: parseFloat(it.cost_price) || 0,
+      overheads_pct: parseFloat(it.overheads_pct) || 0,
+      profit_pct: parseFloat(it.profit_pct) || 0,
+      length_m: parseFloat(it.length_m) || undefined,
+    };
+    // If DB row already has a stored unit_price (manually overridden), trust it
+    if (it.unit_price && parseFloat(it.unit_price) > 0) {
+      const cost = lineItem.cost_price * lineItem.quantity;
+      const overheads = cost * (lineItem.overheads_pct / 100);
+      const selling = parseFloat(it.unit_price) * lineItem.quantity;
+      const profit = selling - cost - overheads;
+      const margin = selling > 0 ? (profit / selling) * 100 : 0;
+      return {
+        ...lineItem,
+        unit_price: parseFloat(it.unit_price),
+        total_price: Math.round(selling * 100) / 100,
+        overheads_amount: Math.round(overheads * 100) / 100,
+        profit_amount: Math.round(profit * 100) / 100,
+        margin_pct: Math.round(margin * 100) / 100,
+      };
+    }
+    return calcItemPrice(lineItem);
+  });
+
+  const summary = calcQuoteSummary(priced);
+  const warnings = validateQuoteMargins(priced);
+
+  // Foreign currency equivalent (if quote is linked to a forex cost input)
+  const linkedCost = q.cost_input_id ? p.costInputs.find((c) => c.id === q.cost_input_id) : null;
+  const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
+  const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
+  const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
+  const sellingForex = forexRate > 0 ? summary.totalSelling / forexRate : 0;
+
+  return (
+    <div className="mb-3 bg-gray-50 rounded-lg p-3 space-y-2">
+      {/* Main totals row */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+        <span className="text-gray-500">עלות: <strong className="text-gray-700">{formatCurrency(summary.totalCost)}</strong></span>
+        <span className="text-gray-500">תקורות: <strong className="text-gray-700">{formatCurrency(summary.totalOverheads)}</strong></span>
+        <span className="text-gray-500">רווח: <strong className="text-green-700">{formatCurrency(summary.totalProfit)}</strong></span>
+        <span className="text-gray-500">מכירה: <strong className="text-gray-700">{formatCurrency(summary.totalSelling)}</strong></span>
+        <span className={`font-bold ${summary.avgMarginPct < 10 ? 'text-red-600' : summary.avgMarginPct > 60 ? 'text-amber-600' : 'text-green-700'}`}>
+          מרווח ממוצע: {summary.avgMarginPct.toFixed(1)}%
+        </span>
+        {forexCurrency && forexRate > 0 && (
+          <span className="text-blue-600">
+            ≈ {forexSym}{sellingForex.toLocaleString('he-IL', { maximumFractionDigits: 0 })} @ {forexRate.toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      {/* Category breakdown */}
+      {Object.keys(summary.byCategory).length > 1 && (
+        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-200">
+          {Object.entries(summary.byCategory).map(([cat, v]) => {
+            const pct = summary.totalSelling > 0 ? (v.selling / summary.totalSelling) * 100 : 0;
+            return (
+              <span key={cat} className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-600">
+                <strong className="text-gray-700">{cat}</strong>
+                <span className="mx-1 text-gray-300">·</span>
+                <span>{formatCurrency(v.selling)}</span>
+                <span className="text-gray-400 ml-1">({pct.toFixed(0)}%)</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-200">
+          {warnings.map((w, i) => {
+            const { bg, icon, msg } = WARNING_STYLE[w.issue];
+            return (
+              <span key={i} className={`text-[11px] rounded px-2 py-0.5 ${bg}`}>
+                {icon} <strong>{w.product_name || `שורה ${w.index + 1}`}</strong>
+                <span className="mx-1">—</span>
+                <span>{msg}{w.issue !== 'zero_cost' ? ` (${w.margin_pct.toFixed(1)}%)` : ''}</span>
+              </span>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
+
+const WARNING_STYLE: Record<'low_margin' | 'high_margin' | 'zero_cost', { bg: string; icon: string; msg: string }> = {
+  low_margin:  { bg: 'bg-red-50 text-red-700 border border-red-200',     icon: '⚠️', msg: 'מרווח נמוך מ-10%' },
+  high_margin: { bg: 'bg-amber-50 text-amber-700 border border-amber-200', icon: '⚡', msg: 'מרווח גבוה מ-60%' },
+  zero_cost:   { bg: 'bg-purple-50 text-purple-700 border border-purple-200', icon: '🔍', msg: 'עלות אפס' },
+};
 
 function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
   if (p.orders.length === 0) {
@@ -632,6 +937,58 @@ function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
+  const [views, setViews] = useState<any[]>([]);
+  const [shareToken, setShareToken] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const sb = createClient();
+    async function load() {
+      try {
+        const [{ data: tokens }, { data: viewsData }] = await Promise.all([
+          sb.from('quote_share_tokens').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false }).limit(1),
+          sb.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false }),
+        ]);
+        setShareToken(tokens?.[0] || null);
+        setViews(viewsData || []);
+      } catch {}
+      setLoaded(true);
+    }
+    load();
+  }, [quoteId]);
+
+  if (!loaded || !shareToken) return null;
+
+  const isExpired = new Date(shareToken.expires_at) < new Date();
+  const expiresAt = new Date(shareToken.expires_at).toLocaleString('he-IL');
+
+  return (
+    <div className="mb-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[12px] font-semibold text-purple-700">🔗 קישור שיתוף</h4>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+          {isExpired ? 'פג תוקף' : `בתוקף עד ${expiresAt}`}
+        </span>
+      </div>
+      {views.length > 0 ? (
+        <div className="space-y-1 max-h-28 overflow-y-auto">
+          <p className="text-[11px] font-semibold text-green-700 mb-1">👁 {views.length} צפיות</p>
+          {views.map((v: any) => (
+            <div key={v.id} className="flex items-center gap-3 text-[11px] text-gray-600">
+              <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
+              {v.ip_address && <span className="text-gray-400 font-mono text-[10px]">{v.ip_address}</span>}
+              <span className="text-gray-400">{v.user_agent?.includes('Mobile') ? '📱 נייד' : '💻 מחשב'}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-gray-400">הלקוח עדיין לא צפה בקישור</p>
+      )}
     </div>
   );
 }

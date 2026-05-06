@@ -97,3 +97,9 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@media print {
+  nav, aside, .print\\:hidden { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+  body { background: white !important; }
+}
