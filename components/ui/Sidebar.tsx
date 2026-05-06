@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
   { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
   { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
   { icon: '👷', label: 'שדה', key: 'field', href: '/field' },
   { icon: '📦', label: 'מלאי', key: 'inventory', href: '/inventory' },
   { icon: '📈', label: 'דוחות', key: 'reports', href: '/reports' },

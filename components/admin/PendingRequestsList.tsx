@@ -20,6 +20,7 @@ const DEFAULT_PERMISSIONS: Record<AppModule, PermissionLevel> = {
   projects: 'view',
   marketing: 'none',
   import: 'none',
+  production: 'none',
   field: 'none',
   inventory: 'view',
   reports: 'view',
