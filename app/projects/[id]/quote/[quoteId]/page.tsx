@@ -22,6 +22,7 @@ export default function QuotePreviewPage() {
   const [quoteViews, setQuoteViews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [sendingLink, setSendingLink] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -148,8 +149,6 @@ export default function QuotePreviewPage() {
     bytes.forEach((b) => (bin += String.fromCharCode(b)));
     return btoa(bin);
   }
-
-  const [sendingLink, setSendingLink] = useState(false);
 
   async function handleEmailWithLink() {
     setSendingLink(true);
