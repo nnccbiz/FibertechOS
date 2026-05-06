@@ -150,6 +150,7 @@ export default function QuotePreviewPage() {
       const boundary = 'boundary_' + Date.now();
       const pdfFilename = `quote-${quote.quote_number}.pdf`;
       const eml = [
+        `X-Unsent: 1`,
         `Subject: =?UTF-8?B?${utf8ToBase64(emailSubjectRaw)}?=`,
         'MIME-Version: 1.0',
         `Content-Type: multipart/mixed; boundary="${boundary}"`,
