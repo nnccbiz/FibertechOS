@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   file_url TEXT NOT NULL,
   file_type TEXT DEFAULT 'drawing',
   file_size_bytes BIGINT,
-  uploaded_by UUID REFERENCES profiles(id),
+  uploaded_by UUID,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
