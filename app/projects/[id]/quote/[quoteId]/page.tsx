@@ -144,45 +144,27 @@ export default function QuotePreviewPage() {
 
   async function handleEmailWithPdf() {
     setGeneratingPdf(true);
-    // Open window immediately in user-gesture context to avoid popup blocker
-    const win = window.open('about:blank', '_blank');
+    // Open mailto immediately in user-gesture context to avoid popup blocker
+    const mailto = `mailto:?subject=${encodeURIComponent(emailSubjectRaw)}&body=${encodeURIComponent(emailBodyRaw)}`;
+    window.open(mailto, '_self');
     try {
+      // Download the PDF so user can attach it
       const pdfBase64 = await generatePdfBase64();
-      if (!pdfBase64) { win?.close(); return; }
-      const boundary = 'boundary_' + Date.now();
-      const pdfFilename = `quote-${quote.quote_number}.pdf`;
-      const eml = [
-        `X-Unsent: 1`,
-        `Subject: =?UTF-8?B?${utf8ToBase64(emailSubjectRaw)}?=`,
-        'MIME-Version: 1.0',
-        `Content-Type: multipart/mixed; boundary="${boundary}"`,
-        '',
-        `--${boundary}`,
-        'Content-Type: text/plain; charset="UTF-8"',
-        'Content-Transfer-Encoding: base64',
-        '',
-        utf8ToBase64(emailBodyRaw),
-        '',
-        `--${boundary}`,
-        'Content-Type: application/pdf',
-        `Content-Disposition: attachment; filename="${pdfFilename}"`,
-        'Content-Transfer-Encoding: base64',
-        '',
-        pdfBase64,
-        '',
-        `--${boundary}--`,
-      ].join('\r\n');
-      const blob = new Blob([eml], { type: 'message/rfc822' });
+      if (!pdfBase64) return;
+      const byteChars = atob(pdfBase64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      if (win) {
-        win.location.href = url;
-      } else {
-        // Fallback if popup was blocked
-        window.location.href = url;
-      }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quote-${quote.quote_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch {
-      win?.close();
-      alert('שגיאה ביצירת המייל');
+      alert('שגיאה ביצירת PDF');
     } finally {
       setGeneratingPdf(false);
     }
