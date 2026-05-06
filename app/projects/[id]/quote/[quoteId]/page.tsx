@@ -18,6 +18,7 @@ export default function QuotePreviewPage() {
   const [items, setItems] = useState<any[]>([]);
   const [project, setProject] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [imageDataUrls, setImageDataUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
@@ -33,6 +34,29 @@ export default function QuotePreviewPage() {
       setItems(its || []);
       setProject(proj);
       setAttachments(atts || []);
+
+      // Download image attachments and convert to data URLs
+      if (atts && atts.length > 0) {
+        const imageAtts = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
+        const urls: Record<string, string> = {};
+        await Promise.all(
+          imageAtts.map(async (att: any) => {
+            try {
+              const { data } = await supabase.storage.from('project-files').download(att.file_url);
+              if (data) {
+                const url = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.readAsDataURL(data);
+                });
+                urls[att.id] = url;
+              }
+            } catch {}
+          })
+        );
+        setImageDataUrls(urls);
+      }
+
       setLoading(false);
     }
     load();
@@ -78,19 +102,26 @@ export default function QuotePreviewPage() {
   async function generatePdfBase64(): Promise<string | null> {
     const html2canvas = (await import('html2canvas')).default;
     const { jsPDF } = await import('jspdf');
-    const el = document.getElementById('quote-page-content');
-    if (!el) return null;
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-    const imgData = canvas.toDataURL('image/png');
+    const wrapper = document.getElementById('quote-page-content');
+    if (!wrapper) return null;
+    const pages = wrapper.children;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const imgH = (canvas.height * pageW) / canvas.width;
-    let y = 0;
-    while (y < imgH) {
-      if (y > 0) pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-      y += pageH;
+    let firstPage = true;
+    for (let i = 0; i < pages.length; i++) {
+      const el = pages[i] as HTMLElement;
+      if (!el || el.offsetHeight === 0) continue;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const imgH = (canvas.height * pageW) / canvas.width;
+      let y = 0;
+      while (y < imgH) {
+        if (!firstPage) pdf.addPage();
+        firstPage = false;
+        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+        y += pageH;
+      }
     }
     const arrayBuf = pdf.output('arraybuffer');
     const bytes = new Uint8Array(arrayBuf);
@@ -200,8 +231,10 @@ export default function QuotePreviewPage() {
         </button>
       </div>
 
+      {/* All pages wrapper for PDF capture */}
+      <div id="quote-page-content">
       {/* A4 page */}
-      <div id="quote-page-content" className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
+      <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
         <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
 
           {/* Header */}
@@ -320,15 +353,15 @@ export default function QuotePreviewPage() {
             </div>
           )}
 
-          {/* Attachments */}
-          {attachments.length > 0 && (
+          {/* Non-image attachments listed */}
+          {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
             <div className="mb-6">
               <h3 className="text-sm font-bold text-gray-600 mb-2">מפרטים טכניים ושרטוטים</h3>
               <div className="space-y-1">
-                {attachments.map((att) => (
+                {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
                   <div key={att.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-400">{att.file_name.match(/\.(pdf)$/i) ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
-                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-[#1a56db] hover:underline">{att.file_name}</a>
+                    <span className="text-gray-400">📄</span>
+                    <span className="text-gray-700">{att.file_name}</span>
                   </div>
                 ))}
               </div>
@@ -358,6 +391,17 @@ export default function QuotePreviewPage() {
           <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
           <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
         </div>
+      </div>
+
+      {/* Separate A4 pages for each image attachment */}
+      {attachments
+        .filter((a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id])
+        .map((att) => (
+          <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col items-center justify-center p-8" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+            <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
+            <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
+          </div>
+        ))}
       </div>
 
       {/* Print styles */}

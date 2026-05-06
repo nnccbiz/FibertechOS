@@ -164,10 +164,9 @@ export function usePricing(projectId: string): UsePricingReturn {
       const path = `${projectId}/${quoteId}/${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
       if (uploadErr) { alert(`שגיאת העלאה: ${uploadErr.message}`); return; }
-      const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(path);
       const { data: att, error: insertErr } = await supabase.from('attachments').insert({
         entity_type: 'quote', entity_id: quoteId, project_id: projectId,
-        file_name: file.name, file_url: urlData.publicUrl || path,
+        file_name: file.name, file_url: path,
         file_type: 'drawing', file_size_bytes: file.size,
       }).select().single();
       if (insertErr) { alert(`שגיאה: ${insertErr.message}`); return; }
