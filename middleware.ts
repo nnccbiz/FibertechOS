@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
-// Routes that anonymous users are allowed to visit
+// Routes that anonymous users are allowed to visit (no login required)
 const PUBLIC_ROUTES = [
   '/login',
   '/request-access',
