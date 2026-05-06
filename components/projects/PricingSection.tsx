@@ -945,6 +945,8 @@ function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
   const [views, setViews] = useState<any[]>([]);
   const [shareToken, setShareToken] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const sb = createClient();
@@ -960,19 +962,77 @@ function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
     load();
   }, [quoteId]);
 
-  if (!loaded || !shareToken) return null;
+  async function createShareLink() {
+    setCreating(true);
+    try {
+      const res = await fetch('/api/quote-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_id: quoteId, expires_days: 3 }),
+      });
+      const data = await res.json();
+      if (data.token) {
+        setShareToken(data);
+        await navigator.clipboard.writeText(`${window.location.origin}/quote/${data.token}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      } else {
+        alert(data.error || 'שגיאה ביצירת קישור');
+      }
+    } catch {
+      alert('שגיאה ביצירת קישור');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!shareToken) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/quote/${shareToken.token}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+
+  if (!loaded) return null;
+
+  // No share token yet — show create button
+  if (!shareToken) {
+    return (
+      <div className="mb-3">
+        <button onClick={createShareLink} disabled={creating} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50">
+          {creating ? '⏳ יוצר...' : '🔗 צור קישור לשיתוף (3 ימים)'}
+        </button>
+      </div>
+    );
+  }
 
   const isExpired = new Date(shareToken.expires_at) < new Date();
   const expiresAt = new Date(shareToken.expires_at).toLocaleString('he-IL');
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/quote/${shareToken.token}`;
 
   return (
     <div className="mb-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-[12px] font-semibold text-purple-700">🔗 קישור שיתוף</h4>
-        <span className={`text-[11px] px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
-          {isExpired ? 'פג תוקף' : `בתוקף עד ${expiresAt}`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+            {isExpired ? 'פג תוקף' : `בתוקף עד ${expiresAt}`}
+          </span>
+          {isExpired && (
+            <button onClick={createShareLink} disabled={creating} className="text-[11px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full hover:bg-purple-200">
+              {creating ? '⏳' : '🔄 חדש'}
+            </button>
+          )}
+        </div>
       </div>
+      {!isExpired && (
+        <div className="flex items-center gap-2 mb-2">
+          <input type="text" readOnly value={shareUrl} className="flex-1 text-[11px] text-gray-500 bg-white border border-purple-200 rounded px-2 py-1 font-mono truncate" dir="ltr" />
+          <button onClick={copyLink} className="text-[11px] bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 whitespace-nowrap">
+            {copied ? '✅ הועתק!' : '📋 העתק'}
+          </button>
+        </div>
+      )}
       {views.length > 0 ? (
         <div className="space-y-1 max-h-28 overflow-y-auto">
           <p className="text-[11px] font-semibold text-green-700 mb-1">👁 {views.length} צפיות</p>
