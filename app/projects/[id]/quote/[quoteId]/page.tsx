@@ -17,19 +17,22 @@ export default function QuotePreviewPage() {
   const [quote, setQuote] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [project, setProject] = useState<any>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const [{ data: q }, { data: its }, { data: proj }] = await Promise.all([
+      const [{ data: q }, { data: its }, { data: proj }, { data: atts }] = await Promise.all([
         supabase.from('quotes').select('*').eq('id', quoteId).single(),
         supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order'),
         supabase.from('projects').select('*').eq('id', projectId).single(),
+        supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', quoteId),
       ]);
       setQuote(q);
       setItems(its || []);
       setProject(proj);
+      setAttachments(atts || []);
       setLoading(false);
     }
     load();
@@ -314,6 +317,21 @@ export default function QuotePreviewPage() {
             <div className="mb-6">
               <h3 className="text-sm font-bold text-gray-600 mb-1">הערות</h3>
               <p className="text-sm text-gray-700 whitespace-pre-line">{quote.notes}</p>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {attachments.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-600 mb-2">מפרטים טכניים ושרטוטים</h3>
+              <div className="space-y-1">
+                {attachments.map((att) => (
+                  <div key={att.id} className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-400">{att.file_name.match(/\.(pdf)$/i) ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
+                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-[#1a56db] hover:underline">{att.file_name}</a>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
