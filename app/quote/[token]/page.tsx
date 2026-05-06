@@ -163,8 +163,8 @@ export default function PublicQuotePage() {
       <div className="flex items-center justify-center min-h-screen bg-gray-50" dir="rtl">
         <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-md">
           <div className="text-5xl mb-4">⏰</div>
-          <h1 className="text-xl font-bold text-gray-800 mb-2">הצעת מחיר פגת תוקף</h1>
-          <p className="text-gray-500">הלינק אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">קישור להצעת מחיר פג תוקף</h1>
+          <p className="text-gray-500">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
           <div className="mt-6 pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
             <p className="text-sm text-gray-400">09-7929441 | nitzan@fibertech.co.il</p>

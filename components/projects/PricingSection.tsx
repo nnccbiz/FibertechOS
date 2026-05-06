@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
@@ -548,6 +549,9 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {/* Margin summary with category breakdown + warnings */}
           {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
 
+          {/* Views tracking panel */}
+          {!isEditing && <QuoteViewsPanel quoteId={q.id} />}
+
           {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
 
           {/* Items — edit or display */}
@@ -933,6 +937,56 @@ function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
+  const [views, setViews] = useState<any[]>([]);
+  const [shareToken, setShareToken] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const sb = createClient();
+    async function load() {
+      const [{ data: tokens }, { data: viewsData }] = await Promise.all([
+        sb.from('quote_share_tokens').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false }).limit(1),
+        sb.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false }),
+      ]);
+      setShareToken(tokens?.[0] || null);
+      setViews(viewsData || []);
+      setLoaded(true);
+    }
+    load();
+  }, [quoteId]);
+
+  if (!loaded || !shareToken) return null;
+
+  const isExpired = new Date(shareToken.expires_at) < new Date();
+  const expiresAt = new Date(shareToken.expires_at).toLocaleString('he-IL');
+
+  return (
+    <div className="mb-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[12px] font-semibold text-purple-700">🔗 קישור שיתוף</h4>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+          {isExpired ? 'פג תוקף' : `בתוקף עד ${expiresAt}`}
+        </span>
+      </div>
+      {views.length > 0 ? (
+        <div className="space-y-1 max-h-28 overflow-y-auto">
+          <p className="text-[11px] font-semibold text-green-700 mb-1">👁 {views.length} צפיות</p>
+          {views.map((v: any) => (
+            <div key={v.id} className="flex items-center gap-3 text-[11px] text-gray-600">
+              <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
+              {v.ip_address && <span className="text-gray-400 font-mono text-[10px]">{v.ip_address}</span>}
+              <span className="text-gray-400">{v.user_agent?.includes('Mobile') ? '📱 נייד' : '💻 מחשב'}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-gray-400">הלקוח עדיין לא צפה בקישור</p>
+      )}
     </div>
   );
 }
