@@ -36,9 +36,11 @@ export default function QuotePreviewPage() {
       setProject(proj);
       setAttachments(atts || []);
 
-      // Load views
-      const { data: views } = await supabase.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false });
-      setQuoteViews(views || []);
+      // Load views (safe — table may not exist yet)
+      try {
+        const { data: views } = await supabase.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false });
+        setQuoteViews(views || []);
+      } catch {}
 
       // Download image attachments and convert to data URLs
       if (atts && atts.length > 0) {

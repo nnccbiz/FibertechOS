@@ -949,12 +949,14 @@ function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
   useEffect(() => {
     const sb = createClient();
     async function load() {
-      const [{ data: tokens }, { data: viewsData }] = await Promise.all([
-        sb.from('quote_share_tokens').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false }).limit(1),
-        sb.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false }),
-      ]);
-      setShareToken(tokens?.[0] || null);
-      setViews(viewsData || []);
+      try {
+        const [{ data: tokens }, { data: viewsData }] = await Promise.all([
+          sb.from('quote_share_tokens').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false }).limit(1),
+          sb.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false }),
+        ]);
+        setShareToken(tokens?.[0] || null);
+        setViews(viewsData || []);
+      } catch {}
       setLoaded(true);
     }
     load();
