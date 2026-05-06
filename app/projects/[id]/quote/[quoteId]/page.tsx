@@ -62,30 +62,101 @@ export default function QuotePreviewPage() {
     `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
   );
 
-  const emailSubject = encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`);
-  const emailBody = encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`);
+  const emailSubjectRaw = `הצעת מחיר ${quote.quote_number} — פיברטק`;
+  const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
+
+  function utf8ToBase64(str: string): string {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    bytes.forEach((b) => (binary += String.fromCharCode(b)));
+    return btoa(binary);
+  }
+
+  async function generatePdfBase64(): Promise<string | null> {
+    const html2canvas = (await import('html2canvas')).default;
+    const { jsPDF } = await import('jspdf');
+    const el = document.getElementById('quote-page-content');
+    if (!el) return null;
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgH = (canvas.height * pageW) / canvas.width;
+    let y = 0;
+    while (y < imgH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+      y += pageH;
+    }
+    const arrayBuf = pdf.output('arraybuffer');
+    const bytes = new Uint8Array(arrayBuf);
+    let bin = '';
+    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    return btoa(bin);
+  }
+
+  async function handleEmailWithPdf() {
+    setGeneratingPdf(true);
+    try {
+      const pdfBase64 = await generatePdfBase64();
+      if (!pdfBase64) return;
+      const boundary = 'boundary_' + Date.now();
+      const pdfFilename = `quote-${quote.quote_number}.pdf`;
+      const eml = [
+        `Subject: =?UTF-8?B?${utf8ToBase64(emailSubjectRaw)}?=`,
+        'MIME-Version: 1.0',
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        'Content-Transfer-Encoding: base64',
+        '',
+        utf8ToBase64(emailBodyRaw),
+        '',
+        `--${boundary}`,
+        'Content-Type: application/pdf',
+        `Content-Disposition: attachment; filename="${pdfFilename}"`,
+        'Content-Transfer-Encoding: base64',
+        '',
+        pdfBase64,
+        '',
+        `--${boundary}--`,
+      ].join('\r\n');
+      const blob = new Blob([eml], { type: 'message/rfc822' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `הצעת-מחיר-${quote.quote_number}.eml`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('שגיאה ביצירת המייל');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
 
   async function handleDownloadPdf() {
     setGeneratingPdf(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-      const el = document.getElementById('quote-page-content');
-      if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-      pdf.save(`הצעת-מחיר-${quote.quote_number}.pdf`);
-    } catch (err) {
+      const pdfBase64 = await generatePdfBase64();
+      if (!pdfBase64) return;
+      const byteChars = atob(pdfBase64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `הצעת-מחיר-${quote.quote_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
       alert('שגיאה ביצירת PDF');
     } finally {
       setGeneratingPdf(false);
@@ -106,12 +177,13 @@ export default function QuotePreviewPage() {
         >
           {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
-        <a
-          href={`mailto:?subject=${emailSubject}&body=${emailBody}`}
-          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+        <button
+          onClick={handleEmailWithPdf}
+          disabled={generatingPdf}
+          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
         >
-          📧 שלח במייל
-        </a>
+          {generatingPdf ? '⏳ מכין...' : '📧 שלח במייל'}
+        </button>
         <a
           href={`https://wa.me/?text=${whatsappText}`}
           target="_blank"
