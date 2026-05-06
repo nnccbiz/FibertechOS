@@ -8,10 +8,9 @@ function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
 
-export default function QuotePreviewPage() {
+export default function PublicQuotePage() {
   const params = useParams();
-  const projectId = params.id as string;
-  const quoteId = params.quoteId as string;
+  const token = params.token as string;
   const supabase = createClient();
 
   const [quote, setQuote] = useState<any>(null);
@@ -19,45 +18,73 @@ export default function QuotePreviewPage() {
   const [project, setProject] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [imageDataUrls, setImageDataUrls] = useState<Record<string, string>>({});
-  const [quoteViews, setQuoteViews] = useState<any[]>([]);
+  const [expired, setExpired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const [{ data: q }, { data: its }, { data: proj }, { data: atts }] = await Promise.all([
-        supabase.from('quotes').select('*').eq('id', quoteId).single(),
-        supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order'),
-        supabase.from('projects').select('*').eq('id', projectId).single(),
-        supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', quoteId),
+      // Look up the share token
+      const { data: shareToken, error: tokenErr } = await supabase
+        .from('quote_share_tokens')
+        .select('*')
+        .eq('token', token)
+        .single();
+
+      if (tokenErr || !shareToken) {
+        setExpired(true);
+        setLoading(false);
+        return;
+      }
+
+      if (new Date(shareToken.expires_at) < new Date()) {
+        setExpired(true);
+        setLoading(false);
+        return;
+      }
+
+      // Record the view
+      await supabase.from('quote_views').insert({
+        token_id: shareToken.id,
+        quote_id: shareToken.quote_id,
+        ip_address: null, // filled by edge function or server if needed
+        user_agent: navigator.userAgent,
+      });
+
+      // Fetch quote data
+      const [{ data: q }, { data: its }, { data: atts }] = await Promise.all([
+        supabase.from('quotes').select('*').eq('id', shareToken.quote_id).single(),
+        supabase.from('quote_items').select('*').eq('quote_id', shareToken.quote_id).order('sort_order'),
+        supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', shareToken.quote_id),
       ]);
+
+      if (!q) {
+        setExpired(true);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch project
+      const { data: proj } = await supabase.from('projects').select('*').eq('id', q.project_id).single();
+
       setQuote(q);
       setItems(its || []);
       setProject(proj);
       setAttachments(atts || []);
 
-      // Load views
-      const { data: views } = await supabase.from('quote_views').select('*').eq('quote_id', quoteId).order('viewed_at', { ascending: false });
-      setQuoteViews(views || []);
-
-      // Download image attachments and convert to data URLs
+      // Download image attachments
       if (atts && atts.length > 0) {
         const imageAtts = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
         const urls: Record<string, string> = {};
         await Promise.all(
           imageAtts.map(async (att: any) => {
             try {
-              // Extract storage path from full URL or use as-is
               let storagePath = att.file_url;
               if (storagePath.startsWith('http')) {
                 const match = storagePath.match(/project-files\/(.+)$/);
                 if (match) storagePath = match[1];
               }
-              const { data, error } = await supabase.storage.from('project-files').download(storagePath);
-              if (error) {
-                console.error('Download error for', att.file_name, error.message);
-                return;
-              }
+              const { data } = await supabase.storage.from('project-files').download(storagePath);
               if (data) {
                 const url = await new Promise<string>((resolve) => {
                   const reader = new FileReader();
@@ -66,9 +93,7 @@ export default function QuotePreviewPage() {
                 });
                 urls[att.id] = url;
               }
-            } catch (err: any) {
-              console.error('Failed to load attachment', att.file_name, err?.message);
-            }
+            } catch {}
           })
         );
         setImageDataUrls(urls);
@@ -77,123 +102,36 @@ export default function QuotePreviewPage() {
       setLoading(false);
     }
     load();
-  }, [quoteId, projectId]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <p className="text-gray-400">טוען הצעת מחיר...</p>
-      </div>
-    );
-  }
-
-  if (!quote || !project) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <p className="text-red-500">הצעת מחיר לא נמצאה</p>
-      </div>
-    );
-  }
-
-  const globalDisc = parseFloat(quote.global_discount_pct) || 0;
-  const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
-  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
-  const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const colCount = 8;
-
-  const whatsappText = encodeURIComponent(
-    `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
-  );
-
-  const emailSubjectRaw = `${quote.client_name || ''} | ${project.name || ''} | הצעת מחיר ${quote.quote_number} — פיברטק`;
-  const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
-
-  function utf8ToBase64(str: string): string {
-    const bytes = new TextEncoder().encode(str);
-    let binary = '';
-    bytes.forEach((b) => (binary += String.fromCharCode(b)));
-    return btoa(binary);
-  }
-
-  async function generatePdfBase64(): Promise<string | null> {
-    const html2canvas = (await import('html2canvas')).default;
-    const { jsPDF } = await import('jspdf');
-    const wrapper = document.getElementById('quote-page-content');
-    if (!wrapper) return null;
-    const pages = wrapper.children;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    let firstPage = true;
-    for (let i = 0; i < pages.length; i++) {
-      const el = pages[i] as HTMLElement;
-      if (!el || el.offsetHeight === 0) continue;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const imgH = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (!firstPage) pdf.addPage();
-        firstPage = false;
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-    }
-    const arrayBuf = pdf.output('arraybuffer');
-    const bytes = new Uint8Array(arrayBuf);
-    let bin = '';
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
-    return btoa(bin);
-  }
-
-  async function handleEmailWithPdf() {
-    setGeneratingPdf(true);
-    try {
-      // Create share token
-      const res = await fetch('/api/quote-share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quote_id: quoteId, expires_days: 3 }),
-      });
-      const shareData = await res.json();
-      const shareLink = shareData.token ? `${window.location.origin}/quote/${shareData.token}` : '';
-
-      const bodyWithLink = emailBodyRaw + (shareLink ? `\n\nלצפייה בהצעה:\n${shareLink}` : '');
-      const mailto = `mailto:?subject=${encodeURIComponent(emailSubjectRaw)}&body=${encodeURIComponent(bodyWithLink)}`;
-      window.open(mailto, '_self');
-
-      // Also download the PDF
-      const pdfBase64 = await generatePdfBase64();
-      if (!pdfBase64) return;
-      const byteChars = atob(pdfBase64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `quote-${quote.quote_number}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('שגיאה ביצירת המייל');
-    } finally {
-      setGeneratingPdf(false);
-    }
-  }
+  }, [token]);
 
   async function handleDownloadPdf() {
     setGeneratingPdf(true);
     try {
-      const pdfBase64 = await generatePdfBase64();
-      if (!pdfBase64) return;
-      const byteChars = atob(pdfBase64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const wrapper = document.getElementById('quote-page-content');
+      if (!wrapper) return;
+      const pages = wrapper.children;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      let firstPage = true;
+      for (let i = 0; i < pages.length; i++) {
+        const el = pages[i] as HTMLElement;
+        if (!el || el.offsetHeight === 0) continue;
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        const imgData = canvas.toDataURL('image/png');
+        const imgH = (canvas.height * pageW) / canvas.width;
+        let y = 0;
+        while (y < imgH) {
+          if (!firstPage) pdf.addPage();
+          firstPage = false;
+          pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+          y += pageH;
+        }
+      }
+      const arrayBuf = pdf.output('arraybuffer');
+      const blob = new Blob([new Uint8Array(arrayBuf)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -209,10 +147,44 @@ export default function QuotePreviewPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-[#1b3a6b] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-500">טוען הצעת מחיר...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (expired || !quote) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50" dir="rtl">
+        <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-md">
+          <div className="text-5xl mb-4">⏰</div>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">הצעת מחיר פגת תוקף</h1>
+          <p className="text-gray-500">הלינק אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <p className="text-sm text-gray-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
+            <p className="text-sm text-gray-400">09-7929441 | nitzan@fibertech.co.il</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const globalDisc = parseFloat(quote.global_discount_pct) || 0;
+  const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
+  const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
+  const colCount = 8;
+
   return (
     <div className="bg-gray-100 min-h-screen">
-      {/* Print controls */}
-      <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+      {/* Top bar */}
+      <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 justify-center">
         <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           🖨️ הדפס
         </button>
@@ -223,47 +195,7 @@ export default function QuotePreviewPage() {
         >
           {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
-        <button
-          onClick={handleEmailWithPdf}
-          disabled={generatingPdf}
-          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-        >
-          {generatingPdf ? '⏳ מכין...' : '📧 שלח במייל'}
-        </button>
-        <a
-          href={`https://wa.me/?text=${whatsappText}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
-        >
-          💬 שלח בוואטסאפ
-        </a>
-        <button onClick={() => window.history.back()} className="text-sm text-gray-500 px-3 py-2 hover:text-gray-700 mr-auto">
-          ← חזרה
-        </button>
-        {quoteViews.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 border-r border-gray-200 pr-3">
-            <span className="font-semibold text-green-600">👁 {quoteViews.length} צפיות</span>
-            <span>אחרונה: {new Date(quoteViews[0].viewed_at).toLocaleString('he-IL')}</span>
-          </div>
-        )}
       </div>
-
-      {/* Views detail panel */}
-      {quoteViews.length > 0 && (
-        <div className="print:hidden max-w-[210mm] mx-auto bg-green-50 border border-green-200 rounded-lg mx-6 mt-4 p-4" dir="rtl">
-          <h3 className="text-sm font-bold text-green-800 mb-2">👁 היסטוריית צפיות ({quoteViews.length})</h3>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {quoteViews.map((v: any) => (
-              <div key={v.id} className="flex items-center gap-3 text-xs text-green-700">
-                <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
-                {v.ip_address && <span className="text-green-500">IP: {v.ip_address}</span>}
-                {v.user_agent && <span className="text-green-500 truncate max-w-[200px]">{v.user_agent.includes('Mobile') ? '📱 נייד' : '💻 מחשב'}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* All pages wrapper for PDF capture */}
       <div id="quote-page-content">
@@ -293,14 +225,14 @@ export default function QuotePreviewPage() {
             <div>
               <h3 className="text-sm font-bold text-gray-600 mb-2">לכבוד</h3>
               <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
-              {project.client_name && project.client_name !== quote.client_name && (
+              {project?.client_name && project.client_name !== quote.client_name && (
                 <p className="text-sm text-gray-500">{project.client_name}</p>
               )}
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-600 mb-2">פרויקט</h3>
-              <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
-              {project.location && <p className="text-sm text-gray-500">📍 {project.location}</p>}
+              <p className="text-base font-bold text-gray-800">{project?.name || '—'}</p>
+              {project?.location && <p className="text-sm text-gray-500">📍 {project.location}</p>}
             </div>
           </div>
 
@@ -418,7 +350,7 @@ export default function QuotePreviewPage() {
 
         </div>
 
-        {/* Company footer — pinned to bottom */}
+        {/* Company footer */}
         <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
           <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
           <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>

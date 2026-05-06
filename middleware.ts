@@ -14,6 +14,7 @@ const PUBLIC_ROUTES = [
   '/auth/callback',
   '/set-password',
   '/forgot-password',
+  '/quote',
 ];
 
 // API routes that must remain accessible without a session (self-service flows)
