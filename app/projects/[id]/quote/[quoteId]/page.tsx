@@ -147,10 +147,11 @@ export default function QuotePreviewPage() {
     return btoa(bin);
   }
 
-  async function handleEmailWithPdf() {
-    setGeneratingPdf(true);
+  const [sendingLink, setSendingLink] = useState(false);
+
+  async function handleEmailWithLink() {
+    setSendingLink(true);
     try {
-      // Create share token
       const res = await fetch('/api/quote-share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,30 +159,13 @@ export default function QuotePreviewPage() {
       });
       const shareData = await res.json();
       const shareLink = shareData.token ? `${window.location.origin}/quote/${shareData.token}` : '';
-
-      const bodyWithLink = emailBodyRaw + (shareLink ? `\n\nלצפייה בהצעה:\n${shareLink}` : '');
+      const bodyWithLink = emailBodyRaw + (shareLink ? `\n\nלצפייה בהצעת המחיר:\n${shareLink}` : '');
       const mailto = `mailto:?subject=${encodeURIComponent(emailSubjectRaw)}&body=${encodeURIComponent(bodyWithLink)}`;
       window.open(mailto, '_self');
-
-      // Also download the PDF
-      const pdfBase64 = await generatePdfBase64();
-      if (!pdfBase64) return;
-      const byteChars = atob(pdfBase64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `quote-${quote.quote_number}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     } catch {
-      alert('שגיאה ביצירת המייל');
+      alert('שגיאה ביצירת הקישור');
     } finally {
-      setGeneratingPdf(false);
+      setSendingLink(false);
     }
   }
 
@@ -224,11 +208,11 @@ export default function QuotePreviewPage() {
           {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
         <button
-          onClick={handleEmailWithPdf}
-          disabled={generatingPdf}
+          onClick={handleEmailWithLink}
+          disabled={sendingLink}
           className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
         >
-          {generatingPdf ? '⏳ מכין...' : '📧 שלח במייל'}
+          {sendingLink ? '⏳ מכין...' : '📧 שלח לינק להצעה במייל'}
         </button>
         <a
           href={`https://wa.me/?text=${whatsappText}`}
