@@ -65,7 +65,7 @@ export default function QuotePreviewPage() {
   const emailSubject = encodeURIComponent(`הצעת מחיר ${quote.quote_number} — פיברטק`);
   const emailBody = encodeURIComponent(`שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`);
 
-  async function handleEmailWithPdf() {
+  async function handleDownloadPdf() {
     setGeneratingPdf(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -85,11 +85,8 @@ export default function QuotePreviewPage() {
         y += pageH;
       }
       pdf.save(`הצעת-מחיר-${quote.quote_number}.pdf`);
-      setTimeout(() => {
-        window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
-      }, 600);
-    } catch {
-      window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+    } catch (err) {
+      alert('שגיאה ביצירת PDF');
     } finally {
       setGeneratingPdf(false);
     }
@@ -100,15 +97,21 @@ export default function QuotePreviewPage() {
       {/* Print controls */}
       <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
         <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-          🖨️ הדפס / שמור PDF
+          🖨️ הדפס
         </button>
         <button
-          onClick={handleEmailWithPdf}
+          onClick={handleDownloadPdf}
           disabled={generatingPdf}
-          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="bg-blue-50 text-blue-700 text-sm px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
         >
-          {generatingPdf ? '⏳ מייצר PDF...' : '📧 שלח במייל'}
+          {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
+        <a
+          href={`mailto:?subject=${emailSubject}&body=${emailBody}`}
+          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          📧 שלח במייל
+        </a>
         <a
           href={`https://wa.me/?text=${whatsappText}`}
           target="_blank"
