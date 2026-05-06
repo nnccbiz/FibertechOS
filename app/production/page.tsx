@@ -193,6 +193,16 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   }
 
+  async function handleReset() {
+    if (!confirm('לאפס את ההזמנה לסטטוס ממתין? כל המסמכים שהועלו יימחקו.')) return;
+    for (const doc of docs) {
+      await supabase.storage.from('project-files').remove([doc.file_path]);
+    }
+    await supabase.from('order_documents').delete().eq('order_id', order.id);
+    await supabase.from('orders').update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', order.id);
+    onUpdate();
+  }
+
   return (
     <div className={`bg-white rounded-xl border ${isOverdue ? 'border-red-300' : 'border-gray-200'} overflow-hidden`}>
       <div className="px-5 py-4">
@@ -307,6 +317,14 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
                 </div>
               );
             })}
+            {currentIdx > 0 && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors mr-auto"
+              >
+                🔄 איפוס
+              </button>
+            )}
           </div>
         </div>
       </div>
