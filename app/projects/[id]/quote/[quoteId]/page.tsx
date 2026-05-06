@@ -101,8 +101,8 @@ export default function QuotePreviewPage() {
     `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
   );
 
-  const emailSubjectRaw = `הצעת מחיר ${quote.quote_number} — פיברטק`;
-  const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
+  const emailSubjectRaw = `${quote.client_name || ''} | ${project.name || ''} | הצעת מחיר ${quote.quote_number} — פיברטק`;
+  const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
 
   function utf8ToBase64(str: string): string {
     const bytes = new TextEncoder().encode(str);
