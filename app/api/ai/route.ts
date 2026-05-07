@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
@@ -85,8 +85,8 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 
 export async function POST(request: NextRequest) {
   try {
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
+    if (!GROQ_API_KEY) {
+      return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 });
     }
 
     const body = await request.json();
@@ -100,51 +100,38 @@ export async function POST(request: NextRequest) {
       userMessage = `תוכן מסמך שהועלה:\n${document_text}\n\nפקודה:\n${message || 'חלץ את כל הנתונים מהמסמך והזן למערכת'}`;
     }
 
-    // Build parts array — text + optional files/images
-    const parts: any[] = [{ text: SYSTEM_PROMPT + '\n\n' + userMessage }];
-
-    // Add uploaded files (images, PDFs as base64)
-    if (files && Array.isArray(files)) {
-      for (const file of files) {
-        if (file.base64 && file.mimeType) {
-          parts.push({
-            inline_data: {
-              mime_type: file.mimeType,
-              data: file.base64,
-            },
-          });
-        }
-      }
-      if (!message) {
-        parts[0] = { text: SYSTEM_PROMPT + '\n\nחלץ את כל הנתונים מהקבצים המצורפים והזן למערכת.' };
-      }
+    if (files && Array.isArray(files) && files.length > 0 && !message) {
+      userMessage = 'חלץ את כל הנתונים מהקבצים המצורפים והזן למערכת.';
     }
 
-    const response = await fetch(GEMINI_URL, {
+    const messages: any[] = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ];
+
+    const response = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+      },
       body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts,
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4096,
-        },
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.1,
+        max_tokens: 4096,
+        response_format: { type: 'json_object' },
       }),
     });
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('Gemini API error:', err);
+      console.error('Groq API error:', err);
       return NextResponse.json({ error: 'שגיאה בתקשורת עם רקסי' }, { status: 500 });
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.choices?.[0]?.message?.content || '';
 
     let parsed;
     try {
