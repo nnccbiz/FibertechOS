@@ -217,16 +217,18 @@ export default function FloatingChat() {
       return;
     }
 
-    // ── projects create (with details, contacts, pipe_specs) ───────────────
+    // ── projects create (with details, contacts, pipe_specs, updates) ─────
     if (target_table === 'projects' && action === 'create' && fields) {
       const { data: newProj, error } = await supabase.from('projects').insert(cleanFields(fields)).select('id').single();
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       const projId = newProj?.id;
       const extras: string[] = [];
+
       if (projId && data.project_details && Object.keys(cleanFields(data.project_details)).length > 0) {
         const { error: e2 } = await supabase.from('project_details').insert({ ...cleanFields(data.project_details), project_id: projId });
         if (e2) extras.push(`⚠️ פרטי פרויקט: ${e2.message}`); else extras.push(`📋 נשמרו פרטי פרויקט`);
       }
+
       if (projId && Array.isArray(data.contacts) && data.contacts.length > 0) {
         const cleanContacts = data.contacts.map((c: any) => ({ ...cleanFields(c), project_id: projId })).filter((c: any) => c.name || c.role);
         if (cleanContacts.length > 0) {
@@ -234,13 +236,45 @@ export default function FloatingChat() {
           if (e3) extras.push(`⚠️ אנשי קשר: ${e3.message}`); else extras.push(`👥 נוספו ${cleanContacts.length} אנשי קשר`);
         }
       }
+
       if (projId && Array.isArray(data.pipe_specs) && data.pipe_specs.length > 0) {
-        const cleanSpecs = data.pipe_specs.map((s: any) => ({ ...cleanFields(s), project_id: projId })).filter((s: any) => Object.keys(s).length > 1);
+        // Map diameter_mm → dn_mm for backward compatibility
+        const cleanSpecs = data.pipe_specs.map((s: any) => {
+          const obj: any = { ...s };
+          if (obj.diameter_mm && !obj.dn_mm) { obj.dn_mm = obj.diameter_mm; delete obj.diameter_mm; }
+          return { ...cleanFields(obj), project_id: projId };
+        }).filter((s: any) => s.dn_mm);
         if (cleanSpecs.length > 0) {
           const { error: e4 } = await supabase.from('pipe_specs').insert(cleanSpecs);
           if (e4) extras.push(`⚠️ מפרטי צנרת: ${e4.message}`); else extras.push(`📏 נוספו ${cleanSpecs.length} מפרטי צנרת`);
         }
       }
+
+      if (projId && Array.isArray(data.project_updates) && data.project_updates.length > 0) {
+        const cleanUpdates = data.project_updates.map((u: any) => ({
+          project_id: projId,
+          update_date: u.update_date || new Date().toISOString().substring(0, 10),
+          people: u.people || '',
+          title: u.title || '',
+          description: u.description || '',
+          tasks: u.tasks || '',
+        })).filter((u: any) => u.title || u.description || u.people);
+        if (cleanUpdates.length > 0) {
+          const { error: e5 } = await supabase.from('project_updates').insert(cleanUpdates);
+          if (e5) extras.push(`⚠️ עדכונים: ${e5.message}`); else extras.push(`📝 נוספו ${cleanUpdates.length} עדכונים/פגישות`);
+          // Also create alerts from any tasks mentioned in the updates
+          for (const u of cleanUpdates) {
+            const tasksText = u.tasks || '';
+            if (tasksText.trim()) {
+              const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+              for (const task of taskLines) {
+                await supabase.from('alerts').insert({ project_id: projId, type: 'task', message: task, is_resolved: false, assigned_to: fields.name });
+              }
+            }
+          }
+        }
+      }
+
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}${extras.length > 0 ? '\n' + extras.join('\n') : ''}` }]);
       return;
     }
@@ -279,7 +313,9 @@ export default function FloatingChat() {
       if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
       const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
       if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
-      const { error } = await supabase.from('pipe_specs').insert({ ...cleanFields(fields), project_id: proj.id });
+      const obj: any = { ...fields };
+      if (obj.diameter_mm && !obj.dn_mm) { obj.dn_mm = obj.diameter_mm; delete obj.diameter_mm; }
+      const { error } = await supabase.from('pipe_specs').insert({ ...cleanFields(obj), project_id: proj.id });
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
