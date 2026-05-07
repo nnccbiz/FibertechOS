@@ -590,7 +590,27 @@ export default function FloatingChat() {
                   e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                  if (e.key === 'Enter') {
+                    if (e.shiftKey) {
+                      e.preventDefault();
+                      const el = e.currentTarget;
+                      const start = el.selectionStart ?? el.value.length;
+                      const end = el.selectionEnd ?? el.value.length;
+                      const newVal = el.value.substring(0, start) + '\n' + el.value.substring(end);
+                      setInput(newVal);
+                      requestAnimationFrame(() => {
+                        if (inputRef.current) {
+                          inputRef.current.selectionStart = start + 1;
+                          inputRef.current.selectionEnd = start + 1;
+                          inputRef.current.style.height = 'auto';
+                          inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 160) + 'px';
+                        }
+                      });
+                    } else {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }
                 }}
                 placeholder="שאל את רקסי... (Shift+Enter לשורה חדשה)"
                 rows={1}
