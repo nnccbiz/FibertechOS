@@ -14,7 +14,9 @@
       "Read(//Users/netanel/**)",
       "Bash(sw_vers)",
       "Bash(mkdir -p database)",
-      "Bash(cp supabase/schema.sql database/schema.sql)"
+      "Bash(cp supabase/schema.sql database/schema.sql)",
+      "mcp__dd8f78e4-85db-4c90-8c34-c4cc168640e5__get_runtime_logs",
+      "mcp__dd8f78e4-85db-4c90-8c34-c4cc168640e5__get_project"
     ]
   }
 }
