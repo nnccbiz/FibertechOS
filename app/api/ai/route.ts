@@ -158,8 +158,14 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 
 11. עדכון פרויקט (target_table:"projects", action:"update"):
    - filter: {"name": "שם הפרויקט"}
-   - data: רק השדות המשתנים בטבלת projects
-   - אם יש פרטים נוספים — תמשיך עם פעולה נפרדת לעדכון project_details
+   - data: רק שדות מטבלת projects שצריכים להשתנות (name, supplier, city, status, priority, current_stage וכו')
+   - project_details: שדות מ-project_details שצריכים להשתנות/להתווסף — המערכת תעשה upsert
+   - contacts: רשימת **אנשי קשר חדשים** להוסיף לפרויקט (לא ימחק קיימים)
+   - pipe_specs: רשימת **מפרטי צנרת חדשים** להוסיף (לא ימחק קיימים)
+   - project_updates: רשימת **עדכונים/פגישות חדשים** להוסיף
+   - דוגמה: "עדכן בפרויקט מטש חיפה: התחלפנו במתכנן ליוסי לוי, התקיימה פגישה ב-25.5 עם הקבלן" →
+     filter: {name: "מטש חיפה"}, contacts: [{role:"מתכנן", name:"יוסי לוי"}], project_updates: [{update_date:"2026-05-25", people:"הקבלן", title:"פגישה עם הקבלן"}]
+   - כל השדות במבנה התשובה הם אופציונליים — תכלול רק את מה שאמור להשתנות/להתווסף.
 
 12. הוספת פגישה / עדכון לפרויקט קיים (target_table:"project_updates", action:"create"):
    - target_label: שם הפרויקט הקיים

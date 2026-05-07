@@ -135,20 +135,20 @@ export default function FloatingChat() {
     });
   }
 
+  // Strip empty strings, null, undefined — Supabase rejects "" for UUID/numeric fields
+  function cleanFields(obj: any) {
+    if (!obj || typeof obj !== 'object') return obj;
+    const out: any = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'string' && v.trim() === '') continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
   async function handleAiAction(data: any, supabase: any, userMsg: string) {
     const { action, target_table, target_label, data: fields, filter } = data;
-
-    // Strip empty strings, null, undefined — Supabase rejects "" for UUID/numeric fields
-    const cleanFields = (obj: any) => {
-      if (!obj || typeof obj !== 'object') return obj;
-      const out: any = {};
-      for (const [k, v] of Object.entries(obj)) {
-        if (v === null || v === undefined) continue;
-        if (typeof v === 'string' && v.trim() === '') continue;
-        out[k] = v;
-      }
-      return out;
-    };
 
     // ── project_updates create ──────────────────────────────────────────────
     if (target_table === 'project_updates' && action === 'create' && fields) {
@@ -208,11 +208,36 @@ export default function FloatingChat() {
     // ── update / delete — require confirmation ──────────────────────────────
     if (action === 'update' || action === 'delete') {
       const filterDesc = filter ? Object.entries(filter).map(([k, v]) => `${k}: ${v}`).join(', ') : target_label || '—';
-      const fieldsDesc = fields ? Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join('\n').trim() : '';
-      const confirmText = action === 'delete'
-        ? `🗑️ מחיקה מטבלה "${target_table}"\nחיפוש לפי: ${filterDesc}\n\nלאשר מחיקה? (כן / לא)`
-        : `✏️ עדכון בטבלה "${target_table}"\nחיפוש לפי: ${filterDesc}\n\nשדות לעדכון:\n${fieldsDesc}\n\nלאשר? (כן / לא)`;
-      setPendingConfirm({ action, target_table, filter, fields, target_label, summary: data.summary });
+      let confirmText: string;
+      if (action === 'delete') {
+        confirmText = `🗑️ מחיקה מטבלה "${target_table}"\nחיפוש לפי: ${filterDesc}\n\nלאשר מחיקה? (כן / לא)`;
+      } else {
+        // Update — show all parts that will change/be added
+        const parts: string[] = [`✏️ עדכון בטבלה "${target_table}"`, `חיפוש לפי: ${filterDesc}`];
+        if (fields && Object.keys(cleanFields(fields)).length > 0) {
+          parts.push('\nשדות לעדכון:');
+          for (const [k, v] of Object.entries(cleanFields(fields))) parts.push(`  • ${k}: ${v}`);
+        }
+        if (target_table === 'projects' && data.project_details && Object.keys(cleanFields(data.project_details)).length > 0) {
+          parts.push('\nפרטי פרויקט (עדכון/הוספה):');
+          for (const [k, v] of Object.entries(cleanFields(data.project_details))) parts.push(`  • ${k}: ${v}`);
+        }
+        if (target_table === 'projects' && Array.isArray(data.contacts) && data.contacts.length > 0) {
+          parts.push(`\nאנשי קשר חדשים (${data.contacts.length}):`);
+          for (const c of data.contacts) parts.push(`  • ${c.role || ''}: ${c.name || ''}${c.phone ? ' — ' + c.phone : ''}`);
+        }
+        if (target_table === 'projects' && Array.isArray(data.pipe_specs) && data.pipe_specs.length > 0) {
+          parts.push(`\nמפרטי צנרת חדשים (${data.pipe_specs.length}):`);
+          for (const s of data.pipe_specs) parts.push(`  • DN${s.dn_mm || s.diameter_mm || '?'} | ${s.line_length_m || '?'}m | ${s.pressure_bar || '?'} bar`);
+        }
+        if (target_table === 'projects' && Array.isArray(data.project_updates) && data.project_updates.length > 0) {
+          parts.push(`\nעדכונים/פגישות חדשים (${data.project_updates.length}):`);
+          for (const u of data.project_updates) parts.push(`  • ${u.update_date || 'היום'} — ${u.title || ''}`);
+        }
+        parts.push('\nלאשר? (כן / לא)');
+        confirmText = parts.join('\n');
+      }
+      setPendingConfirm({ action, target_table, filter, fields, target_label, summary: data.summary, project_details: data.project_details, contacts: data.contacts, pipe_specs: data.pipe_specs, project_updates: data.project_updates });
       setMessages((prev) => [...prev, { role: 'ai', text: confirmText }]);
       return;
     }
@@ -456,18 +481,87 @@ export default function FloatingChat() {
                 cleanedFields[k] = v;
               }
             }
+            const extras: string[] = [];
+
             if (target_table === 'project_details') {
               const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${nameVal}%`).limit(1).single();
               if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט "${nameVal}".` }]); setPendingConfirm(null); setLoading(false); return; }
-              const { error } = await supabase.from('project_details').update(cleanedFields).eq('project_id', proj.id);
+              const { error } = await supabase.from('project_details').upsert({ ...cleanedFields, project_id: proj.id }, { onConflict: 'project_id' });
               if (error) throw error;
+            } else if (target_table === 'projects') {
+              const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${nameVal}%`).limit(1).single();
+              if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט "${nameVal}".` }]); setPendingConfirm(null); setLoading(false); return; }
+              const projId = proj.id;
+
+              // 1. Update main projects table
+              if (Object.keys(cleanedFields).length > 0) {
+                const { error: e1 } = await supabase.from('projects').update(cleanedFields).eq('id', projId);
+                if (e1) throw e1;
+              }
+
+              // 2. Upsert project_details
+              const pd = pendingConfirm.project_details;
+              if (pd && Object.keys(cleanFields(pd)).length > 0) {
+                const { error: e2 } = await supabase.from('project_details').upsert({ ...cleanFields(pd), project_id: projId }, { onConflict: 'project_id' });
+                if (e2) extras.push(`⚠️ פרטי פרויקט: ${e2.message}`); else extras.push(`📋 עודכנו פרטי פרויקט`);
+              }
+
+              // 3. Insert new contacts
+              const newContacts = pendingConfirm.contacts;
+              if (Array.isArray(newContacts) && newContacts.length > 0) {
+                const rows = newContacts.map((c: any) => ({ ...cleanFields(c), project_id: projId })).filter((c: any) => c.name || c.role);
+                if (rows.length > 0) {
+                  const { error: e3 } = await supabase.from('project_contacts').insert(rows);
+                  if (e3) extras.push(`⚠️ אנשי קשר: ${e3.message}`); else extras.push(`👥 נוספו ${rows.length} אנשי קשר`);
+                }
+              }
+
+              // 4. Insert new pipe_specs
+              const newSpecs = pendingConfirm.pipe_specs;
+              if (Array.isArray(newSpecs) && newSpecs.length > 0) {
+                const rows = newSpecs.map((s: any) => {
+                  const obj: any = { ...s };
+                  if (obj.diameter_mm && !obj.dn_mm) { obj.dn_mm = obj.diameter_mm; delete obj.diameter_mm; }
+                  return { ...cleanFields(obj), project_id: projId };
+                }).filter((s: any) => s.dn_mm);
+                if (rows.length > 0) {
+                  const { error: e4 } = await supabase.from('pipe_specs').insert(rows);
+                  if (e4) extras.push(`⚠️ מפרטי צנרת: ${e4.message}`); else extras.push(`📏 נוספו ${rows.length} מפרטי צנרת`);
+                }
+              }
+
+              // 5. Insert new project_updates + derive alerts
+              const newUpdates = pendingConfirm.project_updates;
+              if (Array.isArray(newUpdates) && newUpdates.length > 0) {
+                const rows = newUpdates.map((u: any) => ({
+                  project_id: projId,
+                  update_date: u.update_date || new Date().toISOString().substring(0, 10),
+                  people: u.people || '',
+                  title: u.title || '',
+                  description: u.description || '',
+                  tasks: u.tasks || '',
+                })).filter((u: any) => u.title || u.description || u.people);
+                if (rows.length > 0) {
+                  const { error: e5 } = await supabase.from('project_updates').insert(rows);
+                  if (e5) extras.push(`⚠️ עדכונים: ${e5.message}`); else extras.push(`📝 נוספו ${rows.length} עדכונים/פגישות`);
+                  for (const u of rows) {
+                    const tasksText = u.tasks || '';
+                    if (tasksText.trim()) {
+                      const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+                      for (const task of taskLines) {
+                        await supabase.from('alerts').insert({ project_id: projId, type: 'task', message: task, is_resolved: false, assigned_to: nameVal });
+                      }
+                    }
+                  }
+                }
+              }
             } else {
               const { data: found } = await supabase.from(target_table).select('id').ilike(nameKey as string, `%${nameVal}%`).limit(1).single();
               if (!found) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי רשומה ל-${nameVal}.` }]); setPendingConfirm(null); setLoading(false); return; }
               const { error } = await supabase.from(target_table).update(cleanedFields).eq('id', found.id);
               if (error) throw error;
             }
-            setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${summary || 'עודכן בהצלחה.'}` }]);
+            setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${summary || 'עודכן בהצלחה.'}${extras.length > 0 ? '\n' + extras.join('\n') : ''}` }]);
           }
         } catch (err: any) {
           setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${err.message}` }]);
