@@ -20,7 +20,11 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
     // דוגמה: {"name": "מטש שמשון"} או {"id": "uuid"}
   },
   "data": {
-    // השדות שצריך לעדכן/ליצור
+    // השדות שצריך לעדכן/ליצור (לפרויקט: רק name, current_stage, priority, status, order_value, progress_percent, stage_label)
+  },
+  "project_details": {
+    // לפרויקט חדש או עדכון פרויקט: שדות ל-project_details
+    // location, description, ordering_entity, responsible_party, project_type, installation_type, special_requirements, field_supervision, soil_type, push_depth, manhole_type, connection_method, tender_submission_date, winning_contractor, expected_pipe_order_date, project_story, competitors
   },
   "contacts": [
     {"role": "", "name": "", "phone": "", "email": ""}
@@ -47,7 +51,14 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 - query: כלול "query_filter" עם קריטריונים לסינון, ו-"query_fields" עם רשימת שדות להחזיר.
 - import: לייבוא קבצים/קוטציות.
 
-10. יצירת פרויקט חדש (create projects): שדות אפשריים: name (חובה), current_stage, priority, assigned_to, order_value, status
+10. יצירת פרויקט חדש (create projects):
+   - target_table: "projects", action: "create"
+   - data: רק שדות מטבלת projects: name (חובה), current_stage, priority, status, order_value, progress_percent, stage_label
+   - project_details: כל פרט אחר על הפרויקט — מיקום, תיאור, גוף מזמין/יזם (ordering_entity), אחראי (responsible_party), סוג פרויקט, סוג התקנה, סוג קרקע וכו'
+   - contacts: אם המשתמש הזכיר אנשים עם תפקיד (מתכנן, מנהל פרויקט, יועץ, מהנדס, קבלן, מפקח) — תכניס לכאן עם role + name
+   - pipe_specs: אם הוזכרו מפרטי צנרת (קוטר, אורך, לחץ, קשיחות) — תכניס לכאן
+   - חובה לפצל: שם פרויקט בלבד הולך ל-data.name. כל פרט אחר הולך לאחד השדות האחרים.
+   - דוגמה: "פרויקט חדש איוורור מטש חיפה, יזם מטש חיפה, מתכנן בלשה ילון" → data: {name: "איוורור מטש חיפה"}, project_details: {ordering_entity: "מטש חיפה"}, contacts: [{role: "מתכנן", name: "בלשה ילון"}]
 11. עדכון פרויקט (update projects): filter לפי {"name": "שם"}, data עם השדות לשינוי
 12. יצירת ליד (create leads): שדות: project_name (חובה), developer_name, stage, estimated_value, next_action, next_action_date
 13. עדכון ליד (update leads): filter לפי {"project_name": "שם"}, data עם השדות לשינוי

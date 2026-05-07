@@ -217,11 +217,31 @@ export default function FloatingChat() {
       return;
     }
 
-    // ── projects create ─────────────────────────────────────────────────────
+    // ── projects create (with details, contacts, pipe_specs) ───────────────
     if (target_table === 'projects' && action === 'create' && fields) {
-      const { error } = await supabase.from('projects').insert(cleanFields(fields));
+      const { data: newProj, error } = await supabase.from('projects').insert(cleanFields(fields)).select('id').single();
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
-      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      const projId = newProj?.id;
+      const extras: string[] = [];
+      if (projId && data.project_details && Object.keys(cleanFields(data.project_details)).length > 0) {
+        const { error: e2 } = await supabase.from('project_details').insert({ ...cleanFields(data.project_details), project_id: projId });
+        if (e2) extras.push(`⚠️ פרטי פרויקט: ${e2.message}`); else extras.push(`📋 נשמרו פרטי פרויקט`);
+      }
+      if (projId && Array.isArray(data.contacts) && data.contacts.length > 0) {
+        const cleanContacts = data.contacts.map((c: any) => ({ ...cleanFields(c), project_id: projId })).filter((c: any) => c.name || c.role);
+        if (cleanContacts.length > 0) {
+          const { error: e3 } = await supabase.from('project_contacts').insert(cleanContacts);
+          if (e3) extras.push(`⚠️ אנשי קשר: ${e3.message}`); else extras.push(`👥 נוספו ${cleanContacts.length} אנשי קשר`);
+        }
+      }
+      if (projId && Array.isArray(data.pipe_specs) && data.pipe_specs.length > 0) {
+        const cleanSpecs = data.pipe_specs.map((s: any) => ({ ...cleanFields(s), project_id: projId })).filter((s: any) => Object.keys(s).length > 1);
+        if (cleanSpecs.length > 0) {
+          const { error: e4 } = await supabase.from('pipe_specs').insert(cleanSpecs);
+          if (e4) extras.push(`⚠️ מפרטי צנרת: ${e4.message}`); else extras.push(`📏 נוספו ${cleanSpecs.length} מפרטי צנרת`);
+        }
+      }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}${extras.length > 0 ? '\n' + extras.join('\n') : ''}` }]);
       return;
     }
 
