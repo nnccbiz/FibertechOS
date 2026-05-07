@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
@@ -139,8 +139,8 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('Gemma API error:', err);
-      return NextResponse.json({ error: 'שגיאה בתקשורת עם Gemma' }, { status: 500 });
+      console.error('Gemini API error:', err);
+      return NextResponse.json({ error: 'שגיאה בתקשורת עם רקסי' }, { status: 500 });
     }
 
     const data = await response.json();
