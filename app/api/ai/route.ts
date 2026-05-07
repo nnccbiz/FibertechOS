@@ -10,11 +10,15 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 
 מבנה התשובה:
 {
-  "action": "create" | "update" | "delete" | "import" | "generate" | "query",
-  "target_table": "projects" | "project_details" | "project_contacts" | "pipe_specs" | "alerts" | "leads" | "inventory" | "team_members" | "cost_input_items",
-  "target_label": "תיאור קריא של היעד",
+  "action": "create" | "update" | "delete" | "import" | "query",
+  "target_table": "projects" | "project_details" | "project_contacts" | "pipe_specs" | "alerts" | "leads" | "inventory" | "team_members" | "cost_input_items" | "project_updates",
+  "target_label": "תיאור קריא של היעד (שם הפרויקט/ליד/פריט)",
   "summary": "משפט אחד שמתאר מה ביצעת",
   "fields_count": 0,
+  "filter": {
+    // לפעולות update ו-delete בלבד: כיצד למצוא את הרשומה
+    // דוגמה: {"name": "מטש שמשון"} או {"id": "uuid"}
+  },
   "data": {
     // השדות שצריך לעדכן/ליצור
   },
@@ -36,7 +40,24 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 - leads: project_name, developer_name, stage (הכרות/מסמכים/מכרז/מו"מ), estimated_value, next_action, next_action_date
 - project_updates: project_id, update_date (YYYY-MM-DD), people (שמות האנשים), title (כותרת קצרה), description (תיאור מלא), tasks (משימות לביצוע)
 
-כללים:
+כללים כלליים לפי action:
+- create: כלול רק את "data" עם השדות החדשים. אל תכלול "filter".
+- update: חובה לכלול "filter" עם שם הרשומה לחיפוש (למשל {"name": "שם הפרויקט"}). כלול ב-"data" רק את השדות שמשתנים.
+- delete: חובה לכלול "filter". אל תכלול "data".
+- query: כלול "query_filter" עם קריטריונים לסינון, ו-"query_fields" עם רשימת שדות להחזיר.
+- import: לייבוא קבצים/קוטציות.
+
+10. יצירת פרויקט חדש (create projects): שדות אפשריים: name (חובה), current_stage, priority, assigned_to, order_value, status
+11. עדכון פרויקט (update projects): filter לפי {"name": "שם"}, data עם השדות לשינוי
+12. יצירת ליד (create leads): שדות: project_name (חובה), developer_name, stage, estimated_value, next_action, next_action_date
+13. עדכון ליד (update leads): filter לפי {"project_name": "שם"}, data עם השדות לשינוי
+14. יצירת מלאי (create inventory): שדות: manufacturer, pipe_type, diameter_mm, pressure_bar, stiffness_sn, length_m, in_stock, category
+15. עדכון מלאי (update inventory): filter לפי {"manufacturer": "שם", "diameter_mm": מספר}, data עם השדות לשינוי
+16. הוספת איש קשר לפרויקט (create project_contacts): target_label = שם הפרויקט, data: {role, name, phone, email}
+17. עדכון פרטי פרויקט (update project_details): target_label = שם הפרויקט, data עם השדות לשינוי (מתוך: location, description, ordering_entity, responsible_party, project_type, installation_type, special_requirements, field_supervision, soil_type, push_depth, manhole_type, connection_method, project_status, tender_submission_date, winning_contractor, winning_date, expected_pipe_order_date, project_story, competitors)
+18. הוספת מפרט צנרת (create pipe_specs): target_label = שם הפרויקט, data: {diameter_mm, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, notes}
+19. שאילתה/שאלה על נתונים (query): החזר action:"query", target_table עם שם הטבלה הרלוונטי, query_filter (אובייקט עם קריטריוני סינון), query_fields (מערך של שמות שדות להחזיר)
+
 8. כשמשתמש רוצה להוסיף משימה (למשל: "תוסיף משימה", "צריך לעשות X", "תזכיר לי ש...", "משימה: ...") — השתמש בטבלה alerts:
    - target_table: "alerts"
    - action: "create"

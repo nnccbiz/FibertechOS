@@ -34,10 +34,11 @@ export default function FloatingChat() {
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; base64: string; mimeType: string; preview?: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<any>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<any>(null);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const pathname = usePathname();
   const context = getContext(pathname);
 
@@ -134,12 +135,169 @@ export default function FloatingChat() {
     });
   }
 
+  async function handleAiAction(data: any, supabase: any, userMsg: string) {
+    const { action, target_table, target_label, data: fields, filter } = data;
+
+    // ── project_updates create ──────────────────────────────────────────────
+    if (target_table === 'project_updates' && action === 'create' && fields) {
+      const projectName = target_label || fields.project_name;
+      if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
+      const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+      if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
+      await supabase.from('project_updates').insert({
+        project_id: proj.id,
+        update_date: new Date().toISOString().substring(0, 10),
+        people: fields.people || '',
+        title: fields.title || '',
+        description: fields.description || '',
+        tasks: fields.tasks || '',
+      });
+      const tasksText = fields.tasks || '';
+      if (tasksText.trim()) {
+        const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+        for (const task of taskLines) {
+          await supabase.from('alerts').insert({ project_id: proj.id, type: 'task', message: task, is_resolved: false, assigned_to: projectName });
+        }
+      }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.${tasksText.trim() ? '\n📌 המשימות נוספו ללוח הבקרה.' : ''}` }]);
+      return;
+    }
+
+    // ── alerts create ───────────────────────────────────────────────────────
+    if (target_table === 'alerts' && action === 'create' && fields) {
+      let projectId = null;
+      const projectName = target_label || fields.project_name;
+      if (projectName) {
+        const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+        if (proj) projectId = proj.id;
+      }
+      await supabase.from('alerts').insert({ project_id: projectId, type: fields.type || 'task', message: fields.message || data.summary, is_resolved: false, assigned_to: fields.assigned_to || projectName || null });
+      setMessages((prev) => [...prev, { role: 'ai', text: `📌 ${data.summary}\n\nהמשימה נוספה ללוח הבקרה.` }]);
+      return;
+    }
+
+    // ── supplier_quote import ───────────────────────────────────────────────
+    if (target_table === 'supplier_quote' && action === 'import' && Array.isArray(data.data)) {
+      const qi = data.quote_info || {};
+      const items = data.data;
+      if (!qi.project_name) { const m = userMsg.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.]|$)/i); if (m) qi.project_name = m[1].trim(); }
+      if (!qi.supplier_name) { const allDesc = items.map((it: any) => it.description || '').join(' '); if (/flowtite|amiblu/i.test(allDesc)) qi.supplier_name = 'Amiblu'; else if (/hobas/i.test(allDesc)) qi.supplier_name = 'Hobas'; else { const sm = userMsg.match(/(?:מ-|של|from)\s*([A-Za-zא-ת]+)/i); if (sm) qi.supplier_name = sm[1].trim(); } }
+      if (!qi.currency) { const fc = items.find((it: any) => it.currency)?.currency; if (fc) qi.currency = fc; }
+      if (!qi.quote_ref) { const allDesc = items.map((it: any) => it.description || '').join(' '); const rm = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+|REF[\s:-]*([\w.-]+))/i); if (rm) qi.quote_ref = rm[1]; }
+      const itemLines = items.map((it: any, i: number) =>
+        `${i + 1}. ${it.item_type} | DN${it.dn || '?'} SN${it.sn || '?'} | ${it.length_m ? it.length_m + 'm' : ''} | ${it.unit_price} ${it.currency || qi.currency || '?'}/${it.price_per || 'meter'}${it.description ? ' — ' + it.description : ''}`
+      ).join('\n');
+      const preview = `📋 קוטציה מ-${qi.supplier_name || 'ספק'}\nRef: ${qi.quote_ref || '—'}\nתאריך: ${qi.quote_date || '—'}\nפרויקט: ${qi.project_name || '—'}\nמטבע: ${qi.currency || '—'}\n\n${itemLines}\n\nסה"כ ${items.length} פריטים.\n\n💾 לשמור? (כן / לא)`;
+      setPendingQuote({ quote_info: qi, items });
+      setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
+      return;
+    }
+
+    // ── update / delete — require confirmation ──────────────────────────────
+    if (action === 'update' || action === 'delete') {
+      const filterDesc = filter ? Object.entries(filter).map(([k, v]) => `${k}: ${v}`).join(', ') : target_label || '—';
+      const fieldsDesc = fields ? Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join('\n').trim() : '';
+      const confirmText = action === 'delete'
+        ? `🗑️ מחיקה מטבלה "${target_table}"\nחיפוש לפי: ${filterDesc}\n\nלאשר מחיקה? (כן / לא)`
+        : `✏️ עדכון בטבלה "${target_table}"\nחיפוש לפי: ${filterDesc}\n\nשדות לעדכון:\n${fieldsDesc}\n\nלאשר? (כן / לא)`;
+      setPendingConfirm({ action, target_table, filter, fields, target_label, summary: data.summary });
+      setMessages((prev) => [...prev, { role: 'ai', text: confirmText }]);
+      return;
+    }
+
+    // ── projects create ─────────────────────────────────────────────────────
+    if (target_table === 'projects' && action === 'create' && fields) {
+      const { error } = await supabase.from('projects').insert(fields);
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── leads create ────────────────────────────────────────────────────────
+    if (target_table === 'leads' && action === 'create' && fields) {
+      const { error } = await supabase.from('leads').insert(fields);
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── inventory create ────────────────────────────────────────────────────
+    if (target_table === 'inventory' && action === 'create' && fields) {
+      const { error } = await supabase.from('inventory').insert(fields);
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── project_contacts create ─────────────────────────────────────────────
+    if (target_table === 'project_contacts' && action === 'create' && fields) {
+      const projectName = target_label;
+      if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
+      const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+      if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
+      const { error } = await supabase.from('project_contacts').insert({ ...fields, project_id: proj.id });
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── pipe_specs create ───────────────────────────────────────────────────
+    if (target_table === 'pipe_specs' && action === 'create' && fields) {
+      const projectName = target_label;
+      if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
+      const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+      if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
+      const { error } = await supabase.from('pipe_specs').insert({ ...fields, project_id: proj.id });
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── project_details update (via project name) ──────────────────────────
+    if (target_table === 'project_details' && action === 'create' && fields) {
+      const projectName = target_label;
+      if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
+      const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
+      if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
+      const { error } = await supabase.from('project_details').upsert({ ...fields, project_id: proj.id }, { onConflict: 'project_id' });
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
+      setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+      return;
+    }
+
+    // ── query ───────────────────────────────────────────────────────────────
+    if (action === 'query') {
+      const table = target_table;
+      if (!table) { setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || '?' }]); return; }
+      const qf = data.query_filter || {};
+      const qfields = Array.isArray(data.query_fields) && data.query_fields.length > 0 ? data.query_fields.join(', ') : '*';
+      let query = supabase.from(table).select(qfields).limit(20);
+      for (const [k, v] of Object.entries(qf)) {
+        if (typeof v === 'string') query = query.ilike(k, `%${v}%`);
+        else query = query.eq(k, v);
+      }
+      const { data: rows, error } = await query;
+      if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאת שאילתה: ${error.message}` }]); return; }
+      if (!rows || rows.length === 0) { setMessages((prev) => [...prev, { role: 'ai', text: `🔍 לא נמצאו תוצאות.` }]); return; }
+      const lines = rows.map((r: any, i: number) => {
+        const vals = Object.entries(r).filter(([, v]) => v !== null && v !== '').map(([k, v]) => `${k}: ${v}`).join(' | ');
+        return `${i + 1}. ${vals}`;
+      }).join('\n');
+      setMessages((prev) => [...prev, { role: 'ai', text: `🔍 ${data.summary || `תוצאות מ-${table}`} (${rows.length}):\n\n${lines}` }]);
+      return;
+    }
+
+    // fallback
+    setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+  }
+
   async function handleSend() {
     if ((!input.trim() && uploadedFiles.length === 0) || loading) return;
     const supabase = createClient();
 
     const userMsg = input.trim() || `חלץ נתונים מ-${uploadedFiles.map((f) => f.name).join(', ')}`;
     setInput('');
+    if (inputRef.current) { inputRef.current.style.height = 'auto'; }
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
@@ -204,6 +362,52 @@ export default function FloatingChat() {
       setPendingQuote(null);
     }
 
+    // Handle pending update/delete confirmation
+    if (pendingConfirm) {
+      const isYes = /^(כן|yes|אישור|שמור|ok|אוקיי|בטח)$/i.test(userMsg.trim());
+      const isNo = /^(לא|no|ביטול|cancel)$/i.test(userMsg.trim());
+      if (isYes) {
+        const { action, target_table, filter, fields, target_label, summary } = pendingConfirm;
+        try {
+          if (action === 'delete') {
+            const nameKey = filter ? Object.keys(filter)[0] : 'name';
+            const nameVal = filter ? Object.values(filter)[0] : target_label;
+            const { data: found } = await supabase.from(target_table).select('id').ilike(nameKey, `%${nameVal}%`).limit(1).single();
+            if (!found) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי רשומה ל-${nameVal}.` }]); setPendingConfirm(null); setLoading(false); return; }
+            const { error } = await supabase.from(target_table).delete().eq('id', found.id);
+            if (error) throw error;
+            setMessages((prev) => [...prev, { role: 'ai', text: `🗑️ נמחק בהצלחה.` }]);
+          } else if (action === 'update') {
+            const nameKey = filter ? Object.keys(filter)[0] : 'name';
+            const nameVal = filter ? Object.values(filter)[0] : target_label;
+            if (target_table === 'project_details') {
+              const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${nameVal}%`).limit(1).single();
+              if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט "${nameVal}".` }]); setPendingConfirm(null); setLoading(false); return; }
+              const { error } = await supabase.from('project_details').update(fields).eq('project_id', proj.id);
+              if (error) throw error;
+            } else {
+              const { data: found } = await supabase.from(target_table).select('id').ilike(nameKey as string, `%${nameVal}%`).limit(1).single();
+              if (!found) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי רשומה ל-${nameVal}.` }]); setPendingConfirm(null); setLoading(false); return; }
+              const { error } = await supabase.from(target_table).update(fields).eq('id', found.id);
+              if (error) throw error;
+            }
+            setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${summary || 'עודכן בהצלחה.'}` }]);
+          }
+        } catch (err: any) {
+          setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${err.message}` }]);
+        }
+        setPendingConfirm(null);
+        setLoading(false);
+        return;
+      } else if (isNo) {
+        setPendingConfirm(null);
+        setMessages((prev) => [...prev, { role: 'ai', text: '🚫 בוטל — לא בוצע שינוי.' }]);
+        setLoading(false);
+        return;
+      }
+      setPendingConfirm(null);
+    }
+
     const filesToSend = uploadedFiles.length > 0 ? uploadedFiles : undefined;
     setUploadedFiles([]);
 
@@ -222,95 +426,7 @@ export default function FloatingChat() {
       if (data.error) {
         setMessages((prev) => [...prev, { role: 'ai', text: `שגיאה: ${data.error}` }]);
       } else {
-        // Auto-execute project_updates
-        if (data.target_table === 'project_updates' && data.action === 'create' && data.data) {
-          const projectName = data.target_label || data.data.project_name;
-          if (projectName) {
-            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
-            if (proj) {
-              await supabase.from('project_updates').insert({
-                project_id: proj.id,
-                update_date: new Date().toISOString().substring(0, 10),
-                people: data.data.people || '',
-                title: data.data.title || '',
-                description: data.data.description || '',
-                tasks: data.data.tasks || '',
-              });
-              // Auto-create tasks as alerts
-              const tasksText = data.data.tasks || '';
-              if (tasksText.trim()) {
-                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
-                for (const task of taskLines) {
-                  await supabase.from('alerts').insert({
-                    project_id: proj.id,
-                    type: 'task',
-                    message: task,
-                    is_resolved: false,
-                    assigned_to: projectName,
-                  });
-                }
-              }
-              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.${tasksText.trim() ? '\n📌 המשימות נוספו ללוח הבקרה.' : ''}` }]);
-            } else {
-              setMessages((prev) => [...prev, { role: 'ai', text: `${data.summary}\n\n⚠️ לא מצאתי פרויקט בשם "${projectName}". העדכון לא נשמר.` }]);
-            }
-          } else {
-            setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
-          }
-        // Auto-execute alerts/tasks
-        } else if (data.target_table === 'alerts' && data.action === 'create' && data.data) {
-          let projectId = null;
-          const projectName = data.target_label || data.data.project_name;
-          if (projectName) {
-            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
-            if (proj) projectId = proj.id;
-          }
-          await supabase.from('alerts').insert({
-            project_id: projectId,
-            type: data.data.type || 'task',
-            message: data.data.message || data.summary,
-            is_resolved: false,
-            assigned_to: data.data.assigned_to || projectName || null,
-          });
-          setMessages((prev) => [...prev, { role: 'ai', text: `📌 ${data.summary}\n\nהמשימה נוספה ללוח הבקרה.` }]);
-        // Supplier quote extraction
-        } else if (data.target_table === 'supplier_quote' && data.action === 'import' && Array.isArray(data.data)) {
-          const qi = data.quote_info || {};
-          const items = data.data;
-
-          // Auto-fill missing quote_info from user message and item data
-          if (!qi.project_name) {
-            const projMatch = userMsg.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.]|$)/i);
-            if (projMatch) qi.project_name = projMatch[1].trim();
-          }
-          if (!qi.supplier_name) {
-            const allDesc = items.map((it: any) => it.description || '').join(' ');
-            if (/flowtite|amiblu/i.test(allDesc)) qi.supplier_name = 'Amiblu';
-            else if (/hobas/i.test(allDesc)) qi.supplier_name = 'Hobas';
-            else {
-              const supMatch = userMsg.match(/(?:מ-|של|from)\s*([A-Za-zא-ת]+)/i);
-              if (supMatch) qi.supplier_name = supMatch[1].trim();
-            }
-          }
-          if (!qi.currency) {
-            const firstCur = items.find((it: any) => it.currency)?.currency;
-            if (firstCur) qi.currency = firstCur;
-          }
-          if (!qi.quote_ref) {
-            const allDesc = items.map((it: any) => it.description || '').join(' ');
-            const refMatch = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+|REF[\s:-]*([\w.-]+))/i);
-            if (refMatch) qi.quote_ref = refMatch[1];
-          }
-
-          const itemLines = items.map((it: any, i: number) =>
-            `${i + 1}. ${it.item_type} | DN${it.dn || '?'} SN${it.sn || '?'} | ${it.length_m ? it.length_m + 'm' : ''} | ${it.unit_price} ${it.currency || qi.currency || '?'}/${it.price_per || 'meter'}${it.description ? ' — ' + it.description : ''}`
-          ).join('\n');
-          const preview = `📋 קוטציה מ-${qi.supplier_name || 'ספק'}\nRef: ${qi.quote_ref || '—'}\nתאריך: ${qi.quote_date || '—'}\nפרויקט: ${qi.project_name || '—'}\nמטבע: ${qi.currency || '—'}\n\n${itemLines}\n\nסה"כ ${items.length} פריטים.\n\n💾 לשמור ל-Supabase? (כתוב "כן" או "לא")`;
-          setPendingQuote({ quote_info: qi, items });
-          setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
-        } else {
-          setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
-        }
+        await handleAiAction(data, supabase, userMsg);
       }
     } catch {
       setMessages((prev) => [...prev, { role: 'ai', text: 'שגיאה בתקשורת. נסה שוב.' }]);
@@ -465,14 +581,20 @@ export default function FloatingChat() {
                   <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
               </button>
-              <input
+              <textarea
                 ref={inputRef}
-                type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="שאל את רקסי..."
-                className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                }}
+                placeholder="שאל את רקסי... (Shift+Enter לשורה חדשה)"
+                rows={1}
+                className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] resize-none overflow-hidden leading-5"
                 disabled={loading}
               />
               <button
