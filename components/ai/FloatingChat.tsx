@@ -591,7 +591,8 @@ export default function FloatingChat() {
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    if (e.shiftKey) {
+                    const shift = e.shiftKey || e.nativeEvent.shiftKey;
+                    if (shift) {
                       e.preventDefault();
                       const el = e.currentTarget;
                       const start = el.selectionStart ?? el.value.length;
