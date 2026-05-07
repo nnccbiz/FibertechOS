@@ -308,6 +308,129 @@ export default function FloatingChat() {
           const preview = `📋 קוטציה מ-${qi.supplier_name || 'ספק'}\nRef: ${qi.quote_ref || '—'}\nתאריך: ${qi.quote_date || '—'}\nפרויקט: ${qi.project_name || '—'}\nמטבע: ${qi.currency || '—'}\n\n${itemLines}\n\nסה"כ ${items.length} פריטים.\n\n💾 לשמור ל-Supabase? (כתוב "כן" או "לא")`;
           setPendingQuote({ quote_info: qi, items });
           setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
+
+        // ── Projects — create / update ──
+        } else if (data.target_table === 'projects' && data.data) {
+          const PROJECT_COLS = ['name', 'current_stage', 'stage_label', 'progress_percent', 'priority', 'assigned_to', 'order_value', 'status'];
+          if (data.action === 'create') {
+            const projFields: Record<string, any> = {};
+            const detFields: Record<string, any> = {};
+            for (const [k, v] of Object.entries(data.data as Record<string, any>)) {
+              if (PROJECT_COLS.includes(k)) projFields[k] = v;
+              else detFields[k] = v;
+            }
+            const { data: newProj, error: projErr } = await supabase
+              .from('projects').insert(projFields).select('id, name').single();
+            if (projErr) {
+              setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה ביצירת פרויקט: ${projErr.message}` }]);
+            } else if (newProj) {
+              let extras = '';
+              if (Object.keys(detFields).length > 0) {
+                await supabase.from('project_details').insert({ project_id: newProj.id, ...detFields });
+                extras += '\n📋 פרטי פרויקט נוספו.';
+              }
+              if (data.contacts?.length) {
+                await supabase.from('project_contacts').insert(
+                  data.contacts.map((c: any) => ({ project_id: newProj.id, ...c }))
+                );
+                extras += `\n👥 ${data.contacts.length} אנשי קשר נוספו.`;
+              }
+              if (data.pipe_specs?.length) {
+                await supabase.from('pipe_specs').insert(
+                  data.pipe_specs.map((s: any) => ({ project_id: newProj.id, ...s }))
+                );
+                extras += `\n🔧 ${data.pipe_specs.length} מפרטים נוספו.`;
+              }
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary || `פרויקט "${newProj.name}" נוצר`}${extras}` }]);
+            }
+          } else if (data.action === 'update') {
+            const targetName = data.target_label || data.data.name;
+            if (!targetName) {
+              setMessages((prev) => [...prev, { role: 'ai', text: '⚠️ לא צוין שם פרויקט לעדכון.' }]);
+            } else {
+              const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${targetName}%`).limit(1).single();
+              if (!proj) {
+                setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא נמצא פרויקט "${targetName}".` }]);
+              } else {
+                const projUp: Record<string, any> = {};
+                const detUp: Record<string, any> = {};
+                for (const [k, v] of Object.entries(data.data as Record<string, any>)) {
+                  if (PROJECT_COLS.includes(k)) projUp[k] = v;
+                  else detUp[k] = v;
+                }
+                if (Object.keys(projUp).length > 0) await supabase.from('projects').update(projUp).eq('id', proj.id);
+                if (Object.keys(detUp).length > 0) await supabase.from('project_details').upsert({ project_id: proj.id, ...detUp }, { onConflict: 'project_id' });
+                if (data.contacts?.length) {
+                  await supabase.from('project_contacts').insert(
+                    data.contacts.map((c: any) => ({ project_id: proj.id, ...c }))
+                  );
+                }
+                if (data.pipe_specs?.length) {
+                  await supabase.from('pipe_specs').insert(
+                    data.pipe_specs.map((s: any) => ({ project_id: proj.id, ...s }))
+                  );
+                }
+                setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary || `פרויקט "${targetName}" עודכן`}` }]);
+              }
+            }
+          } else {
+            setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+          }
+
+        // ── Project details / contacts / pipe specs ──
+        } else if (['project_details', 'project_contacts', 'pipe_specs'].includes(data.target_table) && data.data) {
+          const targetName = data.target_label;
+          if (!targetName) {
+            setMessages((prev) => [...prev, { role: 'ai', text: '⚠️ לא צוין שם פרויקט.' }]);
+          } else {
+            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${targetName}%`).limit(1).single();
+            if (!proj) {
+              setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא נמצא פרויקט "${targetName}".` }]);
+            } else if (data.target_table === 'project_details') {
+              await supabase.from('project_details').upsert(
+                { project_id: proj.id, ...data.data },
+                { onConflict: 'project_id' }
+              );
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+            } else {
+              const items = data.target_table === 'project_contacts'
+                ? (data.contacts?.length ? data.contacts : [data.data])
+                : (data.pipe_specs?.length ? data.pipe_specs : [data.data]);
+              await supabase.from(data.target_table).insert(
+                items.map((item: any) => ({ project_id: proj.id, ...item }))
+              );
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+            }
+          }
+
+        // ── Leads ──
+        } else if (data.target_table === 'leads' && data.data) {
+          if (data.action === 'create') {
+            const { error } = await supabase.from('leads').insert(data.data);
+            setMessages((prev) => [...prev, { role: 'ai', text: error ? `❌ ${error.message}` : `✅ ${data.summary || 'ליד חדש נוצר'}` }]);
+          } else if (data.action === 'update') {
+            const targetName = data.target_label || data.data.project_name;
+            const { data: lead } = await supabase.from('leads').select('id').ilike('project_name', `%${targetName}%`).limit(1).single();
+            if (lead) {
+              await supabase.from('leads').update(data.data).eq('id', lead.id);
+              setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
+            } else {
+              setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא נמצא ליד "${targetName}".` }]);
+            }
+          } else {
+            setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+          }
+
+        // ── Inventory ──
+        } else if (data.target_table === 'inventory' && data.data) {
+          if (data.action === 'create') {
+            const { error } = await supabase.from('inventory').insert(data.data);
+            setMessages((prev) => [...prev, { role: 'ai', text: error ? `❌ ${error.message}` : `✅ ${data.summary || 'פריט מלאי נוסף'}` }]);
+          } else {
+            setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+          }
+
+        // ── Fallback ──
         } else {
           setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
         }
