@@ -529,7 +529,17 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
               <button onClick={() => p.updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-blue-50 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">📤 סמן כנשלח</button>
             )}
             {(q.status === 'sent' || q.status === 'draft') && (
-              <button onClick={() => p.updateQuoteStatus(q.id, 'signed')} className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">✅ נחתם</button>
+              <label className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
+                ✅ נחתם
+                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!confirm('לסמן הצעה כנחתמה ולהעלות את הקובץ החתום?')) return;
+                  await p.uploadAttachment(q.id, file);
+                  await p.updateQuoteStatus(q.id, 'signed');
+                  e.target.value = '';
+                }} />
+              </label>
             )}
             {q.status !== 'rejected' && q.status !== 'signed' && (
               <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors">❌ נדחה</button>

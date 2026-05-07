@@ -86,6 +86,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [costInputItems, setCostInputItems] = useState<Record<string, any[]>>({});
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [projectNumber, setProjectNumber] = useState<number | null>(null);
 
   // Exchange rates — keyed by currency code
   const [exchangeRates, setExchangeRates] = useState<Record<string, ExchangeRateInfo>>({});
@@ -118,11 +119,13 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
+      supabase.from('project_details').select('project_number').eq('project_id', projectId).maybeSingle(),
     ]);
+    if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
 
     const qts = quotesRes.data || [];
     const costs = costRes.data || [];
@@ -395,9 +398,20 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   // === Quote functions ===
+  function buildDocNumber(prefix: string, version?: number) {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const pNum = String(projectNumber || 0).padStart(3, '0');
+    const base = `${prefix}-${dd}${mm}${yy}-P${pNum}`;
+    return version != null ? `${base}-V${String(version).padStart(2, '0')}` : base;
+  }
+
   async function createQuote() {
     if (!newQuote.client_name.trim()) return;
-    const num = `Q-${Date.now().toString(36).toUpperCase()}`;
+    const existingCount = quotes.filter((q) => q.status !== 'cancelled').length;
+    const num = buildDocNumber('HM', existingCount + 1);
     const disclaimer = DISCLAIMER_TEMPLATES[newQuote.disclaimer_type]?.text || '';
     const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct || 17);
     const pr = newQuote.default_profit_pct || 25;
@@ -515,7 +529,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
     if (status === 'signed') {
       const q = quotes.find((x) => x.id === quoteId);
-      const orderNum = `ORD-${Date.now().toString(36).toUpperCase()}`;
+      const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
       const { data: ord } = await supabase.from('orders').insert({
         project_id: projectId, quote_id: quoteId, order_number: orderNum,
         status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
