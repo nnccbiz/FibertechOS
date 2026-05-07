@@ -138,6 +138,18 @@ export default function FloatingChat() {
   async function handleAiAction(data: any, supabase: any, userMsg: string) {
     const { action, target_table, target_label, data: fields, filter } = data;
 
+    // Strip empty strings, null, undefined — Supabase rejects "" for UUID/numeric fields
+    const cleanFields = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      const out: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === null || v === undefined) continue;
+        if (typeof v === 'string' && v.trim() === '') continue;
+        out[k] = v;
+      }
+      return out;
+    };
+
     // ── project_updates create ──────────────────────────────────────────────
     if (target_table === 'project_updates' && action === 'create' && fields) {
       const projectName = target_label || fields.project_name;
@@ -207,7 +219,7 @@ export default function FloatingChat() {
 
     // ── projects create ─────────────────────────────────────────────────────
     if (target_table === 'projects' && action === 'create' && fields) {
-      const { error } = await supabase.from('projects').insert(fields);
+      const { error } = await supabase.from('projects').insert(cleanFields(fields));
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -215,7 +227,7 @@ export default function FloatingChat() {
 
     // ── leads create ────────────────────────────────────────────────────────
     if (target_table === 'leads' && action === 'create' && fields) {
-      const { error } = await supabase.from('leads').insert(fields);
+      const { error } = await supabase.from('leads').insert(cleanFields(fields));
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -223,7 +235,7 @@ export default function FloatingChat() {
 
     // ── inventory create ────────────────────────────────────────────────────
     if (target_table === 'inventory' && action === 'create' && fields) {
-      const { error } = await supabase.from('inventory').insert(fields);
+      const { error } = await supabase.from('inventory').insert(cleanFields(fields));
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -235,7 +247,7 @@ export default function FloatingChat() {
       if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
       const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
       if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
-      const { error } = await supabase.from('project_contacts').insert({ ...fields, project_id: proj.id });
+      const { error } = await supabase.from('project_contacts').insert({ ...cleanFields(fields), project_id: proj.id });
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -247,7 +259,7 @@ export default function FloatingChat() {
       if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
       const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
       if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
-      const { error } = await supabase.from('pipe_specs').insert({ ...fields, project_id: proj.id });
+      const { error } = await supabase.from('pipe_specs').insert({ ...cleanFields(fields), project_id: proj.id });
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -259,7 +271,7 @@ export default function FloatingChat() {
       if (!projectName) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא צוין שם פרויקט.` }]); return; }
       const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
       if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${projectName}".` }]); return; }
-      const { error } = await supabase.from('project_details').upsert({ ...fields, project_id: proj.id }, { onConflict: 'project_id' });
+      const { error } = await supabase.from('project_details').upsert({ ...cleanFields(fields), project_id: proj.id }, { onConflict: 'project_id' });
       if (error) { setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${error.message}` }]); return; }
       setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}` }]);
       return;
@@ -380,15 +392,23 @@ export default function FloatingChat() {
           } else if (action === 'update') {
             const nameKey = filter ? Object.keys(filter)[0] : 'name';
             const nameVal = filter ? Object.values(filter)[0] : target_label;
+            const cleanedFields: any = {};
+            if (fields) {
+              for (const [k, v] of Object.entries(fields)) {
+                if (v === null || v === undefined) continue;
+                if (typeof v === 'string' && v.trim() === '') continue;
+                cleanedFields[k] = v;
+              }
+            }
             if (target_table === 'project_details') {
               const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${nameVal}%`).limit(1).single();
               if (!proj) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט "${nameVal}".` }]); setPendingConfirm(null); setLoading(false); return; }
-              const { error } = await supabase.from('project_details').update(fields).eq('project_id', proj.id);
+              const { error } = await supabase.from('project_details').update(cleanedFields).eq('project_id', proj.id);
               if (error) throw error;
             } else {
               const { data: found } = await supabase.from(target_table).select('id').ilike(nameKey as string, `%${nameVal}%`).limit(1).single();
               if (!found) { setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי רשומה ל-${nameVal}.` }]); setPendingConfirm(null); setLoading(false); return; }
-              const { error } = await supabase.from(target_table).update(fields).eq('id', found.id);
+              const { error } = await supabase.from(target_table).update(cleanedFields).eq('id', found.id);
               if (error) throw error;
             }
             setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${summary || 'עודכן בהצלחה.'}` }]);
