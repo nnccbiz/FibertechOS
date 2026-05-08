@@ -34,6 +34,7 @@ export default function FloatingChat() {
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; base64: string; mimeType: string; preview?: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<any>(null);
+  const [pendingImport, setPendingImport] = useState<{ step: 'ask_project' | 'confirm'; quote_info: any; items: any[]; projectName?: string } | null>(null);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,12 +42,10 @@ export default function FloatingChat() {
   const pathname = usePathname();
   const context = getContext(pathname);
 
-  // Initialize welcome message
   useEffect(() => {
     setMessages([{ role: 'ai', text: `היי! אני רקסי. איך אפשר לעזור?` }]);
   }, []);
 
-  // Ctrl+K / Cmd+K to toggle
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -143,7 +142,7 @@ export default function FloatingChat() {
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
-    // Handle pending quote confirmation
+    // Handle pending quote confirmation (save to supplier_quotes)
     if (pendingQuote) {
       const isYes = /^(כן|yes|אישור|שמור|ok|אוקיי|בטח)$/i.test(userMsg.trim());
       const isNo = /^(לא|no|ביטול|cancel)$/i.test(userMsg.trim());
@@ -151,7 +150,6 @@ export default function FloatingChat() {
         try {
           const qi = pendingQuote.quote_info;
           const items = pendingQuote.items;
-          // Find or create supplier
           let supplierId: string | null = null;
           if (qi.supplier_name) {
             const { data: existing } = await supabase.from('suppliers').select('id').ilike('name', `%${qi.supplier_name}%`).limit(1).single();
@@ -162,7 +160,6 @@ export default function FloatingChat() {
               if (newSup) supplierId = newSup.id;
             }
           }
-          // Create supplier_quote
           const { data: sq, error: sqErr } = await supabase.from('supplier_quotes').insert({
             supplier_id: supplierId,
             quote_ref: qi.quote_ref || null,
@@ -171,7 +168,6 @@ export default function FloatingChat() {
             currency: qi.currency || 'USD',
           }).select('id').single();
           if (sqErr) throw sqErr;
-          // Create items
           if (sq && items.length > 0) {
             const rows = items.map((it: any) => ({
               quote_id: sq.id,
@@ -200,8 +196,103 @@ export default function FloatingChat() {
         setLoading(false);
         return;
       }
-      // If neither yes nor no, clear pending and continue as normal message
       setPendingQuote(null);
+    }
+
+    // Handle pending cost input import to a specific project
+    if (pendingImport) {
+      const trimmed = userMsg.trim();
+      const isCancel = /^(לא|ביטול|cancel|no)$/i.test(trimmed);
+
+      if (isCancel) {
+        setPendingImport(null);
+        setMessages((prev) => [...prev, { role: 'ai', text: '🚫 בוטל.' }]);
+        setLoading(false);
+        return;
+      }
+
+      if (/^ספק$/i.test(trimmed)) {
+        const qi = pendingImport.quote_info;
+        const items = pendingImport.items;
+        setPendingImport(null);
+        setPendingQuote({ quote_info: qi, items });
+        setMessages((prev) => [...prev, { role: 'ai', text: `💾 לשמור כקוטציית ספק כללית מ-${qi.supplier_name || 'ספק'}? (כן/לא)` }]);
+        setLoading(false);
+        return;
+      }
+
+      if (pendingImport.step === 'ask_project') {
+        const { data: proj } = await supabase.from('projects').select('id, name').ilike('name', `%${trimmed}%`).limit(1).single();
+        if (!proj) {
+          setMessages((prev) => [...prev, { role: 'ai', text: `⚠️ לא מצאתי פרויקט בשם "${trimmed}".\nנסה שם אחר, "ספק" לשמור כקוטציה, או "לא" לביטול:` }]);
+          setLoading(false);
+          return;
+        }
+        setPendingImport({ ...pendingImport, step: 'confirm', projectName: proj.name });
+        setMessages((prev) => [...prev, { role: 'ai', text: `נמצא פרויקט: "${proj.name}" ✅\nלשמור ${pendingImport.items.length} פריטים כתמחור לפרויקט זה? (כן/לא)` }]);
+        setLoading(false);
+        return;
+      }
+
+      if (pendingImport.step === 'confirm') {
+        const isYes = /^(כן|yes|אישור|שמור|ok|אוקיי|בטח)$/i.test(trimmed);
+        if (isYes && pendingImport.projectName) {
+          try {
+            const qi = pendingImport.quote_info;
+            const currency = qi.currency || 'USD';
+            const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${pendingImport.projectName}%`).limit(1).single();
+            if (!proj) throw new Error(`פרויקט "${pendingImport.projectName}" לא נמצא`);
+
+            const { data: ci, error: ciErr } = await supabase.from('cost_inputs').insert({
+              project_id: proj.id,
+              source_type: 'supplier',
+              source_name: qi.supplier_name || 'ספק',
+              notes: qi.quote_ref ? `Ref: ${qi.quote_ref}` : '',
+              currency,
+              exchange_rate: null,
+              exchange_rate_date: null,
+              payment_terms: '',
+            }).select('id').single();
+            if (ciErr) throw ciErr;
+
+            const rows = pendingImport.items.map((item: any, idx: number) => ({
+              cost_input_id: ci.id,
+              product_name: item.description || item.product_name || `${item.item_type || ''} DN${item.dn || ''}`.trim(),
+              dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || null),
+              quantity: parseFloat(item.quantity) || 1,
+              unit: item.price_per === 'unit' ? "יח'" : 'מטר',
+              original_price: parseFloat(item.unit_price || item.cost_price) || 0,
+              original_currency: currency,
+              cost_price: parseFloat(item.unit_price || item.cost_price) || 0,
+              total_cost: (parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price || item.cost_price) || 0),
+              item_type: item.item_type || null,
+              sn: item.sn ? parseInt(item.sn) : null,
+              pn: item.pn ? parseInt(item.pn) : null,
+              length_m: item.length_m ? parseFloat(item.length_m) : null,
+              sort_order: idx,
+            }));
+            await supabase.from('cost_input_items').insert(rows);
+
+            setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${rows.length} פריטים מ-${qi.supplier_name || 'ספק'}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} נשמרו לתמחור של פרויקט "${pendingImport.projectName}".\n⚠️ עדכן את שער החליפין בלשונית תמחור בדף הפרויקט.` }]);
+          } catch (err: any) {
+            setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${err.message}` }]);
+          }
+          setPendingImport(null);
+          setLoading(false);
+          return;
+        } else {
+          const { data: proj } = await supabase.from('projects').select('id, name').ilike('name', `%${trimmed}%`).limit(1).single();
+          if (proj) {
+            setPendingImport({ ...pendingImport, projectName: proj.name });
+            setMessages((prev) => [...prev, { role: 'ai', text: `לשמור ${pendingImport.items.length} פריטים לפרויקט "${proj.name}"? (כן/לא)` }]);
+          } else {
+            setPendingImport(null);
+            setMessages((prev) => [...prev, { role: 'ai', text: '🚫 בוטל.' }]);
+          }
+          setLoading(false);
+          return;
+        }
+      }
     }
 
     const filesToSend = uploadedFiles.length > 0 ? uploadedFiles : undefined;
@@ -222,7 +313,6 @@ export default function FloatingChat() {
       if (data.error) {
         setMessages((prev) => [...prev, { role: 'ai', text: `שגיאה: ${data.error}` }]);
       } else {
-        // Auto-execute project_updates
         if (data.target_table === 'project_updates' && data.action === 'create' && data.data) {
           const projectName = data.target_label || data.data.project_name;
           if (projectName) {
@@ -236,10 +326,9 @@ export default function FloatingChat() {
                 description: data.data.description || '',
                 tasks: data.data.tasks || '',
               });
-              // Auto-create tasks as alerts
               const tasksText = data.data.tasks || '';
               if (tasksText.trim()) {
-                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.)\]\s*/, '').trim()).filter(Boolean);
                 for (const task of taskLines) {
                   await supabase.from('alerts').insert({
                     project_id: proj.id,
@@ -257,7 +346,6 @@ export default function FloatingChat() {
           } else {
             setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
           }
-        // Auto-execute alerts/tasks
         } else if (data.target_table === 'alerts' && data.action === 'create' && data.data) {
           let projectId = null;
           const projectName = data.target_label || data.data.project_name;
@@ -273,12 +361,10 @@ export default function FloatingChat() {
             assigned_to: data.data.assigned_to || projectName || null,
           });
           setMessages((prev) => [...prev, { role: 'ai', text: `📌 ${data.summary}\n\nהמשימה נוספה ללוח הבקרה.` }]);
-        // Supplier quote extraction
         } else if (data.target_table === 'supplier_quote' && data.action === 'import' && Array.isArray(data.data)) {
           const qi = data.quote_info || {};
           const items = data.data;
 
-          // Auto-fill missing quote_info from user message and item data
           if (!qi.project_name) {
             const projMatch = userMsg.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.]|$)/i);
             if (projMatch) qi.project_name = projMatch[1].trim();
@@ -305,8 +391,17 @@ export default function FloatingChat() {
           const itemLines = items.map((it: any, i: number) =>
             `${i + 1}. ${it.item_type} | DN${it.dn || '?'} SN${it.sn || '?'} | ${it.length_m ? it.length_m + 'm' : ''} | ${it.unit_price} ${it.currency || qi.currency || '?'}/${it.price_per || 'meter'}${it.description ? ' — ' + it.description : ''}`
           ).join('\n');
-          const preview = `📋 קוטציה מ-${qi.supplier_name || 'ספק'}\nRef: ${qi.quote_ref || '—'}\nתאריך: ${qi.quote_date || '—'}\nפרויקט: ${qi.project_name || '—'}\nמטבע: ${qi.currency || '—'}\n\n${itemLines}\n\nסה"כ ${items.length} פריטים.\n\n💾 לשמור ל-Supabase? (כתוב "כן" או "לא")`;
-          setPendingQuote({ quote_info: qi, items });
+          const projectLine = qi.project_name ? `פרויקט: ${qi.project_name}\n` : '';
+          const askLine = qi.project_name
+            ? `💾 לשמור כתמחור לפרויקט "${qi.project_name}"? (כן / שם פרויקט אחר / "ספק" לקוטציה כללית / לא)`
+            : `💾 לאיזה פרויקט לשמור?\nציין שם פרויקט, "ספק" לשמירה כקוטציית ספק, או "לא" לביטול`;
+          const preview = `📋 קוטציה מ-${qi.supplier_name || 'ספק'}\nRef: ${qi.quote_ref || '—'}\nתאריך: ${qi.quote_date || '—'}\n${projectLine}מטבע: ${qi.currency || '—'}\n\n${itemLines}\n\nסה"כ ${items.length} פריטים.\n\n${askLine}`;
+          if (qi.project_name) {
+            setPendingImport({ step: 'confirm', quote_info: qi, items, projectName: qi.project_name });
+          } else {
+            setPendingImport({ step: 'ask_project', quote_info: qi, items });
+          }
+          setPendingQuote(null);
           setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
         } else {
           setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
