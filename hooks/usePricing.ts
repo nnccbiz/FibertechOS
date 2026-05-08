@@ -358,7 +358,7 @@ export function usePricing(projectId: string): UsePricingReturn {
           const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
           const qty = parseFloat(item.quantity) || 1;
           return {
-            product_name: item.description || item.product_name || `${item.item_type || ''} DN${item.dn || ''}`.trim(),
+            product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
             dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
             quantity: qty,
             unit: item.price_per === 'unit' ? 'יח\'' : 'מטר',
@@ -445,7 +445,7 @@ export function usePricing(projectId: string): UsePricingReturn {
           const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
           const qty = parseFloat(item.quantity) || 1;
           return {
-            product_name: item.description || item.product_name || `${item.item_type || ''} DN${item.dn || ''}`.trim(),
+            product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
             dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
             quantity: qty,
             unit: item.price_per === 'unit' ? "יח'" : 'מטר',

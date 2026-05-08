@@ -54,31 +54,30 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
    - חפש את הפרויקט לפי שם ב-target_label
    - ה-title צריך להיות תיאור קצר של העדכון עצמו (לא "עדכון פגישה" גנרי)
    - הפרד בין תיאור העדכון למשימות
-9. כשמשתמש מעלה קובץ תמחור (הצעת מחיר מספק, מחירון, טבלת עלויות, קוטציה) — חלץ את כל הפריטים והחזר:
+9. כשמשתמש מעלה קובץ תמחור (הצעת מחיר מספק, מחירון, כתב כמויות, טבלת עלויות, קוטציה) — חלץ את כל הפריטים מכל שורות הטבלה והחזר:
    - target_table: "supplier_quote"
    - action: "import"
-   - quote_info: { supplier_name: "שם הספק", quote_ref: "מספר ref", quote_date: "YYYY-MM-DD", project_name: "שם הפרויקט", currency: "USD/EUR/ILS" }
-   - חובה למלא quote_info.project_name — אם לא מופיע במסמך, קח מהודעת המשתמש (למשל "קוטציה לפרויקט מטש שמשון" → project_name: "מטש שמשון")
-   - חובה למלא quote_info.quote_ref — חפש מספר ref/quote/reference/הצעה במסמך
-   - חובה למלא quote_info.supplier_name — חפש שם ספק/חברה במסמך (Amiblu, Flowtite וכו')
-   - data: מערך של פריטים, כל פריט: { item_type: "pipe_with_coupling/pipe_bare/coupling/elbow/flange/reducer/other", dn: מספר, sn: מספר, pn: מספר, length_m: אורך במטרים, unit_price: מחיר ליחידה, price_per: "meter"/"unit", currency: "USD/EUR", description: "תיאור מלא מהמסמך" }
-   - זהה את המטבע מהמסמך (USD, EUR, ILS, GBP וכו'). אל תניח שזה שקלים — בדוק סימנים ($, €, ₪, £), כיתוב (דולר, יורו, שקל) או כל רמז אחר.
+   - quote_info: { supplier_name: "שם הספק/קבלן", quote_ref: "מספר ref/הצעה", quote_date: "YYYY-MM-DD", project_name: "שם הפרויקט", currency: "USD/EUR/ILS" }
+   - data: מערך של כל הפריטים — שורה אחת בטבלה = פריט אחד ב-data. אל תדלג על שורות!
+   - כל פריט: { description: "תיאור מלא", item_code: "קוד/סעיף", item_type: "pipe/coupling/elbow/flange/reducer/other", dn: קוטר במ"מ אם קיים, sn: קשיחות אם קיים, pn: לחץ אם קיים, length_m: אורך אם קיים, quantity: כמות מספרית, unit_price: מחיר ליחידה, price_per: "meter" אם מטר / "unit" אם יחידה, currency: מטבע }
+   - זהה את המטבע: אם יש ₪ / ש"ח / שקל = ILS; $ / USD = USD; € / EUR = EUR. ברירת מחדל אם לא ברור: ILS.
    - שמור על המחירים המקוריים כפי שמופיעים במסמך.
-   - summary: "חולצו X פריטים מקוטציה [ref] של [ספק] (מטבע: USD/EUR/ILS)"
+   - summary: "חולצו X פריטים (מטבע: ...)"
 
-   כללי חילוץ לקוטציות אמיבלו/Flowtite:
-   - DN = קוטר נומינלי במ"מ (300, 400, 500, 600, 800, 1000, 1200, 1400, 1600...)
-   - SN = קשיחות (2500, 5000, 10000)
-   - PN = לחץ עבודה בבר
-   - אורך הצינור בא מעמודת Description (5.7m, 6m, 12m)
-   - pipe_with_coupling = צינור כולל מחבר Reka (מחיר למטר)
-   - pipe_bare = צינור בלי מחבר (מחיר למטר)
-   - coupling = מחבר Reka בנפרד (מחיר ליחידה)
-   - elbow = ברך/כיפוף
-   - flange = אוגן/פלנג׳
-   - reducer = מעבר קטרים
-   - זהה את מספר ה-ref (למשל: MUA26.0914)
-   - זהה תאריך הקוטציה
+   חוקים לכתב כמויות בעברית (BOQ):
+   - עמודת "תיאור" / "פריט" → description
+   - עמודת "סעיף" / "קוד" / "מק"ט" → item_code
+   - עמודת "כמות" → quantity
+   - עמודת "יחידה" / "יח'" → price_per ("meter" אם מטר, "unit" אחרת)
+   - עמודת "מחיר ליח'" / "עלות יח'" / "מחיר יחידה" → unit_price
+   - חלץ קוטר מהתיאור אם קיים (למשל "קוטר 800" → dn: 800)
+   - חלץ סוג: "צנרת"/"צינור" → pipe; "אוגן"/"פלנג'" → flange; "ברך"/"כיפוף" → elbow; "מעבר" → reducer; "מחבר"/"אקרובט"/"REKA" → coupling
+
+   חוקים לקוטציות אמיבלו/Flowtite (USD/EUR):
+   - DN = קוטר נומינלי במ"מ; SN = קשיחות; PN = לחץ
+   - אורך מעמודת Description (5.7m, 6m, 12m)
+   - pipe_with_coupling = צינור + מחבר Reka; pipe_bare = ללא מחבר; coupling = מחבר בנפרד
+   - מספר ref: MUA26.0914 וכד'
 1. החזר רק JSON תקין
 2. אם שדה לא הוזכר — אל תכלול אותו ב-data
 3. המר ערכים מספריים למספרים
@@ -177,7 +176,7 @@ export async function POST(request: NextRequest) {
       model,
       messages,
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: 8192,
     };
 
     // json_object format not supported for vision model
