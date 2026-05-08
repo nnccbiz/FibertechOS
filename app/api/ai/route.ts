@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as XLSX from 'xlsx';
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
+const VISION_MODEL = 'llama-3.2-11b-vision-preview';
 
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
@@ -83,6 +86,49 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 5. ה-summary חייב להיות בעברית, קצר וברור
 6. אם הפקודה לא ברורה, החזר: {"action": "query", "summary": "שאלה או הבהרה", "message": "..."}`;
 
+async function extractFileContent(files: { base64: string; mimeType: string; name: string }[]): Promise<{
+  text: string;
+  imageFiles: { base64: string; mimeType: string }[];
+}> {
+  const textParts: string[] = [];
+  const imageFiles: { base64: string; mimeType: string }[] = [];
+
+  for (const file of files) {
+    const mime = file.mimeType || '';
+    const name = file.name || '';
+    const buffer = Buffer.from(file.base64, 'base64');
+
+    if (mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name)) {
+      try {
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const csvParts: string[] = [];
+        for (const sheetName of workbook.SheetNames) {
+          const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+          if (csv.trim()) csvParts.push(`=== ${sheetName} ===\n${csv}`);
+        }
+        textParts.push(`[Excel: ${name}]\n${csvParts.join('\n\n')}`);
+      } catch {
+        textParts.push(`[Excel: ${name}] — שגיאה בקריאת הקובץ`);
+      }
+    } else if (mime === 'text/csv' || /\.csv$/i.test(name)) {
+      textParts.push(`[CSV: ${name}]\n${buffer.toString('utf-8')}`);
+    } else if (mime === 'application/pdf' || /\.pdf$/i.test(name)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const pdfParse = require('pdf-parse');
+        const result = await pdfParse(buffer);
+        textParts.push(`[PDF: ${name}]\n${result.text}`);
+      } catch {
+        textParts.push(`[PDF: ${name}] — שגיאה בחילוץ טקסט`);
+      }
+    } else if (mime.startsWith('image/')) {
+      imageFiles.push({ base64: file.base64, mimeType: mime });
+    }
+  }
+
+  return { text: textParts.join('\n\n---\n\n'), imageFiles };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!GROQ_API_KEY) {
@@ -100,14 +146,44 @@ export async function POST(request: NextRequest) {
       userMessage = `תוכן מסמך שהועלה:\n${document_text}\n\nפקודה:\n${message || 'חלץ את כל הנתונים מהמסמך והזן למערכת'}`;
     }
 
-    if (files && Array.isArray(files) && files.length > 0 && !message) {
-      userMessage = 'חלץ את כל הנתונים מהקבצים המצורפים והזן למערכת.';
+    let imageFiles: { base64: string; mimeType: string }[] = [];
+
+    if (files && Array.isArray(files) && files.length > 0) {
+      const extracted = await extractFileContent(files);
+      if (extracted.text) {
+        userMessage = `${extracted.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
+      }
+      imageFiles = extracted.imageFiles;
     }
+
+    const model = imageFiles.length > 0 ? VISION_MODEL : TEXT_MODEL;
+
+    const userContent: any = imageFiles.length > 0
+      ? [
+          { type: 'text', text: userMessage || 'חלץ את כל נתוני התמחור מהתמונה' },
+          ...imageFiles.map((f) => ({
+            type: 'image_url',
+            image_url: { url: `data:${f.mimeType};base64,${f.base64}` },
+          })),
+        ]
+      : userMessage;
 
     const messages: any[] = [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
+      { role: 'user', content: userContent },
     ];
+
+    const requestBody: any = {
+      model,
+      messages,
+      temperature: 0.1,
+      max_tokens: 4096,
+    };
+
+    // json_object format not supported for vision model
+    if (imageFiles.length === 0) {
+      requestBody.response_format = { type: 'json_object' };
+    }
 
     const response = await fetch(GROQ_URL, {
       method: 'POST',
@@ -115,13 +191,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.1,
-        max_tokens: 4096,
-        response_format: { type: 'json_object' },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {

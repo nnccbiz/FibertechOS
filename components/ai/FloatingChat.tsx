@@ -328,7 +328,7 @@ export default function FloatingChat() {
               });
               const tasksText = data.data.tasks || '';
               if (tasksText.trim()) {
-                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[\.)\]\s*/, '').trim()).filter(Boolean);
+                const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[.):\s]+/, '').trim()).filter(Boolean);
                 for (const task of taskLines) {
                   await supabase.from('alerts').insert({
                     project_id: proj.id,
