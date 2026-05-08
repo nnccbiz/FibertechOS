@@ -122,7 +122,7 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div className="flex-1 min-w-[150px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם מקור</label>
-              <input type="text" value={p.newCostInput.source_name} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={p.newCostInput.source_type === 'supplier' ? 'Amiblu' : 'הלל'} autoFocus />
+              <input type="text" value={p.newCostInput.source_name} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={p.newCostInput.source_type === 'supplier' ? 'Amiblu' : 'ציין שם מקור'} autoFocus />
             </div>
             {p.newCostInput.source_type === 'supplier' && (
               <div className="min-w-[120px]">
