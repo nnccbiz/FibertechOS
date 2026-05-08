@@ -99,7 +99,11 @@ export default function PricingSection({ projectId }: { projectId: string }) {
 function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <label className={`text-sm px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400 cursor-not-allowed' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+          {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📊 העלה קובץ תמחור'}
+          <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.uploadAndCreateCostInput(e.target.files); e.target.value = ''; } }} />
+        </label>
         <button onClick={() => p.setShowNewCostInput(!p.showNewCostInput)} className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 transition-colors">
           {p.showNewCostInput ? 'ביטול' : '+ תמחור חדש'}
         </button>
@@ -122,7 +126,7 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div className="flex-1 min-w-[150px]">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם מקור</label>
-              <input type="text" value={p.newCostInput.source_name} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={p.newCostInput.source_type === 'supplier' ? 'Amiblu' : 'הלל'} autoFocus />
+              <input type="text" value={p.newCostInput.source_name} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, source_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder={p.newCostInput.source_type === 'supplier' ? 'Amiblu' : 'ציין שם מקור'} autoFocus />
             </div>
             {p.newCostInput.source_type === 'supplier' && (
               <div className="min-w-[120px]">
@@ -207,7 +211,6 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
 
       {isExp && (
         <div className="px-4 py-3 border-t border-[#e2e8f0]">
-          {/* Action buttons */}
           {!isEdit && (
             <div className="flex items-center gap-2 mb-3">
               {!archived && <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-amber-50 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors">✏️ ערוך פריטים</button>}
@@ -217,13 +220,12 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                   <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
                 </label>
               )}
-              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '📁 סיים תמחור'}</button>
+              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '🗁 סיים תמחור'}</button>
             </div>
           )}
           {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2 whitespace-pre-line">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
           {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
 
-          {/* Edit mode */}
           {isEdit ? (
             <CostItemsEditor ci={ci} p={p} />
           ) : citems.length > 0 ? (
@@ -232,7 +234,6 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
             <p className="text-sm text-gray-400 text-center py-2">אין פריטים. לחץ &quot;ערוך פריטים&quot; להוסיף.</p>
           )}
 
-          {/* Pipe calculator helper */}
           {!isEdit && citems.length > 0 && <PipeCalcHelper citems={citems} ci={ci} rates={p.exchangeRates} />}
         </div>
       )}
@@ -248,7 +249,6 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
     <div className="space-y-2">
       <div className="overflow-x-auto">
         {isForex ? (
-          /* Foreign currency grid */
           <>
             <div className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[700px]">
               <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
@@ -270,10 +270,9 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
             ))}
           </>
         ) : (
-          /* ILS grid (same as before) */
           <>
             <div className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
-              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
+              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סהדלק</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1">
@@ -295,7 +294,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
       <div className="flex items-center justify-between pt-2">
         <button onClick={p.addCostItem} className="text-[12px] text-amber-700 hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-gray-700">סה״כ: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
+          <span className="text-sm font-bold text-gray-700">סהדלק: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
           <button onClick={p.cancelEditCostInput} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100">ביטול</button>
           <button onClick={() => p.saveCostInputItems(ci.id)} disabled={p.saving} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -315,7 +314,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
           {isForex && <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר {sym}</th>}
           <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר ₪</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ ₪</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סהדלק ₪</th>
         </tr></thead>
         <tbody>{citems.map((item: any) => {
           const typeLabel = ITEM_TYPES.find((t) => t.value === item.item_type)?.label || '';
@@ -332,7 +331,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           );
         })}</tbody>
         <tfoot><tr className="border-t border-[#e2e8f0]">
-          <td colSpan={isForex ? 5 : 4} className="py-2 text-left font-bold text-gray-700">סה״כ עלות</td>
+          <td colSpan={isForex ? 5 : 4} className="py-2 text-left font-bold text-gray-700">סהדלק עלות</td>
           <td colSpan={2} className="py-2 font-bold text-gray-700">{formatCurrency(ciTotal)}</td>
         </tr></tfoot>
       </table>
@@ -341,7 +340,6 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
 }
 
 function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: Record<string, any> }) {
-  // Find pipe_bare + coupling pairs by DN
   const bareItems = citems.filter((i: any) => i.item_type === 'pipe_bare');
   const couplingItems = citems.filter((i: any) => i.item_type === 'coupling');
   if (bareItems.length === 0 || couplingItems.length === 0) return null;
@@ -365,7 +363,7 @@ function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: 
 
   return (
     <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-      <p className="text-[12px] font-bold text-blue-700 mb-2">📐 חישוב עלות למ״ר (צינור + מחבר)</p>
+      <p className="text-[12px] font-bold text-blue-700 mb-2">📐 חישוב עלות למדלק (צינור + מחבר)</p>
       <div className="space-y-2">
         {pairs.map(({ dn, barePrice, couplingPrice, length }) => {
           const costPerMeter = calcCostPerMeter(barePrice, couplingPrice, length);
@@ -378,15 +376,15 @@ function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: 
             <div key={dn} className="text-[12px] text-gray-700">
               <span className="font-bold">{dn}</span>
               <span className="mx-1">—</span>
-              <span>צינור ({length}מ׳): </span>
+              <span>צינור ({length}מי): </span>
               {isForex && <span className="text-gray-500">{sym}{costPerMeter.toFixed(2)} → </span>}
-              <span className="font-bold text-blue-800">₪{costPerMeterILS.toFixed(2)}/מ׳</span>
+              <span className="font-bold text-blue-800">₪{costPerMeterILS.toFixed(2)}/מי</span>
               {roker && dnNum > 0 && (
                 <>
                   <span className="mx-2 text-gray-300">|</span>
-                  <span>רוקר ({roker.rokerLength.toFixed(1)}מ׳): </span>
+                  <span>רוקר ({roker.rokerLength.toFixed(1)}מי): </span>
                   {isForex && <span className="text-gray-500">{sym}{roker.costPerMeter.toFixed(2)} → </span>}
-                  <span className="font-bold text-purple-700">₪{rokerILS?.toFixed(2)}/מ׳</span>
+                  <span className="font-bold text-purple-700">₪{rokerILS?.toFixed(2)}/מי</span>
                 </>
               )}
             </div>
@@ -406,7 +404,6 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
         </button>
       </div>
 
-      {/* New quote form */}
       {p.showNewQuote && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -473,7 +470,6 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
         </div>
       )}
 
-      {/* Quotes list */}
       {p.quotes.length === 0 && !p.showNewQuote ? (
         <p className="text-sm text-gray-400 text-center py-3">אין הצעות מחיר. לחץ &quot;+ הצעה חדשה&quot; להוסיף.</p>
       ) : (
@@ -511,13 +507,12 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
       {isExpanded && (
         <div className="px-4 py-3 border-t border-[#e2e8f0]">
-          {/* Action buttons */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {!isEditing && (
               <>
                 <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
                 {items.length > 0 && (
-                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימה</a>
+                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימית</a>
                 )}
                 <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.uploadingFile ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
                   {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
@@ -534,7 +529,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (!confirm('לסמן הצעה כנחתמה ולהעלות את הקובץ החתום?')) return;
+                  if (!confirm('לסמן הצעה כנחתמת ולהעלות את הקובץ החתום?')) return;
                   await p.uploadAttachment(q.id, file);
                   await p.updateQuoteStatus(q.id, 'signed');
                   e.target.value = '';
@@ -556,15 +551,10 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             )}
           </div>
 
-          {/* Margin summary with category breakdown + warnings */}
           {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
-
-          {/* Views tracking panel */}
           {!isEditing && <QuoteViewsPanel quoteId={q.id} />}
-
           {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
 
-          {/* Items — edit or display */}
           {isEditing ? (
             <QuoteItemsEditor q={q} p={p} />
           ) : items.length > 0 ? (
@@ -591,7 +581,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
     <div className="space-y-2">
       <div className="overflow-x-auto">
         <div className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
-          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
+          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סהדלק</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => (
           <div key={idx} className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
@@ -652,7 +642,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
             <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
             {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-medium pb-1.5">הנחה%</th>}
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ</th>
+            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סהדלק</th>
             <th className="pb-1.5 w-6"></th>
           </tr>
         </thead>
@@ -691,10 +681,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                 {hasAnyDiscount && <td className="py-1.5 text-orange-600 font-medium">{disc > 0 ? `${disc}%` : '—'}</td>}
                 <td className="py-1.5 font-medium text-gray-700">{formatCurrency(tot)}</td>
                 <td className="py-1.5">
-                  <span
-                    title={tooltip}
-                    className="cursor-help text-gray-300 hover:text-[#1a56db] text-[13px]"
-                  >ⓘ</span>
+                  <span title={tooltip} className="cursor-help text-gray-300 hover:text-[#1a56db] text-[13px]">ⓘ</span>
                 </td>
               </tr>
             );
@@ -704,7 +691,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           {(hasAnyDiscount || globalDisc > 0) && (
             <tr className="border-t border-gray-100">
               <td colSpan={colCount - 2} className="py-1.5 text-left text-[12px] text-gray-400"></td>
-              <td className="py-1.5 text-left text-[12px] text-gray-500">סה״כ לפני הנחה</td>
+              <td className="py-1.5 text-left text-[12px] text-gray-500">סהדלק לפני הנחה</td>
               <td className="py-1.5 text-[12px] text-gray-500">{formatCurrency(subtotalBeforeDisc)}</td>
             </tr>
           )}
@@ -724,7 +711,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           )}
           <tr className="border-t border-[#e2e8f0]">
             <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
-            <td colSpan={colCount - 5} className="py-2 text-left font-bold text-gray-700">סה״כ מכירה</td>
+            <td colSpan={colCount - 5} className="py-2 text-left font-bold text-gray-700">סהדלק מכירה</td>
             <td className="py-2 font-bold text-gray-700">{formatCurrency(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
@@ -798,7 +785,6 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
 }
 
 function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnType<typeof usePricing> }) {
-  // Build priced items via calcItemPrice for accurate margins
   const priced: QuoteLineItemPriced[] = items.map((it) => {
     const lineItem: QuoteLineItem = {
       item_type: it.item_type ?? undefined,
@@ -811,7 +797,6 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
       profit_pct: parseFloat(it.profit_pct) || 0,
       length_m: parseFloat(it.length_m) || undefined,
     };
-    // If DB row already has a stored unit_price (manually overridden), trust it
     if (it.unit_price && parseFloat(it.unit_price) > 0) {
       const cost = lineItem.cost_price * lineItem.quantity;
       const overheads = cost * (lineItem.overheads_pct / 100);
@@ -833,7 +818,6 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   const summary = calcQuoteSummary(priced);
   const warnings = validateQuoteMargins(priced);
 
-  // Foreign currency equivalent (if quote is linked to a forex cost input)
   const linkedCost = q.cost_input_id ? p.costInputs.find((c) => c.id === q.cost_input_id) : null;
   const forexCurrency = linkedCost?.currency && linkedCost.currency !== 'ILS' ? linkedCost.currency : null;
   const forexRate = forexCurrency ? parseFloat(linkedCost.exchange_rate) || p.exchangeRates[forexCurrency]?.rate || 0 : 0;
@@ -842,7 +826,6 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
 
   return (
     <div className="mb-3 bg-gray-50 rounded-lg p-3 space-y-2">
-      {/* Main totals row */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
         <span className="text-gray-500">עלות: <strong className="text-gray-700">{formatCurrency(summary.totalCost)}</strong></span>
         <span className="text-gray-500">תקורות: <strong className="text-gray-700">{formatCurrency(summary.totalOverheads)}</strong></span>
@@ -858,7 +841,6 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         )}
       </div>
 
-      {/* Category breakdown */}
       {Object.keys(summary.byCategory).length > 1 && (
         <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-200">
           {Object.entries(summary.byCategory).map(([cat, v]) => {
@@ -875,7 +857,6 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         </div>
       )}
 
-      {/* Warnings */}
       {warnings.length > 0 && (
         <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-200">
           {warnings.map((w, i) => {
@@ -987,7 +968,7 @@ function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
       </div>
       {views.length > 0 ? (
         <div className="space-y-1 max-h-28 overflow-y-auto">
-          <p className="text-[11px] font-semibold text-green-700 mb-1">👁 {views.length} צפיות</p>
+          <p className="text-[11px] font-semibold text-green-700 mb-1">👁 {views.length} צפייות</p>
           {views.map((v: any) => (
             <div key={v.id} className="flex items-center gap-3 text-[11px] text-gray-600">
               <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
