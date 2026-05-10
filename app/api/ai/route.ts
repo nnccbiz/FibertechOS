@@ -241,10 +241,14 @@ export async function POST(request: NextRequest) {
       max_tokens: hasExtractedText ? 4096 : 8192,
     };
 
-    // json_object format not supported for vision model
-    if (imageFiles.length === 0) {
+    // json_object format: use for normal chat only.
+    // For file extraction we skip it — the lean prompt already says "JSON only"
+    // and some Groq model versions reject json_object with large extracted content.
+    if (imageFiles.length === 0 && !hasExtractedText) {
       requestBody.response_format = { type: 'json_object' };
     }
+
+    console.log(`[AI route] sending to Groq: model=${model} hasExtractedText=${hasExtractedText} msgLen=${JSON.stringify(messages).length}`);
 
     const response = await fetch(GROQ_URL, {
       method: 'POST',
@@ -257,7 +261,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error(`[AI route] Groq error ${response.status}:`, err.slice(0, 300));
+      console.error(`[AI route] Groq error ${response.status}: ${err.slice(0, 500)}`);
       let errMsg = 'שגיאה בתקשורת עם רקסי';
       try { const parsed = JSON.parse(err); errMsg = parsed?.error?.message || errMsg; } catch {}
       return NextResponse.json({ error: errMsg, groq_status: response.status, summary: `שגיאה ${response.status}: ${errMsg}`, message: errMsg }, { status: 500 });
