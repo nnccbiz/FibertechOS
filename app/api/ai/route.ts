@@ -106,32 +106,58 @@ async function extractFileContent(files: { base64: string; mimeType: string; nam
   const textParts: string[] = [];
   const imageFiles: { base64: string; mimeType: string }[] = [];
 
+  console.log(`[AI route] extractFileContent: ${files.length} file(s)`);
   for (const file of files) {
     const mime = file.mimeType || '';
     const name = file.name || '';
+    const b64len = file.base64?.length || 0;
+    console.log(`[AI route] file: name="${name}" mime="${mime}" base64len=${b64len}`);
+    if (!file.base64 || b64len === 0) { textParts.push(`[${name || 'קובץ'}] — base64 ריק`); continue; }
     const buffer = Buffer.from(file.base64, 'base64');
 
     if (mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name)) {
       try {
+        console.log(`[AI route] Excel file: name=${name} mime=${mime} buflen=${buffer.length}`);
         const workbook = XLSX.read(buffer, { type: 'buffer' });
+        console.log(`[AI route] Excel sheets: ${workbook.SheetNames.join(', ')}`);
         const sheetParts: string[] = [];
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          if (rows.length === 0) continue;
-          // Strip currency symbols and thousands commas from numeric strings
-          const cleanRows = rows.map((row) => {
-            const cleaned: Record<string, any> = {};
-            for (const [k, v] of Object.entries(row)) {
-              cleaned[k] = typeof v === 'string' ? v.replace(/[₪$€£,]/g, '').trim() : v;
-            }
-            return cleaned;
+          // Use raw arrays (header:1) to handle files with title rows before the actual header
+          const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          console.log(`[AI route] Sheet "${sheetName}": ${rawRows.length} raw rows`);
+          if (rawRows.length === 0) continue;
+
+          // Find the header row: first row with at least 3 non-empty cells
+          let headerIdx = 0;
+          for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+            const nonEmpty = rawRows[i].filter((c: any) => c !== '' && c !== null && c !== undefined).length;
+            if (nonEmpty >= 3) { headerIdx = i; break; }
+          }
+          const headers = rawRows[headerIdx].map((h: any) => String(h).trim());
+          const dataRows = rawRows.slice(headerIdx + 1).filter((r: any[]) =>
+            r.some((c: any) => c !== '' && c !== null && c !== undefined)
+          );
+          console.log(`[AI route] headerIdx=${headerIdx} headers=[${headers.join('|')}] dataRows=${dataRows.length}`);
+          if (dataRows.length === 0) continue;
+
+          // Convert to objects using the found headers
+          const objRows = dataRows.map((row: any[]) => {
+            const obj: Record<string, any> = {};
+            headers.forEach((h, i) => {
+              if (!h) return;
+              const v = row[i];
+              obj[h] = typeof v === 'string' ? v.replace(/[₪$€£,]/g, '').trim() : v;
+            });
+            return obj;
           });
-          sheetParts.push(`=== גיליון: ${sheetName} ===\n${JSON.stringify(cleanRows, null, 0)}`);
+          sheetParts.push(`=== גיליון: ${sheetName} ===\n${JSON.stringify(objRows, null, 0)}`);
         }
         if (sheetParts.length) textParts.push(`[Excel: ${name}]\n${sheetParts.join('\n\n')}`);
-      } catch {
-        textParts.push(`[Excel: ${name}] — שגיאה בקריאת הקובץ`);
+        else textParts.push(`[Excel: ${name}] — לא נמצאו שורות נתונים`);
+      } catch (e: any) {
+        console.error(`[AI route] Excel parse error:`, e?.message);
+        textParts.push(`[Excel: ${name}] — שגיאה בקריאת הקובץ: ${e?.message}`);
       }
     } else if (mime === 'text/csv' || /\.csv$/i.test(name)) {
       textParts.push(`[CSV: ${name}]\n${buffer.toString('utf-8')}`);
