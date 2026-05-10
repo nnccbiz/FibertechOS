@@ -404,7 +404,8 @@ export default function FloatingChat() {
           setPendingQuote(null);
           setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
         } else {
-          setMessages((prev) => [...prev, { role: 'ai', text: data.summary || data.message || JSON.stringify(data) }]);
+          const debugInfo = `action: ${data.action}, table: ${data.target_table}, data_type: ${Array.isArray(data.data) ? `array[${data.data?.length}]` : typeof data.data}`;
+          setMessages((prev) => [...prev, { role: 'ai', text: `${data.summary || data.message || 'תגובה לא מזוהה'}\n\n[debug: ${debugInfo}]` }]);
         }
       }
     } catch {

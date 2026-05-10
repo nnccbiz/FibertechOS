@@ -159,8 +159,11 @@ export async function POST(request: NextRequest) {
 
     if (files && Array.isArray(files) && files.length > 0) {
       const extracted = await extractFileContent(files);
+      console.log('[AI route] extracted text length:', extracted.text.length, 'preview:', extracted.text.slice(0, 300));
       if (extracted.text) {
         userMessage = `${extracted.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
+      } else {
+        console.warn('[AI route] file extraction returned empty text for files:', files.map(f => f.name));
       }
       imageFiles = extracted.imageFiles;
     }
@@ -211,11 +214,13 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || '';
+    console.log('[AI route] raw AI response (first 500):', text.slice(0, 500));
 
     let parsed;
     try {
       const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsed = JSON.parse(cleaned);
+      console.log('[AI route] parsed action:', parsed.action, 'target_table:', parsed.target_table, 'data length:', Array.isArray(parsed.data) ? parsed.data.length : typeof parsed.data);
     } catch {
       parsed = { action: 'query', summary: text, message: text };
     }
