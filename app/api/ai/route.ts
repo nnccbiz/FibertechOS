@@ -100,12 +100,22 @@ async function extractFileContent(files: { base64: string; mimeType: string; nam
     if (mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name)) {
       try {
         const workbook = XLSX.read(buffer, { type: 'buffer' });
-        const csvParts: string[] = [];
+        const sheetParts: string[] = [];
         for (const sheetName of workbook.SheetNames) {
-          const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-          if (csv.trim()) csvParts.push(`=== ${sheetName} ===\n${csv}`);
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (rows.length === 0) continue;
+          // Strip currency symbols and thousands commas from numeric strings
+          const cleanRows = rows.map((row) => {
+            const cleaned: Record<string, any> = {};
+            for (const [k, v] of Object.entries(row)) {
+              cleaned[k] = typeof v === 'string' ? v.replace(/[₪$€£,]/g, '').trim() : v;
+            }
+            return cleaned;
+          });
+          sheetParts.push(`=== גיליון: ${sheetName} ===\n${JSON.stringify(cleanRows, null, 0)}`);
         }
-        textParts.push(`[Excel: ${name}]\n${csvParts.join('\n\n')}`);
+        if (sheetParts.length) textParts.push(`[Excel: ${name}]\n${sheetParts.join('\n\n')}`);
       } catch {
         textParts.push(`[Excel: ${name}] — שגיאה בקריאת הקובץ`);
       }
