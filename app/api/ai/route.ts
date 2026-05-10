@@ -364,7 +364,9 @@ export async function POST(request: NextRequest) {
 
     // Use lean extraction prompt when processing files to stay within Groq TPM limit
     const hasExtractedText = files && Array.isArray(files) && files.length > 0 && imageFiles.length === 0;
-    const systemPrompt = hasExtractedText ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
+    const hasImages = imageFiles.length > 0;
+    // Use lean extraction prompt for both file text and image uploads
+    const systemPrompt = (hasExtractedText || hasImages) ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
 
     const messages: any[] = [
       { role: 'system', content: systemPrompt },
@@ -375,7 +377,7 @@ export async function POST(request: NextRequest) {
       model,
       messages,
       temperature: 0.1,
-      max_tokens: hasExtractedText ? 4096 : 8192,
+      max_tokens: (hasExtractedText || hasImages) ? 4096 : 8192,
     };
 
     // json_object format: use for normal chat only.
