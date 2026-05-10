@@ -113,32 +113,35 @@ export default function FloatingChat() {
     recognition.start();
   }
 
-  function processFiles(fileList: FileList) {
-    Array.from(fileList).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        const base64 = dataUrl.split(',')[1];
-        setUploadedFiles((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            mimeType: file.type || 'application/octet-stream',
-            base64,
-            preview: file.type.startsWith('image/') ? dataUrl : undefined,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
+  function loadFiles(fileList: FileList): Promise<{ name: string; mimeType: string; base64: string; preview?: string }[]> {
+    return Promise.all(
+      Array.from(fileList).map(
+        (file) =>
+          new Promise<{ name: string; mimeType: string; base64: string; preview?: string }>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const dataUrl = e.target?.result as string;
+              resolve({
+                name: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                base64: dataUrl.split(',')[1],
+                preview: file.type.startsWith('image/') ? dataUrl : undefined,
+              });
+            };
+            reader.readAsDataURL(file);
+          })
+      )
+    );
   }
 
-  async function handleSend() {
-    if ((!input.trim() && uploadedFiles.length === 0) || loading) return;
+  async function handleSend(explicitFiles?: { name: string; mimeType: string; base64: string; preview?: string }[]) {
+    const filesToUse = explicitFiles ?? uploadedFiles;
+    if ((!input.trim() && filesToUse.length === 0) || loading) return;
     const supabase = createClient();
 
-    const userMsg = input.trim() || `חלץ נתונים מ-${uploadedFiles.map((f) => f.name).join(', ')}`;
+    const userMsg = input.trim() || `חלץ נתונים מ-${filesToUse.map((f) => f.name).join(', ')}`;
     setInput('');
+    setUploadedFiles([]);
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
@@ -295,16 +298,13 @@ export default function FloatingChat() {
       }
     }
 
-    const filesToSend = uploadedFiles.length > 0 ? uploadedFiles : undefined;
-    setUploadedFiles([]);
-
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: `[הקשר: ${context}]\n\n${userMsg}`,
-          files: filesToSend?.map((f) => ({ base64: f.base64, mimeType: f.mimeType, name: f.name })),
+          files: filesToUse.length > 0 ? filesToUse.map((f) => ({ base64: f.base64, mimeType: f.mimeType, name: f.name })) : undefined,
         }),
       });
 
@@ -529,7 +529,14 @@ export default function FloatingChat() {
               type="file"
               multiple
               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-              onChange={(e) => { if (e.target.files) processFiles(e.target.files); e.target.value = ''; }}
+              onChange={async (e) => {
+                if (!e.target.files || e.target.files.length === 0) return;
+                const fl = e.target.files;
+                e.target.value = '';
+                const files = await loadFiles(fl);
+                setUploadedFiles(files);
+                handleSend(files);
+              }}
               className="hidden"
             />
             <div className="flex items-center gap-1.5">
@@ -571,7 +578,7 @@ export default function FloatingChat() {
                 disabled={loading}
               />
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={loading || (!input.trim() && uploadedFiles.length === 0)}
                 className="bg-[#fce4ec] text-[#1a56db] font-semibold px-2.5 py-2 rounded-lg text-sm hover:bg-[#f8bbd0] transition-colors disabled:opacity-50"
               >
