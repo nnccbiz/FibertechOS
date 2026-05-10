@@ -6,6 +6,20 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'llama-3.2-11b-vision-preview';
 
+// Lean prompt used only for file extraction — avoids hitting Groq TPM limit
+const FILE_EXTRACTION_PROMPT = `חלץ נתוני תמחור מהטבלה. החזר JSON בלבד, ללא markdown.
+
+מבנה:
+{"action":"import","target_table":"supplier_quote","quote_info":{"supplier_name":"","quote_ref":"","quote_date":"","currency":"ILS"},"data":[{"description":"","item_code":"","dn":0,"quantity":0,"unit_price":0,"price_per":"meter","currency":"ILS"}],"summary":"חולצו X פריטים"}
+
+חוקים:
+- כל שורת טבלה = פריט אחד ב-data. אל תדלג על שורות.
+- תיאור/פריט → description | סעיף/קוד/מק"ט → item_code | כמות → quantity
+- מחיר יח'/עלות יח' → unit_price | יחידה "מטר" → price_per:"meter" אחרת "unit"
+- מטבע: ₪/שקל/ש"ח → ILS | $ → USD | € → EUR (ברירת מחדל ILS)
+- חלץ קוטר DN מהתיאור אם קיים (קוטר 800 → dn:800)
+- supplier_name, quote_ref מהמסמך אם קיים`;
+
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
 אתה מקבל פקודות בעברית חופשית ומבצע אותן בשקט (Silent Execution).
@@ -180,8 +194,12 @@ export async function POST(request: NextRequest) {
         ]
       : userMessage;
 
+    // Use lean extraction prompt when processing files to stay within Groq TPM limit
+    const hasExtractedText = files && Array.isArray(files) && files.length > 0 && imageFiles.length === 0;
+    const systemPrompt = hasExtractedText ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
+
     const messages: any[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
     ];
 
@@ -189,7 +207,7 @@ export async function POST(request: NextRequest) {
       model,
       messages,
       temperature: 0.1,
-      max_tokens: 8192,
+      max_tokens: hasExtractedText ? 4096 : 8192,
     };
 
     // json_object format not supported for vision model
