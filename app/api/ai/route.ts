@@ -173,11 +173,16 @@ export async function POST(request: NextRequest) {
 
     if (files && Array.isArray(files) && files.length > 0) {
       const extracted = await extractFileContent(files);
-      console.log('[AI route] extracted text length:', extracted.text.length, 'preview:', extracted.text.slice(0, 300));
+      const textLen = extracted.text.length;
+      const textPreview = extracted.text.slice(0, 200);
+      console.log(`[AI route] extracted: len=${textLen} imgs=${extracted.imageFiles.length} preview=${textPreview}`);
       if (extracted.text) {
         userMessage = `${extracted.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
-      } else {
-        console.warn('[AI route] file extraction returned empty text for files:', files.map(f => f.name));
+      }
+      // DEBUG: if extraction worked but text is very large, truncate to avoid TPM
+      if (userMessage.length > 8000) {
+        console.warn(`[AI route] message too large (${userMessage.length} chars), truncating to 8000`);
+        userMessage = userMessage.slice(0, 8000) + '\n...(truncated)';
       }
       imageFiles = extracted.imageFiles;
     }
@@ -226,8 +231,10 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('Groq API error:', err);
-      return NextResponse.json({ error: 'שגיאה בתקשורת עם רקסי' }, { status: 500 });
+      console.error(`[AI route] Groq error ${response.status}:`, err.slice(0, 300));
+      let errMsg = 'שגיאה בתקשורת עם רקסי';
+      try { const parsed = JSON.parse(err); errMsg = parsed?.error?.message || errMsg; } catch {}
+      return NextResponse.json({ error: errMsg, groq_status: response.status, summary: `שגיאה ${response.status}: ${errMsg}`, message: errMsg }, { status: 500 });
     }
 
     const data = await response.json();
