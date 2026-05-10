@@ -100,37 +100,56 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 6. אם הפקודה לא ברורה, החזר: {"action": "query", "summary": "שאלה או הבהרה", "message": "..."}`;
 
 // Hebrew BOQ column keywords → normalized field names
+// IMPORTANT: order matters — more specific keywords MUST come before generic ones.
+// "מחיר יחידה" must match sell_price before the generic "יחידה" matches unit.
 const BOQ_COL_MAP: [string[], string][] = [
   [['תיאור', 'פריט', 'תאור', 'פירוט', 'description', 'item', 'מוצר', 'שם פריט', 'שם המוצר'], 'description'],
-  [['סעיף', 'קוד', 'מקט', 'מק"ט', 'מק\\\'ט', 'code', 'ref', 'item_code'], 'item_code'],
-  [['כמות', 'qty', 'quantity', 'כמ\'', 'כמ'], 'quantity'],
-  [['יחידה', 'יח\'', 'יח', 'unit', 'units'], 'unit'],
-  [['מחיר יח\'', 'עלות יח\'', 'מחיר יחידה', 'מחיר/יח', 'מחיר ליח', 'מחיר', 'unit_price', 'price', 'עלות'], 'unit_price'],
-  [['סה"כ', 'סהכ', 'סה״כ', 'total', 'סך הכל', 'סך כל'], 'total'],
+  [['סעיף', 'קוד', 'מקט', 'מק"ט', 'code', 'ref', 'item_code'], 'item_code'],
+  [['כמות', 'qty', 'quantity'], 'quantity'],
+  // Cost / price columns checked BEFORE unit — prevents "מחיר יחידה" from matching 'unit'
+  [['עלות יח', 'עלות ליח', 'עלות/יח', 'unit cost', 'cost/unit', 'עלות יחידה'], 'cost_price'],
+  [['מחיר יח', 'מחיר יחידה', 'מחיר/יח', 'מחיר ליח', 'unit_price', 'price per'], 'sell_price'],
+  // Total cost before plain total — "סה"כ עלות" must not match the plain "סה"כ" entry
+  [['סה"כ עלות', 'סהכ עלות', 'סה״כ עלות', 'total cost', 'עלות כוללת', 'עלות סה"כ'], 'total_cost'],
+  [['סה"כ', 'סהכ', 'סה״כ', 'total', 'סך הכל', 'סך כל'], 'total_sell'],
+  // Unit column — generic, must come after all price/cost patterns
+  [['יחידה', 'יח\'', 'unit', 'units'], 'unit'],
   [['הערות', 'remarks', 'notes', 'הערה'], 'notes'],
 ];
 
 function detectCol(header: string): string | null {
-  const h = header.trim().toLowerCase().replace(/\s+/g, ' ');
+  // Normalize: remove common quote variants, lowercase, collapse spaces
+  const h = header.trim()
+    .replace(/[״"''`]/g, '"')
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
   for (const [keywords, field] of BOQ_COL_MAP) {
     if (keywords.some(k => h.includes(k.toLowerCase()))) return field;
   }
   return null;
 }
 
+// Sheet name patterns that indicate pricing data
+const PRICING_SHEET_PATTERNS = /תמחור|מחירון|pricing|price|עלות|costs?/i;
+
 function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
+
+  // Prefer sheets that match pricing patterns; fall back to all sheets
+  const preferredSheets = workbook.SheetNames.filter(n => PRICING_SHEET_PATTERNS.test(n));
+  const sheetsToProcess = preferredSheets.length > 0 ? preferredSheets : workbook.SheetNames;
+
   const allItems: any[] = [];
   let supplierName = '';
   let quoteRef = '';
   let currency = 'ILS';
 
-  for (const sheetName of workbook.SheetNames) {
+  for (const sheetName of sheetsToProcess) {
     const sheet = workbook.Sheets[sheetName];
     const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     if (rawRows.length === 0) continue;
 
-    // Scan first rows for supplier name / quote ref
+    // Scan first rows for supplier name / quote ref / currency
     for (let i = 0; i < Math.min(rawRows.length, 8); i++) {
       const rowStr = rawRows[i].map(String).join(' ');
       if (!supplierName && /ספק|חברה|מציע|שם/i.test(rowStr)) {
@@ -138,14 +157,14 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         if (parts.length) supplierName = String(parts[parts.length - 1]).trim();
       }
       if (!quoteRef && /מספר|ref|הצעה|quote/i.test(rowStr)) {
-        const m = rowStr.match(/[\d]{4,}/);
+        const m = rowStr.match(/\d{4,}/);
         if (m) quoteRef = m[0];
       }
       if (/\$|usd|דולר/i.test(rowStr)) currency = 'USD';
       else if (/€|eur|אירו/i.test(rowStr)) currency = 'EUR';
     }
 
-    // Find header row
+    // Find header row: first row with ≥2 recognized column hits
     let headerIdx = -1;
     let colMap: Record<number, string> = {};
     for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
@@ -159,6 +178,19 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
       if (hits >= 2) { headerIdx = i; colMap = mapped; break; }
     }
     if (headerIdx === -1) continue;
+
+    // If both cost_price and sell_price columns found, drop sell_price (we want cost)
+    const hasCostCol = Object.values(colMap).includes('cost_price');
+    if (hasCostCol) {
+      for (const [k, v] of Object.entries(colMap)) {
+        if (v === 'sell_price') delete colMap[Number(k)];
+      }
+    } else {
+      // No dedicated cost column: rename sell_price → cost_price
+      for (const [k, v] of Object.entries(colMap)) {
+        if (v === 'sell_price') colMap[Number(k)] = 'cost_price';
+      }
+    }
 
     // Parse data rows
     for (let i = headerIdx + 1; i < rawRows.length; i++) {
@@ -174,14 +206,12 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
 
       const desc = String(item.description || '').trim();
       const qty = parseFloat(String(item.quantity)) || 0;
-      const unitPrice = parseFloat(String(item.unit_price)) || 0;
-      if (!desc && qty === 0 && unitPrice === 0) continue; // skip empty rows
+      const unitPrice = parseFloat(String(item.cost_price)) || 0;
+      if (!desc && qty === 0 && unitPrice === 0) continue;
 
-      // Extract DN from description
       const dnMatch = desc.match(/(?:dn|קוטר|ø)\s*(\d{2,4})/i);
       const dn = dnMatch ? parseInt(dnMatch[1]) : null;
 
-      // Detect item type from description
       let itemType = 'other';
       if (/צינור|pipe/i.test(desc)) itemType = 'pipe';
       else if (/אוגן|פלנג|flange/i.test(desc)) itemType = 'flange';
@@ -196,7 +226,7 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         description: desc || item.item_code || `פריט ${i}`,
         item_code: String(item.item_code || '').trim() || null,
         item_type: itemType,
-        dn: dn,
+        dn,
         quantity: qty,
         unit_price: unitPrice,
         price_per: pricePer,
