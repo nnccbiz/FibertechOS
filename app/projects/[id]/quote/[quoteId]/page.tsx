@@ -263,8 +263,8 @@ export default function QuotePreviewPage() {
 
             {/* Client + Project info */}
             <div className="grid grid-cols-2 gap-10 mb-8">
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-3 border-r-4 border-[#1a56db] pr-3">לכבוד</h3>
+              <div className="border-r-4 border-[#003d77] pr-4">
+                <h3 className="text-sm font-bold text-[#003d77] mb-3">לכבוד</h3>
                 <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
                 {project.client_name && project.client_name !== quote.client_name && (
                   <p className="text-sm text-gray-600">{project.client_name}</p>
@@ -272,8 +272,8 @@ export default function QuotePreviewPage() {
                 <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
                 <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-3 border-r-4 border-[#1a56db] pr-3">פרויקט</h3>
+              <div className="border-r-4 border-[#003d77] pr-4">
+                <h3 className="text-sm font-bold text-[#003d77] mb-3">פרויקט</h3>
                 <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
                 {project.location && <p className="text-sm text-gray-600">{project.location}</p>}
                 {quote.notes && <p className="text-sm text-gray-600 mt-1">{quote.notes}</p>}
@@ -284,15 +284,15 @@ export default function QuotePreviewPage() {
             {/* Items table */}
             <table className="w-full text-sm border-collapse mb-4">
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="text-center py-2.5 px-2 font-semibold text-gray-700 border border-gray-200 w-8">#</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">תיאור פריט</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">קוטר</th>
-                  <th className="text-center py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">כמות</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">יחידה</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">מחיר ליחידה</th>
-                  {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">הנחה</th>}
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">סה״כ</th>
+                <tr className="bg-[#003d77]">
+                  <th className="text-center py-2.5 px-2 font-semibold text-white border border-[#003d77] w-8">#</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">תיאור פריט</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">קוטר</th>
+                  <th className="text-center py-2.5 px-3 font-semibold text-white border border-[#003d77]">כמות</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">יחידה</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">מחיר ליחידה</th>
+                  {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-[#003d77]">הנחה</th>}
+                  <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">סה״כ</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,7 +343,7 @@ export default function QuotePreviewPage() {
                   <span className="text-gray-600">מע&quot;מ 18%</span>
                   <span className="text-gray-600">{formatCurrency(vatAmount)}</span>
                 </div>
-                <div className="flex justify-between px-4 py-2.5 bg-gray-800">
+                <div className="flex justify-between px-4 py-2.5 bg-[#003d77]">
                   <span className="font-bold text-white">סה&quot;כ לתשלום</span>
                   <span className="font-bold text-white">{formatCurrency(totalWithVat)}</span>
                 </div>
@@ -355,13 +355,13 @@ export default function QuotePreviewPage() {
               <div className="grid grid-cols-2 gap-8 mb-6">
                 {quote.payment_terms && (
                   <div>
-                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">תנאי תשלום</h3>
+                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי תשלום</h3>
                     <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
                   </div>
                 )}
                 {quote.delivery_time && (
                   <div>
-                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">זמן אספקה</h3>
+                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">זמן אספקה</h3>
                     <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
                   </div>
                 )}
@@ -371,7 +371,7 @@ export default function QuotePreviewPage() {
             {/* Terms */}
             {quote.disclaimer_text && (
               <div className="mb-8">
-                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">תנאי התקשרות</h3>
+                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי התקשרות</h3>
                 <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
               </div>
             )}
@@ -379,7 +379,7 @@ export default function QuotePreviewPage() {
             {/* Non-image attachments */}
             {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">מפרטים טכניים ושרטוטים</h3>
+                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">מפרטים טכניים ושרטוטים</h3>
                 <div className="space-y-1">
                   {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
                     <div key={att.id} className="flex items-center gap-2 text-xs text-gray-600">
