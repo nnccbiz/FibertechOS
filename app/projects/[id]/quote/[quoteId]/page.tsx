@@ -199,6 +199,25 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
+  const loadedImageAtts = attachments.filter(
+    (a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id]
+  );
+  const totalPages = 2 + loadedImageAtts.length; // main + images + contract terms
+
+  function PageMeta({ pageNum }: { pageNum: number }) {
+    return (
+      <div className="border-t border-gray-300 mt-2 pt-2 flex justify-between items-center" dir="rtl">
+        <span className="text-[9px] text-gray-500">
+          מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
+          {quoteDate && <> &nbsp;|&nbsp; תאריך: <span className="font-semibold">{quoteDate}</span></>}
+        </span>
+        <span className="text-[9px] font-semibold text-[#003d77]">
+          עמוד {pageNum} מתוך {totalPages}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-100 min-h-screen">
       {/* Print controls */}
@@ -420,18 +439,22 @@ export default function QuotePreviewPage() {
             <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
             <p className="text-[9px] text-gray-500">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
             <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+            <PageMeta pageNum={1} />
           </div>
         </div>
 
         {/* Separate A4 pages for image attachments */}
-        {attachments
-          .filter((a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id])
-          .map((att) => (
-            <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col items-center justify-center p-8" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+        {loadedImageAtts.map((att, idx) => (
+          <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+            <div className="flex-1 flex flex-col items-center justify-center p-8">
               <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
-              <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
+              <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[240mm] object-contain" />
             </div>
-          ))}
+            <div className="bg-[#f0f0f0] px-10 py-3" dir="rtl">
+              <PageMeta pageNum={2 + idx} />
+            </div>
+          </div>
+        ))}
 
         {/* Contract Terms — A4 pages */}
         <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }} dir="rtl">
@@ -469,6 +492,7 @@ export default function QuotePreviewPage() {
             <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
             <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
             <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+            <PageMeta pageNum={totalPages} />
           </div>
         </div>
       </div>
