@@ -19,7 +19,7 @@ export default function QuotePreviewPage() {
   const [items, setItems] = useState<any[]>([]);
   const [project, setProject] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
-  const [clientEmail, setClientEmail] = useState<string>('');
+  const [clientContact, setClientContact] = useState<{ name: string; phone: string; email: string } | null>(null);
   const [imageDataUrls, setImageDataUrls] = useState<Record<string, string>>({});
   const [quoteViews, setQuoteViews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,13 +33,13 @@ export default function QuotePreviewPage() {
         supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order'),
         supabase.from('projects').select('*').eq('id', projectId).single(),
         supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', quoteId),
-        supabase.from('project_contacts').select('email').eq('project_id', projectId).not('email', 'is', null).neq('email', '').limit(1),
+        supabase.from('project_contacts').select('name, phone, email').eq('project_id', projectId).limit(1),
       ]);
       setQuote(q);
       setItems(its || []);
       setProject(proj);
       setAttachments(atts || []);
-      setClientEmail(conts?.[0]?.email || '');
+      if (conts?.[0]) setClientContact({ name: conts[0].name || '', phone: conts[0].phone || '', email: conts[0].email || '' });
 
       // Load views (safe — table may not exist yet)
       try {
@@ -300,10 +300,15 @@ export default function QuotePreviewPage() {
                 <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
                 {project.location && <p className="text-sm text-gray-600">{project.location}</p>}
                 {quote.notes && <p className="text-sm text-gray-600 mt-1">{quote.notes}</p>}
-                {clientEmail
-                  ? <p className="text-sm text-gray-600 mt-3 dir-ltr" dir="ltr">{clientEmail}</p>
-                  : <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">מייל:</p>
-                }
+                {clientContact ? (
+                  <div className="mt-3 space-y-1">
+                    {clientContact.name && <p className="text-sm text-gray-700 font-medium">{clientContact.name}</p>}
+                    {clientContact.phone && <p className="text-sm text-gray-600" dir="ltr">{clientContact.phone}</p>}
+                    {clientContact.email && <p className="text-sm text-gray-600" dir="ltr">{clientContact.email}</p>}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
+                )}
               </div>
             </div>
 
