@@ -407,7 +407,7 @@ export default function QuotePreviewPage() {
 
           {/* Footer — gray background matching logo circle */}
           <div className="mt-auto bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
-            <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק - שירותי צנרת וכימיקלים מקבוצת מאיה אופקים</p>
+            <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
             <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
             <p className="text-[9px] text-gray-500">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
             <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
