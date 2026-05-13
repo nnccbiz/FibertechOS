@@ -88,6 +88,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                 value={contact.name}
                 onChange={(e) => updateContact(i, 'name', e.target.value)}
                 placeholder="שם"
+                autoComplete="name"
                 className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
               />
               <input
@@ -95,6 +96,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                 value={contact.phone}
                 onChange={(e) => updateContact(i, 'phone', e.target.value)}
                 placeholder="טלפון"
+                autoComplete="tel"
                 className="col-span-2 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 dir="ltr"
               />
@@ -103,6 +105,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                 value={contact.email}
                 onChange={(e) => updateContact(i, 'email', e.target.value)}
                 placeholder="מייל"
+                autoComplete="email"
                 className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 dir="ltr"
               />
