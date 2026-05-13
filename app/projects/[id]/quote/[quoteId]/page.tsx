@@ -487,7 +487,7 @@ export default function QuotePreviewPage() {
 
         {/* Separate A4 pages for image / PDF attachments */}
         {attachmentPages.map((page, idx) => (
-          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', pageBreakBefore: 'always', overflow: 'hidden' }}>
+          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }}>
             <div className="flex-1 flex flex-col items-center justify-center p-8">
               <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">
                 {page.fileName}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
@@ -502,7 +502,7 @@ export default function QuotePreviewPage() {
 
         {/* Contract Terms — A4 pages (pre-paginated) */}
         {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
-          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', pageBreakBefore: 'always', overflow: 'hidden' }} dir="rtl">
+          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
             <div className="px-10 pt-6 pb-4 flex-1 overflow-hidden">
               {chunkIdx === 0 ? (
                 <>
