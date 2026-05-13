@@ -195,6 +195,9 @@ export default function QuotePreviewPage() {
     }
   }
 
+  const vatAmount = Math.round(finalTotal * 0.18);
+  const totalWithVat = finalTotal + vatAmount;
+
   return (
     <div className="bg-gray-100 min-h-screen">
       {/* Print controls */}
@@ -202,26 +205,13 @@ export default function QuotePreviewPage() {
         <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           🖨️ הדפס
         </button>
-        <button
-          onClick={handleDownloadPdf}
-          disabled={generatingPdf}
-          className="bg-blue-50 text-blue-700 text-sm px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-        >
+        <button onClick={handleDownloadPdf} disabled={generatingPdf} className="bg-blue-50 text-blue-700 text-sm px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50">
           {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
-        <button
-          onClick={handleEmailWithLink}
-          disabled={sendingLink}
-          className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-        >
+        <button onClick={handleEmailWithLink} disabled={sendingLink} className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50">
           {sendingLink ? '⏳ מכין...' : '📧 שלח לינק להצעה במייל'}
         </button>
-        <a
-          href={`https://wa.me/?text=${whatsappText}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
-        >
+        <a href={`https://wa.me/?text=${whatsappText}`} target="_blank" rel="noopener noreferrer" className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded-lg hover:bg-green-100 transition-colors">
           💬 שלח בוואטסאפ
         </a>
         <button onClick={() => window.history.back()} className="text-sm text-gray-500 px-3 py-2 hover:text-gray-700 mr-auto">
@@ -235,7 +225,6 @@ export default function QuotePreviewPage() {
         )}
       </div>
 
-      {/* Views detail panel */}
       {quoteViews.length > 0 && (
         <div className="print:hidden max-w-[210mm] mx-auto bg-green-50 border border-green-200 rounded-lg mx-6 mt-4 p-4" dir="rtl">
           <h3 className="text-sm font-bold text-green-800 mb-2">👁 היסטוריית צפיות ({quoteViews.length})</h3>
@@ -251,184 +240,195 @@ export default function QuotePreviewPage() {
         </div>
       )}
 
-      {/* All pages wrapper for PDF capture */}
       <div id="quote-page-content">
-      {/* A4 page */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
-        <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
+        {/* A4 page */}
+        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
+          <div className="px-10 pt-8 pb-6 flex-1" dir="rtl">
 
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8 border-b-2 border-[#1b3a6b] pb-6">
-            <div className="flex items-center gap-4">
-              <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
+            {/* Header: title right, logo left */}
+            <div className="flex justify-between items-start mb-5">
               <div>
-                <h1 className="text-xl font-bold text-[#1b3a6b]">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
-                <p className="text-xs text-gray-400 mt-1">ח.פ 510931389 | מקבוצת מאיה אופקים</p>
+                <h1 className="text-4xl font-bold text-gray-900 tracking-wide">הצעת מחיר</h1>
+                <p className="text-sm text-gray-500 mt-2">
+                  <span className="font-semibold">מס׳ הצעה:</span> {quote.quote_number}
+                  {quoteDate && <>&nbsp;|&nbsp;<span className="font-semibold">תאריך:</span> {quoteDate}</>}
+                </p>
+                {validUntil && <p className="text-xs text-gray-400 mt-1">תוקף עד: {validUntil}</p>}
+              </div>
+              <img src="/logo.png" alt="Fibertech" className="h-16 object-contain" />
+            </div>
+
+            {/* Separator — gray matching logo circle */}
+            <div className="border-b-2 border-[#5c5c5c] mb-6" />
+
+            {/* Client + Project info */}
+            <div className="grid grid-cols-2 gap-10 mb-8">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 border-r-4 border-[#1a56db] pr-3">לכבוד</h3>
+                <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
+                {project.client_name && project.client_name !== quote.client_name && (
+                  <p className="text-sm text-gray-600">{project.client_name}</p>
+                )}
+                <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
+                <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 border-r-4 border-[#1a56db] pr-3">פרויקט</h3>
+                <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
+                {project.location && <p className="text-sm text-gray-600">{project.location}</p>}
+                {quote.notes && <p className="text-sm text-gray-600 mt-1">{quote.notes}</p>}
+                <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">מועד מבוקש:</p>
               </div>
             </div>
-            <div className="text-left">
-              <p className="text-lg font-bold text-green-700">הצעת מחיר</p>
-              <p className="text-sm text-gray-500 font-mono">{quote.quote_number}</p>
-              <p className="text-xs text-gray-400 mt-1">תאריך: {quoteDate}</p>
-              {validUntil && <p className="text-xs text-gray-400">תוקף עד: {validUntil}</p>}
-            </div>
-          </div>
 
-          {/* Client + Project info */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div>
-              <h3 className="text-sm font-bold text-gray-600 mb-2">לכבוד</h3>
-              <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
-              {project.client_name && project.client_name !== quote.client_name && (
-                <p className="text-sm text-gray-500">{project.client_name}</p>
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-600 mb-2">פרויקט</h3>
-              <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
-              {project.location && <p className="text-sm text-gray-500">📍 {project.location}</p>}
-            </div>
-          </div>
+            {/* Items table */}
+            <table className="w-full text-sm border-collapse mb-4">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="text-center py-2.5 px-2 font-semibold text-gray-700 border border-gray-200 w-8">#</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">תיאור פריט</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">קוטר</th>
+                  <th className="text-center py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">כמות</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">יחידה</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">מחיר ליחידה</th>
+                  {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">הנחה</th>}
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700 border border-gray-200">סה״כ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => {
+                  const disc = parseFloat(item.discount_pct) || 0;
+                  return (
+                    <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                      <td className="py-2 px-2 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
+                      <td className="py-2 px-3 border border-gray-200 text-gray-800 font-medium">
+                        {item.product_name}{item.notes ? <span className="text-gray-400 font-normal"> ({item.notes})</span> : ''}
+                      </td>
+                      <td className="py-2 px-3 border border-gray-200 text-gray-500">{item.dn_size || '—'}</td>
+                      <td className="py-2 px-3 border border-gray-200 text-gray-700 text-center">{item.quantity}</td>
+                      <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
+                      <td className="py-2 px-3 border border-gray-200 text-gray-700">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
+                      {hasAnyDiscount && (
+                        <td className="py-2 px-3 border border-gray-200 text-center text-gray-600">
+                          {disc > 0 ? `${disc}%` : '0%'}
+                        </td>
+                      )}
+                      <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-          {/* Items table */}
-          <table className="w-full text-sm border-collapse mb-6">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">#</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">תיאור פריט</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קוטר</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
-                {hasAnyDiscount && <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>}
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">סה״כ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, idx) => {
-                const disc = parseFloat(item.discount_pct) || 0;
-                return (
-                  <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-800">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.dn_size || '—'}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
-                    {hasAnyDiscount && <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>}
-                    <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              {globalDisc > 0 && (
-                <>
-                  <tr className="bg-gray-50">
-                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-gray-500 border border-gray-200">סה״כ לפני הנחה</td>
-                    <td className="py-2 px-3 text-sm text-gray-500 border border-gray-200">{formatCurrency(totalAfterLineDisc)}</td>
-                  </tr>
-                  <tr>
-                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-orange-600 border border-gray-200">הנחה {globalDisc}%</td>
-                    <td className="py-2 px-3 text-sm text-orange-600 border border-gray-200">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
-                  </tr>
-                </>
-              )}
-              <tr className="bg-green-50">
-                <td colSpan={colCount - 1} className="py-3 px-3 text-left font-bold text-lg text-gray-800 border border-gray-200">סה״כ</td>
-                <td className="py-3 px-3 font-bold text-lg text-green-700 border border-gray-200">{formatCurrency(finalTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
-
-          {/* Payment terms */}
-          {quote.payment_terms && (
-            <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">תנאי תשלום</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.payment_terms}</p>
+            {/* Totals box — right aligned */}
+            <div className="flex justify-end mb-8">
+              <div className="border border-gray-200 w-64 text-sm">
+                {globalDisc > 0 && (
+                  <>
+                    <div className="flex justify-between px-4 py-2 border-b border-gray-200">
+                      <span className="text-gray-600">סכום לפני הנחה</span>
+                      <span className="text-gray-600">{formatCurrency(totalAfterLineDisc)}</span>
+                    </div>
+                    <div className="flex justify-between px-4 py-2 border-b border-gray-200">
+                      <span className="text-orange-600">הנחה {globalDisc}%</span>
+                      <span className="text-orange-600">-{formatCurrency(totalAfterLineDisc - finalTotal)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between px-4 py-2 border-b border-gray-200">
+                  <span className="text-gray-600">סכום ביניים</span>
+                  <span className="text-gray-600">{formatCurrency(finalTotal)}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2 border-b border-gray-200">
+                  <span className="text-gray-600">מע&quot;מ 18%</span>
+                  <span className="text-gray-600">{formatCurrency(vatAmount)}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5 bg-gray-800">
+                  <span className="font-bold text-white">סה&quot;כ לתשלום</span>
+                  <span className="font-bold text-white">{formatCurrency(totalWithVat)}</span>
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Delivery time */}
-          {quote.delivery_time && (
-            <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">זמן אספקה</h3>
-              <p className="text-sm text-gray-700">{quote.delivery_time}</p>
-            </div>
-          )}
-
-          {/* Terms */}
-          {quote.disclaimer_text && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">תנאי התקשרות</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
-            </div>
-          )}
-
-          {/* Notes */}
-          {quote.notes && (
-            <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">הערות</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.notes}</p>
-            </div>
-          )}
-
-          {/* Non-image attachments listed */}
-          {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">מפרטים טכניים ושרטוטים</h3>
-              <div className="space-y-1">
-                {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
-                  <div key={att.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-400">📄</span>
-                    <span className="text-gray-700">{att.file_name}</span>
+            {/* Payment terms + Delivery — side by side */}
+            {(quote.payment_terms || quote.delivery_time) && (
+              <div className="grid grid-cols-2 gap-8 mb-6">
+                {quote.payment_terms && (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">תנאי תשלום</h3>
+                    <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
                   </div>
-                ))}
+                )}
+                {quote.delivery_time && (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">זמן אספקה</h3>
+                    <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Terms */}
+            {quote.disclaimer_text && (
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">תנאי התקשרות</h3>
+                <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
+              </div>
+            )}
+
+            {/* Non-image attachments */}
+            {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#1a56db] pr-3">מפרטים טכניים ושרטוטים</h3>
+                <div className="space-y-1">
+                  {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
+                    <div key={att.id} className="flex items-center gap-2 text-xs text-gray-600">
+                      <span>📄</span>
+                      <span>{att.file_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Signatures */}
+            <div className="mt-10 pt-4 grid grid-cols-2 gap-8">
+              <div>
+                <p className="text-sm font-bold text-gray-700 mb-10">חתימת פיברטק</p>
+                <div className="border-b border-gray-400 w-44" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-700 mb-10">חתימת הלקוח</p>
+                <div className="border-b border-gray-400 w-44" />
               </div>
             </div>
-          )}
 
-          {/* Signature */}
-          <div className="mt-12 pt-6 border-t border-gray-200">
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <p className="text-sm font-bold text-gray-600 mb-8">חתימת פיברטק</p>
-                <div className="border-b border-gray-300 w-48"></div>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-600 mb-8">חתימת הלקוח</p>
-                <div className="border-b border-gray-300 w-48"></div>
-              </div>
+          </div>
+
+          {/* Footer — gray background matching logo circle */}
+          <div className="mt-auto bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
+            <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק - שירותי צנרת וכימיקלים מקבוצת מאיה אופקים</p>
+            <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+            <p className="text-[9px] text-gray-500">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
+            <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+          </div>
+        </div>
+
+        {/* Separate A4 pages for image attachments */}
+        {attachments
+          .filter((a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id])
+          .map((att) => (
+            <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col items-center justify-center p-8" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+              <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
+              <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
             </div>
-          </div>
-
-        </div>
-
-        {/* Company footer — pinned to bottom */}
-        <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
-          <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
-          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
-          <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
-          <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
-        </div>
+          ))}
       </div>
 
-      {/* Separate A4 pages for each image attachment */}
-      {attachments
-        .filter((a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id])
-        .map((att) => (
-          <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col items-center justify-center p-8" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
-            <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
-            <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
-          </div>
-        ))}
-      </div>
-
-      {/* Print styles */}
       <style jsx global>{`
         @media print {
           body { background: white !important; }
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4; margin: 8mm; }
         }
       `}</style>
     </div>
