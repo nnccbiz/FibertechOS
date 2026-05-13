@@ -292,23 +292,24 @@ export default function QuotePreviewPage() {
                 {project.client_name && project.client_name !== quote.client_name && (
                   <p className="text-sm text-gray-600">{project.client_name}</p>
                 )}
-                <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
-                <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
+                {clientContact?.name
+                  ? <p className="text-sm text-gray-700 mt-2">{clientContact.name}</p>
+                  : <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
+                }
+                {clientContact?.phone
+                  ? <p className="text-sm text-gray-600 mt-1" dir="ltr">{clientContact.phone}</p>
+                  : <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
+                }
               </div>
               <div className="border-r-4 border-[#003d77] pr-4">
                 <h3 className="text-sm font-bold text-[#003d77] mb-3">פרויקט</h3>
                 <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
                 {project.location && <p className="text-sm text-gray-600">{project.location}</p>}
                 {quote.notes && <p className="text-sm text-gray-600 mt-1">{quote.notes}</p>}
-                {clientContact ? (
-                  <div className="mt-3 space-y-1">
-                    {clientContact.name && <p className="text-sm text-gray-700 font-medium">{clientContact.name}</p>}
-                    {clientContact.phone && <p className="text-sm text-gray-600" dir="ltr">{clientContact.phone}</p>}
-                    {clientContact.email && <p className="text-sm text-gray-600" dir="ltr">{clientContact.email}</p>}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
-                )}
+                {clientContact?.email
+                  ? <p className="text-sm text-gray-600 mt-2" dir="ltr">{clientContact.email}</p>
+                  : <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">מייל:</p>
+                }
               </div>
             </div>
 
