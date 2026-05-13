@@ -9,6 +9,26 @@ function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
 
+async function renderPdfToPages(attId: string, fileName: string, blob: Blob): Promise<Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }>> {
+  const pdfjsLib: any = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  const arrayBuffer = await blob.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }> = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    pages.push({ attId, fileName, pageNum: i, totalPages: pdf.numPages, dataUrl: canvas.toDataURL('image/png') });
+  }
+  return pages;
+}
+
 export default function QuotePreviewPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -20,7 +40,7 @@ export default function QuotePreviewPage() {
   const [project, setProject] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [clientContact, setClientContact] = useState<{ name: string; phone: string; email: string } | null>(null);
-  const [imageDataUrls, setImageDataUrls] = useState<Record<string, string>>({});
+  const [attachmentPages, setAttachmentPages] = useState<Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }>>([]);
   const [quoteViews, setQuoteViews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -47,38 +67,39 @@ export default function QuotePreviewPage() {
         setQuoteViews(views || []);
       } catch {}
 
-      // Download image attachments and convert to data URLs
+      // Download image + PDF attachments and convert to A4 pages
       if (atts && atts.length > 0) {
-        const imageAtts = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
-        const urls: Record<string, string> = {};
-        await Promise.all(
-          imageAtts.map(async (att: any) => {
+        const renderableAtts = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp|pdf)$/i.test(a.file_name));
+        const pageEntries = await Promise.all(
+          renderableAtts.map(async (att: any) => {
             try {
-              // Extract storage path from full URL or use as-is
               let storagePath = att.file_url;
               if (storagePath.startsWith('http')) {
                 const match = storagePath.match(/project-files\/(.+)$/);
                 if (match) storagePath = match[1];
               }
               const { data, error } = await supabase.storage.from('project-files').download(storagePath);
-              if (error) {
-                console.error('Download error for', att.file_name, error.message);
-                return;
+              if (error || !data) {
+                console.error('Download error for', att.file_name, error?.message);
+                return [];
               }
-              if (data) {
-                const url = await new Promise<string>((resolve) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => resolve(reader.result as string);
-                  reader.readAsDataURL(data);
-                });
-                urls[att.id] = url;
+              const isPdf = /\.pdf$/i.test(att.file_name);
+              if (isPdf) {
+                return await renderPdfToPages(att.id, att.file_name, data);
               }
+              const url = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(data);
+              });
+              return [{ attId: att.id, fileName: att.file_name, pageNum: 1, totalPages: 1, dataUrl: url }];
             } catch (err: any) {
               console.error('Failed to load attachment', att.file_name, err?.message);
+              return [];
             }
           })
         );
-        setImageDataUrls(urls);
+        setAttachmentPages(pageEntries.flat());
       }
 
       setLoading(false);
@@ -202,10 +223,7 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
-  const loadedImageAtts = attachments.filter(
-    (a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id]
-  );
-  const totalPages = 2 + loadedImageAtts.length; // main + images + contract terms
+  const totalPages = 2 + attachmentPages.length; // main + drawing pages + contract terms
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -459,12 +477,14 @@ export default function QuotePreviewPage() {
           </div>
         </div>
 
-        {/* Separate A4 pages for image attachments */}
-        {loadedImageAtts.map((att, idx) => (
-          <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+        {/* Separate A4 pages for image / PDF attachments */}
+        {attachmentPages.map((page, idx) => (
+          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
             <div className="flex-1 flex flex-col items-center justify-center p-8">
-              <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
-              <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[240mm] object-contain" />
+              <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">
+                {page.fileName}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
+              </p>
+              <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-[240mm] object-contain" />
             </div>
             <div className="bg-[#f0f0f0] px-10 py-3" dir="rtl">
               <PageMeta pageNum={2 + idx} />
