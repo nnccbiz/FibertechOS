@@ -160,14 +160,10 @@ export default function QuotePreviewPage() {
       if (!el || el.offsetHeight === 0) continue;
       const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
-      const imgH = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (!firstPage) pdf.addPage();
-        firstPage = false;
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
+      // Each A4 page element is forced to 297mm height — render it as a single PDF page
+      if (!firstPage) pdf.addPage();
+      firstPage = false;
+      pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
     }
     const arrayBuf = pdf.output('arraybuffer');
     const bytes = new Uint8Array(arrayBuf);
@@ -225,7 +221,17 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
-  const totalPages = 2 + attachmentPages.length; // main + drawing pages + contract terms
+  // Pre-paginate contract sections so jsPDF doesn't slice mid-clause
+  const sec = CONTRACT_SECTIONS;
+  const CONTRACT_PAGE_CHUNKS = [
+    [sec[0], sec[1]],                                                                          // תשלום + אפיון
+    [sec[2]],                                                                                  // אספקה
+    [{ ...sec[3], clauses: sec[3].clauses.slice(0, 9) }],                                      // פיקוח 22-30
+    [{ ...sec[3], title: sec[3].title + ' — המשך', clauses: sec[3].clauses.slice(9) }],        // פיקוח 31-38
+    [sec[4]],                                                                                  // צנרת לדחיקה
+    [sec[5], sec[6]],                                                                          // צוות חוץ + הזמנה
+  ];
+  const totalPages = 1 + attachmentPages.length + CONTRACT_PAGE_CHUNKS.length;
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -285,7 +291,7 @@ export default function QuotePreviewPage() {
 
       <div id="quote-page-content">
         {/* A4 page */}
-        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm' }}>
+        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }}>
           <div className="px-10 pt-8 pb-6 flex-1" dir="rtl">
 
             {/* Header: title right, logo left */}
@@ -481,7 +487,7 @@ export default function QuotePreviewPage() {
 
         {/* Separate A4 pages for image / PDF attachments */}
         {attachmentPages.map((page, idx) => (
-          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
+          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', pageBreakBefore: 'always', overflow: 'hidden' }}>
             <div className="flex-1 flex flex-col items-center justify-center p-8">
               <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">
                 {page.fileName}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
@@ -494,45 +500,55 @@ export default function QuotePreviewPage() {
           </div>
         ))}
 
-        {/* Contract Terms — A4 pages */}
-        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }} dir="rtl">
-          <div className="px-10 pt-8 pb-6 flex-1">
-            {/* Terms header */}
-            <div className="flex justify-between items-start mb-5">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
-                <p className="text-sm text-gray-500 mt-1">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
-              </div>
-              <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
-            </div>
-            <div className="border-b-2 border-[#5c5c5c] mb-6" />
-
-            {/* Sections */}
-            {CONTRACT_SECTIONS.map((section) => (
-              <div key={section.title} className="mb-6">
-                <div className="border-r-4 border-[#003d77] pr-4 mb-3">
-                  <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
-                </div>
-                <div className="space-y-2">
-                  {section.clauses.map((clause) => (
-                    <div key={clause.num} className="flex gap-3 text-xs text-gray-700 leading-relaxed">
-                      <span className="font-bold text-[#003d77] min-w-[24px] text-left">{clause.num}.</span>
-                      <span>{clause.text}</span>
+        {/* Contract Terms — A4 pages (pre-paginated) */}
+        {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
+          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', pageBreakBefore: 'always', overflow: 'hidden' }} dir="rtl">
+            <div className="px-10 pt-6 pb-4 flex-1 overflow-hidden">
+              {chunkIdx === 0 ? (
+                <>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
+                      <p className="text-xs text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+                    <img src="/logo.png" alt="Fibertech" className="h-12 object-contain" />
+                  </div>
+                  <div className="border-b-2 border-[#5c5c5c] mb-4" />
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <h1 className="text-lg font-bold text-gray-700">תנאי הסכם — המשך</h1>
+                    <img src="/logo.png" alt="Fibertech" className="h-10 object-contain" />
+                  </div>
+                  <div className="border-b border-gray-300 mb-4" />
+                </>
+              )}
 
-          {/* Footer */}
-          <div className="mt-auto bg-[#f0f0f0] px-10 py-4 text-center">
-            <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-            <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
-            <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-            <PageMeta pageNum={totalPages} />
+              {chunkSections.map((section) => (
+                <div key={section.title} className="mb-4">
+                  <div className="border-r-4 border-[#003d77] pr-3 mb-2">
+                    <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
+                  </div>
+                  <div className="space-y-1.5">
+                    {section.clauses.map((clause) => (
+                      <div key={clause.num} className="flex gap-2 text-[11px] text-gray-700 leading-snug">
+                        <span className="font-bold text-[#003d77] min-w-[20px] text-left">{clause.num}.</span>
+                        <span className="whitespace-pre-line">{clause.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto bg-[#f0f0f0] px-10 py-3 text-center">
+              <p className="text-[10px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+              <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+              <PageMeta pageNum={1 + attachmentPages.length + 1 + chunkIdx} />
+            </div>
           </div>
-        </div>
+        ))}
       </div>
 
       <style jsx global>{`
