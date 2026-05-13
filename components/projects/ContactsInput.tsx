@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 export interface ProjectContact {
   role: string;
   name: string;
@@ -23,6 +25,17 @@ const ROLES = [
 ];
 
 export default function ContactsInput({ contacts, onChange }: ContactsInputProps) {
+  const [pickerSupported, setPickerSupported] = useState(false);
+
+  useEffect(() => {
+    setPickerSupported(
+      typeof navigator !== 'undefined' &&
+      'contacts' in navigator &&
+      // @ts-ignore
+      typeof navigator.contacts?.select === 'function'
+    );
+  }, []);
+
   function updateContact(index: number, field: keyof ProjectContact, value: string) {
     const updated = [...contacts];
     updated[index] = { ...updated[index], [field]: value };
@@ -35,6 +48,23 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
 
   function removeContact(index: number) {
     onChange(contacts.filter((_, i) => i !== index));
+  }
+
+  async function pickFromPhone() {
+    try {
+      // @ts-ignore — Contact Picker API not yet in TS stdlib
+      const results = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true });
+      if (!results || results.length === 0) return;
+      const newContacts: ProjectContact[] = results.map((c: any) => ({
+        role: '',
+        name: c.name?.[0] || '',
+        phone: c.tel?.[0] || '',
+        email: c.email?.[0] || '',
+      }));
+      onChange([...contacts, ...newContacts]);
+    } catch {
+      // ביטל בחירה
+    }
   }
 
   return (
@@ -87,13 +117,24 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={addContact}
-        className="text-sm text-[#1a56db] hover:underline"
-      >
-        + הוסף איש קשר
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={addContact}
+          className="text-sm text-[#1a56db] hover:underline"
+        >
+          + הוסף איש קשר
+        </button>
+        {pickerSupported && (
+          <button
+            type="button"
+            onClick={pickFromPhone}
+            className="text-sm text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+          >
+            📱 בחר מאנשי הקשר
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -119,10 +119,34 @@ export default function ProjectDetailPage() {
   const [contactsForm, setContactsForm] = useState<any[]>([]);
   const [specsForm, setSpecsForm] = useState<any[]>([]);
   const [contractorsForm, setContractorsForm] = useState<string[]>([]);
+  const [contactPickerSupported, setContactPickerSupported] = useState(false);
 
   useEffect(() => {
     load();
+    setContactPickerSupported(
+      typeof navigator !== 'undefined' &&
+      'contacts' in navigator &&
+      // @ts-ignore
+      typeof navigator.contacts?.select === 'function'
+    );
   }, [params.id]);
+
+  async function pickContactFromPhone() {
+    try {
+      // @ts-ignore
+      const results = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true });
+      if (!results || results.length === 0) return;
+      const newContacts = results.map((c: any) => ({
+        role: '',
+        name: c.name?.[0] || '',
+        phone: c.tel?.[0] || '',
+        email: c.email?.[0] || '',
+      }));
+      setContactsForm((prev) => [...prev, ...newContacts]);
+    } catch {
+      // ביטל בחירה
+    }
+  }
 
   async function load() {
     try {
@@ -708,7 +732,14 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
                 </div>
               ))}
-              <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+                {contactPickerSupported && (
+                  <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                    📱 בחר מאנשי הקשר
+                  </button>
+                )}
+              </div>
             </div>
           ) : contacts.length > 0 ? (
             <div className="overflow-x-auto">
