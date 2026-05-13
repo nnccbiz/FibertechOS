@@ -208,7 +208,9 @@ export default function QuotePreviewPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `הצעת-מחיר-${quote.quote_number}.pdf`;
+      const safeName = (s: string) => (s || '').trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+      const fileParts = [safeName(quote.client_name), safeName(project.name), safeName(quote.quote_number)].filter(Boolean);
+      a.download = `${fileParts.join('_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
