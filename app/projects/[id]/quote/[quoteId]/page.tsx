@@ -286,30 +286,34 @@ export default function QuotePreviewPage() {
 
             {/* Client + Project info */}
             <div className="grid grid-cols-2 gap-10 mb-8">
-              <div className="border-r-4 border-[#003d77] pr-4">
+              <div className="border-r-4 border-[#003d77] pr-4 flex flex-col">
                 <h3 className="text-sm font-bold text-[#003d77] mb-3">לכבוד</h3>
                 <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
                 {project.client_name && project.client_name !== quote.client_name && (
                   <p className="text-sm text-gray-600">{project.client_name}</p>
                 )}
-                {clientContact?.name
-                  ? <p className="text-sm text-gray-700 mt-2">{clientContact.name}</p>
-                  : <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
-                }
-                {clientContact?.phone
-                  ? <p className="text-sm text-gray-600 mt-1" dir="ltr">{clientContact.phone}</p>
-                  : <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
-                }
+                <div className="mt-auto pt-3">
+                  {clientContact?.name
+                    ? <p className="text-sm text-gray-700">{clientContact.name}</p>
+                    : <p className="text-sm text-gray-400 border-b border-gray-300 pb-0.5 w-52">איש קשר:</p>
+                  }
+                  {clientContact?.phone
+                    ? <p className="text-sm text-gray-600 mt-1" dir="ltr">{clientContact.phone}</p>
+                    : <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52">טלפון:</p>
+                  }
+                </div>
               </div>
-              <div className="border-r-4 border-[#003d77] pr-4">
+              <div className="border-r-4 border-[#003d77] pr-4 flex flex-col">
                 <h3 className="text-sm font-bold text-[#003d77] mb-3">פרויקט</h3>
                 <p className="text-base font-bold text-gray-800">{project.name || '—'}</p>
                 {project.location && <p className="text-sm text-gray-600">{project.location}</p>}
                 {quote.notes && <p className="text-sm text-gray-600 mt-1">{quote.notes}</p>}
-                {clientContact?.email
-                  ? <p className="text-sm text-gray-600 mt-2" dir="ltr">{clientContact.email}</p>
-                  : <p className="text-sm text-gray-400 mt-3 border-b border-gray-300 pb-0.5 w-52">מייל:</p>
-                }
+                <div className="mt-auto pt-3">
+                  {clientContact?.email
+                    ? <p className="text-sm text-gray-600" dir="ltr">{clientContact.email}</p>
+                    : <p className="text-sm text-gray-400 border-b border-gray-300 pb-0.5 w-52">מייל:</p>
+                  }
+                </div>
               </div>
             </div>
 
