@@ -221,13 +221,15 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
-  // Pre-paginate contract sections so jsPDF doesn't slice mid-clause
+  // Pre-paginate contract sections so jsPDF doesn't slice mid-clause.
+  // When a section is split across pages, the continuation page shows just
+  // the remaining clauses without re-printing the section header.
   const sec = CONTRACT_SECTIONS;
-  const CONTRACT_PAGE_CHUNKS = [
+  const CONTRACT_PAGE_CHUNKS: Array<Array<{ title: string | null; clauses: typeof sec[0]['clauses'] }>> = [
     [sec[0], sec[1]],                                                                          // תשלום + אפיון
     [sec[2]],                                                                                  // אספקה
-    [{ ...sec[3], clauses: sec[3].clauses.slice(0, 9) }],                                      // פיקוח 22-30
-    [{ ...sec[3], title: sec[3].title + ' — המשך', clauses: sec[3].clauses.slice(9) }],        // פיקוח 31-38
+    [{ title: sec[3].title, clauses: sec[3].clauses.slice(0, 9) }],                            // פיקוח 22-30
+    [{ title: null, clauses: sec[3].clauses.slice(9) }],                                       // פיקוח 31-38 (continuation)
     [sec[4]],                                                                                  // צנרת לדחיקה
     [sec[5], sec[6]],                                                                          // צוות חוץ + הזמנה
   ];
@@ -507,7 +509,7 @@ export default function QuotePreviewPage() {
         {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
           <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
             <div className="px-10 pt-6 pb-4 overflow-hidden min-h-0">
-              {chunkIdx === 0 ? (
+              {chunkIdx === 0 && (
                 <>
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -518,21 +520,15 @@ export default function QuotePreviewPage() {
                   </div>
                   <div className="border-b-2 border-[#5c5c5c] mb-4" />
                 </>
-              ) : (
-                <>
-                  <div className="flex justify-between items-start mb-3">
-                    <h1 className="text-lg font-bold text-gray-700">תנאי הסכם — המשך</h1>
-                    <img src="/logo.png" alt="Fibertech" className="h-10 object-contain" />
-                  </div>
-                  <div className="border-b border-gray-300 mb-4" />
-                </>
               )}
 
-              {chunkSections.map((section) => (
-                <div key={section.title} className="mb-4">
-                  <div className="border-r-4 border-[#003d77] pr-3 mb-2">
-                    <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
-                  </div>
+              {chunkSections.map((section, sIdx) => (
+                <div key={`${chunkIdx}-${sIdx}`} className="mb-4">
+                  {section.title && (
+                    <div className="border-r-4 border-[#003d77] pr-3 mb-2">
+                      <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     {section.clauses.map((clause) => (
                       <div key={clause.num} className="flex gap-2 text-[11px] text-gray-700 leading-snug">
