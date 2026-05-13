@@ -431,7 +431,7 @@ export default function QuotePreviewPage() {
             {/* Terms */}
             {quote.disclaimer_text && (
               <div className="mb-4">
-                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי התקשרות</h3>
+                <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">הערות</h3>
                 <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
               </div>
             )}
