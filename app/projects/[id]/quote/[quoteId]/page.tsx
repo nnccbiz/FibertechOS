@@ -221,17 +221,13 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
-  // Pre-paginate contract sections so jsPDF doesn't slice mid-clause.
-  // When a section is split across pages, the continuation page shows just
-  // the remaining clauses without re-printing the section header.
+  // Pack the contract terms into the minimum number of pages.
+  // Each page is dense — no empty space between sections.
   const sec = CONTRACT_SECTIONS;
   const CONTRACT_PAGE_CHUNKS: Array<Array<{ title: string | null; clauses: typeof sec[0]['clauses'] }>> = [
-    [sec[0], sec[1]],                                                                          // תשלום + אפיון
-    [sec[2]],                                                                                  // אספקה
-    [{ title: sec[3].title, clauses: sec[3].clauses.slice(0, 9) }],                            // פיקוח 22-30
-    [{ title: null, clauses: sec[3].clauses.slice(9) }],                                       // פיקוח 31-38 (continuation)
-    [sec[4]],                                                                                  // צנרת לדחיקה
-    [sec[5], sec[6]],                                                                          // צוות חוץ + הזמנה
+    [sec[0], sec[1], sec[2]],                                  // Page 1: תשלום + אפיון + אספקה
+    [sec[3]],                                                  // Page 2: פיקוח (17 clauses)
+    [sec[4], sec[5], sec[6]],                                  // Page 3: צנרת לדחיקה + צוות חוץ + הזמנה
   ];
   const totalPages = 1 + attachmentPages.length + CONTRACT_PAGE_CHUNKS.length;
 
@@ -507,32 +503,32 @@ export default function QuotePreviewPage() {
 
         {/* Contract Terms — A4 pages (pre-paginated) */}
         {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
-          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
-            <div className="px-10 pt-6 pb-4 overflow-hidden min-h-0">
+          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
+            <div className="px-10 pt-5 pb-3 overflow-hidden flex-1 min-h-0">
               {chunkIdx === 0 && (
                 <>
-                  <div className="flex justify-between items-start mb-4">
+                  <div className="flex justify-between items-start mb-3">
                     <div>
                       <h1 className="text-2xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
-                      <p className="text-xs text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
                     </div>
-                    <img src="/logo.png" alt="Fibertech" className="h-12 object-contain" />
+                    <img src="/logo.png" alt="Fibertech" className="h-10 object-contain" />
                   </div>
-                  <div className="border-b-2 border-[#5c5c5c] mb-4" />
+                  <div className="border-b-2 border-[#5c5c5c] mb-3" />
                 </>
               )}
 
               {chunkSections.map((section, sIdx) => (
-                <div key={`${chunkIdx}-${sIdx}`} className="mb-4">
+                <div key={`${chunkIdx}-${sIdx}`} className="mb-2">
                   {section.title && (
-                    <div className="border-r-4 border-[#003d77] pr-3 mb-2">
-                      <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
+                    <div className="border-r-4 border-[#003d77] pr-3 mb-1.5">
+                      <h3 className="text-[12px] font-bold text-[#003d77]">{section.title}</h3>
                     </div>
                   )}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {section.clauses.map((clause) => (
-                      <div key={clause.num} className="flex gap-2 text-[11px] text-gray-700 leading-snug">
-                        <span className="font-bold text-[#003d77] min-w-[20px] text-left">{clause.num}.</span>
+                      <div key={clause.num} className="flex gap-2 text-[10px] text-gray-700 leading-tight">
+                        <span className="font-bold text-[#003d77] min-w-[18px] text-left">{clause.num}.</span>
                         <span className="whitespace-pre-line">{clause.text}</span>
                       </div>
                     ))}
