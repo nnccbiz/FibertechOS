@@ -17,14 +17,14 @@ async function renderPdfToPages(attId: string, fileName: string, blob: Blob): Pr
   const pages: Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }> = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2 });
+    const viewport = page.getViewport({ scale: 1.5 });
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) continue;
     await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    pages.push({ attId, fileName, pageNum: i, totalPages: pdf.numPages, dataUrl: canvas.toDataURL('image/png') });
+    pages.push({ attId, fileName, pageNum: i, totalPages: pdf.numPages, dataUrl: canvas.toDataURL('image/jpeg', 0.85) });
   }
   return pages;
 }
@@ -151,19 +151,19 @@ export default function QuotePreviewPage() {
     const wrapper = document.getElementById('quote-page-content');
     if (!wrapper) return null;
     const pages = wrapper.children;
-    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
     let firstPage = true;
     for (let i = 0; i < pages.length; i++) {
       const el = pages[i] as HTMLElement;
       if (!el || el.offsetHeight === 0) continue;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
+      const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       // Each A4 page element is forced to 297mm height — render it as a single PDF page
       if (!firstPage) pdf.addPage();
       firstPage = false;
-      pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
     }
     const arrayBuf = pdf.output('arraybuffer');
     const bytes = new Uint8Array(arrayBuf);
