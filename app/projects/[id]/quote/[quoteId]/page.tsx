@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -248,7 +249,7 @@ export default function QuotePreviewPage() {
             {/* Header: title right, logo left */}
             <div className="flex justify-between items-start mb-5">
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 tracking-wide">הצעת מחיר</h1>
+                <h1 className="text-4xl font-bold text-gray-900 tracking-wide">סקר חוזה</h1>
                 <p className="text-sm text-gray-500 mt-2">
                   <span className="font-semibold">מס׳ הצעה:</span> {quote.quote_number}
                   {quoteDate && <>&nbsp;|&nbsp;<span className="font-semibold">תאריך:</span> {quoteDate}</>}
@@ -370,11 +371,19 @@ export default function QuotePreviewPage() {
 
             {/* Terms */}
             {quote.disclaimer_text && (
-              <div className="mb-8">
+              <div className="mb-4">
                 <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי התקשרות</h3>
                 <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
               </div>
             )}
+
+            {/* All-documents disclaimer */}
+            <div className="mb-8 bg-gray-50 border border-gray-200 rounded px-4 py-3">
+              <p className="text-xs text-gray-700 leading-relaxed">
+                <span className="font-bold">הצהרת מסמכים: </span>
+                הסכם זה כולל את כל המסמכים שצורפו להצעה זו — סקר חוזה, שרטוטים ומפרטים טכניים, ותנאי הסכם — כולם מהווים יחד מסמך מחייב אחד ובלתי נפרד.
+              </p>
+            </div>
 
             {/* Non-image attachments */}
             {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
@@ -423,6 +432,45 @@ export default function QuotePreviewPage() {
               <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
             </div>
           ))}
+
+        {/* Contract Terms — A4 pages */}
+        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ minHeight: '297mm', pageBreakBefore: 'always' }} dir="rtl">
+          <div className="px-10 pt-8 pb-6 flex-1">
+            {/* Terms header */}
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
+                <p className="text-sm text-gray-500 mt-1">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
+              </div>
+              <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
+            </div>
+            <div className="border-b-2 border-[#5c5c5c] mb-6" />
+
+            {/* Sections */}
+            {CONTRACT_SECTIONS.map((section) => (
+              <div key={section.title} className="mb-6">
+                <div className="border-r-4 border-[#003d77] pr-4 mb-3">
+                  <h3 className="text-sm font-bold text-[#003d77]">{section.title}</h3>
+                </div>
+                <div className="space-y-2">
+                  {section.clauses.map((clause) => (
+                    <div key={clause.num} className="flex gap-3 text-xs text-gray-700 leading-relaxed">
+                      <span className="font-bold text-[#003d77] min-w-[24px] text-left">{clause.num}.</span>
+                      <span>{clause.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div className="mt-auto bg-[#f0f0f0] px-10 py-4 text-center">
+            <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+            <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+            <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+          </div>
+        </div>
       </div>
 
       <style jsx global>{`
