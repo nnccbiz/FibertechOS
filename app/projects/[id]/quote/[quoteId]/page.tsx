@@ -291,8 +291,8 @@ export default function QuotePreviewPage() {
 
       <div id="quote-page-content">
         {/* A4 page */}
-        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }}>
-          <div className="px-10 pt-8 pb-6 flex-1" dir="rtl">
+        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+          <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
 
             {/* Header: title right, logo left */}
             <div className="flex justify-between items-start mb-5">
@@ -476,7 +476,7 @@ export default function QuotePreviewPage() {
           </div>
 
           {/* Footer — gray background matching logo circle */}
-          <div className="mt-auto bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
+          <div className="bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
             <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
             <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
             <p className="text-[9px] text-gray-500">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
@@ -487,14 +487,17 @@ export default function QuotePreviewPage() {
 
         {/* Separate A4 pages for image / PDF attachments */}
         {attachmentPages.map((page, idx) => (
-          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }}>
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div key={`${page.attId}-${page.pageNum}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 min-h-0">
               <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">
                 {page.fileName}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
               </p>
-              <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-[240mm] object-contain" />
+              <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-[230mm] object-contain" />
             </div>
-            <div className="bg-[#f0f0f0] px-10 py-3" dir="rtl">
+            <div className="bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
+              <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+              <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
               <PageMeta pageNum={2 + idx} />
             </div>
           </div>
@@ -502,8 +505,8 @@ export default function QuotePreviewPage() {
 
         {/* Contract Terms — A4 pages (pre-paginated) */}
         {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
-          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
-            <div className="px-10 pt-6 pb-4 flex-1 overflow-hidden">
+          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
+            <div className="px-10 pt-6 pb-4 overflow-hidden min-h-0">
               {chunkIdx === 0 ? (
                 <>
                   <div className="flex justify-between items-start mb-4">
@@ -542,8 +545,9 @@ export default function QuotePreviewPage() {
               ))}
             </div>
 
-            <div className="mt-auto bg-[#f0f0f0] px-10 py-3 text-center">
-              <p className="text-[10px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+            <div className="bg-[#f0f0f0] px-10 py-4 text-center">
+              <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
               <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
               <PageMeta pageNum={1 + attachmentPages.length + 1 + chunkIdx} />
             </div>
