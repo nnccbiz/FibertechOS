@@ -630,20 +630,32 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   const colCount = hasAnyDiscount ? 10 : 9;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border border-[#e2e8f0]">
+      <table className="w-full text-sm border-collapse">
+        <colgroup>
+          <col />
+          <col style={{ width: '52px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '76px' }} />
+          <col style={{ width: '62px' }} />
+          <col style={{ width: '52px' }} />
+          <col style={{ width: '82px' }} />
+          {hasAnyDiscount && <col style={{ width: '58px' }} />}
+          <col style={{ width: '88px' }} />
+          <col style={{ width: '24px' }} />
+        </colgroup>
         <thead>
-          <tr className="border-b border-[#e2e8f0]">
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1">מוצר</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">קוטר</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">עלות</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">תקורות%</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">רווח%</th>
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר מכירה</th>
-            {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-medium pb-1.5">הנחה%</th>}
-            <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סהדלק</th>
-            <th className="pb-1.5 w-6"></th>
+          <tr className="bg-gray-50 border-b border-[#e2e8f0]">
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-2">מוצר</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">קוטר</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">כמות</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">עלות</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">תקורות%</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">רווח%</th>
+            <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">מחיר מכירה</th>
+            {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">הנחה%</th>}
+            <th className="text-right text-[11px] text-gray-700 font-semibold py-2 px-1 border-r border-[#e2e8f0]">סהדלק</th>
+            <th className="py-2 w-6"></th>
           </tr>
         </thead>
         <tbody>
@@ -670,17 +682,19 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             ].filter(Boolean).join('\n');
 
             return (
-              <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
-                <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
-                <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
-                <td className="py-1.5 text-gray-500">{formatCurrency(cost)}</td>
-                <td className="py-1.5 text-gray-500">{item.overheads_pct}%</td>
-                <td className="py-1.5 text-gray-500">{item.profit_pct}%</td>
-                <td className="py-1.5 text-gray-500">{formatCurrency(unit)}</td>
-                {hasAnyDiscount && <td className="py-1.5 text-orange-600 font-medium">{disc > 0 ? `${disc}%` : '—'}</td>}
-                <td className="py-1.5 font-medium text-gray-700">{formatCurrency(tot)}</td>
-                <td className="py-1.5">
+              <tr key={item.id} className="border-b border-[#f0f0f0] hover:bg-blue-50/30 transition-colors">
+                <td className="py-2 px-2 text-gray-700 text-[12px]">
+                  <span title={item.product_name} className="block truncate max-w-[260px]">{item.product_name}</span>
+                </td>
+                <td className="py-2 px-1 text-gray-600 text-[12px] text-center border-r border-[#f0f0f0] whitespace-nowrap">{item.dn_size || '—'}</td>
+                <td className="py-2 px-1 text-gray-600 text-[12px] border-r border-[#f0f0f0] whitespace-nowrap">{item.quantity} {item.unit}</td>
+                <td className="py-2 px-1 text-gray-600 text-[12px] border-r border-[#f0f0f0] whitespace-nowrap">{formatCurrency(cost)}</td>
+                <td className="py-2 px-1 text-gray-500 text-[12px] text-center border-r border-[#f0f0f0] whitespace-nowrap">{item.overheads_pct}%</td>
+                <td className="py-2 px-1 text-gray-500 text-[12px] text-center border-r border-[#f0f0f0] whitespace-nowrap">{item.profit_pct}%</td>
+                <td className="py-2 px-1 text-gray-600 text-[12px] border-r border-[#f0f0f0] whitespace-nowrap">{formatCurrency(unit)}</td>
+                {hasAnyDiscount && <td className="py-2 px-1 text-orange-600 text-[12px] font-medium text-center border-r border-[#f0f0f0] whitespace-nowrap">{disc > 0 ? `${disc}%` : '—'}</td>}
+                <td className="py-2 px-1 font-semibold text-gray-800 text-[12px] border-r border-[#f0f0f0] whitespace-nowrap">{formatCurrency(tot)}</td>
+                <td className="py-2 text-center">
                   <span title={tooltip} className="cursor-help text-gray-300 hover:text-[#1a56db] text-[13px]">ⓘ</span>
                 </td>
               </tr>
@@ -689,30 +703,30 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         </tbody>
         <tfoot>
           {(hasAnyDiscount || globalDisc > 0) && (
-            <tr className="border-t border-gray-100">
-              <td colSpan={colCount - 2} className="py-1.5 text-left text-[12px] text-gray-400"></td>
-              <td className="py-1.5 text-left text-[12px] text-gray-500">סהדלק לפני הנחה</td>
-              <td className="py-1.5 text-[12px] text-gray-500">{formatCurrency(subtotalBeforeDisc)}</td>
+            <tr className="border-t border-gray-100 bg-gray-50">
+              <td colSpan={colCount - 2} className="py-1.5 px-2 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1.5 px-1 text-right text-[12px] text-gray-500 border-r border-[#f0f0f0]">סהדלק לפני הנחה</td>
+              <td className="py-1.5 px-1 text-[12px] text-gray-500 whitespace-nowrap">{formatCurrency(subtotalBeforeDisc)}</td>
             </tr>
           )}
           {hasAnyDiscount && (
-            <tr>
-              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
-              <td className="py-1 text-left text-[12px] text-orange-600">הנחות שורה</td>
-              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
+            <tr className="bg-orange-50/50">
+              <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 px-1 text-right text-[12px] text-orange-600 border-r border-[#f0f0f0]">הנחות שורה</td>
+              <td className="py-1 px-1 text-[12px] text-orange-600 whitespace-nowrap">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
             </tr>
           )}
           {globalDisc > 0 && (
-            <tr>
-              <td colSpan={colCount - 2} className="py-1 text-left text-[12px] text-gray-400"></td>
-              <td className="py-1 text-left text-[12px] text-orange-600">הנחה כללית {globalDisc}%</td>
-              <td className="py-1 text-[12px] text-orange-600">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+            <tr className="bg-orange-50/50">
+              <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-gray-400"></td>
+              <td className="py-1 px-1 text-right text-[12px] text-orange-600 border-r border-[#f0f0f0]">הנחה כללית {globalDisc}%</td>
+              <td className="py-1 px-1 text-[12px] text-orange-600 whitespace-nowrap">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
             </tr>
           )}
-          <tr className="border-t border-[#e2e8f0]">
-            <td colSpan={3} className="py-2 text-left text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
-            <td colSpan={colCount - 5} className="py-2 text-left font-bold text-gray-700">סהדלק מכירה</td>
-            <td className="py-2 font-bold text-gray-700">{formatCurrency(finalTotal)}</td>
+          <tr className="border-t-2 border-[#e2e8f0] bg-gray-50">
+            <td colSpan={3} className="py-2 px-2 text-right text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
+            <td colSpan={colCount - 5} className="py-2 px-1 text-right font-bold text-gray-700">סהדלק מכירה</td>
+            <td className="py-2 px-1 font-bold text-[#1a56db] text-[13px] whitespace-nowrap">{formatCurrency(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
         </tfoot>
