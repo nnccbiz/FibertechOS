@@ -7,18 +7,54 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'llama-3.2-11b-vision-preview';
 
 // Lean prompt used only for file extraction — avoids hitting Groq TPM limit
-const FILE_EXTRACTION_PROMPT = `חלץ נתוני תמחור מהטבלה. החזר JSON בלבד, ללא markdown.
+const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובץ הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
 
-מבנה:
-{"action":"import","target_table":"supplier_quote","quote_info":{"supplier_name":"","quote_ref":"","quote_date":"","currency":"ILS"},"data":[{"description":"","item_code":"","dn":0,"quantity":0,"unit_price":0,"price_per":"meter","currency":"ILS"}],"summary":"חולצו X פריטים"}
+⚠️ חוקים קריטיים:
+1. חלץ את כל השורות מהטבלה ללא יוצא מן הכלל. אם יש 26 שורות בקלט, החזר 26 פריטים ב-data.
+2. אסור להמציא נתונים. רק ערכים שמופיעים בפועל בקלט. אם DN/PN/SN/quantity/price לא קיימים בשורה — אל תכלול את השדה.
+3. אסור לקצר, לסכם, לאחד שורות דומות (גם אם רק ה-DN משתנה), או לדלג על שורות.
+4. ספור את השורות בקלט לפני שאתה מתחיל ובדוק שאתה מחזיר אותו מספר פריטים.
 
-חוקים:
-- כל שורת טבלה = פריט אחד ב-data. אל תדלג על שורות.
-- תיאור/פריט → description | סעיף/קוד/מק"ט → item_code | כמות → quantity
-- מחיר יח'/עלות יח' → unit_price | יחידה "מטר" → price_per:"meter" אחרת "unit"
-- מטבע: ₪/שקל/ש"ח → ILS | $ → USD | € → EUR (ברירת מחדל ILS)
-- חלץ קוטר DN מהתיאור אם קיים (קוטר 800 → dn:800)
-- supplier_name, quote_ref מהמסמך אם קיים`;
+מבנה התשובה:
+{
+  "action":"import",
+  "target_table":"supplier_quote",
+  "quote_info":{"supplier_name":"","quote_ref":"","quote_date":"YYYY-MM-DD","currency":"USD"},
+  "data":[
+    {"description":"Flowtite GRP Pipe with One Coupling on end L=5.7m","item_type":"pipe_with_coupling","dn":300,"pn":6,"sn":10000,"length_m":5.7,"quantity":370.5,"unit_price":60.00,"price_per":"meter","currency":"USD"},
+    {"description":"Flowtite Rocker Pipe with One Coupling, L=1m","item_type":"roker","dn":400,"pn":6,"sn":15000,"length_m":1,"quantity":1,"unit_price":171.00,"price_per":"meter","currency":"USD"},
+    {"description":"Flowtite Reka Coupling","item_type":"coupling","dn":500,"pn":6,"quantity":1,"unit_price":56.00,"price_per":"unit","currency":"USD"},
+    {"description":"Flowtite Wall Coupling","item_type":"wall_coupling","dn":600,"pn":6,"quantity":1,"unit_price":242.00,"price_per":"unit","currency":"USD"}
+  ],
+  "summary":"חולצו N פריטים"
+}
+
+מיפוי שדות לעמודות הטבלה:
+- description: התיאור המלא כפי שמופיע (Description / תיאור / פריט)
+- dn: עמודה DN (mm) / קוטר → מספר במ"מ
+- pn: עמודה PN (Bar) / לחץ → מספר בבאר
+- sn: עמודה SN (N/m²) / קשיחות → מספר (10000, 15000 וכו')
+- length_m: אורך מתוך התיאור ("L=5.7m" → 5.7, "L=1m" → 1, "12m" → 12)
+- quantity: עמודה Quantity / כמות
+- unit_price: עמודה Unit Price / מחיר יחידה
+- price_per: אם עמודת Unit היא m/meter/מטר → "meter"; אם pcs/ea/יחידה → "unit"
+- currency: $ או USD → "USD" | € או EUR → "EUR" | ₪ או ש"ח → "ILS"
+
+מיפוי item_type לפי תיאור:
+- "GRP Pipe with...Coupling" / "צינור עם מחבר" → "pipe_with_coupling"
+- "GRP Pipe" ללא Coupling / "צינור ללא מחבר" → "pipe_bare"
+- "Rocker Pipe" / "רוקר" → "roker"
+- "Reka Coupling" / מחבר REKA → "coupling"
+- "Wall Coupling" / מחבר קיר → "wall_coupling"
+- "Elbow" / ברך → "elbow"
+- "Flange" / אוגן → "flange"
+- "Reducer" / מעבר → "reducer"
+- אחרת → "other"
+
+quote_info:
+- supplier_name: זהה מהלוגו/כותרת (Amiblu, Hobas, Flowtite וכו')
+- quote_ref: מספר ההצעה (לדוגמה: MUA.11066, MUA26.0914)
+- quote_date: תאריך ההצעה בפורמט YYYY-MM-DD (התאריך 12.05.2026 → "2026-05-12")`;
 
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
@@ -374,8 +410,8 @@ export async function POST(request: NextRequest) {
       if (extracted.text) {
         userMessage = `${extracted.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
       }
-      if (userMessage.length > 8000) {
-        userMessage = userMessage.slice(0, 8000) + '\n...(truncated)';
+      if (userMessage.length > 24000) {
+        userMessage = userMessage.slice(0, 24000) + '\n...(truncated)';
       }
       imageFiles = extracted.imageFiles;
     }
@@ -407,7 +443,7 @@ export async function POST(request: NextRequest) {
       model,
       messages,
       temperature: 0.1,
-      max_tokens: (hasExtractedText || hasImages) ? 4096 : 8192,
+      max_tokens: (hasExtractedText || hasImages) ? 8192 : 8192,
     };
 
     // json_object format: use for normal chat only.
