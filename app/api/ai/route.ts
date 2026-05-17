@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'llama-3.2-11b-vision-preview';
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 // Lean prompt used only for file extraction — avoids hitting Groq TPM limit
 const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובץ הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
@@ -399,6 +403,42 @@ export async function POST(request: NextRequest) {
               return NextResponse.json(boqResult);
             }
             console.log(`[AI route] direct BOQ parse failed (no recognized columns), falling back to Groq`);
+          }
+        }
+      }
+
+      // For PDFs: use Gemini's native PDF understanding when available — far more accurate than pdf-parse + Groq
+      if (GEMINI_API_KEY) {
+        for (const file of files) {
+          const mime = file.mimeType || '';
+          const name = file.name || '';
+          if ((mime === 'application/pdf' || /\.pdf$/i.test(name)) && file.base64) {
+            try {
+              console.log(`[AI route] Sending PDF to Gemini: ${name} (${file.base64.length} base64 chars)`);
+              const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+              const geminiModel = genAI.getGenerativeModel({
+                model: GEMINI_MODEL,
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.05,
+                  maxOutputTokens: 16384,
+                },
+              });
+              const result = await geminiModel.generateContent([
+                { inlineData: { data: file.base64, mimeType: 'application/pdf' } },
+                FILE_EXTRACTION_PROMPT,
+              ]);
+              const text = result.response.text();
+              const parsed = JSON.parse(text);
+              console.log(`[AI route] Gemini PDF extraction: ${Array.isArray(parsed.data) ? parsed.data.length : 0} items`);
+              if (parsed.target_table === 'supplier_quote' && Array.isArray(parsed.data) && parsed.data.length > 0) {
+                return NextResponse.json(parsed);
+              }
+              console.log('[AI route] Gemini returned empty/invalid result, falling back to Groq');
+            } catch (e: any) {
+              console.error('[AI route] Gemini error:', e?.message || e);
+              // Fall through to Groq
+            }
           }
         }
       }
