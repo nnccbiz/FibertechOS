@@ -272,7 +272,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
         ) : (
           <>
             <div className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
-              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סהדלק</span><span></span>
+              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1">
@@ -294,7 +294,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
       <div className="flex items-center justify-between pt-2">
         <button onClick={p.addCostItem} className="text-[12px] text-amber-700 hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-gray-700">סהדלק: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
+          <span className="text-sm font-bold text-gray-700">סה״כ עלות: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
           <button onClick={p.cancelEditCostInput} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100">ביטול</button>
           <button onClick={() => p.saveCostInputItems(ci.id)} disabled={p.saving} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -314,7 +314,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
           {isForex && <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר {sym}</th>}
           <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר ₪</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סהדלק ₪</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ ₪</th>
         </tr></thead>
         <tbody>{citems.map((item: any) => {
           const typeLabel = ITEM_TYPES.find((t) => t.value === item.item_type)?.label || '';
@@ -331,7 +331,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           );
         })}</tbody>
         <tfoot><tr className="border-t border-[#e2e8f0]">
-          <td colSpan={isForex ? 5 : 4} className="py-2 text-left font-bold text-gray-700">סהדלק עלות</td>
+          <td colSpan={isForex ? 5 : 4} className="py-2 text-left font-bold text-gray-700">סה״כ עלות</td>
           <td colSpan={2} className="py-2 font-bold text-gray-700">{formatCurrency(ciTotal)}</td>
         </tr></tfoot>
       </table>
@@ -581,7 +581,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
     <div className="space-y-2">
       <div className="overflow-x-auto">
         <div className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
-          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סהדלק</span><span></span>
+          <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => (
           <div key={idx} className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
@@ -654,7 +654,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">רווח%</th>
             <th className="text-right text-[11px] text-gray-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">מחיר מכירה</th>
             {hasAnyDiscount && <th className="text-right text-[11px] text-orange-500 font-semibold py-2 px-1 border-r border-[#e2e8f0]">הנחה%</th>}
-            <th className="text-right text-[11px] text-gray-700 font-semibold py-2 px-1 border-r border-[#e2e8f0]">סהדלק</th>
+            <th className="text-right text-[11px] text-gray-700 font-semibold py-2 px-1 border-r border-[#e2e8f0]">סה״כ</th>
             <th className="py-2 w-6"></th>
           </tr>
         </thead>
@@ -705,7 +705,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           {(hasAnyDiscount || globalDisc > 0) && (
             <tr className="border-t border-gray-100 bg-gray-50">
               <td colSpan={colCount - 2} className="py-1.5 px-2 text-left text-[12px] text-gray-400"></td>
-              <td className="py-1.5 px-1 text-right text-[12px] text-gray-500 border-r border-[#f0f0f0]">סהדלק לפני הנחה</td>
+              <td className="py-1.5 px-1 text-right text-[12px] text-gray-500 border-r border-[#f0f0f0]">סה״כ לפני הנחה</td>
               <td className="py-1.5 px-1 text-[12px] text-gray-500 whitespace-nowrap">{formatCurrency(subtotalBeforeDisc)}</td>
             </tr>
           )}
@@ -725,7 +725,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           )}
           <tr className="border-t-2 border-[#e2e8f0] bg-gray-50">
             <td colSpan={3} className="py-2 px-2 text-right text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
-            <td colSpan={colCount - 5} className="py-2 px-1 text-right font-bold text-gray-700">סהדלק מכירה</td>
+            <td colSpan={colCount - 5} className="py-2 px-1 text-right font-bold text-gray-700">סה״כ מכירה</td>
             <td className="py-2 px-1 font-bold text-[#1a56db] text-[13px] whitespace-nowrap">{formatCurrency(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
