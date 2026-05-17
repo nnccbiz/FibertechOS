@@ -390,6 +390,7 @@ export async function POST(request: NextRequest) {
     let imageFiles: { base64: string; mimeType: string }[] = [];
 
     if (files && Array.isArray(files) && files.length > 0) {
+      console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'} GROQ_API_KEY=${GROQ_API_KEY ? 'SET' : 'MISSING'}`);
       // Try direct Excel BOQ parsing first — no AI needed for structured spreadsheets
       for (const file of files) {
         const mime = file.mimeType || '';
