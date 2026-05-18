@@ -387,7 +387,7 @@ export function usePricing(projectId: string): UsePricingReturn {
         const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
         alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nבדוק ולחץ שמור.`);
       } else {
-        const errDetail = data.error ? `שגיאה ${data.groq_status || ''}: ${data.error}` : null;
+        const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
       }
     } catch (err: any) {
@@ -469,7 +469,7 @@ export function usePricing(projectId: string): UsePricingReturn {
         const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
         alert(`✅ Roxy חילצה ${items.length} פריטים מ-${sourceName}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate.toFixed(2)})` : ''}.\nבדוק את הפריטים ולחץ שמור.`);
       } else {
-        const errDetail = data.error ? `שגיאה ${data.groq_status || ''}: ${data.error}` : null;
+        const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
       }
     } catch (err: any) {

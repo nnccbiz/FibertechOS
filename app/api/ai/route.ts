@@ -2,15 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const TEXT_MODEL = 'llama-3.3-70b-versatile';
-const VISION_MODEL = 'llama-3.2-11b-vision-preview';
-
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.0-flash';
 
-// Lean prompt used only for file extraction — avoids hitting Groq TPM limit
+// Lean prompt used only for file extraction
 const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובץ הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
 
 ⚠️ חוקים קריטיים:
@@ -141,24 +136,19 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 
 // Hebrew BOQ column keywords → normalized field names
 // IMPORTANT: order matters — more specific keywords MUST come before generic ones.
-// "מחיר יחידה" must match sell_price before the generic "יחידה" matches unit.
 const BOQ_COL_MAP: [string[], string][] = [
   [['תיאור', 'פריט', 'תאור', 'פירוט', 'description', 'item', 'מוצר', 'שם פריט', 'שם המוצר'], 'description'],
   [['סעיף', 'קוד', 'מקט', 'מק"ט', 'code', 'ref', 'item_code'], 'item_code'],
   [['כמות', 'qty', 'quantity'], 'quantity'],
-  // Cost / price columns checked BEFORE unit — prevents "מחיר יחידה" from matching 'unit'
   [['עלות יח', 'עלות ליח', 'עלות/יח', 'unit cost', 'cost/unit', 'עלות יחידה'], 'cost_price'],
   [['מחיר יח', 'מחיר יחידה', 'מחיר/יח', 'מחיר ליח', 'unit_price', 'price per'], 'sell_price'],
-  // Total cost before plain total — "סה"כ עלות" must not match the plain "סה"כ" entry
   [['סה"כ עלות', 'סהכ עלות', 'סה״כ עלות', 'total cost', 'עלות כוללת', 'עלות סה"כ'], 'total_cost'],
   [['סה"כ', 'סהכ', 'סה״כ', 'total', 'סך הכל', 'סך כל'], 'total_sell'],
-  // Unit column — generic, must come after all price/cost patterns
   [['יחידה', 'יח\'', 'unit', 'units'], 'unit'],
   [['הערות', 'remarks', 'notes', 'הערה'], 'notes'],
 ];
 
 function detectCol(header: string): string | null {
-  // Normalize: remove common quote variants, lowercase, collapse spaces
   const h = header.trim()
     .replace(/[״"''`]/g, '"')
     .toLowerCase()
@@ -169,13 +159,10 @@ function detectCol(header: string): string | null {
   return null;
 }
 
-// Sheet name patterns that indicate pricing data
 const PRICING_SHEET_PATTERNS = /תמחור|מחירון|pricing|price|עלות|costs?/i;
 
 function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
-
-  // Prefer sheets that match pricing patterns; fall back to all sheets
   const preferredSheets = workbook.SheetNames.filter(n => PRICING_SHEET_PATTERNS.test(n));
   const sheetsToProcess = preferredSheets.length > 0 ? preferredSheets : workbook.SheetNames;
 
@@ -189,7 +176,6 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
     const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     if (rawRows.length === 0) continue;
 
-    // Scan first rows for supplier name / quote ref / currency
     for (let i = 0; i < Math.min(rawRows.length, 8); i++) {
       const rowStr = rawRows[i].map(String).join(' ');
       if (!supplierName && /ספק|חברה|מציע|שם/i.test(rowStr)) {
@@ -204,7 +190,6 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
       else if (/€|eur|אירו/i.test(rowStr)) currency = 'EUR';
     }
 
-    // Find header row: first row with ≥2 recognized column hits
     let headerIdx = -1;
     let colMap: Record<number, string> = {};
     for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
@@ -219,20 +204,17 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
     }
     if (headerIdx === -1) continue;
 
-    // If both cost_price and sell_price columns found, drop sell_price (we want cost)
     const hasCostCol = Object.values(colMap).includes('cost_price');
     if (hasCostCol) {
       for (const [k, v] of Object.entries(colMap)) {
         if (v === 'sell_price') delete colMap[Number(k)];
       }
     } else {
-      // No dedicated cost column: rename sell_price → cost_price
       for (const [k, v] of Object.entries(colMap)) {
         if (v === 'sell_price') colMap[Number(k)] = 'cost_price';
       }
     }
 
-    // Parse data rows
     for (let i = headerIdx + 1; i < rawRows.length; i++) {
       const row = rawRows[i];
       if (!row.some((c: any) => c !== '' && c !== null && c !== undefined)) continue;
@@ -291,14 +273,18 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
   };
 }
 
-async function extractFileContent(files: { base64: string; mimeType: string; name: string }[]): Promise<{
+type ProcessedFiles = {
   text: string;
   imageFiles: { base64: string; mimeType: string }[];
-}> {
+  pdfFiles: { base64: string; name: string }[];
+};
+
+async function processFiles(files: { base64: string; mimeType: string; name: string }[]): Promise<ProcessedFiles> {
   const textParts: string[] = [];
   const imageFiles: { base64: string; mimeType: string }[] = [];
+  const pdfFiles: { base64: string; name: string }[] = [];
 
-  console.log(`[AI route] extractFileContent: ${files.length} file(s)`);
+  console.log(`[AI route] processFiles: ${files.length} file(s)`);
   for (const file of files) {
     const mime = file.mimeType || '';
     const name = file.name || '';
@@ -309,18 +295,13 @@ async function extractFileContent(files: { base64: string; mimeType: string; nam
 
     if (mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name)) {
       try {
-        console.log(`[AI route] Excel file: name=${name} mime=${mime} buflen=${buffer.length}`);
         const workbook = XLSX.read(buffer, { type: 'buffer' });
-        console.log(`[AI route] Excel sheets: ${workbook.SheetNames.join(', ')}`);
         const sheetParts: string[] = [];
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
-          // Use raw arrays (header:1) to handle files with title rows before the actual header
           const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-          console.log(`[AI route] Sheet "${sheetName}": ${rawRows.length} raw rows`);
           if (rawRows.length === 0) continue;
 
-          // Find the header row: first row with at least 3 non-empty cells
           let headerIdx = 0;
           for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
             const nonEmpty = rawRows[i].filter((c: any) => c !== '' && c !== null && c !== undefined).length;
@@ -330,10 +311,8 @@ async function extractFileContent(files: { base64: string; mimeType: string; nam
           const dataRows = rawRows.slice(headerIdx + 1).filter((r: any[]) =>
             r.some((c: any) => c !== '' && c !== null && c !== undefined)
           );
-          console.log(`[AI route] headerIdx=${headerIdx} headers=[${headers.join('|')}] dataRows=${dataRows.length}`);
           if (dataRows.length === 0) continue;
 
-          // Convert to objects using the found headers
           const objRows = dataRows.map((row: any[]) => {
             const obj: Record<string, any> = {};
             headers.forEach((h, i) => {
@@ -354,26 +333,19 @@ async function extractFileContent(files: { base64: string; mimeType: string; nam
     } else if (mime === 'text/csv' || /\.csv$/i.test(name)) {
       textParts.push(`[CSV: ${name}]\n${buffer.toString('utf-8')}`);
     } else if (mime === 'application/pdf' || /\.pdf$/i.test(name)) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require('pdf-parse');
-        const result = await pdfParse(buffer);
-        textParts.push(`[PDF: ${name}]\n${result.text}`);
-      } catch {
-        textParts.push(`[PDF: ${name}] — שגיאה בחילוץ טקסט`);
-      }
+      pdfFiles.push({ base64: file.base64, name: name || 'document.pdf' });
     } else if (mime.startsWith('image/')) {
       imageFiles.push({ base64: file.base64, mimeType: mime });
     }
   }
 
-  return { text: textParts.join('\n\n---\n\n'), imageFiles };
+  return { text: textParts.join('\n\n---\n\n'), imageFiles, pdfFiles };
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 });
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
     }
 
     const body = await request.json();
@@ -388,9 +360,12 @@ export async function POST(request: NextRequest) {
     }
 
     let imageFiles: { base64: string; mimeType: string }[] = [];
+    let pdfFiles: { base64: string; name: string }[] = [];
+    let hasFiles = false;
 
     if (files && Array.isArray(files) && files.length > 0) {
-      console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'} GROQ_API_KEY=${GROQ_API_KEY ? 'SET' : 'MISSING'}`);
+      console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'}`);
+
       // Try direct Excel BOQ parsing first — no AI needed for structured spreadsheets
       for (const file of files) {
         const mime = file.mimeType || '';
@@ -403,118 +378,63 @@ export async function POST(request: NextRequest) {
               console.log(`[AI route] direct BOQ parse success: ${(boqResult as any).data?.length} items`);
               return NextResponse.json(boqResult);
             }
-            console.log(`[AI route] direct BOQ parse failed (no recognized columns), falling back to Groq`);
+            console.log(`[AI route] direct BOQ parse failed (no recognized columns), falling back to Gemini`);
           }
         }
       }
 
-      // For PDFs: use Gemini's native PDF understanding when available — far more accurate than pdf-parse + Groq
-      if (GEMINI_API_KEY) {
-        for (const file of files) {
-          const mime = file.mimeType || '';
-          const name = file.name || '';
-          if ((mime === 'application/pdf' || /\.pdf$/i.test(name)) && file.base64) {
-            try {
-              console.log(`[AI route] Sending PDF to Gemini: ${name} (${file.base64.length} base64 chars)`);
-              const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-              const geminiModel = genAI.getGenerativeModel({
-                model: GEMINI_MODEL,
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.05,
-                  maxOutputTokens: 16384,
-                },
-              });
-              const result = await geminiModel.generateContent([
-                { inlineData: { data: file.base64, mimeType: 'application/pdf' } },
-                FILE_EXTRACTION_PROMPT,
-              ]);
-              const text = result.response.text();
-              const parsed = JSON.parse(text);
-              console.log(`[AI route] Gemini PDF extraction: ${Array.isArray(parsed.data) ? parsed.data.length : 0} items`);
-              if (parsed.target_table === 'supplier_quote' && Array.isArray(parsed.data) && parsed.data.length > 0) {
-                return NextResponse.json(parsed);
-              }
-              console.log('[AI route] Gemini returned empty/invalid result, falling back to Groq');
-            } catch (e: any) {
-              console.error('[AI route] Gemini error:', e?.message || e);
-              // Fall through to Groq
-            }
-          }
-        }
-      }
+      const processed = await processFiles(files);
+      imageFiles = processed.imageFiles;
+      pdfFiles = processed.pdfFiles;
+      hasFiles = processed.text.length > 0 || imageFiles.length > 0 || pdfFiles.length > 0;
 
-      // For non-Excel files (PDF, image) or unrecognized Excel, use Groq
-      const extracted = await extractFileContent(files);
-      const textLen = extracted.text.length;
-      console.log(`[AI route] extracted: len=${textLen} imgs=${extracted.imageFiles.length}`);
-      if (extracted.text) {
-        userMessage = `${extracted.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
+      if (processed.text) {
+        userMessage = `${processed.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
       }
-      if (userMessage.length > 24000) {
-        userMessage = userMessage.slice(0, 24000) + '\n...(truncated)';
+      if (userMessage.length > 100000) {
+        userMessage = userMessage.slice(0, 100000) + '\n...(truncated)';
       }
-      imageFiles = extracted.imageFiles;
     }
 
-    const model = imageFiles.length > 0 ? VISION_MODEL : TEXT_MODEL;
+    const systemPrompt = hasFiles ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
 
-    const userContent: any = imageFiles.length > 0
-      ? [
-          { type: 'text', text: userMessage || 'חלץ את כל נתוני התמחור מהתמונה' },
-          ...imageFiles.map((f) => ({
-            type: 'image_url',
-            image_url: { url: `data:${f.mimeType};base64,${f.base64}` },
-          })),
-        ]
-      : userMessage;
+    console.log(`[AI route] sending to Gemini: model=${GEMINI_MODEL} hasFiles=${hasFiles} pdfs=${pdfFiles.length} images=${imageFiles.length}`);
 
-    // Use lean extraction prompt when processing files to stay within Groq TPM limit
-    const hasExtractedText = files && Array.isArray(files) && files.length > 0 && imageFiles.length === 0;
-    const hasImages = imageFiles.length > 0;
-    // Use lean extraction prompt for both file text and image uploads
-    const systemPrompt = (hasExtractedText || hasImages) ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
-
-    const messages: any[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContent },
-    ];
-
-    const requestBody: any = {
-      model,
-      messages,
-      temperature: 0.1,
-      max_tokens: (hasExtractedText || hasImages) ? 8192 : 8192,
-    };
-
-    // json_object format: use for normal chat only.
-    // For file extraction we skip it — the lean prompt already says "JSON only"
-    // and some Groq model versions reject json_object with large extracted content.
-    if (imageFiles.length === 0 && !hasExtractedText) {
-      requestBody.response_format = { type: 'json_object' };
-    }
-
-    console.log(`[AI route] sending to Groq: model=${model} hasExtractedText=${hasExtractedText} msgLen=${JSON.stringify(messages).length}`);
-
-    const response = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+        maxOutputTokens: 16384,
       },
-      body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error(`[AI route] Groq error ${response.status}: ${err.slice(0, 500)}`);
-      let errMsg = 'שגיאה בתקשורת עם רקסי';
-      try { const parsed = JSON.parse(err); errMsg = parsed?.error?.message || errMsg; } catch {}
-      return NextResponse.json({ error: errMsg, groq_status: response.status, summary: `שגיאה ${response.status}: ${errMsg}`, message: errMsg }, { status: 500 });
+    // Build multimodal content parts: PDFs + images + text
+    const parts: any[] = [];
+    for (const pdf of pdfFiles) {
+      parts.push({ inlineData: { data: pdf.base64, mimeType: 'application/pdf' } });
+    }
+    for (const img of imageFiles) {
+      parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
+    }
+    parts.push({ text: userMessage || 'חלץ את כל נתוני התמחור מהקובץ' });
+
+    let text = '';
+    try {
+      const result = await model.generateContent(parts);
+      text = result.response.text();
+    } catch (e: any) {
+      const status = e?.status || e?.response?.status;
+      const errMsg = e?.message || 'שגיאה בתקשורת עם Gemini';
+      console.error(`[AI route] Gemini error ${status}: ${errMsg}`);
+      return NextResponse.json(
+        { error: errMsg, gemini_status: status, summary: `שגיאה ${status || ''}: ${errMsg}`, message: errMsg },
+        { status: 500 },
+      );
     }
 
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '';
     console.log('[AI route] raw AI response (first 500):', text.slice(0, 500));
 
     let parsed;
