@@ -264,6 +264,7 @@ export type ItemType =
   | 'pipe_with_coupling'
   | 'pipe_bare'
   | 'coupling'
+  | 'wall_coupling'
   | 'roker'
   | 'elbow'
   | 'flange'
@@ -339,6 +340,7 @@ const ITEM_CATEGORY: Record<string, string> = {
   pipe_with_coupling: 'צינורות',
   pipe_bare:          'צינורות',
   coupling:           'מחברים',
+  wall_coupling:      'מחברים',
   roker:              'רוקרים',
   elbow:              'ברכיים',
   flange:             'אוגנים',

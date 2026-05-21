@@ -30,6 +30,7 @@ const ITEM_TYPES = [
   { value: 'pipe_with_coupling', label: 'צינור+מחבר' },
   { value: 'pipe_bare', label: 'צינור בלבד' },
   { value: 'coupling', label: 'מחבר' },
+  { value: 'wall_coupling', label: 'מחבר קיר' },
   { value: 'roker', label: 'רוקר' },
   { value: 'elbow', label: 'ברך' },
   { value: 'flange', label: 'אוגן' },
@@ -250,11 +251,11 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
       <div className="overflow-x-auto">
         {isForex ? (
           <>
-            <div className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[700px]">
+            <div className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1 min-w-[700px]">
               <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_60px_80px_32px] gap-1 min-w-[700px]">
+              <div key={idx} className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[700px]">
                 <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <select value={item.item_type || ''} onChange={(e) => p.updateCostItem(idx, 'item_type', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1.5 text-[11px]">
                   {ITEM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -271,11 +272,11 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
           </>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
+            <div className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
               <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className="grid grid-cols-[1fr_80px_70px_55px_70px_80px_80px_32px] gap-1">
+              <div key={idx} className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_80px_32px] gap-1">
                 <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <select value={item.item_type || ''} onChange={(e) => p.updateCostItem(idx, 'item_type', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1.5 text-[11px]">
                   {ITEM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
