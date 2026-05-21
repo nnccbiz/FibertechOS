@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // Lean prompt used only for file extraction
 const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובץ הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
