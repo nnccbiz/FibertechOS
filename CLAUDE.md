@@ -17,7 +17,7 @@ The system manages the full lifecycle: lead tracking, project management, quote 
 | Database | Supabase (Postgres 17, hosted `eu-west-3`) |
 | Auth | Supabase Auth (email/password), custom permission matrix |
 | Storage | Supabase Storage (quote attachments, drawings) |
-| AI assistant | Groq API (llama-3.3-70b) — internal chatbot "Roxy" (רקסי) |
+| AI assistant | Google Gemini API (gemini-2.5-flash) — internal chatbot "Roxy" (רקסי) |
 | PDF generation | jspdf + html2canvas |
 | Hosting | Vercel (auto-deploy from GitHub) |
 | Repo | GitHub `nnccbiz/FibertechOS`, branches: `main` (prod), `dev` (staging) |
@@ -38,7 +38,10 @@ FibertechOS/
 │   │   ├── list/                 # Projects list page
 │   │   ├── new/                  # New project form
 │   │   └── [id]/                 # Project detail page
-│   │       └── quote/[quoteId]/  # Quote preview page (A4, PDF, email)
+│   │       └── quote/[quoteId]/  # Quote preview page (A4, PDF, email — items paginated across pages)
+│   ├── customers/                # Customers module (under marketing)
+│   │   ├── page.tsx              # Customers list + search (company/contact/phone/email) + "new customer"
+│   │   └── [id]/                 # Customer card: quote history (color-coded) + projects + contacts
 │   ├── production/               # Production order tracking with status workflow
 │   ├── forms/                    # Israeli standard forms (B116, B12-2, B165, B244)
 │   ├── logistics/iskoor/         # Iskoor logistics tracker
@@ -47,7 +50,7 @@ FibertechOS/
 │   │   ├── requests/             # Admin: pending access request approval queue
 │   │   └── users/                # Admin: user permission matrix editor
 │   └── api/
-│       ├── ai/                   # Groq AI proxy — Roxy chatbot
+│       ├── ai/                   # Gemini AI proxy — Roxy chatbot (PDF/image/chat) + local XLSX BOQ parsing
 │       ├── access-requests/      # Public POST — new access request (rate-limited)
 │       ├── approve-request/      # Admin — approve/decline access requests
 │       ├── auth/log-attempt/     # Audit log for login attempts
@@ -63,6 +66,7 @@ FibertechOS/
 │   │   └── SignaturePad.tsx      # Signature capture pad
 │   ├── dashboard/                # KpiCard, AlertsList, ProjectsTable, Pipeline, TeamStatus, InventoryWidget
 │   ├── projects/                 # PricingSection, AiChat, ContactsInput, PipeSpecsInput, StatusTracker, ExchangeRateWidget
+│   ├── customers/                # CustomerForm (create/edit customer card + contacts; reused in /customers, project page, new-quote form)
 │   ├── forms/                    # FormB116, FormB12_2, FormB165, FormB244
 │   ├── logistics/                # IskoorTracker
 │   ├── admin/                    # PendingRequestsList, UserPermissionsEditor
@@ -84,7 +88,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-004 (quote contact_id, customers module, client tax_id/address, project_contacts.company)
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -120,16 +124,26 @@ FibertechOS/
 ### Pricing Engine
 - **Gross-margin formula**: `Selling = Cost * (1 + overheads%) * (1 + profit%)`.
 - **Full cost chain**: Supplier foreign price -> exchange rate -> ILS cost -> overheads -> profit -> selling price.
-- **Item types**: `pipe_with_coupling`, `pipe_bare`, `coupling`, `roker`, `elbow`, `flange`, `reducer`, `other`.
+- **Item types**: `pipe_with_coupling`, `pipe_bare`, `coupling`, `wall_coupling`, `roker`, `elbow`, `flange`, `reducer`, `other`.
 - **Roker calculation**: Special formula based on DN diameter: `rokerLength = (DN / 1000) * 2`.
 - **Quote tiers**: `planner_estimate`, `contractor_pre_tender`, `contractor_final`.
 - **Margin validation**: Warns on items with margin < 10% or > 60%, or zero cost.
+- **Bulk profit control**: In the quote items editor, one profit % can be applied across a category at once — pipes, accessories, or all. Short pipes/rokers count as accessories (`itemCategory()` in `usePricing.ts`).
 
 ### AI Integration (Roxy)
-- Groq API with llama-3.3-70b. Structured JSON output only.
-- System prompt defines available tables and expected response format.
+- Google Gemini API with `gemini-2.5-flash`. Single unified provider (Groq fully removed). Requires `GEMINI_API_KEY` + active billing on Google AI Studio.
+- System prompt defines available tables and expected response format. Structured JSON output (`responseMimeType: application/json`).
+- One multimodal call handles chat + PDF + image. Excel/CSV BOQ files are parsed locally via `xlsx` (no API call) before falling back to Gemini.
 - Handles: create/update/delete records, import supplier quotes, generate reports, add tasks.
 - Supplier quote extraction: Parses Amiblu/Flowtite quotation documents into structured `cost_input_items`.
+
+### Customers Module (under marketing permission)
+- The existing `clients` table is the customer master (company `name`, `tax_id` (ח.פ.), `address`, `city`, `phone`, `email`, `notes`). `client_contacts` holds multiple per-customer contacts.
+- `quotes.customer_id` and `projects.customer_id` link quotes/projects to a customer. `quotes.contact_id` -> `project_contacts` is the specific addressee for that quote's preview.
+- Flow: a project starts with no customer (quotes go to potential customers); after the tender is won, the "🏆 לקוח זוכה" selector in the project's contacts section sets `projects.customer_id`.
+- Customer card aggregates quote history (🟢 signed / 🟠 sent·pending / 🔴 rejected·expired) with an auto-generated background line, plus the customer's projects.
+- RLS: `clients`/`client_contacts` readable with `marketing` or `projects` view; writable with `marketing` or `settings` edit.
+- `project_contacts.company` notes which company each project contact belongs to.
 
 ### Quote Sharing
 - Public share via expiring tokens (`/quote/[token]`). View tracking. No auth required for public quote page.
@@ -163,8 +177,9 @@ NEXT_PUBLIC_SUPABASE_URL=https://qiccyigkqunxhvqzncol.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase dashboard>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase dashboard — SECRET>
 NEXT_PUBLIC_SITE_URL=<Vercel deployment URL>
-GROQ_API_KEY=<for Roxy AI>
+GEMINI_API_KEY=<for Roxy AI — Google AI Studio, billing must be enabled>
 ```
+(`GROQ_API_KEY` is no longer used — Roxy runs entirely on Gemini.)
 
 ## 7. Known Issues / TODO
 
@@ -185,8 +200,9 @@ GROQ_API_KEY=<for Roxy AI>
 - Cloudflare Turnstile on request-access form.
 - 2FA (TOTP) for admin accounts.
 - Missing business modules: field visits, import/shipments, NCR/incidents.
-- Normalize `clients` table — currently mixed FK + plaintext in `projects`.
+- Normalize `clients` table — partially done: `clients` is now the customer master with `customer_id` links on quotes/projects, but `projects` still keeps plaintext `developer_name`/`planning_office` alongside the FK roles.
 - Project stage history tracking.
+- Backfill `projects.customer_id` for existing projects (only quotes were auto-seeded to customers).
 
 ## 8. Working Instructions for Claude
 
