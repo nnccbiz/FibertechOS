@@ -53,13 +53,15 @@ export default function QuotePreviewPage() {
         supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order'),
         supabase.from('projects').select('*').eq('id', projectId).single(),
         supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', quoteId),
-        supabase.from('project_contacts').select('name, phone, email').eq('project_id', projectId).limit(1),
+        supabase.from('project_contacts').select('id, name, phone, email').eq('project_id', projectId).order('created_at'),
       ]);
       setQuote(q);
       setItems(its || []);
       setProject(proj);
       setAttachments(atts || []);
-      if (conts?.[0]) setClientContact({ name: conts[0].name || '', phone: conts[0].phone || '', email: conts[0].email || '' });
+      // Prefer the contact linked to this quote; fall back to the project's first contact (old quotes).
+      const chosen = (q?.contact_id && conts?.find((c: any) => c.id === q.contact_id)) || conts?.[0];
+      if (chosen) setClientContact({ name: chosen.name || '', phone: chosen.phone || '', email: chosen.email || '' });
 
       // Load views (safe — table may not exist yet)
       try {

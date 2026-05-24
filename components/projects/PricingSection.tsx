@@ -413,6 +413,13 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
               <input type="text" value={p.newQuote.client_name} onChange={(e) => p.setNewQuote({ ...p.newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
             </div>
             <div>
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">איש קשר</label>
+              <select value={p.newQuote.contact_id} onChange={(e) => p.setNewQuote({ ...p.newQuote, contact_id: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                <option value="">— ללא / איש קשר ראשון —</option>
+                {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ''}{c.phone ? ` · ${c.phone}` : ''}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הצעה</label>
               <select value={p.newQuote.tier} onChange={(e) => p.setNewQuote({ ...p.newQuote, tier: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
                 {QUOTE_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -519,6 +526,13 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                   {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
                   <input type="file" className="hidden" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx" disabled={p.uploadingFile} onChange={(e) => { if (e.target.files?.[0]) { p.uploadAttachment(q.id, e.target.files[0]); e.target.value = ''; } }} />
                 </label>
+                <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                  👤 איש קשר:
+                  <select value={q.contact_id || ''} onChange={(e) => p.setQuoteContact(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                    <option value="">— ראשון בפרויקט —</option>
+                    {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
+                  </select>
+                </span>
               </>
             )}
             {q.status === 'draft' && (
