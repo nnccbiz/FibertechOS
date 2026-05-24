@@ -570,6 +570,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 }
 
 function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
+  const [bulkProfit, setBulkProfit] = useState('');
   const subtotal = p.editingItems.reduce((s, i) => {
     const qty = parseFloat(i.quantity) || 0;
     const up = parseFloat(i.unit_price) || 0;
@@ -578,8 +579,29 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
   const totalAfterDisc = p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const hasAnyDiscount = p.editingItems.some((i) => parseFloat(i.discount_pct) > 0);
 
+  function applyBulk(category: 'pipe' | 'accessory' | 'all') {
+    const pct = parseFloat(bulkProfit);
+    if (isNaN(pct)) return;
+    p.bulkSetProfit(category, pct);
+  }
+
   return (
     <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2">
+        <span className="text-[12px] font-semibold text-gray-600">החל רווח</span>
+        <input
+          type="number"
+          value={bulkProfit}
+          onChange={(e) => setBulkProfit(e.target.value)}
+          placeholder="%"
+          className="w-16 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-center"
+        />
+        <span className="text-[12px] text-gray-500">% על:</span>
+        <button onClick={() => applyBulk('pipe')} disabled={bulkProfit === ''} className="text-[12px] bg-white border border-[#1a56db] text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">צנרת</button>
+        <button onClick={() => applyBulk('accessory')} disabled={bulkProfit === ''} className="text-[12px] bg-white border border-[#1a56db] text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">אביזרים</button>
+        <button onClick={() => applyBulk('all')} disabled={bulkProfit === ''} className="text-[12px] bg-white border border-gray-300 text-gray-600 px-3 py-1 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">הכל</button>
+        <span className="text-[11px] text-gray-400">(צינור קצר/רוקר נכלל באביזרים)</span>
+      </div>
       <div className="overflow-x-auto">
         <div className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1 text-[11px] font-semibold text-gray-500 px-1">
           <span>מוצר</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>

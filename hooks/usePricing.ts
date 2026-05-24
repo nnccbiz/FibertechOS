@@ -6,6 +6,15 @@ import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice } from '@/lib/pricing';
 
+// Categorize a quote line by its Hebrew product name for bulk profit operations.
+// Short pipes / rokers are grouped with accessories, not full-length pipe runs.
+export function itemCategory(productName?: string): 'pipe' | 'accessory' {
+  const n = (productName || '').trim();
+  if (n.includes('רוקר') || n.includes('קצר')) return 'accessory';
+  if (n.includes('צנרת') || n.includes('צינור')) return 'pipe';
+  return 'accessory';
+}
+
 export interface UsePricingReturn {
   // Data
   costInputs: any[];
@@ -54,6 +63,7 @@ export interface UsePricingReturn {
   createQuote: () => Promise<void>;
   startEditQuote: (quoteId: string) => void;
   updateItem: (idx: number, field: string, val: any) => void;
+  bulkSetProfit: (category: 'pipe' | 'accessory' | 'all', profitPct: number) => void;
   saveQuoteItems: (quoteId: string) => Promise<void>;
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
@@ -577,6 +587,26 @@ export function usePricing(projectId: string): UsePricingReturn {
     });
   }
 
+  // Apply one profit % across a category of items at once.
+  // 'pipe' = full-length pipe runs only; 'accessory' = fittings + short pipes (rokers).
+  function bulkSetProfit(category: 'pipe' | 'accessory' | 'all', profitPct: number) {
+    setEditingItems((prev) => prev.map((item) => {
+      if (category !== 'all' && itemCategory(item.product_name) !== category) return item;
+      const cost = parseFloat(item.cost_price) || 0;
+      const oh = parseFloat(item.overheads_pct) || 0;
+      const qty = parseFloat(item.quantity) || 0;
+      const disc = parseFloat(item.discount_pct) || 0;
+      const unitPrice = calcSellingPrice(cost, oh, profitPct);
+      const lineTotal = qty * unitPrice;
+      return {
+        ...item,
+        profit_pct: profitPct,
+        unit_price: unitPrice,
+        total_price: disc > 0 ? Math.round(lineTotal * (1 - disc / 100) * 100) / 100 : lineTotal,
+      };
+    }));
+  }
+
   async function saveQuoteItems(quoteId: string) {
     setSaving(true);
     try {
@@ -714,7 +744,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     parsingCostFile, saving, uploadingFile,
     createCostInput, parseCostFile, uploadAndCreateCostInput, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
-    createQuote, startEditQuote, updateItem, saveQuoteItems,
+    createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment,
