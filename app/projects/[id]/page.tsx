@@ -7,6 +7,7 @@ import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
+import CustomerForm from '@/components/customers/CustomerForm';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -85,6 +86,8 @@ export default function ProjectDetailPage() {
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
   const [projectAttachments, setProjectAttachments] = useState<any[]>([]);
   const [projectQuotes, setProjectQuotes] = useState<any[]>([]);
+  const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,7 +154,7 @@ export default function ProjectDetailPage() {
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes, clientsRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
@@ -159,7 +162,9 @@ export default function ProjectDetailPage() {
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
         supabase.from('attachments').select('*').eq('project_id', id).order('created_at', { ascending: false }),
         supabase.from('quotes').select('id, quote_number, client_name').eq('project_id', id),
+        supabase.from('clients').select('id, name').order('name'),
       ]);
+      setCustomersList(clientsRes.data || []);
 
       const proj = projRes.data;
       const det = detRes.data || {};
@@ -188,6 +193,18 @@ export default function ProjectDetailPage() {
 
   function updateForm(key: string, val: any) {
     setForm((prev: any) => ({ ...prev, [key]: val }));
+  }
+
+  async function setProjectCustomer(customerId: string) {
+    const value = customerId || null;
+    await supabase.from('projects').update({ customer_id: value }).eq('id', params.id as string);
+    setProject((prev: any) => ({ ...prev, customer_id: value }));
+    setForm((prev: any) => ({ ...prev, customer_id: value }));
+  }
+
+  async function refreshCustomers() {
+    const { data } = await supabase.from('clients').select('id, name').order('name');
+    setCustomersList(data || []);
   }
 
   function updateDetailForm(key: string, val: any) {
@@ -585,6 +602,38 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               </div>
             </div>
           )}
+        </section>
+
+        {showCustomerForm && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+              <CustomerForm
+                onCancel={() => setShowCustomerForm(false)}
+                onSaved={async (id) => { setShowCustomerForm(false); await refreshCustomers(); await setProjectCustomer(id); }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Customer link */}
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-sm font-bold text-gray-500">👥 לקוח</h2>
+            <div className="flex items-center gap-2">
+              <select
+                value={project.customer_id || ''}
+                onChange={(e) => setProjectCustomer(e.target.value)}
+                className="border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
+              >
+                <option value="">— ללא לקוח —</option>
+                {customersList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
+              {project.customer_id && (
+                <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-gray-50 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
+              )}
+            </div>
+          </div>
         </section>
 
         {/* Basic info */}

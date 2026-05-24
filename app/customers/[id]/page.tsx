@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatILS } from '@/lib/revenue';
+import CustomerForm from '@/components/customers/CustomerForm';
 
 interface Customer {
   id: string; name: string; type: string | null; company: string | null;
   contact_person: string | null; phone: string | null; email: string | null;
-  city: string | null; notes: string | null;
+  city: string | null; notes: string | null; tax_id: string | null; address: string | null;
 }
 interface Contact { id: string; name: string; role: string | null; phone: string | null; email: string | null; }
 interface QuoteRow {
@@ -74,6 +75,8 @@ export default function CustomerDetailPage() {
   const [quoteContactNames, setQuoteContactNames] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<{ id: string; name: string; status: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEdit, setShowEdit] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -119,21 +122,33 @@ export default function CustomerDetailPage() {
       setLoading(false);
     }
     load();
-  }, [customerId]);
+  }, [customerId, reloadKey]);
 
   if (loading) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-gray-400" dir="rtl">טוען…</div>;
   if (!customer) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-red-500" dir="rtl">לקוח לא נמצא.</div>;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
-      <button onClick={() => router.push('/customers')} className="text-sm text-gray-500 hover:text-gray-700 mb-4">← חזרה ללקוחות</button>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => router.push('/customers')} className="text-sm text-gray-500 hover:text-gray-700">← חזרה ללקוחות</button>
+        <button onClick={() => setShowEdit(true)} className="text-sm bg-blue-50 text-[#1a56db] px-4 py-2 rounded-lg hover:bg-blue-100">✏️ ערוך כרטיס</button>
+      </div>
+
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowEdit(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+            <CustomerForm customerId={customerId} onCancel={() => setShowEdit(false)} onSaved={() => { setShowEdit(false); setReloadKey((k) => k + 1); }} />
+          </div>
+        </div>
+      )}
 
       {/* Customer header */}
       <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 mb-5">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-            {customer.city && <p className="text-sm text-gray-500 mt-1">📍 {customer.city}</p>}
+            {customer.tax_id && <p className="text-sm text-gray-500 mt-1" style={{ unicodeBidi: 'plaintext' }}>ח.פ. {customer.tax_id}</p>}
+            {(customer.address || customer.city) && <p className="text-sm text-gray-500 mt-1">📍 {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
           </div>
           <div className="text-sm text-gray-600 text-left">
             {customer.phone && <p style={{ unicodeBidi: 'plaintext' }}>📞 {customer.phone}</p>}

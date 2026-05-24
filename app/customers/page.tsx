@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import CustomerForm from '@/components/customers/CustomerForm';
 
 interface Customer {
   id: string;
@@ -32,6 +33,7 @@ export default function CustomersPage() {
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -76,8 +78,19 @@ export default function CustomersPage() {
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-bold text-gray-900">👥 לקוחות</h1>
-        <span className="text-sm text-gray-400">{filtered.length} לקוחות</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-400">{filtered.length} לקוחות</span>
+          <button onClick={() => setShowForm(true)} className="text-sm bg-[#1a56db] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">+ לקוח חדש</button>
+        </div>
       </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+            <CustomerForm onCancel={() => setShowForm(false)} onSaved={(id) => router.push(`/customers/${id}`)} />
+          </div>
+        </div>
+      )}
 
       <input
         type="text"
