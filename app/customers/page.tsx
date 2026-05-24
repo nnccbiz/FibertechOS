@@ -1,0 +1,136 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+interface Customer {
+  id: string;
+  name: string;
+  type: string | null;
+  company: string | null;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+}
+
+interface Contact {
+  id: string;
+  client_id: string;
+  name: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+export default function CustomersPage() {
+  const router = useRouter();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [quoteCounts, setQuoteCounts] = useState<Record<string, number>>({});
+  const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const [{ data: cls }, { data: cnts }, { data: qts }] = await Promise.all([
+        supabase.from('clients').select('id, name, type, company, contact_person, phone, email, city').order('name'),
+        supabase.from('client_contacts').select('id, client_id, name, role, phone, email'),
+        supabase.from('quotes').select('customer_id, project_id'),
+      ]);
+      setCustomers(cls || []);
+      setContacts(cnts || []);
+      const qc: Record<string, number> = {};
+      const projSets: Record<string, Set<string>> = {};
+      (qts || []).forEach((q: any) => {
+        if (!q.customer_id) return;
+        qc[q.customer_id] = (qc[q.customer_id] || 0) + 1;
+        if (q.project_id) {
+          (projSets[q.customer_id] ||= new Set()).add(q.project_id);
+        }
+      });
+      const pc: Record<string, number> = {};
+      Object.entries(projSets).forEach(([k, set]) => { pc[k] = set.size; });
+      setQuoteCounts(qc);
+      setProjectCounts(pc);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const q = search.trim().toLowerCase();
+  const contactsByClient: Record<string, Contact[]> = {};
+  contacts.forEach((c) => { (contactsByClient[c.client_id] ||= []).push(c); });
+
+  const filtered = customers.filter((c) => {
+    if (!q) return true;
+    const ownFields = [c.name, c.company, c.contact_person, c.phone, c.email, c.city];
+    const contactFields = (contactsByClient[c.id] || []).flatMap((ct) => [ct.name, ct.phone, ct.email]);
+    return [...ownFields, ...contactFields].some((f) => (f || '').toLowerCase().includes(q));
+  });
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-bold text-gray-900">👥 לקוחות</h1>
+        <span className="text-sm text-gray-400">{filtered.length} לקוחות</span>
+      </div>
+
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="חיפוש לפי שם חברה, איש קשר, טלפון או מייל…"
+        className="w-full border border-[#e2e8f0] rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
+      />
+
+      {loading ? (
+        <p className="text-center text-gray-400 py-10">טוען…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-gray-400 py-10">לא נמצאו לקוחות.</p>
+      ) : (
+        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-[#e2e8f0] text-[12px] text-gray-500">
+                <th className="text-right font-semibold px-4 py-2.5">שם הלקוח</th>
+                <th className="text-right font-semibold px-4 py-2.5">איש קשר</th>
+                <th className="text-right font-semibold px-4 py-2.5">טלפון</th>
+                <th className="text-right font-semibold px-4 py-2.5">מייל</th>
+                <th className="text-center font-semibold px-4 py-2.5">הצעות</th>
+                <th className="text-center font-semibold px-4 py-2.5">פרויקטים</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => {
+                const primary = c.contact_person || (contactsByClient[c.id]?.[0]?.name) || '—';
+                const phone = c.phone || contactsByClient[c.id]?.[0]?.phone || '—';
+                const email = c.email || contactsByClient[c.id]?.[0]?.email || '—';
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/customers/${c.id}`)}
+                    className="border-b border-gray-50 hover:bg-blue-50/40 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3 font-medium text-gray-800">
+                      {c.name}
+                      {c.city && <span className="text-gray-400 font-normal"> · {c.city}</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{primary}</td>
+                    <td className="px-4 py-3 text-gray-500" style={{ unicodeBidi: 'plaintext' }}>{phone}</td>
+                    <td className="px-4 py-3 text-gray-500" style={{ unicodeBidi: 'plaintext' }}>{email}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{quoteCounts[c.id] || 0}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{projectCounts[c.id] || 0}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

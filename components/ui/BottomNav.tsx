@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
   { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
+  { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
   { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
   { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
   { icon: '👷', label: 'שדה', key: 'field', href: '/field' },
@@ -27,13 +28,13 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { canAccess, loading } = usePermissions();
 
-  function getActiveKey() {
-    if (pathname === '/') return 'dashboard';
+  function getActiveHref() {
+    if (pathname === '/') return '/';
     const match = navItems.find((item) => item.href !== '/' && pathname.startsWith(item.href));
-    return match?.key || 'dashboard';
+    return match?.href || '/';
   }
 
-  const activeKey = getActiveKey();
+  const activeHref = getActiveHref();
   const visibleItems = loading ? navItems : navItems.filter((item) => canAccess(item.key));
 
   return (
@@ -41,10 +42,10 @@ export default function BottomNav() {
       <div className="flex overflow-x-auto py-2 px-1 gap-1 scrollbar-hide">
         {visibleItems.map((item) => (
           <a
-            key={item.key}
+            key={item.href}
             href={item.href}
             className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[12px] font-medium transition-colors no-underline ${
-              activeKey === item.key
+              activeHref === item.href
                 ? 'bg-blue-50 text-[#1a56db]'
                 : 'text-gray-500'
             }`}
