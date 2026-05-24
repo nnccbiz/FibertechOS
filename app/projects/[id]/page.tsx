@@ -616,27 +616,6 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
         )}
 
-        {/* Customer link */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-sm font-bold text-gray-500">👥 לקוח</h2>
-            <div className="flex items-center gap-2">
-              <select
-                value={project.customer_id || ''}
-                onChange={(e) => setProjectCustomer(e.target.value)}
-                className="border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
-              >
-                <option value="">— ללא לקוח —</option>
-                {customersList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
-              {project.customer_id && (
-                <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-gray-50 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
-              )}
-            </div>
-          </div>
-        </section>
-
         {/* Basic info */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <SectionHeader title="מידע בסיסי" icon="🏗️" editing={editInfo} onToggle={() => editInfo ? cancelEdit('info') : setEditInfo(true)} onSave={saveInfo} saving={saving} />
@@ -768,6 +747,24 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         {/* Contacts */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <SectionHeader title="אנשי קשר" icon="👥" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
+
+          {/* Winning customer — known only after the tender is won */}
+          <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2 mb-3">
+            <span className="text-[13px] font-semibold text-gray-600">🏆 לקוח זוכה:</span>
+            <select
+              value={project.customer_id || ''}
+              onChange={(e) => setProjectCustomer(e.target.value)}
+              className="border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 bg-white"
+            >
+              <option value="">— טרם נקבע —</option>
+              {customersList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
+            {project.customer_id && (
+              <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
+            )}
+          </div>
+
           {editContacts ? (
             <div className="space-y-2">
               {contactsForm.map((c, i) => (
