@@ -66,7 +66,10 @@ export interface UsePricingReturn {
   bulkSetProfit: (category: 'pipe' | 'accessory' | 'all', profitPct: number) => void;
   saveQuoteItems: (quoteId: string) => Promise<void>;
   setQuoteContact: (quoteId: string, contactId: string) => Promise<void>;
+  setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
+  refreshCustomers: () => Promise<void>;
   contacts: any[];
+  customers: any[];
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
@@ -99,6 +102,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [costInputItems, setCostInputItems] = useState<Record<string, any[]>>({});
   const [attachments, setAttachments] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [projectNumber, setProjectNumber] = useState<number | null>(null);
 
@@ -112,7 +116,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
   const [newQuote, setNewQuote] = useState({
-    client_name: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
+    client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
     default_overheads_pct: 17, default_profit_pct: 25,
     disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
     tier: 'contractor_pre_tender',
@@ -133,15 +137,17 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes, projRes, contactsRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('project_details').select('project_number').eq('project_id', projectId).maybeSingle(),
       supabase.from('project_contacts').select('id, role, name, phone, email').eq('project_id', projectId).order('created_at'),
+      supabase.from('clients').select('id, name').order('name'),
     ]);
     if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
     setContacts(contactsRes.data || []);
+    setCustomers(customersRes.data || []);
 
     const qts = quotesRes.data || [];
     const costs = costRes.data || [];
@@ -515,6 +521,7 @@ export function usePricing(projectId: string): UsePricingReturn {
 
     const { data: q, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: newQuote.client_name,
+      customer_id: newQuote.customer_id || null,
       contact_id: newQuote.contact_id || null,
       status: 'draft', tier: newQuote.tier, cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
       cost_input_id: newQuote.cost_input_id || null,
@@ -540,7 +547,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }];
 
     setNewQuote({
-      client_name: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
+      client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
       default_overheads_pct: 17, default_profit_pct: 25,
       disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
       tier: 'contractor_pre_tender',
@@ -617,6 +624,17 @@ export function usePricing(projectId: string): UsePricingReturn {
     const value = contactId || null;
     await supabase.from('quotes').update({ contact_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contact_id: value } : q));
+  }
+
+  async function setQuoteCustomer(quoteId: string, customerId: string) {
+    const value = customerId || null;
+    await supabase.from('quotes').update({ customer_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, customer_id: value } : q));
+  }
+
+  async function refreshCustomers() {
+    const { data } = await supabase.from('clients').select('id, name').order('name');
+    setCustomers(data || []);
   }
 
   async function saveQuoteItems(quoteId: string) {
@@ -756,8 +774,8 @@ export function usePricing(projectId: string): UsePricingReturn {
     parsingCostFile, saving, uploadingFile,
     createCostInput, parseCostFile, uploadAndCreateCostInput, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
-    contacts,
-    createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact,
+    contacts, customers, refreshCustomers,
+    createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment,

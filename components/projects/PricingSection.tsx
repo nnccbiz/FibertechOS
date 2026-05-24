@@ -5,6 +5,7 @@ import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { createClient } from '@/lib/supabase/client';
+import CustomerForm from '@/components/customers/CustomerForm';
 import {
   calcCostPerMeter,
   calcRokerCostPerMeter,
@@ -397,6 +398,7 @@ function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: 
 }
 
 function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
   return (
     <>
       <div className="flex justify-end mb-3">
@@ -405,12 +407,45 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
         </button>
       </div>
 
+      {showCustomerForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+            <CustomerForm
+              onCancel={() => setShowCustomerForm(false)}
+              onSaved={async (id) => {
+                setShowCustomerForm(false);
+                await p.refreshCustomers();
+                const { data } = await createClient().from('clients').select('name').eq('id', id).single();
+                p.setNewQuote({ ...p.newQuote, customer_id: id, client_name: data?.name || p.newQuote.client_name });
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {p.showNewQuote && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">לקוח</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={p.newQuote.customer_id}
+                  onChange={(e) => {
+                    const cust = p.customers.find((c: any) => c.id === e.target.value);
+                    p.setNewQuote({ ...p.newQuote, customer_id: e.target.value, client_name: cust?.name || p.newQuote.client_name });
+                  }}
+                  className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
+                >
+                  <option value="">— ללא לקוח —</option>
+                  {p.customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-white border border-[#1a56db] text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-50 whitespace-nowrap">+ לקוח חדש</button>
+              </div>
+            </div>
             <div>
-              <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם לקוח / קבלן</label>
-              <input type="text" value={p.newQuote.client_name} onChange={(e) => p.setNewQuote({ ...p.newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" autoFocus />
+              <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם לקוח / קבלן (ל&quot;לכבוד&quot;)</label>
+              <input type="text" value={p.newQuote.client_name} onChange={(e) => p.setNewQuote({ ...p.newQuote, client_name: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" placeholder="שם הלקוח" />
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">איש קשר</label>
@@ -531,6 +566,13 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                   <select value={q.contact_id || ''} onChange={(e) => p.setQuoteContact(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
                     <option value="">— ראשון בפרויקט —</option>
                     {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
+                  </select>
+                </span>
+                <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                  🏢 לקוח:
+                  <select value={q.customer_id || ''} onChange={(e) => p.setQuoteCustomer(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                    <option value="">— ללא —</option>
+                    {p.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </span>
               </>
