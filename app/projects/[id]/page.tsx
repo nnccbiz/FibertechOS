@@ -474,6 +474,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             project_id: id,
             role: c.role || '',
             name: c.name,
+            company: c.company || '',
             phone: c.phone || '',
             email: c.email || '',
           }))
@@ -770,19 +771,24 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {editContacts ? (
             <div className="space-y-2">
               {contactsForm.map((c, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-28`}>
-                    <option value="">תפקיד</option>
-                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <input type="text" placeholder="שם" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
-                  <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-32`} dir="ltr" />
-                  <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
-                  <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
+                <div key={i} className="border border-[#e2e8f0] rounded-lg p-2 space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-36`}>
+                      <option value="">תפקיד</option>
+                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
+                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl flex-shrink-0">✕</button>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input type="text" placeholder="שם חברה" value={c.company || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], company: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
+                    <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
+                    <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} dir="ltr" />
+                  </div>
                 </div>
               ))}
               <div className="flex items-center gap-3">
-                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', company: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
                 {contactPickerSupported && (
                   <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
                     📱 בחר מאנשי הקשר
@@ -797,6 +803,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <tr className="border-b border-[#e2e8f0]">
                     <th className="text-right text-gray-500 font-medium pb-2 pr-2">תפקיד</th>
                     <th className="text-right text-gray-500 font-medium pb-2">שם</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">חברה</th>
                     <th className="text-right text-gray-500 font-medium pb-2">טלפון</th>
                     <th className="text-right text-gray-500 font-medium pb-2">מייל</th>
                   </tr>
@@ -806,6 +813,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <tr key={c.id} className="border-b border-gray-50">
                       <td className="py-2 pr-2 text-gray-600">{c.role}</td>
                       <td className="py-2 font-medium text-gray-800">{c.name}</td>
+                      <td className="py-2 text-gray-600">{c.company || '—'}</td>
                       <td className="py-2 text-gray-600" dir="ltr">{c.phone || '—'}</td>
                       <td className="py-2 text-gray-600" dir="ltr">{c.email || '—'}</td>
                     </tr>

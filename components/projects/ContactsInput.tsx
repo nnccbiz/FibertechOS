@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 export interface ProjectContact {
   role: string;
   name: string;
+  company: string;
   phone: string;
   email: string;
 }
@@ -43,7 +44,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
   }
 
   function addContact() {
-    onChange([...contacts, { role: '', name: '', phone: '', email: '' }]);
+    onChange([...contacts, { role: '', name: '', company: '', phone: '', email: '' }]);
   }
 
   function removeContact(index: number) {
@@ -58,6 +59,7 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
       const newContacts: ProjectContact[] = results.map((c: any) => ({
         role: '',
         name: c.name?.[0] || '',
+        company: '',
         phone: c.tel?.[0] || '',
         email: c.email?.[0] || '',
       }));
@@ -72,50 +74,61 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
       {contacts.length > 0 && (
         <div className="space-y-2 mb-3">
           {contacts.map((contact, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-center">
-              <select
-                value={contact.role}
-                onChange={(e) => updateContact(i, 'role', e.target.value)}
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] bg-white"
-              >
-                <option value="">תפקיד</option>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={contact.name}
-                onChange={(e) => updateContact(i, 'name', e.target.value)}
-                placeholder="שם"
-                autoComplete="name"
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
-              />
-              <input
-                type="tel"
-                value={contact.phone}
-                onChange={(e) => updateContact(i, 'phone', e.target.value)}
-                placeholder="טלפון"
-                autoComplete="tel"
-                className="col-span-2 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
-                dir="ltr"
-              />
-              <input
-                type="email"
-                value={contact.email}
-                onChange={(e) => updateContact(i, 'email', e.target.value)}
-                placeholder="מייל"
-                autoComplete="email"
-                className="col-span-3 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
-                dir="ltr"
-              />
-              <button
-                type="button"
-                onClick={() => removeContact(i)}
-                className="col-span-1 text-red-400 hover:text-red-600 text-sm text-center"
-              >
-                ✕
-              </button>
+            <div key={i} className="border border-[#e2e8f0] rounded-lg p-2 space-y-2">
+              <div className="flex gap-2 items-center">
+                <select
+                  value={contact.role}
+                  onChange={(e) => updateContact(i, 'role', e.target.value)}
+                  className="w-36 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] bg-white"
+                >
+                  <option value="">תפקיד</option>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={contact.name}
+                  onChange={(e) => updateContact(i, 'name', e.target.value)}
+                  placeholder="שם איש הקשר"
+                  autoComplete="name"
+                  className="flex-1 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeContact(i)}
+                  className="text-red-400 hover:text-red-600 text-lg text-center flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={contact.company}
+                  onChange={(e) => updateContact(i, 'company', e.target.value)}
+                  placeholder="שם חברה"
+                  className="flex-1 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                />
+                <input
+                  type="tel"
+                  value={contact.phone}
+                  onChange={(e) => updateContact(i, 'phone', e.target.value)}
+                  placeholder="טלפון"
+                  autoComplete="tel"
+                  className="w-40 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  dir="ltr"
+                />
+                <input
+                  type="email"
+                  value={contact.email}
+                  onChange={(e) => updateContact(i, 'email', e.target.value)}
+                  placeholder="מייל"
+                  autoComplete="email"
+                  className="flex-1 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  dir="ltr"
+                />
+              </div>
             </div>
           ))}
         </div>
