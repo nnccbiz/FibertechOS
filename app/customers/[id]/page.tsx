@@ -74,6 +74,7 @@ export default function CustomerDetailPage() {
   const [projectNames, setProjectNames] = useState<Record<string, string>>({});
   const [quoteContactNames, setQuoteContactNames] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<{ id: string; name: string; status: string | null }[]>([]);
+  const [projectContacts, setProjectContacts] = useState<{ id: string; project: string; role: string | null; name: string; company: string | null; phone: string | null; email: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -114,6 +115,21 @@ export default function CustomerDetailPage() {
       });
       setProjectNames(projMap);
       setProjects(Object.values(allProjects));
+
+      // Project contacts from the customer's linked projects (read-only aggregation).
+      const allProjectIds = Object.keys(allProjects);
+      if (allProjectIds.length > 0) {
+        const { data: pcs } = await supabase
+          .from('project_contacts')
+          .select('id, project_id, role, name, company, phone, email')
+          .in('project_id', allProjectIds);
+        setProjectContacts((pcs || []).map((pc: any) => ({
+          id: pc.id, project: projMap[pc.project_id] || '', role: pc.role, name: pc.name,
+          company: pc.company, phone: pc.phone, email: pc.email,
+        })));
+      } else {
+        setProjectContacts([]);
+      }
 
       const cnMap: Record<string, string> = {};
       (quoteContactsRes.data || []).forEach((c: any) => { cnMap[c.id] = c.name; });
@@ -172,6 +188,39 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Contacts from linked projects (read-only) */}
+      {projectContacts.length > 0 && (
+        <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-bold text-gray-500 mb-3">אנשי קשר מהפרויקטים</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#e2e8f0] text-[12px] text-gray-500">
+                  <th className="text-right font-medium pb-2 pr-1">שם</th>
+                  <th className="text-right font-medium pb-2">תפקיד</th>
+                  <th className="text-right font-medium pb-2">חברה</th>
+                  <th className="text-right font-medium pb-2">טלפון</th>
+                  <th className="text-right font-medium pb-2">מייל</th>
+                  <th className="text-right font-medium pb-2">פרויקט</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectContacts.map((pc) => (
+                  <tr key={pc.id} className="border-b border-gray-50">
+                    <td className="py-2 pr-1 font-medium text-gray-800">{pc.name}</td>
+                    <td className="py-2 text-gray-600">{pc.role || '—'}</td>
+                    <td className="py-2 text-gray-600">{pc.company || '—'}</td>
+                    <td className="py-2 text-gray-500" dir="ltr">{pc.phone || '—'}</td>
+                    <td className="py-2 text-gray-500" dir="ltr">{pc.email || '—'}</td>
+                    <td className="py-2 text-gray-400">{pc.project || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Quote history */}
       <h2 className="text-lg font-bold text-gray-800 mb-2">היסטוריית הצעות מחיר</h2>
