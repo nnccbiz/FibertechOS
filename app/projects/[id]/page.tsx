@@ -480,10 +480,43 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           }))
         );
       }
+
+      // Auto-sync contacts that have a company into the customers list (one-way: project -> customers).
+      await syncContactsToCustomers(valid);
+
       setEditContacts(false);
       await load();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // For each project contact with a company, find-or-create the customer and upsert the contact under it.
+  async function syncContactsToCustomers(rows: any[]) {
+    const withCompany = rows.filter((c) => c.name?.trim() && c.company?.trim());
+    if (withCompany.length === 0) return;
+
+    const companyNames = Array.from(new Set(withCompany.map((c) => c.company.trim())));
+    const { data: existing } = await supabase.from('clients').select('id, name').in('name', companyNames);
+    const idByName: Record<string, string> = {};
+    (existing || []).forEach((c: any) => { idByName[c.name] = c.id; });
+
+    const missing = companyNames.filter((n) => !idByName[n]);
+    if (missing.length > 0) {
+      const { data: created } = await supabase.from('clients').insert(missing.map((n) => ({ name: n, type: 'לקוח' }))).select('id, name');
+      (created || []).forEach((c: any) => { idByName[c.name] = c.id; });
+    }
+
+    for (const c of withCompany) {
+      const clientId = idByName[c.company.trim()];
+      if (!clientId) continue;
+      const { data: match } = await supabase.from('client_contacts').select('id').eq('client_id', clientId).eq('name', c.name.trim()).limit(1);
+      const payload = { role: c.role || null, phone: c.phone || null, email: c.email || null };
+      if (match && match.length > 0) {
+        await supabase.from('client_contacts').update(payload).eq('id', match[0].id);
+      } else {
+        await supabase.from('client_contacts').insert({ client_id: clientId, name: c.name.trim(), ...payload });
+      }
     }
   }
 
