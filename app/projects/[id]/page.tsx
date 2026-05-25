@@ -555,7 +555,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
   const d = detailForm;
   const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
   const contactInput = 'border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
-  const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
+  const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'רכש', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
     <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
