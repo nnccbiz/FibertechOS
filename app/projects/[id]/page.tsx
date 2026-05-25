@@ -554,6 +554,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
   const d = detailForm;
   const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const contactInput = 'border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
   const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
@@ -768,19 +769,19 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {editContacts ? (
             <div className="space-y-2">
               {contactsForm.map((c, i) => (
-                <div key={i} className="border border-[#e2e8f0] rounded-lg p-2 space-y-2">
+                <div key={i} className="border border-[#e2e8f0] rounded-lg p-3 space-y-2">
                   <div className="flex gap-2 items-center">
-                    <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-36`}>
+                    <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0 bg-white`}>
                       <option value="">תפקיד</option>
                       {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
-                    <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
-                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl flex-shrink-0">✕</button>
+                    <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
+                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl shrink-0 leading-none">✕</button>
                   </div>
                   <div className="flex gap-2 items-center">
-                    <input type="text" placeholder="שם חברה" value={c.company || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], company: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
-                    <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
-                    <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} dir="ltr" />
+                    <input type="text" placeholder="שם חברה" value={c.company || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], company: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
+                    <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} dir="ltr" />
+                    <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} dir="ltr" />
                   </div>
                 </div>
               ))}
