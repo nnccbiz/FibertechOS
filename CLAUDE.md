@@ -42,6 +42,7 @@ FibertechOS/
 │   ├── customers/                # Customers module (under marketing)
 │   │   ├── page.tsx              # Customers list + search (company/contact/phone/email) + "new customer"
 │   │   └── [id]/                 # Customer card: quote history (color-coded) + projects + contacts
+│   ├── drawings/                 # Drawings search page (by drawing number / project name / project number) + Roxy can route here
 │   ├── production/               # Production order tracking with status workflow
 │   ├── forms/                    # Israeli standard forms (B116, B12-2, B165, B244)
 │   ├── logistics/iskoor/         # Iskoor logistics tracker
@@ -88,7 +89,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-004 (quote contact_id, customers module, client tax_id/address, project_contacts.company)
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 (quote contact_id, customers module, client tax_id/address, project_contacts.company, attachments.drawing_number, quote_drawings)
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -144,6 +145,12 @@ FibertechOS/
 - Customer card aggregates quote history (🟢 signed / 🟠 sent·pending / 🔴 rejected·expired) with an auto-generated background line, plus the customer's projects.
 - RLS: `clients`/`client_contacts` readable with `marketing` or `projects` view; writable with `marketing` or `settings` edit.
 - `project_contacts.company` notes which company each project contact belongs to.
+
+### Drawings Module
+- Drawings are `attachments` (`entity_type='project'`, `file_type='drawing'`) with a `drawing_number` read from the title block. Displayed as `{project_number}/{drawing_number}`.
+- Upload from the project card ("שרטוטי הפרויקט") or the new-project form. On upload, the AI route's `drawing_meta` mode (Gemini) extracts the drawing number; falls back to a `\d{3,5}-\d{1,4}` pattern in the filename.
+- `/drawings` search page: by drawing number / project name / project number. Roxy understands "find a drawing of project X" and routes to `/drawings?q=`.
+- `quote_drawings` links project drawings to a quote; the quote preview renders linked drawings as A4 pages. (Public `/quote/[token]` does not yet show them — needs anon RLS.)
 
 ### Quote Sharing
 - Public share via expiring tokens (`/quote/[token]`). View tracking. No auth required for public quote page.
