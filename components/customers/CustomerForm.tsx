@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 
 interface ContactRow {
   id?: string;
@@ -26,6 +27,13 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: '', tax_id: '', address: '', city: '', phone: '', email: '', notes: '' });
   const [contacts, setContacts] = useState<ContactRow[]>([{ ...EMPTY_CONTACT }]);
+  const [existingNames, setExistingNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase.from('clients').select('id, name').then(({ data }) => {
+      setExistingNames((data || []).filter((c: any) => c.id !== customerId).map((c: any) => c.name).filter(Boolean));
+    });
+  }, [customerId]);
 
   useEffect(() => {
     if (!customerId) return;
@@ -90,7 +98,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <div className="md:col-span-2">
           <label className="block text-[12px] font-semibold text-gray-500 mb-1">שם החברה *</label>
-          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="שם החברה / הלקוח" autoFocus />
+          <CompanyAutocomplete value={form.name} onChange={(v) => setForm({ ...form, name: v })} options={existingNames} className={inputCls} placeholder="שם החברה / הלקוח" />
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-gray-500 mb-1">ח.פ. / ע.מ.</label>

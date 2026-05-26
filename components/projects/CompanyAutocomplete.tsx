@@ -20,12 +20,13 @@ function lev(a: string, b: string): number {
 }
 
 // "Similar" = same except minor differences (substring or small edit distance), but NOT identical.
-function isSimilar(a: string, b: string): boolean {
+export function isSimilarName(a: string, b: string): boolean {
   const x = norm(a), y = norm(b);
   if (!x || !y || x === y) return false;
   if (x.length >= 3 && y.length >= 3 && (x.includes(y) || y.includes(x))) return true;
   return lev(x, y) <= 2 && Math.min(x.length, y.length) >= 3;
 }
+const isSimilar = isSimilarName;
 
 interface Props {
   value: string;

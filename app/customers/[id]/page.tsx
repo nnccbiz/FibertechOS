@@ -78,6 +78,38 @@ export default function CustomerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [allCustomers, setAllCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState('');
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    createClient().from('clients').select('id, name').order('name').then(({ data }) => {
+      setAllCustomers((data || []).filter((c: any) => c.id !== customerId));
+    });
+  }, [customerId, reloadKey]);
+
+  async function mergeCustomer() {
+    if (!mergeTarget) return;
+    const removeId = mergeTarget;
+    const removeName = allCustomers.find((c) => c.id === removeId)?.name || '';
+    if (!confirm(`למזג את "${removeName}" לתוך "${customer?.name}"?\nכל ההצעות, הפרויקטים ואנשי הקשר של "${removeName}" יועברו, והכפיל יימחק. הפעולה אינה הפיכה.`)) return;
+    setMerging(true);
+    try {
+      const supabase = createClient();
+      await supabase.from('quotes').update({ customer_id: customerId }).eq('customer_id', removeId);
+      await supabase.from('projects').update({ customer_id: customerId }).eq('customer_id', removeId);
+      await supabase.from('client_contacts').update({ client_id: customerId }).eq('client_id', removeId);
+      await supabase.from('clients').delete().eq('id', removeId);
+      setShowMerge(false);
+      setMergeTarget('');
+      setReloadKey((k) => k + 1);
+    } catch (err: any) {
+      alert(`שגיאה במיזוג: ${err.message}`);
+    } finally {
+      setMerging(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -145,10 +177,26 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <button onClick={() => router.push('/customers')} className="text-sm text-gray-500 hover:text-gray-700">← חזרה ללקוחות</button>
-        <button onClick={() => setShowEdit(true)} className="text-sm bg-blue-50 text-[#1a56db] px-4 py-2 rounded-lg hover:bg-blue-100">✏️ ערוך כרטיס</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowMerge((s) => !s)} className="text-sm bg-amber-50 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-100">🔀 מזג כפילות</button>
+          <button onClick={() => setShowEdit(true)} className="text-sm bg-blue-50 text-[#1a56db] px-4 py-2 rounded-lg hover:bg-blue-100">✏️ ערוך כרטיס</button>
+        </div>
       </div>
+
+      {showMerge && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center gap-2 flex-wrap" dir="rtl">
+          <span className="text-sm text-amber-800">מזג לתוך לקוח זה את:</span>
+          <select value={mergeTarget} onChange={(e) => setMergeTarget(e.target.value)} className="border border-amber-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+            <option value="">— בחר לקוח לאיחוד —</option>
+            {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button onClick={mergeCustomer} disabled={!mergeTarget || merging} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{merging ? 'ממזג…' : 'מזג'}</button>
+          <button onClick={() => { setShowMerge(false); setMergeTarget(''); }} className="text-sm text-gray-500 px-3 py-1.5">ביטול</button>
+          <span className="text-[12px] text-amber-700 w-full">כל ההצעות, הפרויקטים ואנשי הקשר של הלקוח שתבחר יועברו לכרטיס זה, והוא יימחק.</span>
+        </div>
+      )}
 
       {showEdit && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowEdit(false)}>

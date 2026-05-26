@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import CustomerForm from '@/components/customers/CustomerForm';
+import { isSimilarName } from '@/components/projects/CompanyAutocomplete';
 
 interface Customer {
   id: string;
@@ -74,6 +75,11 @@ export default function CustomersPage() {
     return [...ownFields, ...contactFields].some((f) => (f || '').toLowerCase().includes(q));
   });
 
+  const dupPairs: [Customer, Customer][] = [];
+  for (let i = 0; i < customers.length; i++)
+    for (let j = i + 1; j < customers.length; j++)
+      if (isSimilarName(customers[i].name, customers[j].name)) dupPairs.push([customers[i], customers[j]]);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
@@ -88,6 +94,22 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
             <CustomerForm onCancel={() => setShowForm(false)} onSaved={(id) => router.push(`/customers/${id}`)} />
+          </div>
+        </div>
+      )}
+
+      {dupPairs.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+          <p className="text-sm font-semibold text-amber-800 mb-2">⚠️ כפילויות אפשריות ({dupPairs.length})</p>
+          <div className="space-y-1">
+            {dupPairs.map(([a, b], idx) => (
+              <div key={idx} className="text-[13px] text-amber-800 flex items-center gap-2 flex-wrap">
+                <button onClick={() => router.push(`/customers/${a.id}`)} className="font-medium hover:underline">{a.name}</button>
+                <span className="text-amber-400">↔</span>
+                <button onClick={() => router.push(`/customers/${b.id}`)} className="font-medium hover:underline">{b.name}</button>
+                <span className="text-[11px] text-amber-600">— היכנס לאחד מהם ולחץ &quot;מזג כפילות&quot;</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
