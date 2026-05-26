@@ -50,15 +50,27 @@ function itemTypeLabels(value?: string): string {
 
 function MultiTypeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const selected = (value || '').split(',').map((s) => s.trim()).filter(Boolean);
   const opts = ITEM_TYPES.filter((t) => t.value);
 
   useEffect(() => {
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function onDoc(e: MouseEvent) {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (popRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    }
     if (open) document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  function openMenu() {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setCoords({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setOpen(true);
+  }
 
   function toggle(v: string) {
     const next = selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v];
@@ -66,12 +78,13 @@ function MultiTypeSelect({ value, onChange }: { value: string; onChange: (v: str
   }
 
   return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(!open)} className="w-full border border-[#e2e8f0] rounded px-1.5 py-1 text-[11px] text-right bg-white leading-tight whitespace-normal break-words min-h-[34px]">
+    <>
+      <button ref={btnRef} type="button" onClick={() => (open ? setOpen(false) : openMenu())} className="w-full border border-[#e2e8f0] rounded px-1.5 py-1 text-[11px] text-right bg-white leading-tight whitespace-normal break-words min-h-[34px]">
         {itemTypeLabels(value)}
       </button>
-      {open && (
-        <div className="absolute z-30 mt-1 right-0 bg-white border border-[#e2e8f0] rounded-lg shadow-lg p-1 min-w-[150px] max-h-60 overflow-y-auto">
+      {open && coords && (
+        <div ref={popRef} style={{ position: 'fixed', top: coords.top, right: coords.right, zIndex: 50 }}
+          className="bg-white border border-[#e2e8f0] rounded-lg shadow-lg p-1 min-w-[160px] max-h-72 overflow-y-auto">
           {opts.map((o) => (
             <label key={o.value} className="flex items-center gap-2 px-2 py-1.5 text-[12px] hover:bg-gray-50 rounded cursor-pointer">
               <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
@@ -80,7 +93,7 @@ function MultiTypeSelect({ value, onChange }: { value: string; onChange: (v: str
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
