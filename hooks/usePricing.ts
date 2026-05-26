@@ -68,8 +68,11 @@ export interface UsePricingReturn {
   setQuoteContact: (quoteId: string, contactId: string) => Promise<void>;
   setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
   refreshCustomers: () => Promise<void>;
+  toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
   customers: any[];
+  projectDrawings: any[];
+  quoteDrawings: Record<string, string[]>;
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
@@ -103,6 +106,8 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [projectDrawings, setProjectDrawings] = useState<any[]>([]);
+  const [quoteDrawings, setQuoteDrawings] = useState<Record<string, string[]>>({});
   const [uploadingFile, setUploadingFile] = useState(false);
   const [projectNumber, setProjectNumber] = useState<number | null>(null);
 
@@ -137,17 +142,19 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('project_details').select('project_number').eq('project_id', projectId).maybeSingle(),
       supabase.from('project_contacts').select('id, role, name, phone, email').eq('project_id', projectId).order('created_at'),
       supabase.from('clients').select('id, name').order('name'),
+      supabase.from('attachments').select('id, file_name, file_url, drawing_number').eq('project_id', projectId).eq('entity_type', 'project').order('created_at'),
     ]);
     if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
     setContacts(contactsRes.data || []);
     setCustomers(customersRes.data || []);
+    setProjectDrawings(drawingsRes.data || []);
 
     const qts = quotesRes.data || [];
     const costs = costRes.data || [];
@@ -155,6 +162,13 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes(qts);
     setCostInputs(costs);
     setOrders(ords);
+
+    if (qts.length > 0) {
+      const qdRes = await supabase.from('quote_drawings').select('quote_id, attachment_id').in('quote_id', qts.map((q: any) => q.id));
+      const qdMap: Record<string, string[]> = {};
+      (qdRes.data || []).forEach((r: any) => { (qdMap[r.quote_id] ||= []).push(r.attachment_id); });
+      setQuoteDrawings(qdMap);
+    }
 
     if (qts.length > 0) {
       const itemsRes = await supabase.from('quote_items').select('*').in('quote_id', qts.map((q: any) => q.id)).order('sort_order');
@@ -637,6 +651,18 @@ export function usePricing(projectId: string): UsePricingReturn {
     setCustomers(data || []);
   }
 
+  async function toggleQuoteDrawing(quoteId: string, attachmentId: string) {
+    const current = quoteDrawings[quoteId] || [];
+    const isOn = current.includes(attachmentId);
+    if (isOn) {
+      await supabase.from('quote_drawings').delete().eq('quote_id', quoteId).eq('attachment_id', attachmentId);
+      setQuoteDrawings((prev) => ({ ...prev, [quoteId]: (prev[quoteId] || []).filter((x) => x !== attachmentId) }));
+    } else {
+      await supabase.from('quote_drawings').insert({ quote_id: quoteId, attachment_id: attachmentId });
+      setQuoteDrawings((prev) => ({ ...prev, [quoteId]: [...(prev[quoteId] || []), attachmentId] }));
+    }
+  }
+
   async function saveQuoteItems(quoteId: string) {
     setSaving(true);
     try {
@@ -775,6 +801,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, parseCostFile, uploadAndCreateCostInput, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, refreshCustomers,
+    projectDrawings, quoteDrawings, toggleQuoteDrawing,
     createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,

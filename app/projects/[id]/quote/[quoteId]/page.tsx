@@ -48,17 +48,27 @@ export default function QuotePreviewPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: q }, { data: its }, { data: proj }, { data: atts }, { data: conts }] = await Promise.all([
+      const [{ data: q }, { data: its }, { data: proj }, { data: atts }, { data: conts }, { data: qd }] = await Promise.all([
         supabase.from('quotes').select('*').eq('id', quoteId).single(),
         supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order'),
         supabase.from('projects').select('*').eq('id', projectId).single(),
         supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', quoteId),
         supabase.from('project_contacts').select('id, name, phone, email').eq('project_id', projectId).order('created_at'),
+        supabase.from('quote_drawings').select('attachment_id').eq('quote_id', quoteId),
       ]);
       setQuote(q);
       setItems(its || []);
       setProject(proj);
-      setAttachments(atts || []);
+
+      // Project drawings linked to this quote (rendered alongside quote attachments).
+      let linkedDrawings: any[] = [];
+      const drawingIds = (qd || []).map((r: any) => r.attachment_id);
+      if (drawingIds.length > 0) {
+        const { data: dAtts } = await supabase.from('attachments').select('*').in('id', drawingIds);
+        linkedDrawings = dAtts || [];
+      }
+      const allAtts = [...(atts || []), ...linkedDrawings];
+      setAttachments(allAtts);
       // Prefer the contact linked to this quote; fall back to the project's first contact (old quotes).
       const chosen = (q?.contact_id && conts?.find((c: any) => c.id === q.contact_id)) || conts?.[0];
       if (chosen) setClientContact({ name: chosen.name || '', phone: chosen.phone || '', email: chosen.email || '' });
@@ -70,8 +80,8 @@ export default function QuotePreviewPage() {
       } catch {}
 
       // Download image + PDF attachments and convert to A4 pages
-      if (atts && atts.length > 0) {
-        const renderableAtts = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp|pdf)$/i.test(a.file_name));
+      if (allAtts.length > 0) {
+        const renderableAtts = allAtts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp|pdf)$/i.test(a.file_name));
         const pageEntries = await Promise.all(
           renderableAtts.map(async (att: any) => {
             try {
