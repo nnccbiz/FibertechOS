@@ -235,7 +235,7 @@ export default function QuotePreviewPage() {
 
   // ---- Pagination: fixed A4 pages (each rendered to one PDF page), packed by estimated height ----
   // Heights are conservative mm estimates so a page never over-fills (overflow:hidden would clip).
-  const ROW_H = 11, USABLE_H = 245, HEADER_H = 95, THEAD_H = 12, CONT_LABEL_H = 10;
+  const ROW_H = 10, USABLE_H = 248, HEADER_H = 78, THEAD_H = 10, CONT_LABEL_H = 9;
   const FIRST_CAP = Math.max(1, Math.floor((USABLE_H - HEADER_H - THEAD_H) / ROW_H));
   const CONT_CAP = Math.max(1, Math.floor((USABLE_H - CONT_LABEL_H - THEAD_H) / ROW_H));
   const itemPages: any[][] = [];
@@ -248,13 +248,12 @@ export default function QuotePreviewPage() {
 
   // Summary as ordered sub-blocks that flow after the items (fills the last page, overflows naturally).
   const nonImgAtts = attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
-  const estTextH = (t: string, perLine: number) => 14 + Math.ceil((t || '').length / perLine) * 5;
-  const summaryMeta: { key: string; h: number }[] = [{ key: 'totals', h: globalDisc > 0 ? 62 : 48 }];
-  if (quote.payment_terms || quote.delivery_time) summaryMeta.push({ key: 'pay', h: 40 });
-  if (quote.disclaimer_text) summaryMeta.push({ key: 'disc', h: estTextH(quote.disclaimer_text, 80) });
-  summaryMeta.push({ key: 'doc', h: 32 });
-  if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 16 + nonImgAtts.length * 6 });
-  summaryMeta.push({ key: 'sign', h: 52 });
+  const summaryMeta: { key: string; h: number }[] = [{ key: 'totals', h: globalDisc > 0 ? 52 : 40 }];
+  if (quote.payment_terms || quote.delivery_time) summaryMeta.push({ key: 'pay', h: 30 });
+  if (quote.disclaimer_text) summaryMeta.push({ key: 'disc', h: 12 + Math.ceil((quote.disclaimer_text || '').length / 90) * 4.5 });
+  summaryMeta.push({ key: 'doc', h: 22 });
+  if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 14 + nonImgAtts.length * 5 });
+  summaryMeta.push({ key: 'sign', h: 38 });
 
   const lastSlice = itemPages[itemPages.length - 1];
   const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.length * ROW_H;
@@ -321,19 +320,19 @@ export default function QuotePreviewPage() {
   const QuoteHeader = () => (
     <>
       {/* Header: title right, logo left */}
-      <div className="flex justify-between items-start mb-5">
+      <div className="flex justify-between items-start mb-3">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 tracking-wide">סקר חוזה</h1>
-          <p className="text-sm text-gray-500 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-wide">סקר חוזה</h1>
+          <p className="text-sm text-gray-500 mt-1">
             <span className="font-semibold">מס׳ הצעה:</span> {quote.quote_number}
             {quoteDate && <>&nbsp;|&nbsp;<span className="font-semibold">תאריך:</span> {quoteDate}</>}
           </p>
-          {validUntil && <p className="text-xs text-gray-400 mt-1">תוקף עד: {validUntil}</p>}
+          {validUntil && <p className="text-xs text-gray-400 mt-0.5">תוקף עד: {validUntil}</p>}
         </div>
-        <img src="/logo.png" alt="Fibertech" className="h-16 object-contain" />
+        <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
       </div>
-      <div className="border-b-2 border-[#5c5c5c] mb-6" />
-      <div className="grid grid-cols-2 gap-10 mb-8">
+      <div className="border-b-2 border-[#5c5c5c] mb-4" />
+      <div className="grid grid-cols-2 gap-10 mb-5">
         <div className="border-r-4 border-[#003d77] pr-4 flex flex-col text-right">
           <h3 className="text-sm font-bold text-[#003d77] mb-3 text-right">לכבוד</h3>
           <p className="text-base font-bold text-gray-800 text-right">{quote.client_name}</p>
@@ -481,13 +480,13 @@ export default function QuotePreviewPage() {
       </div>
     ),
     sign: (
-      <div key="sign" className="mt-8 pt-4 grid grid-cols-2 gap-8">
+      <div key="sign" className="mt-5 pt-3 grid grid-cols-2 gap-8">
         <div>
-          <p className="text-sm font-bold text-gray-700 mb-10">חתימת פיברטק</p>
+          <p className="text-sm font-bold text-gray-700 mb-8">חתימת פיברטק</p>
           <div className="border-b border-gray-400 w-44" />
         </div>
         <div>
-          <p className="text-sm font-bold text-gray-700 mb-10">חתימת הלקוח</p>
+          <p className="text-sm font-bold text-gray-700 mb-8">חתימת הלקוח</p>
           <div className="border-b border-gray-400 w-44" />
         </div>
       </div>
