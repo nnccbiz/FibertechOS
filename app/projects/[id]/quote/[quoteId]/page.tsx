@@ -233,24 +233,11 @@ export default function QuotePreviewPage() {
   const vatAmount = Math.round(finalTotal * 0.18);
   const totalWithVat = finalTotal + vatAmount;
 
-  // Pack the contract terms into the minimum number of pages.
-  // Each page is dense — no empty space between sections.
-  const sec = CONTRACT_SECTIONS;
-  const CONTRACT_PAGE_CHUNKS: Array<Array<{ title: string | null; clauses: typeof sec[0]['clauses'] }>> = [
-    [sec[0], sec[1], sec[2]],                                  // Page 1: תשלום + אפיון + אספקה
-    [sec[3]],                                                  // Page 2: פיקוח (17 clauses)
-    [sec[4], sec[5], sec[6]],                                  // Page 3: צנרת לדחיקה + צוות חוץ + הזמנה
-  ];
-  // ---- Quote items pagination — prevents clipping when items overflow one A4 page ----
-  // Heights are estimates in mm; deliberately conservative so a page never over-fills (clips).
-  const hasPayOrDelivery = !!(quote.payment_terms || quote.delivery_time);
-  const hasDisclaimer = !!quote.disclaimer_text;
-  const hasNonImageAtt = attachments.some((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
-  const ROW_H = 12, USABLE_H = 245, HEADER_H = 100;
-  // Summary = totals + doc-disclaimer + signatures (base) plus any optional sections.
-  const summaryH = 110 + (hasPayOrDelivery ? 35 : 0) + (hasDisclaimer ? 35 : 0) + (hasNonImageAtt ? 35 : 0);
-  const FIRST_CAP = Math.max(1, Math.floor((USABLE_H - HEADER_H) / ROW_H));
-  const CONT_CAP = Math.max(1, Math.floor(USABLE_H / ROW_H));
+  // ---- Pagination: fixed A4 pages (each rendered to one PDF page), packed by estimated height ----
+  // Heights are conservative mm estimates so a page never over-fills (overflow:hidden would clip).
+  const ROW_H = 11, USABLE_H = 245, HEADER_H = 95, THEAD_H = 12, CONT_LABEL_H = 10;
+  const FIRST_CAP = Math.max(1, Math.floor((USABLE_H - HEADER_H - THEAD_H) / ROW_H));
+  const CONT_CAP = Math.max(1, Math.floor((USABLE_H - CONT_LABEL_H - THEAD_H) / ROW_H));
   const itemPages: any[][] = [];
   for (let i = 0, first = true; i < items.length; first = false) {
     const cap = first ? FIRST_CAP : CONT_CAP;
@@ -258,12 +245,54 @@ export default function QuotePreviewPage() {
     i += cap;
   }
   if (itemPages.length === 0) itemPages.push([]);
-  const lastPageHeader = itemPages.length === 1 ? HEADER_H : 0;
-  const lastPageUsed = lastPageHeader + itemPages[itemPages.length - 1].length * ROW_H;
-  const summaryOnOwnPage = summaryH > (USABLE_H - lastPageUsed);
-  const quotePageCount = itemPages.length + (summaryOnOwnPage ? 1 : 0);
 
-  const totalPages = quotePageCount + attachmentPages.length + CONTRACT_PAGE_CHUNKS.length;
+  // Summary as ordered sub-blocks that flow after the items (fills the last page, overflows naturally).
+  const nonImgAtts = attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
+  const estTextH = (t: string, perLine: number) => 14 + Math.ceil((t || '').length / perLine) * 5;
+  const summaryMeta: { key: string; h: number }[] = [{ key: 'totals', h: globalDisc > 0 ? 62 : 48 }];
+  if (quote.payment_terms || quote.delivery_time) summaryMeta.push({ key: 'pay', h: 40 });
+  if (quote.disclaimer_text) summaryMeta.push({ key: 'disc', h: estTextH(quote.disclaimer_text, 80) });
+  summaryMeta.push({ key: 'doc', h: 32 });
+  if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 16 + nonImgAtts.length * 6 });
+  summaryMeta.push({ key: 'sign', h: 52 });
+
+  const lastSlice = itemPages[itemPages.length - 1];
+  const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.length * ROW_H;
+  const summaryPlan: string[][] = [[]];
+  {
+    let sp = 0, rem = USABLE_H - lastUsed;
+    for (const b of summaryMeta) {
+      if (b.h > rem && summaryPlan[sp].length > 0) { sp++; summaryPlan[sp] = []; rem = USABLE_H; }
+      summaryPlan[sp].push(b.key);
+      rem -= b.h;
+    }
+  }
+  const extraSummaryPages = summaryPlan.slice(1);
+  const quotePageCount = itemPages.length + extraSummaryPages.length;
+
+  // Contract terms — flatten chapters to blocks and pack densely; chapters flow continuously.
+  const C_USABLE = 245, C_TITLE_H = 22, C_HEAD_H = 16;
+  const cEstClause = (t: string) => 6 + Math.ceil((t || '').length / 95) * 4.6;
+  type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
+  const cBlocks: { b: CBlock; h: number }[] = [];
+  CONTRACT_SECTIONS.forEach((s) => {
+    cBlocks.push({ b: { type: 'heading', title: s.title }, h: C_HEAD_H });
+    s.clauses.forEach((cl) => cBlocks.push({ b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
+  });
+  const contractPages: CBlock[][] = [[]];
+  {
+    let cp = 0, crem = C_USABLE - C_TITLE_H; // first page carries the big "תנאי הסכם" title
+    for (let i = 0; i < cBlocks.length; i++) {
+      const { b, h } = cBlocks[i];
+      // Orphan control: a heading needs room for itself plus the next clause.
+      const need = b.type === 'heading' && i + 1 < cBlocks.length ? h + cBlocks[i + 1].h : h;
+      if (need > crem && contractPages[cp].length > 0) { cp++; contractPages[cp] = []; crem = C_USABLE; }
+      contractPages[cp].push(b);
+      crem -= h;
+    }
+  }
+
+  const totalPages = quotePageCount + attachmentPages.length + contractPages.length;
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -377,10 +406,9 @@ export default function QuotePreviewPage() {
     </table>
   );
 
-  const QuoteSummary = () => (
-    <>
-      {/* Totals box — right aligned */}
-      <div className="flex justify-end mb-8">
+  const summaryEls: Record<string, JSX.Element> = {
+    totals: (
+      <div key="totals" className="flex justify-end mb-6">
         <div className="border border-gray-200 w-64 text-sm">
           {globalDisc > 0 && (
             <>
@@ -408,53 +436,52 @@ export default function QuotePreviewPage() {
           </div>
         </div>
       </div>
-
-      {(quote.payment_terms || quote.delivery_time) && (
-        <div className="grid grid-cols-2 gap-8 mb-6">
-          {quote.payment_terms && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי תשלום</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
-            </div>
-          )}
-          {quote.delivery_time && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">זמן אספקה</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {quote.disclaimer_text && (
-        <div className="mb-4">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">הערות</h3>
-          <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
-        </div>
-      )}
-
-      <div className="mb-8 bg-gray-50 border border-gray-200 rounded px-4 py-3">
+    ),
+    pay: (
+      <div key="pay" className="grid grid-cols-2 gap-8 mb-5">
+        {quote.payment_terms && (
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">תנאי תשלום</h3>
+            <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
+          </div>
+        )}
+        {quote.delivery_time && (
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">זמן אספקה</h3>
+            <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
+          </div>
+        )}
+      </div>
+    ),
+    disc: (
+      <div key="disc" className="mb-4">
+        <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">הערות</h3>
+        <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
+      </div>
+    ),
+    doc: (
+      <div key="doc" className="mb-5 bg-gray-50 border border-gray-200 rounded px-4 py-3">
         <p className="text-xs text-gray-700 leading-relaxed">
           <span className="font-bold">הצהרת מסמכים: </span>
           הסכם זה כולל את כל המסמכים שצורפו להצעה זו — סקר חוזה, שרטוטים ומפרטים טכניים, ותנאי הסכם — כולם מהווים יחד מסמך מחייב אחד ובלתי נפרד.
         </p>
       </div>
-
-      {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">מפרטים טכניים ושרטוטים</h3>
-          <div className="space-y-1">
-            {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
-              <div key={att.id} className="flex items-center gap-2 text-xs text-gray-600">
-                <span>📄</span>
-                <span>{att.file_name}</span>
-              </div>
-            ))}
-          </div>
+    ),
+    att: (
+      <div key="att" className="mb-5">
+        <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">מפרטים טכניים ושרטוטים</h3>
+        <div className="space-y-1">
+          {nonImgAtts.map((att) => (
+            <div key={att.id} className="flex items-center gap-2 text-xs text-gray-600">
+              <span>📄</span>
+              <span>{att.file_name}</span>
+            </div>
+          ))}
         </div>
-      )}
-
-      <div className="mt-10 pt-4 grid grid-cols-2 gap-8">
+      </div>
+    ),
+    sign: (
+      <div key="sign" className="mt-8 pt-4 grid grid-cols-2 gap-8">
         <div>
           <p className="text-sm font-bold text-gray-700 mb-10">חתימת פיברטק</p>
           <div className="border-b border-gray-400 w-44" />
@@ -464,8 +491,8 @@ export default function QuotePreviewPage() {
           <div className="border-b border-gray-400 w-44" />
         </div>
       </div>
-    </>
-  );
+    ),
+  };
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -522,21 +549,22 @@ export default function QuotePreviewPage() {
                   : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
                 }
                 <ItemsTable slice={slice} startIdx={startIdx} />
-                {isLastItemPage && !summaryOnOwnPage && <QuoteSummary />}
+                {isLastItemPage && summaryPlan[0].map((k) => summaryEls[k])}
               </div>
               <QuoteFooter pageNum={pIdx + 1} />
             </div>
           );
         })}
 
-        {summaryOnOwnPage && (
-          <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+        {extraSummaryPages.map((keys, sIdx) => (
+          <div key={`summary-page-${sIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
             <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
-              <QuoteSummary />
+              <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
+              {keys.map((k) => summaryEls[k])}
             </div>
-            <QuoteFooter pageNum={itemPages.length + 1} />
+            <QuoteFooter pageNum={itemPages.length + 1 + sIdx} />
           </div>
-        )}
+        ))}
 
         {/* Separate A4 pages for image / PDF attachments */}
         {attachmentPages.map((page, idx) => (
@@ -556,8 +584,8 @@ export default function QuotePreviewPage() {
           </div>
         ))}
 
-        {/* Contract Terms — A4 pages (pre-paginated) */}
-        {CONTRACT_PAGE_CHUNKS.map((chunkSections, chunkIdx) => (
+        {/* Contract Terms — A4 pages packed by height; chapters flow continuously */}
+        {contractPages.map((blocks, chunkIdx) => (
           <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
             <div className="px-10 pt-5 pb-3 overflow-hidden flex-1 min-h-0">
               {chunkIdx === 0 && (
@@ -573,23 +601,20 @@ export default function QuotePreviewPage() {
                 </>
               )}
 
-              {chunkSections.map((section, sIdx) => (
-                <div key={`${chunkIdx}-${sIdx}`} className="mb-2">
-                  {section.title && (
-                    <div className="border-r-4 border-[#003d77] pr-3 mb-1.5">
-                      <h3 className="text-[12px] font-bold text-[#003d77]">{section.title}</h3>
+              <div className="space-y-1">
+                {blocks.map((blk, bIdx) => (
+                  blk.type === 'heading' ? (
+                    <div key={`h-${chunkIdx}-${bIdx}`} className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
+                      <h3 className="text-[12px] font-bold text-[#003d77]">{blk.title}</h3>
                     </div>
-                  )}
-                  <div className="space-y-1">
-                    {section.clauses.map((clause) => (
-                      <div key={clause.num} className="flex gap-2 text-[10px] text-gray-700 leading-tight">
-                        <span className="font-bold text-[#003d77] min-w-[18px] text-left">{clause.num}.</span>
-                        <span className="whitespace-pre-line">{clause.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                  ) : (
+                    <div key={`c-${blk.clause!.num}`} className="flex gap-2 text-[10px] text-gray-700 leading-tight">
+                      <span className="font-bold text-[#003d77] min-w-[18px] text-left">{blk.clause!.num}.</span>
+                      <span className="whitespace-pre-line">{blk.clause!.text}</span>
+                    </div>
+                  )
+                ))}
+              </div>
             </div>
 
             <div className="bg-[#f0f0f0] px-10 py-4 text-center">
