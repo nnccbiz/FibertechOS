@@ -231,18 +231,27 @@ export default function ProjectDetailPage() {
       }).select().single();
       if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
 
-      // AI auto-detect the drawing number from the title block.
+      // Detect the drawing number: AI from the title block, with a filename fallback.
       try {
+        let detected = '';
         const base64 = await fileToBase64(file);
         const res = await fetch('/api/ai', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
         });
         const meta = await res.json();
-        if (meta?.drawing_number && att) {
-          await supabase.from('attachments').update({ drawing_number: meta.drawing_number }).eq('id', att.id);
+        detected = meta?.drawing_number || '';
+        if (!detected) {
+          const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+          if (m) detected = m[0];
         }
-      } catch { /* manual entry fallback */ }
+        if (detected && att) {
+          await supabase.from('attachments').update({ drawing_number: detected }).eq('id', att.id);
+        }
+      } catch {
+        const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+        if (m && att) await supabase.from('attachments').update({ drawing_number: m[0] }).eq('id', att.id);
+      }
 
       await load();
     } finally {

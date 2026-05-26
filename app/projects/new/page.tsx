@@ -214,8 +214,13 @@ export default function NewProjectPage() {
             body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
           });
           const meta = await res.json();
-          if (meta?.drawing_number && att) {
-            await supabase.from('attachments').update({ drawing_number: meta.drawing_number }).eq('id', att.id);
+          let detected = meta?.drawing_number || '';
+          if (!detected) {
+            const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+            if (m) detected = m[0];
+          }
+          if (detected && att) {
+            await supabase.from('attachments').update({ drawing_number: detected }).eq('id', att.id);
           }
         } catch { /* skip a failed drawing */ }
       }
