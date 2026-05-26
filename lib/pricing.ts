@@ -266,6 +266,8 @@ export type ItemType =
   | 'coupling'
   | 'wall_coupling'
   | 'roker'
+  | 'floating_roker'
+  | 'buoy'
   | 'elbow'
   | 'flange'
   | 'reducer'
@@ -342,6 +344,8 @@ const ITEM_CATEGORY: Record<string, string> = {
   coupling:           'מחברים',
   wall_coupling:      'מחברים',
   roker:              'רוקרים',
+  floating_roker:     'רוקרים',
+  buoy:               'אחר',
   elbow:              'ברכיים',
   flange:             'אוגנים',
   reducer:            'מעברים',

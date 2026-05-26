@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
@@ -33,11 +33,56 @@ const ITEM_TYPES = [
   { value: 'coupling', label: 'מחבר' },
   { value: 'wall_coupling', label: 'מחבר קיר' },
   { value: 'roker', label: 'רוקר' },
-  { value: 'elbow', label: 'ברך' },
+  { value: 'floating_roker', label: 'נזיר צף' },
+  { value: 'buoy', label: 'מצוף' },
+  { value: 'elbow', label: 'קשת' },
   { value: 'flange', label: 'אוגן' },
   { value: 'reducer', label: 'מעבר קטרים' },
   { value: 'other', label: 'אחר' },
 ];
+
+// Comma-separated multi-select for item types (touch-friendly checkbox popover).
+function itemTypeLabels(value?: string): string {
+  const sel = (value || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (sel.length === 0) return '—';
+  return ITEM_TYPES.filter((t) => t.value && sel.includes(t.value)).map((t) => t.label).join(' + ');
+}
+
+function MultiTypeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = (value || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const opts = ITEM_TYPES.filter((t) => t.value);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    if (open) document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  function toggle(v: string) {
+    const next = selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v];
+    onChange(next.join(','));
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(!open)} className="w-full border border-[#e2e8f0] rounded px-1 py-1.5 text-[11px] text-right truncate bg-white">
+        {itemTypeLabels(value)}
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 right-0 bg-white border border-[#e2e8f0] rounded-lg shadow-lg p-1 min-w-[150px] max-h-60 overflow-y-auto">
+          {opts.map((o) => (
+            <label key={o.value} className="flex items-center gap-2 px-2 py-1.5 text-[12px] hover:bg-gray-50 rounded cursor-pointer">
+              <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
+              <span>{o.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const QUOTE_TIER_MAP: Record<string, { label: string; color: string }> = {
   planner_estimate:      { label: 'הערכת מתכנן',  color: 'bg-purple-100 text-purple-700' },
@@ -258,9 +303,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[700px]">
                 <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-                <select value={item.item_type || ''} onChange={(e) => p.updateCostItem(idx, 'item_type', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1.5 text-[11px]">
-                  {ITEM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
@@ -279,9 +322,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_80px_70px_80px_70px_80px_80px_32px] gap-1">
                 <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-                <select value={item.item_type || ''} onChange={(e) => p.updateCostItem(idx, 'item_type', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1.5 text-[11px]">
-                  {ITEM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
@@ -319,7 +360,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ ₪</th>
         </tr></thead>
         <tbody>{citems.map((item: any) => {
-          const typeLabel = ITEM_TYPES.find((t) => t.value === item.item_type)?.label || '';
+          const typeLabel = itemTypeLabels(item.item_type) === '—' ? '' : itemTypeLabels(item.item_type);
           return (
             <tr key={item.id} className="border-b border-gray-50">
               <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
@@ -342,8 +383,8 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
 }
 
 function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: Record<string, any> }) {
-  const bareItems = citems.filter((i: any) => i.item_type === 'pipe_bare');
-  const couplingItems = citems.filter((i: any) => i.item_type === 'coupling');
+  const bareItems = citems.filter((i: any) => (i.item_type || '').split(',').includes('pipe_bare'));
+  const couplingItems = citems.filter((i: any) => (i.item_type || '').split(',').includes('coupling'));
   if (bareItems.length === 0 || couplingItems.length === 0) return null;
 
   const isForex = ci.currency && ci.currency !== 'ILS';
