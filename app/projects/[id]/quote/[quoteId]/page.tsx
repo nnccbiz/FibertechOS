@@ -45,6 +45,52 @@ export default function QuotePreviewPage() {
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
+  const [measuredQuotePages, setMeasuredQuotePages] = useState<{ hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] | null>(null);
+
+  // Measure real rendered heights from a hidden mirror and pack the quote into A4 pages exactly.
+  useEffect(() => {
+    if (loading || !quote) return;
+    let cancelled = false;
+    function measure() {
+    if (cancelled) return;
+    const root = document.getElementById('quote-measure');
+    if (!root) return;
+    const h = (sel: string) => (root.querySelector(sel) as HTMLElement | null)?.offsetHeight || 0;
+    const probe = h('[data-m="probe"]');
+    const footer = h('[data-m="footer"]');
+    const headerH = h('[data-m="header"]');
+    const theadH = h('[data-m="itemstable"] thead');
+    const contLabelH = h('[data-m="contlabel"]');
+    if (!probe || !footer) return;
+    const usable = probe - footer - 56 - 10; // padding (pt-8 pb-6) + safety margin
+    const rows = Array.from(root.querySelectorAll('[data-m="itemstable"] tbody tr')) as HTMLElement[];
+    const sums = Array.from(root.querySelectorAll('[data-m="sum"]')) as HTMLElement[];
+
+    const pages: { hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] = [];
+    let cur = { hasHeader: true, itemIdxs: [] as number[], summaryKeys: [] as string[] };
+    let used = headerH;
+    let hasThead = false;
+    const hasContent = () => cur.itemIdxs.length > 0 || cur.summaryKeys.length > 0;
+    const newPage = () => { pages.push(cur); cur = { hasHeader: false, itemIdxs: [], summaryKeys: [] }; used = contLabelH; hasThead = false; };
+
+    rows.forEach((r, idx) => {
+      const need = (hasThead ? 0 : theadH) + r.offsetHeight;
+      if (used + need > usable && hasContent()) newPage();
+      if (!hasThead) { used += theadH; hasThead = true; }
+      cur.itemIdxs.push(idx); used += r.offsetHeight;
+    });
+    sums.forEach((s) => {
+      const key = s.getAttribute('data-k') || '';
+      if (used + s.offsetHeight > usable && hasContent()) newPage();
+      cur.summaryKeys.push(key); used += s.offsetHeight;
+    });
+    pages.push(cur);
+    setMeasuredQuotePages(pages);
+    }
+    if ((document as any).fonts?.ready) (document as any).fonts.ready.then(measure);
+    else measure();
+    return () => { cancelled = true; };
+  }, [loading, quote, items, clientContact, attachments]);
 
   useEffect(() => {
     async function load() {
@@ -255,6 +301,9 @@ export default function QuotePreviewPage() {
   if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 14 + nonImgAtts.length * 5 });
   summaryMeta.push({ key: 'sign', h: 38 });
 
+  const summaryKeysOrdered = summaryMeta.map((m) => m.key);
+
+  // Estimate-based fallback (used until the DOM measurement effect computes exact pages).
   const lastSlice = itemPages[itemPages.length - 1];
   const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.length * ROW_H;
   const summaryPlan: string[][] = [[]];
@@ -266,8 +315,17 @@ export default function QuotePreviewPage() {
       rem -= b.h;
     }
   }
-  const extraSummaryPages = summaryPlan.slice(1);
-  const quotePageCount = itemPages.length + extraSummaryPages.length;
+  const fallbackQuotePages: { hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] = [];
+  let runIdx = 0;
+  itemPages.forEach((slice, pIdx) => {
+    const itemIdxs = slice.map((_: any, k: number) => runIdx + k);
+    runIdx += slice.length;
+    fallbackQuotePages.push({ hasHeader: pIdx === 0, itemIdxs, summaryKeys: pIdx === itemPages.length - 1 ? summaryPlan[0] : [] });
+  });
+  summaryPlan.slice(1).forEach((keys) => fallbackQuotePages.push({ hasHeader: false, itemIdxs: [], summaryKeys: keys }));
+
+  const quotePages = measuredQuotePages ?? fallbackQuotePages;
+  const quotePageCount = quotePages.length;
 
   // Contract terms — flatten chapters to blocks and pack densely; chapters flow continuously.
   const C_USABLE = 245, C_TITLE_H = 22, C_HEAD_H = 16;
@@ -535,33 +593,33 @@ export default function QuotePreviewPage() {
         </div>
       )}
 
-      <div id="quote-page-content">
-        {/* Quote pages — items paginated across A4 pages so nothing is clipped */}
-        {itemPages.map((slice, pIdx) => {
-          const startIdx = pIdx === 0 ? 0 : FIRST_CAP + (pIdx - 1) * CONT_CAP;
-          const isLastItemPage = pIdx === itemPages.length - 1;
-          return (
-            <div key={`quote-page-${pIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
-              <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
-                {pIdx === 0
-                  ? <QuoteHeader />
-                  : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
-                }
-                <ItemsTable slice={slice} startIdx={startIdx} />
-                {isLastItemPage && summaryPlan[0].map((k) => summaryEls[k])}
-              </div>
-              <QuoteFooter pageNum={pIdx + 1} />
-            </div>
-          );
-        })}
+      {/* Hidden mirror — measured to pack the quote into exact A4 pages */}
+      <div id="quote-measure" aria-hidden style={{ position: 'fixed', left: -99999, top: 0, visibility: 'hidden', pointerEvents: 'none' }}>
+        <div className="max-w-[210mm]">
+          <div className="px-10 pt-8 pb-6" dir="rtl">
+            <div data-m="header"><QuoteHeader /></div>
+            <div data-m="itemstable"><ItemsTable slice={items} startIdx={0} /></div>
+            {summaryKeysOrdered.map((k) => <div data-m="sum" data-k={k} key={k}>{summaryEls[k]}</div>)}
+            <p data-m="contlabel" className="text-sm text-gray-400 mb-4">סקר חוזה (המשך)</p>
+          </div>
+        </div>
+        <div data-m="footer"><QuoteFooter pageNum={1} /></div>
+        <div data-m="probe" style={{ height: '297mm' }} />
+      </div>
 
-        {extraSummaryPages.map((keys, sIdx) => (
-          <div key={`summary-page-${sIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+      <div id="quote-page-content">
+        {/* Quote pages — packed by measured heights (estimate fallback before measurement) */}
+        {quotePages.map((pg, pIdx) => (
+          <div key={`quote-page-${pIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
             <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
-              <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
-              {keys.map((k) => summaryEls[k])}
+              {pg.hasHeader
+                ? <QuoteHeader />
+                : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
+              }
+              {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i) => items[i])} startIdx={pg.itemIdxs[0]} />}
+              {pg.summaryKeys.map((k) => summaryEls[k])}
             </div>
-            <QuoteFooter pageNum={itemPages.length + 1 + sIdx} />
+            <QuoteFooter pageNum={pIdx + 1} />
           </div>
         ))}
 
