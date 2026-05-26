@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 interface AiMessage {
@@ -40,6 +40,7 @@ export default function FloatingChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const context = getContext(pathname);
 
   useEffect(() => {
@@ -403,6 +404,31 @@ export default function FloatingChat() {
           }
           setPendingQuote(null);
           setMessages((prev) => [...prev, { role: 'ai', text: preview }]);
+        } else if (data.target_table === 'drawings' && data.action === 'query') {
+          const term = (data.search || '').trim();
+          const supabase = createClient();
+          const [{ data: atts }, { data: projs }, { data: dets }] = await Promise.all([
+            supabase.from('attachments').select('id, project_id, file_name, drawing_number').eq('entity_type', 'project'),
+            supabase.from('projects').select('id, name'),
+            supabase.from('project_details').select('project_id, project_number'),
+          ]);
+          const nameById: Record<string, string> = {};
+          (projs || []).forEach((p: any) => { nameById[p.id] = p.name; });
+          const numById: Record<string, number> = {};
+          (dets || []).forEach((d: any) => { if (d.project_number != null) numById[d.project_id] = d.project_number; });
+          const t = term.toLowerCase();
+          const matches = (atts || []).filter((a: any) => {
+            const ref = `${numById[a.project_id] ?? ''}/${a.drawing_number ?? ''}`;
+            return !t || [a.drawing_number, nameById[a.project_id], String(numById[a.project_id] ?? ''), ref, a.file_name]
+              .some((f: any) => (f || '').toLowerCase().includes(t));
+          });
+          if (matches.length === 0) {
+            setMessages((prev) => [...prev, { role: 'ai', text: `לא מצאתי שרטוטים תואמים ל"${term}".` }]);
+          } else {
+            const lines = matches.slice(0, 8).map((a: any) => `• ${numById[a.project_id] ?? '—'}/${a.drawing_number || '?'} — ${nameById[a.project_id] || ''} (${a.file_name})`).join('\n');
+            setMessages((prev) => [...prev, { role: 'ai', text: `📐 מצאתי ${matches.length} שרטוטים:\n${lines}\n\nפותח את מסך השרטוטים לצפייה…` }]);
+            router.push(`/drawings?q=${encodeURIComponent(term)}`);
+          }
         } else {
           const debugInfo = `action: ${data.action}, table: ${data.target_table}, data_type: ${Array.isArray(data.data) ? `array[${data.data?.length}]` : typeof data.data}`;
           setMessages((prev) => [...prev, { role: 'ai', text: `${data.summary || data.message || 'תגובה לא מזוהה'}\n\n[debug: ${debugInfo}]` }]);

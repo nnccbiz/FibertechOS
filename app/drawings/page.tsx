@@ -23,6 +23,11 @@ export default function DrawingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) setSearch(q);
+  }, []);
+
+  useEffect(() => {
     async function load() {
       const [{ data: atts }, { data: projs }, { data: dets }] = await Promise.all([
         supabase.from('attachments').select('id, project_id, file_name, file_url, drawing_number, created_at').eq('entity_type', 'project').order('created_at', { ascending: false }),
