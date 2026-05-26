@@ -58,6 +58,7 @@ export default function NewProjectPage() {
   // Related data
   const [contacts, setContacts] = useState<ProjectContact[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<PipeSpec[]>([]);
+  const [pendingDrawings, setPendingDrawings] = useState<File[]>([]);
 
   // Handle AI-extracted data
   function handleAiData(data: any) {
@@ -189,6 +190,34 @@ export default function NewProjectPage() {
         }));
         const { error: specErr } = await supabase.from('pipe_specs').insert(specRows);
         if (specErr) throw specErr;
+      }
+
+      // 5. Upload drawings (with AI number detection)
+      for (const file of pendingDrawings) {
+        try {
+          const ext = file.name.split('.').pop() || 'file';
+          const path = `${project.id}/drawings/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+          if (upErr) continue;
+          const { data: att } = await supabase.from('attachments').insert({
+            entity_type: 'project', entity_id: project.id, project_id: project.id,
+            file_name: file.name, file_url: path, file_type: 'drawing', file_size_bytes: file.size,
+          }).select().single();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result).split(',')[1] || '');
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          });
+          const res = await fetch('/api/ai', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
+          });
+          const meta = await res.json();
+          if (meta?.drawing_number && att) {
+            await supabase.from('attachments').update({ drawing_number: meta.drawing_number }).eq('id', att.id);
+          }
+        } catch { /* skip a failed drawing */ }
       }
 
       router.push('/');
@@ -398,6 +427,30 @@ export default function NewProjectPage() {
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-4">
           <h2 className="text-lg font-bold text-gray-700 mb-4">📐 מפרטים טכניים ושרטוטים</h2>
           <PipeSpecsInput specs={pipeSpecs} onChange={setPipeSpecs} />
+
+          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <h3 className="text-sm font-bold text-gray-500">שרטוטים</h3>
+              <label className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg cursor-pointer hover:bg-blue-100">
+                + הוסף שרטוט
+                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple
+                  onChange={(e) => { if (e.target.files) { setPendingDrawings((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; } }} />
+              </label>
+            </div>
+            {pendingDrawings.length === 0 ? (
+              <p className="text-[13px] text-gray-400">מספר השרטוט יזוהה אוטומטית אחרי שמירת הפרויקט.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {pendingDrawings.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
+                    <span>{f.name.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                    <span className="flex-1 truncate text-gray-700">{f.name}</span>
+                    <button type="button" onClick={() => setPendingDrawings((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* === סיפור ואינטליגנציה === */}
