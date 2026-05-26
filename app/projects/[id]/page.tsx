@@ -8,6 +8,7 @@ import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
 import CustomerForm from '@/components/customers/CustomerForm';
+import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -885,8 +886,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
                     <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl shrink-0 leading-none">✕</button>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    <input type="text" placeholder="שם חברה" value={c.company || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], company: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
+                  <div className="flex gap-2 items-start">
+                    <CompanyAutocomplete
+                      value={c.company || ''}
+                      onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], company: v }; setContactsForm(next); }}
+                      options={customersList.map((cl) => cl.name)}
+                      className={`${contactInput} w-full`}
+                    />
                     <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} dir="ltr" />
                     <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} dir="ltr" />
                   </div>

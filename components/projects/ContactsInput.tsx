@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 
 export interface ProjectContact {
   role: string;
@@ -13,6 +14,7 @@ export interface ProjectContact {
 interface ContactsInputProps {
   contacts: ProjectContact[];
   onChange: (contacts: ProjectContact[]) => void;
+  customerOptions?: string[];
 }
 
 const ROLES = [
@@ -26,7 +28,7 @@ const ROLES = [
   'משרד מתכנן',
 ];
 
-export default function ContactsInput({ contacts, onChange }: ContactsInputProps) {
+export default function ContactsInput({ contacts, onChange, customerOptions = [] }: ContactsInputProps) {
   const [pickerSupported, setPickerSupported] = useState(false);
 
   useEffect(() => {
@@ -103,13 +105,12 @@ export default function ContactsInput({ contacts, onChange }: ContactsInputProps
                   ✕
                 </button>
               </div>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
+              <div className="flex gap-2 items-start">
+                <CompanyAutocomplete
                   value={contact.company}
-                  onChange={(e) => updateContact(i, 'company', e.target.value)}
-                  placeholder="שם חברה"
-                  className="flex-1 min-w-0 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  onChange={(v) => updateContact(i, 'company', v)}
+                  options={customerOptions}
+                  className="w-full border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
                 />
                 <input
                   type="tel"

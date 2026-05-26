@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import StatusTracker from '@/components/projects/StatusTracker';
@@ -59,6 +59,13 @@ export default function NewProjectPage() {
   const [contacts, setContacts] = useState<ProjectContact[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<PipeSpec[]>([]);
   const [pendingDrawings, setPendingDrawings] = useState<File[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    createClient().from('clients').select('name').order('name').then(({ data }) => {
+      setCustomerOptions((data || []).map((c: any) => c.name).filter(Boolean));
+    });
+  }, []);
 
   // Handle AI-extracted data
   function handleAiData(data: any) {
@@ -367,7 +374,7 @@ export default function NewProjectPage() {
         {/* === אנשי קשר === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-3">
           <h2 className="text-lg font-bold text-gray-700 mb-4">👥 אנשי קשר</h2>
-          <ContactsInput contacts={contacts} onChange={setContacts} />
+          <ContactsInput contacts={contacts} onChange={setContacts} customerOptions={customerOptions} />
         </section>
 
         {/* === סוג פרויקט והתקנה === */}
