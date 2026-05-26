@@ -88,6 +88,7 @@ export default function ProjectDetailPage() {
   const [projectQuotes, setProjectQuotes] = useState<any[]>([]);
   const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -205,6 +206,70 @@ export default function ProjectDetailPage() {
   async function refreshCustomers() {
     const { data } = await supabase.from('clients').select('id, name').order('name');
     setCustomersList(data || []);
+  }
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function uploadProjectDrawing(file: File) {
+    setUploadingDrawing(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/drawings/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { data: att, error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: 'drawing', file_size_bytes: file.size,
+      }).select().single();
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+
+      // AI auto-detect the drawing number from the title block.
+      try {
+        const base64 = await fileToBase64(file);
+        const res = await fetch('/api/ai', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
+        });
+        const meta = await res.json();
+        if (meta?.drawing_number && att) {
+          await supabase.from('attachments').update({ drawing_number: meta.drawing_number }).eq('id', att.id);
+        }
+      } catch { /* manual entry fallback */ }
+
+      await load();
+    } finally {
+      setUploadingDrawing(false);
+    }
+  }
+
+  async function setDrawingNumber(attId: string, drawingNumber: string) {
+    await supabase.from('attachments').update({ drawing_number: drawingNumber || null }).eq('id', attId);
+    setProjectAttachments((prev) => prev.map((a) => a.id === attId ? { ...a, drawing_number: drawingNumber } : a));
+  }
+
+  async function deleteProjectDrawing(attId: string) {
+    const att = projectAttachments.find((a) => a.id === attId);
+    if (att?.file_url) {
+      let storagePath = att.file_url;
+      if (storagePath.startsWith('http')) { const m = storagePath.match(/project-files\/(.+)$/); if (m) storagePath = m[1]; }
+      await supabase.storage.from('project-files').remove([storagePath]);
+    }
+    await supabase.from('attachments').delete().eq('id', attId);
+    setProjectAttachments((prev) => prev.filter((a) => a.id !== attId));
+  }
+
+  async function openDrawing(path: string) {
+    if (/^https?:/.test(path)) { window.open(path, '_blank'); return; }
+    const { data } = await supabase.storage.from('project-files').createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   }
 
   function updateDetailForm(key: string, val: any) {
@@ -995,6 +1060,42 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               </div>
             </div>
           )}
+        </section>
+
+        {/* Project drawings */}
+        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטי הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+              {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" disabled={uploadingDrawing}
+                onChange={(e) => { if (e.target.files?.[0]) { uploadProjectDrawing(e.target.files[0]); e.target.value = ''; } }} />
+            </label>
+          </div>
+          {(() => {
+            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project');
+            if (drawings.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים. לחץ &quot;+ העלה שרטוט&quot; — מספר השרטוט יזוהה אוטומטית.</p>;
+            return (
+              <div className="space-y-2">
+                {drawings.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                      {(details.project_number || '—')}/{att.drawing_number || '?'}
+                    </span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                    </button>
+                    <label className="text-[11px] text-gray-400 flex items-center gap-1">
+                      מס׳ שרטוט:
+                      <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
+                        placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
+                    </label>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </section>
 
         {/* Pricing & Quotes — extracted to PricingSection component */}

@@ -14,6 +14,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
+  { icon: '📐', label: 'שרטוטים', key: 'projects', href: '/drawings' },
   { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
   { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
   { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },

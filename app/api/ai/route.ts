@@ -342,6 +342,11 @@ async function processFiles(files: { base64: string; mimeType: string; name: str
   return { text: textParts.join('\n\n---\n\n'), imageFiles, pdfFiles };
 }
 
+const DRAWING_META_PROMPT = `אתה מחלץ מטא-דאטה משרטוט הנדסי (engineering drawing). החזר JSON בלבד: {"drawing_number":"","project_name":""}.
+- drawing_number: מספר השרטוט מתוך ה-title block (השדה "מספר השרטוט" / "מס' שרטוט" / "Drawing No"). לדוגמה: 7156-40. החזר רק את המספר עצמו כפי שמופיע.
+- project_name: שם הפרויקט מה-title block (השדה "שם הפרויקט" / "נושא הפרויקט" / "Project").
+אם שדה לא נמצא — החזר מחרוזת ריקה. אל תמציא נתונים.`;
+
 export async function POST(request: NextRequest) {
   try {
     if (!GEMINI_API_KEY) {
@@ -349,7 +354,37 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, context, document_text, files } = body;
+    const { message, context, document_text, files, mode } = body;
+
+    // Drawing metadata extraction — read drawing number + project name from the title block.
+    if (mode === 'drawing_meta' && Array.isArray(files) && files.length > 0) {
+      const f = files[0];
+      const mime = f.mimeType || '';
+      const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+      const isImg = mime.startsWith('image/');
+      if (f.base64 && (isPdf || isImg)) {
+        try {
+          const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+          const model = genAI.getGenerativeModel({
+            model: GEMINI_MODEL,
+            systemInstruction: DRAWING_META_PROMPT,
+            generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 512 },
+          });
+          const result = await model.generateContent([
+            { inlineData: { data: f.base64, mimeType: isPdf ? 'application/pdf' : mime } },
+            { text: 'חלץ את מספר השרטוט ושם הפרויקט מה-title block.' },
+          ]);
+          const raw = result.response.text().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          let parsed: any = {};
+          try { parsed = JSON.parse(raw); } catch {}
+          return NextResponse.json({ drawing_number: parsed.drawing_number || '', project_name: parsed.project_name || '' });
+        } catch (e: any) {
+          console.error('[AI route] drawing_meta error:', e?.message);
+          return NextResponse.json({ drawing_number: '', project_name: '', error: e?.message });
+        }
+      }
+      return NextResponse.json({ drawing_number: '', project_name: '' });
+    }
 
     let userMessage = message || '';
     if (context) {
