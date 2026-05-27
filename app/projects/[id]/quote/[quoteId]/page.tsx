@@ -79,9 +79,15 @@ export default function QuotePreviewPage() {
       }
       const allAtts = [...(atts || []), ...linkedDrawings];
       setAttachments(allAtts);
-      // Prefer the contact linked to this quote; fall back to the project's first contact (old quotes).
-      const chosen = (q?.contact_id && conts?.find((c: any) => c.id === q.contact_id)) || conts?.[0];
-      if (chosen) setClientContact({ name: chosen.name || '', phone: chosen.phone || '', email: chosen.email || '' });
+      // A sent/signed quote carries a frozen contact snapshot — use it as-is.
+      // Otherwise show the live linked contact (or the project's first contact for old quotes).
+      if (q?.contact_snapshot) {
+        const s = q.contact_snapshot;
+        setClientContact({ name: s.name || '', phone: s.phone || '', email: s.email || '' });
+      } else {
+        const chosen = (q?.contact_id && conts?.find((c: any) => c.id === q.contact_id)) || conts?.[0];
+        if (chosen) setClientContact({ name: chosen.name || '', phone: chosen.phone || '', email: chosen.email || '' });
+      }
 
       // Load views (safe — table may not exist yet)
       try {

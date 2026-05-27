@@ -584,7 +584,7 @@ export function usePricing(projectId: string): UsePricingReturn {
 
     const { data: inserted, error } = await supabase
       .from('project_contacts')
-      .insert({ project_id: projectId, name: cc.name || '', role: cc.role || null, phone: cc.phone || null, email: cc.email || null })
+      .insert({ project_id: projectId, name: cc.name || '', role: cc.role || null, phone: cc.phone || null, email: cc.email || null, client_contact_id: cc.id })
       .select('id, role, name, phone, email')
       .single();
     if (error || !inserted) { alert(`שגיאה בהוספת איש הקשר: ${error?.message || ''}`); return; }
@@ -646,6 +646,24 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function updateQuoteStatus(quoteId: string, status: string) {
     await supabase.from('quotes').update({ status, updated_at: new Date().toISOString() }).eq('id', quoteId);
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
+
+    // Freeze the contact on the quote the first time it goes out, so later edits
+    // to the contact (sync in either direction) don't change an issued quote.
+    if (status === 'sent' || status === 'signed') {
+      const q = quotes.find((x) => x.id === quoteId);
+      if (q && !q.contact_snapshot) {
+        const c = (q.contact_id && contacts.find((x) => x.id === q.contact_id)) || contacts[0];
+        if (c) {
+          const snap = {
+            name: c.name || '', role: c.role || '', phone: c.phone || '', email: c.email || '',
+            company: q.customer_id ? (customers.find((cu) => cu.id === q.customer_id)?.name || null) : null,
+          };
+          await supabase.from('quotes').update({ contact_snapshot: snap }).eq('id', quoteId);
+          setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contact_snapshot: snap } : x));
+        }
+      }
+    }
+
     if (status === 'signed') {
       const q = quotes.find((x) => x.id === quoteId);
       const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
