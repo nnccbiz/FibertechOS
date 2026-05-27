@@ -97,6 +97,26 @@ function MultiTypeSelect({ value, onChange }: { value: string; onChange: (v: str
   );
 }
 
+// Single-line-looking textarea that grows to fit wrapped text (for long product names).
+function AutoTextarea({ value, onChange, placeholder, className }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={className}
+      style={{ resize: 'none', overflow: 'hidden' }}
+    />
+  );
+}
+
 const QUOTE_TIER_MAP: Record<string, { label: string; color: string }> = {
   planner_estimate:      { label: 'הערכת מתכנן',  color: 'bg-purple-100 text-purple-700' },
   contractor_pre_tender: { label: 'טרום מכרז',     color: 'bg-amber-100 text-amber-700' },
@@ -315,7 +335,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[740px]">
-                <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
@@ -334,7 +354,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
               <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1">
-                <input type="text" value={item.product_name} onChange={(e) => p.updateCostItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
+                <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
@@ -736,7 +756,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         </div>
         {p.editingItems.map((item, idx) => (
           <div key={idx} className="grid grid-cols-[1fr_55px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
-            <input type="text" value={item.product_name} onChange={(e) => p.updateItem(idx, 'product_name', e.target.value)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
+            <AutoTextarea value={item.product_name} onChange={(v) => p.updateItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0 w-full" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
@@ -835,7 +855,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             return (
               <tr key={item.id} className="border-b border-[#f0f0f0] hover:bg-blue-50/30 transition-colors">
                 <td className="py-2 px-2 text-gray-700 text-[12px]">
-                  <span title={item.product_name} className="block truncate max-w-[260px]">{item.product_name}</span>
+                  <span title={item.product_name} className="block break-words">{item.product_name}</span>
                 </td>
                 <td className="py-2 px-1 text-gray-600 text-[12px] text-center border-r border-[#f0f0f0] whitespace-nowrap">{item.dn_size || '—'}</td>
                 <td className="py-2 px-1 text-gray-600 text-[12px] border-r border-[#f0f0f0] whitespace-nowrap">{item.quantity} {item.unit}</td>
