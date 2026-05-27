@@ -285,11 +285,11 @@ export default function QuotePreviewPage() {
   const quotePageCount = quotePages.length;
 
   // Contract terms — flat list of blocks packed by estimated height (conservative: never clips).
-  const C_USABLE_CONTRACT = 255;
-  const cEstClause = (t: string) => 5 + Math.ceil((t || '').length / 92) * 4.3;
+  const C_USABLE_CONTRACT = 258;
+  const cEstClause = (t: string) => 2.5 + Math.ceil((t || '').length / 110) * 3.7;
   const cBlocksAll: { b: CBlock; h: number }[] = [];
   CONTRACT_SECTIONS.forEach((s) => {
-    cBlocksAll.push({ b: { type: 'heading', title: s.title }, h: 15 });
+    cBlocksAll.push({ b: { type: 'heading', title: s.title }, h: 10 });
     s.clauses.forEach((cl) => cBlocksAll.push({ b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
   });
   const contractPages: CBlock[][] = [[]];
