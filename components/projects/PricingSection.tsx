@@ -639,9 +639,22 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 </label>
                 <span className="flex items-center gap-1 text-[12px] text-gray-500">
                   👤 איש קשר:
-                  <select value={q.contact_id || ''} onChange={(e) => p.setQuoteContact(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
+                  <select value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(e) => p.assignQuoteContact(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
                     <option value="">— ראשון בפרויקט —</option>
-                    {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
+                    {p.contacts.length > 0 && (
+                      <optgroup label="אנשי קשר בפרויקט">
+                        {p.contacts.map((c) => <option key={c.id} value={`pc:${c.id}`}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
+                      </optgroup>
+                    )}
+                    {q.customer_id && (() => {
+                      const projNames = new Set(p.contacts.map((c) => (c.name || '').trim()).filter(Boolean));
+                      const custOpts = p.customerContacts.filter((c) => c.client_id === q.customer_id && !projNames.has((c.name || '').trim()));
+                      return custOpts.length > 0 ? (
+                        <optgroup label="אנשי קשר של הלקוח">
+                          {custOpts.map((c) => <option key={c.id} value={`cc:${c.id}`}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
+                        </optgroup>
+                      ) : null;
+                    })()}
                   </select>
                 </span>
                 <span className="flex items-center gap-1 text-[12px] text-gray-500">

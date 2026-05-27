@@ -65,11 +65,13 @@ export interface UsePricingReturn {
   bulkSetProfit: (category: 'pipe' | 'accessory' | 'all', profitPct: number) => void;
   saveQuoteItems: (quoteId: string) => Promise<void>;
   setQuoteContact: (quoteId: string, contactId: string) => Promise<void>;
+  assignQuoteContact: (quoteId: string, value: string) => Promise<void>;
   setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
   refreshCustomers: () => Promise<void>;
   toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
   customers: any[];
+  customerContacts: any[];
   projectDrawings: any[];
   quoteDrawings: Record<string, string[]>;
   cancelEditQuote: () => void;
@@ -105,6 +107,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [customerContacts, setCustomerContacts] = useState<any[]>([]);
   const [projectDrawings, setProjectDrawings] = useState<any[]>([]);
   const [quoteDrawings, setQuoteDrawings] = useState<Record<string, string[]>>({});
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -141,7 +144,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes, custContactsRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -149,10 +152,12 @@ export function usePricing(projectId: string): UsePricingReturn {
       supabase.from('project_contacts').select('id, role, name, phone, email').eq('project_id', projectId).order('created_at'),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('attachments').select('id, file_name, file_url, drawing_number').eq('project_id', projectId).eq('entity_type', 'project').order('created_at'),
+      supabase.from('client_contacts').select('id, client_id, name, role, phone, email').order('created_at'),
     ]);
     if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
     setContacts(contactsRes.data || []);
     setCustomers(customersRes.data || []);
+    setCustomerContacts(custContactsRes.data || []);
     setProjectDrawings(drawingsRes.data || []);
 
     const qts = quotesRes.data || [];
@@ -561,6 +566,32 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contact_id: value } : q));
   }
 
+  // Dropdown values are prefixed: "pc:<id>" = project contact, "cc:<id>" = customer
+  // contact. A quote's contact_id must reference project_contacts (the preview reads
+  // from there), so a chosen customer contact is first materialized into this project.
+  async function assignQuoteContact(quoteId: string, value: string) {
+    if (!value) { await setQuoteContact(quoteId, ''); return; }
+    const [kind, id] = value.split(':');
+    if (kind === 'pc') { await setQuoteContact(quoteId, id); return; }
+    if (kind !== 'cc') return;
+
+    const cc = customerContacts.find((c) => c.id === id);
+    if (!cc) return;
+
+    // Reuse a project contact with the same name if one already exists.
+    const existing = contacts.find((c) => (c.name || '').trim() === (cc.name || '').trim() && (c.name || '').trim() !== '');
+    if (existing) { await setQuoteContact(quoteId, existing.id); return; }
+
+    const { data: inserted, error } = await supabase
+      .from('project_contacts')
+      .insert({ project_id: projectId, name: cc.name || '', role: cc.role || null, phone: cc.phone || null, email: cc.email || null })
+      .select('id, role, name, phone, email')
+      .single();
+    if (error || !inserted) { alert(`שגיאה בהוספת איש הקשר: ${error?.message || ''}`); return; }
+    setContacts((prev) => [...prev, inserted]);
+    await setQuoteContact(quoteId, inserted.id);
+  }
+
   async function setQuoteCustomer(quoteId: string, customerId: string) {
     const value = customerId || null;
     await supabase.from('quotes').update({ customer_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
@@ -721,7 +752,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     parsingCostFile, saving, uploadingFile,
     createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
-    contacts, customers, refreshCustomers,
+    contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
     createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
