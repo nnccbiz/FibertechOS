@@ -668,7 +668,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
   return (
     <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
       <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
             <p className="text-[13px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
@@ -687,7 +687,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
         {/* Status */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <h2 className="text-lg font-bold text-gray-700 mb-3">📌 סטטוס</h2>
