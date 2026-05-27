@@ -47,71 +47,6 @@ export default function QuotePreviewPage() {
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
-  const [measuredQuotePages, setMeasuredQuotePages] = useState<{ hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] | null>(null);
-  const [measuredContractPages, setMeasuredContractPages] = useState<CBlock[][] | null>(null);
-
-  // Measure real rendered heights from a hidden mirror and pack the quote into A4 pages exactly.
-  useEffect(() => {
-    if (loading || !quote) return;
-    let cancelled = false;
-    function measure() {
-    if (cancelled) return;
-    const root = document.getElementById('quote-measure');
-    if (!root) return;
-    const h = (sel: string) => (root.querySelector(sel) as HTMLElement | null)?.offsetHeight || 0;
-    const probe = h('[data-m="probe"]');
-    const footer = h('[data-m="footer"]');
-    const headerH = h('[data-m="header"]');
-    const theadH = h('[data-m="itemstable"] thead');
-    const contLabelH = h('[data-m="contlabel"]');
-    if (!probe || !footer) return;
-    const usable = probe - footer - 56 - 10; // padding (pt-8 pb-6) + safety margin
-    const rows = Array.from(root.querySelectorAll('[data-m="itemstable"] tbody tr')) as HTMLElement[];
-    const sums = Array.from(root.querySelectorAll('[data-m="sum"]')) as HTMLElement[];
-
-    const pages: { hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] = [];
-    let cur = { hasHeader: true, itemIdxs: [] as number[], summaryKeys: [] as string[] };
-    let used = headerH;
-    let hasThead = false;
-    const hasContent = () => cur.itemIdxs.length > 0 || cur.summaryKeys.length > 0;
-    const newPage = () => { pages.push(cur); cur = { hasHeader: false, itemIdxs: [], summaryKeys: [] }; used = contLabelH; hasThead = false; };
-
-    rows.forEach((r, idx) => {
-      const need = (hasThead ? 0 : theadH) + r.offsetHeight;
-      if (used + need > usable && hasContent()) newPage();
-      if (!hasThead) { used += theadH; hasThead = true; }
-      cur.itemIdxs.push(idx); used += r.offsetHeight;
-    });
-    sums.forEach((s) => {
-      const key = s.getAttribute('data-k') || '';
-      if (used + s.offsetHeight > usable && hasContent()) newPage();
-      cur.summaryKeys.push(key); used += s.offsetHeight;
-    });
-    pages.push(cur);
-    setMeasuredQuotePages(pages);
-
-    // Contract terms — pack by measured block heights.
-    const cTitleH = h('[data-m="ctitle"]');
-    const cEls = Array.from(root.querySelectorAll('[data-m="cblock"]')) as HTMLElement[];
-    if (cEls.length) {
-      const cb: CBlock[] = [];
-      CONTRACT_SECTIONS.forEach((s) => { cb.push({ type: 'heading', title: s.title }); s.clauses.forEach((cl) => cb.push({ type: 'clause', clause: cl })); });
-      const cHeights = cEls.map((e) => e.offsetHeight + 4); // +4 for the space-y gap between blocks
-      const cUsable = probe - footer - 32 - 8;
-      const cPages: CBlock[][] = [[]];
-      let cp = 0, crem = cUsable - cTitleH;
-      for (let i = 0; i < cb.length && i < cHeights.length; i++) {
-        const need = cb[i].type === 'heading' && i + 1 < cHeights.length ? cHeights[i] + cHeights[i + 1] : cHeights[i];
-        if (need > crem && cPages[cp].length > 0) { cp++; cPages[cp] = []; crem = cUsable; }
-        cPages[cp].push(cb[i]); crem -= cHeights[i];
-      }
-      setMeasuredContractPages(cPages);
-    }
-    }
-    if ((document as any).fonts?.ready) (document as any).fonts.ready.then(measure);
-    else measure();
-    return () => { cancelled = true; };
-  }, [loading, quote, items, clientContact, attachments]);
 
   useEffect(() => {
     async function load() {
@@ -323,9 +258,7 @@ export default function QuotePreviewPage() {
   if (quote.disclaimer_text) summaryMeta.push({ key: 'disc', h: 12 + Math.ceil((quote.disclaimer_text || '').length / 90) * 4.5 });
   summaryMeta.push({ key: 'doc', h: 22 });
   if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 14 + nonImgAtts.length * 5 });
-  summaryMeta.push({ key: 'sign', h: 38 });
-
-  const summaryKeysOrdered = summaryMeta.map((m) => m.key);
+  // Signatures move to a dedicated final page (after the contract terms).
 
   // Estimate-based fallback (used until the DOM measurement effect computes exact pages).
   const lastSlice = itemPages[itemPages.length - 1];
@@ -348,30 +281,30 @@ export default function QuotePreviewPage() {
   });
   summaryPlan.slice(1).forEach((keys) => fallbackQuotePages.push({ hasHeader: false, itemIdxs: [], summaryKeys: keys }));
 
-  const quotePages = measuredQuotePages ?? fallbackQuotePages;
+  const quotePages = fallbackQuotePages;
   const quotePageCount = quotePages.length;
 
-  // Contract terms — flat list of blocks; packed by measured heights (estimate fallback).
-  const cEstClause = (t: string) => 6 + Math.ceil((t || '').length / 95) * 4.6;
+  // Contract terms — flat list of blocks packed by estimated height (conservative: never clips).
+  const C_USABLE_CONTRACT = 255;
+  const cEstClause = (t: string) => 5 + Math.ceil((t || '').length / 92) * 4.3;
   const cBlocksAll: { b: CBlock; h: number }[] = [];
   CONTRACT_SECTIONS.forEach((s) => {
-    cBlocksAll.push({ b: { type: 'heading', title: s.title }, h: 16 });
+    cBlocksAll.push({ b: { type: 'heading', title: s.title }, h: 15 });
     s.clauses.forEach((cl) => cBlocksAll.push({ b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
   });
-  const estContractPages: CBlock[][] = [[]];
+  const contractPages: CBlock[][] = [[]];
   {
-    let cp = 0, crem = 245 - 22; // first page carries the big "תנאי הסכם" title
+    let cp = 0, crem = C_USABLE_CONTRACT - 22; // first page carries the big "תנאי הסכם" title
     for (let i = 0; i < cBlocksAll.length; i++) {
       const { b, h } = cBlocksAll[i];
       const need = b.type === 'heading' && i + 1 < cBlocksAll.length ? h + cBlocksAll[i + 1].h : h;
-      if (need > crem && estContractPages[cp].length > 0) { cp++; estContractPages[cp] = []; crem = 245; }
-      estContractPages[cp].push(b);
+      if (need > crem && contractPages[cp].length > 0) { cp++; contractPages[cp] = []; crem = C_USABLE_CONTRACT; }
+      contractPages[cp].push(b);
       crem -= h;
     }
   }
-  const contractPages = measuredContractPages ?? estContractPages;
 
-  const totalPages = quotePageCount + attachmentPages.length + contractPages.length;
+  const totalPages = quotePageCount + attachmentPages.length + contractPages.length + 1; // +1 = final signatures page
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -615,47 +548,6 @@ export default function QuotePreviewPage() {
         </div>
       )}
 
-      {/* Hidden mirror — measured to pack the quote into exact A4 pages */}
-      <div id="quote-measure" aria-hidden style={{ position: 'fixed', left: -99999, top: 0, visibility: 'hidden', pointerEvents: 'none' }}>
-        <div className="max-w-[210mm]">
-          <div className="px-10 pt-8 pb-6" dir="rtl">
-            <div data-m="header"><QuoteHeader /></div>
-            <div data-m="itemstable"><ItemsTable slice={items} startIdx={0} /></div>
-            {summaryKeysOrdered.map((k) => <div data-m="sum" data-k={k} key={k}>{summaryEls[k]}</div>)}
-            <p data-m="contlabel" className="text-sm text-gray-400 mb-4">סקר חוזה (המשך)</p>
-          </div>
-        </div>
-        {/* Contract blocks mirror (same width + styles as the real contract pages) */}
-        <div className="max-w-[210mm]">
-          <div className="px-10 pt-5 pb-3" dir="rtl">
-            <div data-m="ctitle">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
-                  <p className="text-[10px] text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
-                </div>
-                <img src="/logo.png" alt="" className="h-10 object-contain" />
-              </div>
-              <div className="border-b-2 border-[#5c5c5c] mb-3" />
-            </div>
-            {cBlocksAll.map((cbk, i) => (
-              cbk.b.type === 'heading' ? (
-                <div key={`mc-${i}`} data-m="cblock" className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
-                  <h3 className="text-[12px] font-bold text-[#003d77]">{cbk.b.title}</h3>
-                </div>
-              ) : (
-                <div key={`mc-${i}`} data-m="cblock" className="flex gap-2 text-[10px] text-gray-700 leading-tight">
-                  <span className="font-bold text-[#003d77] min-w-[18px] text-left">{cbk.b.clause!.num}.</span>
-                  <span className="whitespace-pre-line">{cbk.b.clause!.text}</span>
-                </div>
-              )
-            ))}
-          </div>
-        </div>
-        <div data-m="footer"><QuoteFooter pageNum={1} /></div>
-        <div data-m="probe" style={{ height: '297mm' }} />
-      </div>
-
       <div id="quote-page-content">
         {/* Quote pages — packed by measured heights (estimate fallback before measurement) */}
         {quotePages.map((pg, pIdx) => (
@@ -738,6 +630,34 @@ export default function QuotePreviewPage() {
             </div>
           </div>
         ))}
+
+        {/* Final page — signatures */}
+        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+          <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-wide">חתימות</h1>
+                <p className="text-[11px] text-gray-500 mt-0.5">מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span></p>
+              </div>
+              <img src="/logo.png" alt="Fibertech" className="h-12 object-contain" />
+            </div>
+            <div className="border-b-2 border-[#5c5c5c] mb-8" />
+            <p className="text-sm text-gray-600 mb-10 leading-relaxed">בחתימתנו מטה אנו מאשרים את ההצעה על כל חלקיה, לרבות סקר החוזה, השרטוטים, המפרטים ותנאי ההסכם המצורפים.</p>
+            <div className="grid grid-cols-2 gap-12 mt-6">
+              <div>
+                <p className="text-sm font-bold text-gray-700 mb-12">חתימת פיברטק</p>
+                <div className="border-b border-gray-400" />
+                <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-700 mb-12">חתימת המזמין</p>
+                <div className="border-b border-gray-400" />
+                <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
+              </div>
+            </div>
+          </div>
+          <QuoteFooter pageNum={totalPages} />
+        </div>
       </div>
 
       <style jsx global>{`
