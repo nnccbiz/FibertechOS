@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { parsePipeSpec } from '@/lib/pricing';
+
+function fmtSn(sn: string) {
+  if (!sn) return '';
+  const n = parseInt(sn, 10);
+  return isNaN(n) ? sn : n.toLocaleString('en-US');
+}
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -179,7 +186,7 @@ export default function PublicQuotePage() {
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const colCount = 8;
+  const colCount = 10;
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -243,6 +250,8 @@ export default function PublicQuotePage() {
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">#</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">תיאור פריט</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קוטר</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">לחץ (PN)</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קשיחות (SN)</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
@@ -258,6 +267,8 @@ export default function PublicQuotePage() {
                     <td className="py-2 px-3 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-800">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.dn_size || '—'}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>

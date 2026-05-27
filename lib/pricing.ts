@@ -11,6 +11,23 @@ export interface PricingInput {
   profitPct?: number;    // default 25%
 }
 
+/**
+ * Extract working pressure (PN) and stiffness (SN) from a pipe description.
+ * Pipe descriptions encode them, e.g. "...PN01 SN20000...". Falls back to
+ * explicit pn/sn fields when present.
+ */
+export function parsePipeSpec(
+  productName?: string | null,
+  fallback?: { pn?: number | string | null; sn?: number | string | null },
+): { pn: string; sn: string } {
+  const text = productName || '';
+  const pnMatch = text.match(/\bPN\s*0*(\d+(?:[.,]\d+)?)/i);
+  const snMatch = text.match(/\bSN\s*0*(\d+)/i);
+  const pn = pnMatch ? pnMatch[1].replace(',', '.') : (fallback?.pn != null && fallback.pn !== '' ? String(fallback.pn) : '');
+  const sn = snMatch ? snMatch[1] : (fallback?.sn != null && fallback.sn !== '' ? String(fallback.sn) : '');
+  return { pn, sn };
+}
+
 export interface PricingResult {
   sellingPrice: number;
   overheadsAmount: number;

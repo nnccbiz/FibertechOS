@@ -4,8 +4,15 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
+import { parsePipeSpec } from '@/lib/pricing';
 
 type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
+
+function fmtSn(sn: string) {
+  if (!sn) return '';
+  const n = parseInt(sn, 10);
+  return isNaN(n) ? sn : n.toLocaleString('en-US');
+}
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -240,14 +247,28 @@ export default function QuotePreviewPage() {
 
   // ---- Pagination: fixed A4 pages (each rendered to one PDF page), packed by estimated height ----
   // Heights are conservative mm estimates so a page never over-fills (overflow:hidden would clip).
-  const ROW_H = 10, USABLE_H = 248, HEADER_H = 78, THEAD_H = 10, CONT_LABEL_H = 9;
-  const FIRST_CAP = Math.max(1, Math.floor((USABLE_H - HEADER_H - THEAD_H) / ROW_H));
-  const CONT_CAP = Math.max(1, Math.floor((USABLE_H - CONT_LABEL_H - THEAD_H) / ROW_H));
+  const USABLE_H = 248, HEADER_H = 78, THEAD_H = 10, CONT_LABEL_H = 9;
+  // Per-row height grows with the description length (the PN/SN columns narrow it,
+  // so long names wrap to more lines). Conservative so a page never over-fills.
+  const rowH = (it: any) => {
+    const len = (it?.product_name || '').length + (it?.notes ? String(it.notes).length + 3 : 0);
+    const lines = Math.max(1, Math.ceil(len / 50));
+    return 6 + lines * 4.5;
+  };
   const itemPages: any[][] = [];
-  for (let i = 0, first = true; i < items.length; first = false) {
-    const cap = first ? FIRST_CAP : CONT_CAP;
-    itemPages.push(items.slice(i, i + cap));
-    i += cap;
+  {
+    let i = 0, first = true;
+    while (i < items.length) {
+      const budget = (first ? USABLE_H - HEADER_H : USABLE_H - CONT_LABEL_H) - THEAD_H;
+      let used = 0, j = i;
+      while (j < items.length) {
+        const h = rowH(items[j]);
+        if (used + h > budget && j > i) break;
+        used += h; j++;
+      }
+      itemPages.push(items.slice(i, j));
+      i = j; first = false;
+    }
   }
   if (itemPages.length === 0) itemPages.push([]);
 
@@ -262,7 +283,7 @@ export default function QuotePreviewPage() {
 
   // Estimate-based fallback (used until the DOM measurement effect computes exact pages).
   const lastSlice = itemPages[itemPages.length - 1];
-  const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.length * ROW_H;
+  const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.reduce((s: number, it: any) => s + rowH(it), 0);
   const summaryPlan: string[][] = [[]];
   {
     let sp = 0, rem = USABLE_H - lastUsed;
@@ -386,6 +407,8 @@ export default function QuotePreviewPage() {
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-[#003d77] w-8">#</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">תיאור פריט</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">קוטר</th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-[#003d77]">לחץ (PN)</th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-[#003d77]">קשיחות (SN)</th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-[#003d77]">כמות</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">יחידה</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-[#003d77]">מחיר ליחידה</th>
@@ -404,6 +427,8 @@ export default function QuotePreviewPage() {
                 {item.product_name}{item.notes ? <span className="text-gray-400 font-normal"> ({item.notes})</span> : ''}
               </td>
               <td className="py-2 px-3 border border-gray-200 text-gray-500">{item.dn_size || '—'}</td>
+              <td className="py-2 px-3 border border-gray-200 text-gray-600 text-center">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
+              <td className="py-2 px-3 border border-gray-200 text-gray-600 text-center">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
               <td className="py-2 px-3 border border-gray-200 text-gray-700 text-center">{item.quantity}</td>
               <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
               <td className="py-2 px-3 border border-gray-200 text-gray-700">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
