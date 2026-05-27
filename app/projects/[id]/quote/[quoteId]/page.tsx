@@ -129,6 +129,75 @@ export default function QuotePreviewPage() {
     load();
   }, [quoteId, projectId]);
 
+  // Measure the real rendered height of every block in the hidden mirror, then pack pages
+  // by those exact heights — estimates can't track html2canvas output, which left gaps.
+  // Produces pages of numeric indices (items + trailing blocks); falls back to estimates.
+  // NOTE: this hook must stay above the early returns to keep hook order stable.
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      const root = document.getElementById('pdf-measure');
+      if (!root) return;
+      const rh = (el: Element | null) => (el ? (el as HTMLElement).getBoundingClientRect().height : 0);
+      const page297 = rh(root.querySelector('[data-m="page"]'));
+      const footerH = rh(root.querySelector('[data-m="footer"]'));
+      const padH = rh(root.querySelector('[data-m="pad"]'));
+      const headerH = rh(root.querySelector('[data-m="header"]'));
+      const contLabelH = rh(root.querySelector('[data-m="contlabel"]'));
+      if (!page297 || !footerH) return; // not laid out yet — keep estimate fallback
+
+      const SAFETY = 14; // px — absorbs minor margin/rounding so a page never over-fills
+      const contentAvail = page297 - footerH - padH;
+
+      const itTable = root.querySelector('[data-m="items"] table');
+      const theadH = itTable ? rh(itTable.querySelector('thead')) : 0;
+      const trs = itTable ? (Array.from(itTable.querySelectorAll('tbody tr')) as HTMLElement[]) : [];
+      const rowHs = trs.map((e) => e.getBoundingClientRect().height);
+      const itemCount = rowHs.length;
+
+      const tbWrap = root.querySelector('[data-m="trailing"]') as HTMLElement | null;
+      const tbs = tbWrap ? (Array.from(tbWrap.children) as HTMLElement[]) : [];
+      const tops = tbs.map((e) => e.getBoundingClientRect().top);
+      const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
+      const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
+      const tbKeep = tbs.map((e) => e.getAttribute('data-keep') === '1');
+      if (!tbs.length) return;
+
+      const result: { hasHeader: boolean; itemIdxs: number[]; blockIdxs: number[] }[] = [];
+      let i = 0;
+      if (itemCount === 0) result.push({ hasHeader: true, itemIdxs: [], blockIdxs: [] });
+      while (i < itemCount) {
+        const first = result.length === 0;
+        const avail = (first ? contentAvail - headerH : contentAvail - contLabelH) - theadH - SAFETY;
+        let used = 0; const idxs: number[] = [];
+        while (i < itemCount && (idxs.length === 0 || used + rowHs[i] <= avail)) { used += rowHs[i]; idxs.push(i); i++; }
+        result.push({ hasHeader: first, itemIdxs: idxs, blockIdxs: [] });
+      }
+
+      let cur = result[result.length - 1];
+      const curBase = (cur.hasHeader ? headerH : contLabelH) + (cur.itemIdxs.length ? theadH : 0) + cur.itemIdxs.reduce((s, idx) => s + rowHs[idx], 0);
+      let rem = contentAvail - curBase - SAFETY;
+      for (let t = 0; t < tbs.length; t++) {
+        let need = tbHs[t] || 0;
+        if (tbKeep[t]) need += tbHs[t + 1] || 0; // keep a heading/title with the block after it
+        if (need > rem && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
+          cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
+          result.push(cur);
+          rem = contentAvail - contLabelH - SAFETY;
+        }
+        cur.blockIdxs.push(t);
+        rem -= (tbHs[t] || 0);
+      }
+      setMeasuredPages(result);
+    };
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) fonts.ready.then(() => requestAnimationFrame(measure));
+    else requestAnimationFrame(measure);
+    return () => { cancelled = true; };
+  }, [items, attachments, quote, loading]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -298,13 +367,13 @@ export default function QuotePreviewPage() {
   });
   trailing.push({ kind: 'sign', h: 92 });
 
-  type RPage = { hasHeader: boolean; itemIdxs: number[]; blocks: TBlock[] };
+  type RPage = { hasHeader: boolean; itemIdxs: number[]; blockIdxs: number[] };
   const pages: RPage[] = [];
   let runIdx = 0;
   itemPages.forEach((slice, pIdx) => {
     const itemIdxs = slice.map((_: any, k: number) => runIdx + k);
     runIdx += slice.length;
-    pages.push({ hasHeader: pIdx === 0, itemIdxs, blocks: [] });
+    pages.push({ hasHeader: pIdx === 0, itemIdxs, blockIdxs: [] });
   });
 
   {
@@ -317,12 +386,12 @@ export default function QuotePreviewPage() {
       // Keep a heading/title with the block that follows it (no orphaned heading at a page foot).
       let need = tb.h;
       if (tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading')) need += trailing[i + 1]?.h || 0;
-      if (need > rem && (cur.blocks.length > 0 || cur.itemIdxs.length > 0)) {
-        cur = { hasHeader: false, itemIdxs: [], blocks: [] };
+      if (need > rem && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
+        cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
         pages.push(cur);
         rem = USABLE_H - CONT_LABEL_H; // continuation pages carry the small "(המשך)" line
       }
-      cur.blocks.push(tb);
+      cur.blockIdxs.push(i);
       rem -= tb.h;
     }
   }
@@ -575,75 +644,6 @@ export default function QuotePreviewPage() {
     );
   };
 
-  // Measure the real rendered height of every block in a hidden mirror, then pack pages
-  // by those exact heights. Estimates can't track html2canvas output, so measuring is the
-  // only way to fill each page without leaving gaps or clipping. Falls back to estimates.
-  useEffect(() => {
-    if (!quote || loading) return;
-    let cancelled = false;
-    const measure = () => {
-      if (cancelled) return;
-      const root = document.getElementById('pdf-measure');
-      if (!root) return;
-      const rh = (el: Element | null) => (el ? (el as HTMLElement).getBoundingClientRect().height : 0);
-      const page297 = rh(root.querySelector('[data-m="page"]'));
-      const footerH = rh(root.querySelector('[data-m="footer"]'));
-      const padH = rh(root.querySelector('[data-m="pad"]'));
-      const headerH = rh(root.querySelector('[data-m="header"]'));
-      const contLabelH = rh(root.querySelector('[data-m="contlabel"]'));
-      if (!page297 || !footerH) return; // not laid out yet — keep estimate fallback
-
-      const SAFETY = 14; // px — absorbs minor margin/rounding so a page never over-fills
-      const contentAvail = page297 - footerH - padH;
-
-      const itTable = root.querySelector('[data-m="items"] table');
-      const theadH = itTable ? rh(itTable.querySelector('thead')) : 0;
-      const trs = itTable ? (Array.from(itTable.querySelectorAll('tbody tr')) as HTMLElement[]) : [];
-      const rowHs = trs.map((e) => e.getBoundingClientRect().height);
-
-      const tbWrap = root.querySelector('[data-m="trailing"]') as HTMLElement | null;
-      const tbs = tbWrap ? (Array.from(tbWrap.children) as HTMLElement[]) : [];
-      const tops = tbs.map((e) => e.getBoundingClientRect().top);
-      const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
-      const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
-      if (rowHs.length !== items.length || tbHs.length !== trailing.length) return;
-
-      const result: any[] = [];
-      let i = 0;
-      if (items.length === 0) result.push({ hasHeader: true, itemIdxs: [], blocks: [] });
-      while (i < items.length) {
-        const first = result.length === 0;
-        const avail = (first ? contentAvail - headerH : contentAvail - contLabelH) - theadH - SAFETY;
-        let used = 0; const idxs: number[] = [];
-        while (i < items.length && (idxs.length === 0 || used + rowHs[i] <= avail)) { used += rowHs[i]; idxs.push(i); i++; }
-        result.push({ hasHeader: first, itemIdxs: idxs, blocks: [] });
-      }
-
-      let cur = result[result.length - 1];
-      const curBase = (cur.hasHeader ? headerH : contLabelH) + (cur.itemIdxs.length ? theadH : 0) + cur.itemIdxs.reduce((s: number, idx: number) => s + rowHs[idx], 0);
-      let rem = contentAvail - curBase - SAFETY;
-      for (let t = 0; t < trailing.length; t++) {
-        const tb = trailing[t];
-        let need = tbHs[t] || 0;
-        if (tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading')) need += tbHs[t + 1] || 0;
-        if (need > rem && (cur.blocks.length > 0 || cur.itemIdxs.length > 0)) {
-          cur = { hasHeader: false, itemIdxs: [], blocks: [] };
-          result.push(cur);
-          rem = contentAvail - contLabelH - SAFETY;
-        }
-        cur.blocks.push(tb);
-        rem -= (tbHs[t] || 0);
-      }
-      setMeasuredPages(result);
-    };
-    // Measure only after the Heebo web font has loaded — otherwise line heights shift later.
-    const fonts = (document as any).fonts;
-    if (fonts?.ready) fonts.ready.then(() => requestAnimationFrame(measure));
-    else requestAnimationFrame(measure);
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, attachments, quote, loading, finalTotal, globalDisc]);
-
   return (
     <div className="bg-gray-100 min-h-screen">
       {/* Print controls */}
@@ -696,7 +696,7 @@ export default function QuotePreviewPage() {
                 : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
               }
               {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i: number) => items[i])} startIdx={pg.itemIdxs[0]} />}
-              {pg.blocks.map((tb: TBlock, bi: number) => renderTBlock(tb, bi))}
+              {pg.blockIdxs.map((bi: number) => renderTBlock(trailing[bi], bi))}
             </div>
             <QuoteFooter pageNum={pIdx + 1} />
           </div>
@@ -738,7 +738,11 @@ export default function QuotePreviewPage() {
           <div data-m="contlabel" style={{ display: 'flow-root' }}><p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p></div>
           <div data-m="items">{items.length > 0 && <ItemsTable slice={items} startIdx={0} />}</div>
           <div data-m="trailing">
-            {trailing.map((tb, i) => renderTBlock(tb, i))}
+            {trailing.map((tb, i) => (
+              <div key={i} data-keep={tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading') ? '1' : '0'} style={{ display: 'flow-root' }}>
+                {renderTBlock(tb, i)}
+              </div>
+            ))}
           </div>
         </div>
       </div>
