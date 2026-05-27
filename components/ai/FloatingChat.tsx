@@ -561,8 +561,9 @@ export default function FloatingChat() {
                 const fl = e.target.files;
                 e.target.value = '';
                 const files = await loadFiles(fl);
-                setUploadedFiles(files);
-                handleSend(files);
+                // Accumulate (don't auto-send) so several files — added together or one
+                // after another — can be sent and merged into one extraction.
+                setUploadedFiles((prev) => [...prev, ...files]);
               }}
               className="hidden"
             />

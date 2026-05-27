@@ -400,28 +400,45 @@ export async function POST(request: NextRequest) {
     let imageFiles: { base64: string; mimeType: string }[] = [];
     let pdfFiles: { base64: string; name: string }[] = [];
     let hasFiles = false;
+    // Items from locally-parsed Excel files — merged with any AI extraction below.
+    const excelItems: any[] = [];
+    let excelQuoteInfo: any = {};
 
     if (files && Array.isArray(files) && files.length > 0) {
-      console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'}`);
+      console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'} files=${files.length}`);
 
-      // Try direct Excel BOQ parsing first — no AI needed for structured spreadsheets
+      // Parse every Excel/spreadsheet file locally and accumulate their items.
+      // Non-Excel files (PDF/image/CSV) go to Gemini; results are combined.
+      const filesForGemini: { base64: string; mimeType: string; name: string }[] = [];
       for (const file of files) {
         const mime = file.mimeType || '';
         const name = file.name || '';
-        if (mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name)) {
-          if (file.base64) {
-            const buffer = Buffer.from(file.base64, 'base64');
-            const boqResult = parseExcelBOQ(buffer, name);
-            if (boqResult) {
-              console.log(`[AI route] direct BOQ parse success: ${(boqResult as any).data?.length} items`);
-              return NextResponse.json(boqResult);
-            }
-            console.log(`[AI route] direct BOQ parse failed (no recognized columns), falling back to Gemini`);
+        const isExcel = mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name);
+        if (isExcel && file.base64) {
+          const boqResult: any = parseExcelBOQ(Buffer.from(file.base64, 'base64'), name);
+          if (boqResult && Array.isArray(boqResult.data) && boqResult.data.length) {
+            console.log(`[AI route] Excel "${name}": ${boqResult.data.length} items`);
+            excelItems.push(...boqResult.data);
+            if (!excelQuoteInfo.supplier_name) excelQuoteInfo = { ...boqResult.quote_info, ...excelQuoteInfo };
+            continue;
           }
+          console.log(`[AI route] Excel "${name}" parse failed — sending to Gemini`);
         }
+        filesForGemini.push(file);
       }
 
-      const processed = await processFiles(files);
+      // Only Excel files (all parsed locally) → return the combined items, no AI call.
+      if (excelItems.length > 0 && filesForGemini.length === 0) {
+        const currency = excelQuoteInfo.currency || excelItems.find((i) => i.currency)?.currency || 'ILS';
+        return NextResponse.json({
+          action: 'import', target_table: 'supplier_quote',
+          quote_info: { ...excelQuoteInfo, currency },
+          data: excelItems,
+          summary: `חולצו ${excelItems.length} פריטים מ-${files.length} קבצים (מטבע: ${currency})`,
+        });
+      }
+
+      const processed = await processFiles(filesForGemini);
       imageFiles = processed.imageFiles;
       pdfFiles = processed.pdfFiles;
       hasFiles = processed.text.length > 0 || imageFiles.length > 0 || pdfFiles.length > 0;
@@ -482,6 +499,23 @@ export async function POST(request: NextRequest) {
       console.log('[AI route] parsed action:', parsed.action, 'target_table:', parsed.target_table, 'data length:', Array.isArray(parsed.data) ? parsed.data.length : typeof parsed.data);
     } catch {
       parsed = { action: 'query', summary: text, message: text };
+    }
+
+    // Merge locally-parsed Excel items with the Gemini extraction into one cost input.
+    if (excelItems.length > 0) {
+      if (parsed.target_table === 'supplier_quote' && parsed.action === 'import' && Array.isArray(parsed.data)) {
+        parsed.data = [...excelItems, ...parsed.data];
+        parsed.quote_info = { ...excelQuoteInfo, ...(parsed.quote_info || {}) };
+        parsed.summary = `חולצו ${parsed.data.length} פריטים מ-${(files || []).length} קבצים`;
+      } else {
+        const currency = excelQuoteInfo.currency || excelItems.find((i) => i.currency)?.currency || 'ILS';
+        parsed = {
+          action: 'import', target_table: 'supplier_quote',
+          quote_info: { ...excelQuoteInfo, currency },
+          data: excelItems,
+          summary: `חולצו ${excelItems.length} פריטים`,
+        };
+      }
     }
 
     // Post-process supplier quotes — fill missing quote_info from user message & items
