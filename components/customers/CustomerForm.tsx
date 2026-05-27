@@ -114,7 +114,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-gray-500 mb-1">טלפון (משרד)</label>
-          <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} style={{ unicodeBidi: 'plaintext' }} />
+          <input type="tel" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${inputCls} text-right`} />
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-gray-500 mb-1">מייל (משרד)</label>
@@ -132,7 +132,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
             <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_28px] gap-2 items-center">
               <input type="text" value={c.name} onChange={(e) => updateContact(i, 'name', e.target.value)} placeholder="שם" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
               <input type="text" value={c.role} onChange={(e) => updateContact(i, 'role', e.target.value)} placeholder="תפקיד" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
-              <input type="text" value={c.phone} onChange={(e) => updateContact(i, 'phone', e.target.value)} placeholder="טלפון" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" style={{ unicodeBidi: 'plaintext' }} />
+              <input type="tel" dir="ltr" value={c.phone} onChange={(e) => updateContact(i, 'phone', e.target.value)} placeholder="טלפון" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm text-right" />
               <input type="email" value={c.email} onChange={(e) => updateContact(i, 'email', e.target.value)} placeholder="מייל" className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" style={{ unicodeBidi: 'plaintext' }} />
               <button onClick={() => setContacts(contacts.length > 1 ? contacts.filter((_, idx) => idx !== i) : [{ ...EMPTY_CONTACT }])} className="text-red-400 hover:text-red-600 text-lg">×</button>
             </div>

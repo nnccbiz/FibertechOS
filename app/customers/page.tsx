@@ -155,7 +155,7 @@ export default function CustomersPage() {
                       {c.city && <span className="text-gray-400 font-normal"> · {c.city}</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{primary}</td>
-                    <td className="px-4 py-3 text-gray-500" style={{ unicodeBidi: 'plaintext' }}>{phone}</td>
+                    <td className="px-4 py-3 text-gray-500"><span dir="ltr">{phone}</span></td>
                     <td className="px-4 py-3 text-gray-500" style={{ unicodeBidi: 'plaintext' }}>{email}</td>
                     <td className="px-4 py-3 text-center text-gray-700">{quoteCounts[c.id] || 0}</td>
                     <td className="px-4 py-3 text-center text-gray-700">{projectCounts[c.id] || 0}</td>

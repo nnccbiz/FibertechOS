@@ -215,7 +215,7 @@ export default function CustomerDetailPage() {
             {(customer.address || customer.city) && <p className="text-sm text-gray-500 mt-1">📍 {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
           </div>
           <div className="text-sm text-gray-600 text-left">
-            {customer.phone && <p style={{ unicodeBidi: 'plaintext' }}>📞 {customer.phone}</p>}
+            {customer.phone && <p>📞 <span dir="ltr">{customer.phone}</span></p>}
             {customer.email && <p style={{ unicodeBidi: 'plaintext' }}>✉️ {customer.email}</p>}
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function CustomerDetailPage() {
                 <div key={ct.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
                   <span className="font-medium text-gray-700">{ct.name}</span>
                   {ct.role && <span className="text-gray-400"> · {ct.role}</span>}
-                  {ct.phone && <span className="text-gray-500 block text-[12px]" style={{ unicodeBidi: 'plaintext' }}>{ct.phone}</span>}
+                  {ct.phone && <span className="text-gray-500 block text-[12px]" dir="ltr">{ct.phone}</span>}
                 </div>
               ))}
             </div>

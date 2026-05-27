@@ -416,7 +416,7 @@ export default function QuotePreviewPage() {
   const QuoteFooter = ({ pageNum }: { pageNum: number }) => (
     <div className="bg-[#f0f0f0] px-10 py-4 text-center" dir="rtl">
       <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-      <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+      <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
       <p className="text-[9px] text-gray-500">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
       <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
       <PageMeta pageNum={pageNum} />
@@ -451,7 +451,7 @@ export default function QuotePreviewPage() {
               : <p className="text-sm text-gray-400 border-b border-gray-300 pb-0.5 w-52 text-right">איש קשר:</p>
             }
             {clientContact?.phone
-              ? <p className="text-sm text-gray-600 mt-1 text-right" style={{ unicodeBidi: 'plaintext' }}>{clientContact.phone}</p>
+              ? <p className="text-sm text-gray-600 mt-1 text-right"><span dir="ltr">{clientContact.phone}</span></p>
               : <p className="text-sm text-gray-400 mt-2 border-b border-gray-300 pb-0.5 w-52 text-right">טלפון:</p>
             }
           </div>
@@ -720,7 +720,7 @@ export default function QuotePreviewPage() {
             </div>
             <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
               <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
               <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
               <PageMeta pageNum={renderPages.length + 1 + idx} />
             </div>

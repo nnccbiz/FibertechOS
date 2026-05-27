@@ -174,7 +174,7 @@ export default function PublicQuotePage() {
           <p className="text-gray-500">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
           <div className="mt-6 pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
-            <p className="text-sm text-gray-400">09-7929441 | nitzan@fibertech.co.il</p>
+            <p className="text-sm text-gray-400">09-7929441 | info@fibertech.co.il</p>
           </div>
         </div>
       </div>
@@ -364,7 +364,7 @@ export default function PublicQuotePage() {
         {/* Company footer */}
         <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
           <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
-          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
           <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
           <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
         </div>
