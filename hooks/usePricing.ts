@@ -417,10 +417,11 @@ export function usePricing(projectId: string): UsePricingReturn {
           setCostInputs((prev) => prev.map((c) => c.id === costInputId ? { ...c, currency, exchange_rate: rate } : c));
         }
 
-        setEditingCostItems(items);
+        // Append when adding more files to the same cost input; otherwise start fresh.
+        setEditingCostItems((prev) => (editingCostInput === costInputId && prev.length > 0 ? [...prev, ...items] : items));
         setEditingCostInput(costInputId);
         const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
-        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nבדוק ולחץ שמור.`);
+        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.`);
       } else {
         const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
