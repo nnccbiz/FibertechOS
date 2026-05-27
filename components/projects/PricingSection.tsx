@@ -384,33 +384,33 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
 function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]; ciTotal: number; isForex: boolean; sym: string; ci: any }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm border-collapse" style={{ minWidth: isForex ? 660 : 560 }}>
         <thead><tr className="border-b border-[#e2e8f0]">
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1">מוצר</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סוג</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">קוטר</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">כמות</th>
-          {isForex && <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר {sym}</th>}
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">מחיר ₪</th>
-          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5">סה״כ ₪</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 pr-1 w-[40%]">מוצר</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">סוג</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">קוטר</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">כמות</th>
+          {isForex && <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">מחיר {sym}</th>}
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">מחיר ₪</th>
+          <th className="text-right text-[11px] text-gray-500 font-medium pb-1.5 px-2 whitespace-nowrap">סה״כ ₪</th>
         </tr></thead>
         <tbody>{citems.map((item: any) => {
           const typeLabel = itemTypeLabels(item.item_type) === '—' ? '' : itemTypeLabels(item.item_type);
           return (
-            <tr key={item.id} className="border-b border-gray-50">
-              <td className="py-1.5 pr-1 text-gray-700">{item.product_name}</td>
-              <td className="py-1.5 text-[11px] text-gray-500">{typeLabel}</td>
-              <td className="py-1.5 text-gray-500">{item.dn_size || '—'}</td>
-              <td className="py-1.5 text-gray-500">{item.quantity} {item.unit}</td>
-              {isForex && <td className="py-1.5 text-gray-500">{sym}{parseFloat(item.original_price || 0).toFixed(2)}</td>}
-              <td className="py-1.5 text-gray-500">{formatCurrency(item.cost_price)}</td>
-              <td className="py-1.5 font-medium text-gray-700">{formatCurrency(item.total_cost)}</td>
+            <tr key={item.id} className="border-b border-gray-50 align-top">
+              <td className="py-1.5 pr-1 text-gray-700 leading-snug break-words">{item.product_name}</td>
+              <td className="py-1.5 px-2 text-[11px] text-gray-500 whitespace-nowrap">{typeLabel}</td>
+              <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap">{item.dn_size || '—'}</td>
+              <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap">{item.quantity} {item.unit}</td>
+              {isForex && <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap text-right" dir="ltr">{sym}{parseFloat(item.original_price || 0).toFixed(2)}</td>}
+              <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap text-right" dir="ltr">{formatCurrency(item.cost_price)}</td>
+              <td className="py-1.5 px-2 font-medium text-gray-700 whitespace-nowrap text-right" dir="ltr">{formatCurrency(item.total_cost)}</td>
             </tr>
           );
         })}</tbody>
         <tfoot><tr className="border-t border-[#e2e8f0]">
-          <td colSpan={isForex ? 5 : 4} className="py-2 text-left font-bold text-gray-700">סה״כ עלות</td>
-          <td colSpan={2} className="py-2 font-bold text-gray-700">{formatCurrency(ciTotal)}</td>
+          <td colSpan={isForex ? 5 : 4} className="py-2 pr-1 font-bold text-gray-700">סה״כ עלות</td>
+          <td colSpan={2} className="py-2 px-2 font-bold text-gray-700 whitespace-nowrap text-right" dir="ltr">{formatCurrency(ciTotal)}</td>
         </tr></tfoot>
       </table>
     </div>
