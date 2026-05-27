@@ -727,6 +727,8 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
     return s + qty * up;
   }, 0);
   const totalAfterDisc = p.editingItems.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const totalCost = p.editingItems.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0);
+  const diffPct = totalCost > 0 ? ((totalAfterDisc - totalCost) / totalCost) * 100 : 0;
   const hasAnyDiscount = p.editingItems.some((i) => parseFloat(i.discount_pct) > 0);
 
   function applyBulk(category: 'pipe' | 'accessory' | 'all') {
@@ -775,9 +777,14 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
       <div className="flex items-center justify-between pt-2">
         <button onClick={() => p.addEditingItem()} className="text-[12px] text-[#1a56db] hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-gray-400">עלות: {formatCurrency(p.editingItems.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0))}</span>
+          <span className="text-[12px] text-gray-400">עלות: {formatCurrency(totalCost)}</span>
           {hasAnyDiscount && <span className="text-[12px] text-gray-400">לפני הנחה: {formatCurrency(subtotal)}</span>}
           <span className="text-sm font-bold text-gray-700">מכירה: {formatCurrency(totalAfterDisc)}</span>
+          {totalCost > 0 && (
+            <span className="text-[12px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 whitespace-nowrap" title="אחוז ההפרש בין מחיר המכירה לעלות הישירה">
+              פער מהעלות: +{diffPct.toFixed(1)}%
+            </span>
+          )}
           <button onClick={p.cancelEditQuote} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">ביטול</button>
           <button onClick={() => p.saveQuoteItems(q.id)} disabled={p.saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -897,7 +904,14 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             </tr>
           )}
           <tr className="border-t-2 border-[#e2e8f0] bg-gray-50">
-            <td colSpan={3} className="py-2 px-2 text-right text-[12px] text-gray-400">עלות: {formatCurrency(q.total_cost || 0)}</td>
+            <td colSpan={3} className="py-2 px-2 text-right text-[12px] text-gray-400">
+              עלות: {formatCurrency(q.total_cost || 0)}
+              {(q.total_cost || 0) > 0 && (
+                <span className="mr-2 font-semibold text-green-700" title="אחוז ההפרש בין מחיר המכירה לעלות הישירה">
+                  · פער מהעלות +{(((finalTotal - q.total_cost) / q.total_cost) * 100).toFixed(1)}%
+                </span>
+              )}
+            </td>
             <td colSpan={colCount - 5} className="py-2 px-1 text-right font-bold text-gray-700">סה״כ מכירה</td>
             <td className="py-2 px-1 font-bold text-[#1a56db] text-[13px] whitespace-nowrap">{formatCurrency(finalTotal)}</td>
             <td className="py-2"></td>
