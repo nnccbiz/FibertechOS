@@ -398,19 +398,17 @@ export async function POST(request: NextRequest) {
       userMessage = `תוכן מסמך שהועלה:\n${document_text}\n\nפקודה:\n${message || 'חלץ את כל הנתונים מהמסמך והזן למערכת'}`;
     }
 
-    let imageFiles: { base64: string; mimeType: string }[] = [];
-    let pdfFiles: { base64: string; name: string }[] = [];
-    let hasFiles = false;
     // Items from locally-parsed Excel files — merged with any AI extraction below.
     const excelItems: any[] = [];
     let excelQuoteInfo: any = {};
+    // Non-Excel files (PDF/image/CSV) processed by Gemini per-file below.
+    const filesForGemini: { base64: string; mimeType: string; name: string }[] = [];
 
     if (files && Array.isArray(files) && files.length > 0) {
       console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'} files=${files.length}`);
 
       // Parse every Excel/spreadsheet file locally and accumulate their items.
       // Non-Excel files (PDF/image/CSV) go to Gemini; results are combined.
-      const filesForGemini: { base64: string; mimeType: string; name: string }[] = [];
       for (const file of files) {
         const mime = file.mimeType || '';
         const name = file.name || '';
@@ -439,49 +437,124 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const processed = await processFiles(filesForGemini);
-      imageFiles = processed.imageFiles;
-      pdfFiles = processed.pdfFiles;
-      hasFiles = processed.text.length > 0 || imageFiles.length > 0 || pdfFiles.length > 0;
-
-      if (processed.text) {
-        userMessage = `${processed.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
-      }
-      if (userMessage.length > 100000) {
-        userMessage = userMessage.slice(0, 100000) + '\n...(truncated)';
-      }
     }
-
-    const systemPrompt = hasFiles ? FILE_EXTRACTION_PROMPT : SYSTEM_PROMPT;
-
-    console.log(`[AI route] sending to Gemini: model=${GEMINI_MODEL} hasFiles=${hasFiles} pdfs=${pdfFiles.length} images=${imageFiles.length}`);
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+    // Fills missing quote_info fields from the user message and extracted items.
+    const fillSupplierQuoteInfo = (parsed: any) => {
+      if (!(parsed.target_table === 'supplier_quote' && parsed.action === 'import' && Array.isArray(parsed.data))) return;
+      if (!parsed.quote_info) parsed.quote_info = {};
+      const qi = parsed.quote_info;
+      const items = parsed.data;
+      const allDesc = items.map((it: any) => it.description || '').join(' ');
+      const userText = userMessage || '';
+      if (!qi.project_name) {
+        const m = userText.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.\n]|$)/i);
+        if (m) qi.project_name = m[1].trim();
+      }
+      if (!qi.supplier_name) {
+        if (/flowtite|amiblu/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Amiblu';
+        else if (/hobas/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Hobas';
+      }
+      if (!qi.currency) {
+        const fc = items.find((it: any) => it.currency);
+        if (fc) qi.currency = fc.currency;
+      }
+      if (!qi.quote_ref) {
+        const rm = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+)/i);
+        if (rm) qi.quote_ref = rm[1];
+      }
+    };
+
+    // When files are attached, extract EACH file in its own Gemini call so every
+    // document gets full attention, then merge all rows into one cost input.
+    // (Several images in a single call makes Gemini focus on just one of them.)
+    if (filesForGemini.length > 0) {
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: FILE_EXTRACTION_PROMPT,
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 16384 },
+      });
+
+      const allItems: any[] = [...excelItems];
+      const mergedQuoteInfo: Record<string, any> = { ...excelQuoteInfo };
+      const fillMissing = (src: any) => {
+        if (!src || typeof src !== 'object') return;
+        for (const k of Object.keys(src)) {
+          const v = src[k];
+          if (v != null && v !== '' && (mergedQuoteInfo[k] == null || mergedQuoteInfo[k] === '')) mergedQuoteInfo[k] = v;
+        }
+      };
+
+      console.log(`[AI route] per-file extraction: ${filesForGemini.length} file(s) to Gemini, ${excelItems.length} Excel items already parsed`);
+
+      for (const file of filesForGemini) {
+        const processed = await processFiles([file]);
+        const parts: any[] = [];
+        for (const pdf of processed.pdfFiles) parts.push({ inlineData: { data: pdf.base64, mimeType: 'application/pdf' } });
+        for (const img of processed.imageFiles) parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
+        let promptText = userMessage || 'חלץ את כל נתוני התמחור מהמסמך';
+        if (processed.text) promptText = `${processed.text}\n\nפקודה:\n${userMessage || 'חלץ את כל נתוני התמחור מהתוכן שלמעלה'}`;
+        if (promptText.length > 100000) promptText = promptText.slice(0, 100000) + '\n...(truncated)';
+        parts.push({ text: promptText });
+
+        console.log(`[AI route] extracting "${file.name}" (pdfs=${processed.pdfFiles.length} images=${processed.imageFiles.length})`);
+        let text = '';
+        try {
+          const result = await model.generateContent(parts);
+          text = result.response.text();
+        } catch (e: any) {
+          const status = e?.status || e?.response?.status;
+          console.error(`[AI route] Gemini error ${status} on "${file.name}": ${e?.message}`);
+          // A single failing file with nothing else extracted → surface the error.
+          if (filesForGemini.length === 1 && allItems.length === 0) {
+            const errMsg = e?.message || 'שגיאה בתקשורת עם Gemini';
+            return NextResponse.json(
+              { error: errMsg, gemini_status: status, summary: `שגיאה ${status || ''}: ${errMsg}`, message: errMsg },
+              { status: 500 },
+            );
+          }
+          continue;
+        }
+
+        let p: any;
+        try {
+          const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          p = JSON.parse(cleaned);
+        } catch {
+          console.warn(`[AI route] could not parse JSON from "${file.name}" (first 300): ${text.slice(0, 300)}`);
+          continue;
+        }
+        if (Array.isArray(p?.data)) {
+          console.log(`[AI route] "${file.name}": ${p.data.length} items`);
+          allItems.push(...p.data);
+        }
+        fillMissing(p?.quote_info);
+      }
+
+      const parsed: any = {
+        action: 'import',
+        target_table: 'supplier_quote',
+        quote_info: mergedQuoteInfo,
+        data: allItems,
+        summary: `חולצו ${allItems.length} פריטים מ-${(files || []).length} קבצים`,
+      };
+      fillSupplierQuoteInfo(parsed);
+      console.log(`[AI route] merged total: ${allItems.length} items from ${(files || []).length} files`);
+      return NextResponse.json(parsed);
+    }
+
+    // No files attached — regular chat / query.
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
-      systemInstruction: systemPrompt,
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.1,
-        maxOutputTokens: 16384,
-      },
+      systemInstruction: SYSTEM_PROMPT,
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 16384 },
     });
-
-    // Build multimodal content parts: PDFs + images + text
-    const parts: any[] = [];
-    for (const pdf of pdfFiles) {
-      parts.push({ inlineData: { data: pdf.base64, mimeType: 'application/pdf' } });
-    }
-    for (const img of imageFiles) {
-      parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
-    }
-    const docCount = pdfFiles.length + imageFiles.length;
-    const multiNote = docCount > 1 ? `\n\nשים לב: מצורפים ${docCount} מסמכים — חלץ את כל השורות מכולם וצרף לרשימה אחת.` : '';
-    parts.push({ text: (userMessage || 'חלץ את כל נתוני התמחור מהמסמכים') + multiNote });
 
     let text = '';
     try {
-      const result = await model.generateContent(parts);
+      const result = await model.generateContent([{ text: userMessage }]);
       text = result.response.text();
     } catch (e: any) {
       const status = e?.status || e?.response?.status;
@@ -499,52 +572,8 @@ export async function POST(request: NextRequest) {
     try {
       const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsed = JSON.parse(cleaned);
-      console.log('[AI route] parsed action:', parsed.action, 'target_table:', parsed.target_table, 'data length:', Array.isArray(parsed.data) ? parsed.data.length : typeof parsed.data);
     } catch {
       parsed = { action: 'query', summary: text, message: text };
-    }
-
-    // Merge locally-parsed Excel items with the Gemini extraction into one cost input.
-    if (excelItems.length > 0) {
-      if (parsed.target_table === 'supplier_quote' && parsed.action === 'import' && Array.isArray(parsed.data)) {
-        parsed.data = [...excelItems, ...parsed.data];
-        parsed.quote_info = { ...excelQuoteInfo, ...(parsed.quote_info || {}) };
-        parsed.summary = `חולצו ${parsed.data.length} פריטים מ-${(files || []).length} קבצים`;
-      } else {
-        const currency = excelQuoteInfo.currency || excelItems.find((i) => i.currency)?.currency || 'ILS';
-        parsed = {
-          action: 'import', target_table: 'supplier_quote',
-          quote_info: { ...excelQuoteInfo, currency },
-          data: excelItems,
-          summary: `חולצו ${excelItems.length} פריטים`,
-        };
-      }
-    }
-
-    // Post-process supplier quotes — fill missing quote_info from user message & items
-    if (parsed.target_table === 'supplier_quote' && parsed.action === 'import' && Array.isArray(parsed.data)) {
-      if (!parsed.quote_info) parsed.quote_info = {};
-      const qi = parsed.quote_info;
-      const items = parsed.data;
-      const allDesc = items.map((it: any) => it.description || '').join(' ');
-      const userText = userMessage || '';
-
-      if (!qi.project_name) {
-        const m = userText.match(/(?:לפרויקט|פרויקט|project)\s+(.+?)(?:\s*[-–—,.\n]|$)/i);
-        if (m) qi.project_name = m[1].trim();
-      }
-      if (!qi.supplier_name) {
-        if (/flowtite|amiblu/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Amiblu';
-        else if (/hobas/i.test(allDesc + ' ' + userText)) qi.supplier_name = 'Hobas';
-      }
-      if (!qi.currency) {
-        const fc = items.find((it: any) => it.currency);
-        if (fc) qi.currency = fc.currency;
-      }
-      if (!qi.quote_ref) {
-        const rm = allDesc.match(/\b(MUA[\d.]+|Q[\d-]+)/i);
-        if (rm) qi.quote_ref = rm[1];
-      }
     }
 
     return NextResponse.json(parsed);
