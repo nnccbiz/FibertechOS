@@ -272,60 +272,61 @@ export default function QuotePreviewPage() {
   }
   if (itemPages.length === 0) itemPages.push([]);
 
-  // Summary as ordered sub-blocks that flow after the items (fills the last page, overflows naturally).
+  // ---- Everything after the items table flows continuously: summary → contract → signatures.
+  // One greedy packer fills each A4 page before breaking, so there are no half-empty pages.
+  // Estimates stay a touch under the real height (pages use overflow:hidden → must never over-fill).
   const nonImgAtts = attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name));
-  const summaryMeta: { key: string; h: number }[] = [{ key: 'totals', h: globalDisc > 0 ? 52 : 40 }];
-  if (quote.payment_terms || quote.delivery_time) summaryMeta.push({ key: 'pay', h: 30 });
-  if (quote.disclaimer_text) summaryMeta.push({ key: 'disc', h: 12 + Math.ceil((quote.disclaimer_text || '').length / 90) * 4.5 });
-  summaryMeta.push({ key: 'doc', h: 22 });
-  if (nonImgAtts.length) summaryMeta.push({ key: 'att', h: 14 + nonImgAtts.length * 5 });
-  // Signatures move to a dedicated final page (after the contract terms).
+  const cEstClause = (t: string) => 1.8 + Math.ceil((t || '').length / 115) * 3.2;
 
-  // Estimate-based fallback (used until the DOM measurement effect computes exact pages).
-  const lastSlice = itemPages[itemPages.length - 1];
-  const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.reduce((s: number, it: any) => s + rowH(it), 0);
-  const summaryPlan: string[][] = [[]];
-  {
-    let sp = 0, rem = USABLE_H - lastUsed;
-    for (const b of summaryMeta) {
-      if (b.h > rem && summaryPlan[sp].length > 0) { sp++; summaryPlan[sp] = []; rem = USABLE_H; }
-      summaryPlan[sp].push(b.key);
-      rem -= b.h;
-    }
-  }
-  const fallbackQuotePages: { hasHeader: boolean; itemIdxs: number[]; summaryKeys: string[] }[] = [];
+  type TBlock =
+    | { kind: 'summary'; key: string; h: number }
+    | { kind: 'ctitle'; h: number }
+    | { kind: 'cblock'; b: CBlock; h: number }
+    | { kind: 'sign'; h: number };
+
+  const trailing: TBlock[] = [];
+  trailing.push({ kind: 'summary', key: 'totals', h: globalDisc > 0 ? 52 : 42 });
+  if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
+  if (quote.disclaimer_text) trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil((quote.disclaimer_text || '').length / 90) * 4.5 });
+  trailing.push({ kind: 'summary', key: 'doc', h: 22 });
+  if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
+  trailing.push({ kind: 'ctitle', h: 18 });
+  CONTRACT_SECTIONS.forEach((s) => {
+    trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
+    s.clauses.forEach((cl) => trailing.push({ kind: 'cblock', b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
+  });
+  trailing.push({ kind: 'sign', h: 92 });
+
+  type RPage = { hasHeader: boolean; itemIdxs: number[]; blocks: TBlock[] };
+  const pages: RPage[] = [];
   let runIdx = 0;
   itemPages.forEach((slice, pIdx) => {
     const itemIdxs = slice.map((_: any, k: number) => runIdx + k);
     runIdx += slice.length;
-    fallbackQuotePages.push({ hasHeader: pIdx === 0, itemIdxs, summaryKeys: pIdx === itemPages.length - 1 ? summaryPlan[0] : [] });
+    pages.push({ hasHeader: pIdx === 0, itemIdxs, blocks: [] });
   });
-  summaryPlan.slice(1).forEach((keys) => fallbackQuotePages.push({ hasHeader: false, itemIdxs: [], summaryKeys: keys }));
 
-  const quotePages = fallbackQuotePages;
-  const quotePageCount = quotePages.length;
-
-  // Contract terms — flat list of blocks packed by estimated height (conservative: never clips).
-  const C_USABLE_CONTRACT = 258;
-  const cEstClause = (t: string) => 2.5 + Math.ceil((t || '').length / 110) * 3.7;
-  const cBlocksAll: { b: CBlock; h: number }[] = [];
-  CONTRACT_SECTIONS.forEach((s) => {
-    cBlocksAll.push({ b: { type: 'heading', title: s.title }, h: 10 });
-    s.clauses.forEach((cl) => cBlocksAll.push({ b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
-  });
-  const contractPages: CBlock[][] = [[]];
   {
-    let cp = 0, crem = C_USABLE_CONTRACT - 22; // first page carries the big "תנאי הסכם" title
-    for (let i = 0; i < cBlocksAll.length; i++) {
-      const { b, h } = cBlocksAll[i];
-      const need = b.type === 'heading' && i + 1 < cBlocksAll.length ? h + cBlocksAll[i + 1].h : h;
-      if (need > crem && contractPages[cp].length > 0) { cp++; contractPages[cp] = []; crem = C_USABLE_CONTRACT; }
-      contractPages[cp].push(b);
-      crem -= h;
+    const lastSlice = itemPages[itemPages.length - 1];
+    const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.reduce((s: number, it: any) => s + rowH(it), 0);
+    let cur = pages[pages.length - 1];
+    let rem = USABLE_H - lastUsed;
+    for (let i = 0; i < trailing.length; i++) {
+      const tb = trailing[i];
+      // Keep a heading/title with the block that follows it (no orphaned heading at a page foot).
+      let need = tb.h;
+      if (tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading')) need += trailing[i + 1]?.h || 0;
+      if (need > rem && (cur.blocks.length > 0 || cur.itemIdxs.length > 0)) {
+        cur = { hasHeader: false, itemIdxs: [], blocks: [] };
+        pages.push(cur);
+        rem = USABLE_H - CONT_LABEL_H; // continuation pages carry the small "(המשך)" line
+      }
+      cur.blocks.push(tb);
+      rem -= tb.h;
     }
   }
 
-  const totalPages = quotePageCount + attachmentPages.length + contractPages.length + 1; // +1 = final signatures page
+  const totalPages = pages.length + attachmentPages.length;
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -517,18 +518,59 @@ export default function QuotePreviewPage() {
         </div>
       </div>
     ),
-    sign: (
-      <div key="sign" className="mt-5 pt-3 grid grid-cols-2 gap-8">
-        <div>
-          <p className="text-sm font-bold text-gray-700 mb-8">חתימת פיברטק</p>
-          <div className="border-b border-gray-400 w-44" />
+  };
+
+  const renderTBlock = (tb: TBlock, key: number) => {
+    if (tb.kind === 'summary') return <div key={key}>{summaryEls[tb.key]}</div>;
+    if (tb.kind === 'ctitle') return (
+      <div key={key} className="mt-1">
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
+            <p className="text-[10px] text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
+          </div>
+          <img src="/logo.png" alt="Fibertech" className="h-10 object-contain" />
         </div>
-        <div>
-          <p className="text-sm font-bold text-gray-700 mb-8">חתימת הלקוח</p>
-          <div className="border-b border-gray-400 w-44" />
+        <div className="border-b-2 border-[#5c5c5c] mb-2" />
+      </div>
+    );
+    if (tb.kind === 'cblock') {
+      return tb.b.type === 'heading' ? (
+        <div key={key} className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
+          <h3 className="text-[12px] font-bold text-[#003d77]">{tb.b.title}</h3>
+        </div>
+      ) : (
+        <div key={key} className="flex gap-2 text-[10px] text-gray-700 leading-tight mb-1">
+          <span className="font-bold text-[#003d77] min-w-[18px] text-left">{tb.b.clause!.num}.</span>
+          <span className="whitespace-pre-line">{tb.b.clause!.text}</span>
+        </div>
+      );
+    }
+    return (
+      <div key={key} className="mt-4">
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-wide">חתימות</h1>
+            <p className="text-[11px] text-gray-500 mt-0.5">מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span></p>
+          </div>
+          <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
+        </div>
+        <div className="border-b-2 border-[#5c5c5c] mb-6" />
+        <p className="text-sm text-gray-600 mb-8 leading-relaxed">בחתימתנו מטה אנו מאשרים את ההצעה על כל חלקיה, לרבות סקר החוזה, השרטוטים, המפרטים ותנאי ההסכם המצורפים.</p>
+        <div className="grid grid-cols-2 gap-12 mt-4">
+          <div>
+            <p className="text-sm font-bold text-gray-700 mb-12">חתימת פיברטק</p>
+            <div className="border-b border-gray-400" />
+            <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-700 mb-12">חתימת המזמין</p>
+            <div className="border-b border-gray-400" />
+            <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
+          </div>
         </div>
       </div>
-    ),
+    );
   };
 
   return (
@@ -574,22 +616,22 @@ export default function QuotePreviewPage() {
       )}
 
       <div id="quote-page-content">
-        {/* Quote pages — packed by measured heights (estimate fallback before measurement) */}
-        {quotePages.map((pg, pIdx) => (
-          <div key={`quote-page-${pIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+        {/* Portrait pages — items, summary, contract and signatures flow continuously. */}
+        {pages.map((pg, pIdx) => (
+          <div key={`page-${pIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
             <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
               {pg.hasHeader
                 ? <QuoteHeader />
                 : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
               }
               {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i) => items[i])} startIdx={pg.itemIdxs[0]} />}
-              {pg.summaryKeys.map((k) => summaryEls[k])}
+              {pg.blocks.map((tb, bi) => renderTBlock(tb, bi))}
             </div>
             <QuoteFooter pageNum={pIdx + 1} />
           </div>
         ))}
 
-        {/* Drawing / attachment pages — landscape A4, with header + footer */}
+        {/* Drawing / attachment pages — landscape A4 appendix at the end */}
         {attachmentPages.map((page, idx) => (
           <div key={`${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
             <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
@@ -609,80 +651,10 @@ export default function QuotePreviewPage() {
               <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
               <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
               <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-              <PageMeta pageNum={quotePageCount + 1 + idx} />
+              <PageMeta pageNum={pages.length + 1 + idx} />
             </div>
           </div>
         ))}
-
-        {/* Contract Terms — A4 pages packed by height; chapters flow continuously */}
-        {contractPages.map((blocks, chunkIdx) => (
-          <div key={`contract-${chunkIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }} dir="rtl">
-            <div className="px-10 pt-5 pb-3 overflow-hidden flex-1 min-h-0">
-              {chunkIdx === 0 && (
-                <>
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h1 className="text-2xl font-bold text-gray-900 tracking-wide">תנאי הסכם</h1>
-                      <p className="text-[10px] text-gray-500 mt-0.5">מסמך זה מהווה חלק בלתי נפרד מסקר החוזה</p>
-                    </div>
-                    <img src="/logo.png" alt="Fibertech" className="h-10 object-contain" />
-                  </div>
-                  <div className="border-b-2 border-[#5c5c5c] mb-3" />
-                </>
-              )}
-
-              <div className="space-y-1">
-                {blocks.map((blk, bIdx) => (
-                  blk.type === 'heading' ? (
-                    <div key={`h-${chunkIdx}-${bIdx}`} className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
-                      <h3 className="text-[12px] font-bold text-[#003d77]">{blk.title}</h3>
-                    </div>
-                  ) : (
-                    <div key={`c-${blk.clause!.num}`} className="flex gap-2 text-[10px] text-gray-700 leading-tight">
-                      <span className="font-bold text-[#003d77] min-w-[18px] text-left">{blk.clause!.num}.</span>
-                      <span className="whitespace-pre-line">{blk.clause!.text}</span>
-                    </div>
-                  )
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-[#f0f0f0] px-10 py-4 text-center">
-              <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
-              <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-              <PageMeta pageNum={quotePageCount + attachmentPages.length + 1 + chunkIdx} />
-            </div>
-          </div>
-        ))}
-
-        {/* Final page — signatures */}
-        <div className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
-          <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 tracking-wide">חתימות</h1>
-                <p className="text-[11px] text-gray-500 mt-0.5">מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span></p>
-              </div>
-              <img src="/logo.png" alt="Fibertech" className="h-12 object-contain" />
-            </div>
-            <div className="border-b-2 border-[#5c5c5c] mb-8" />
-            <p className="text-sm text-gray-600 mb-10 leading-relaxed">בחתימתנו מטה אנו מאשרים את ההצעה על כל חלקיה, לרבות סקר החוזה, השרטוטים, המפרטים ותנאי ההסכם המצורפים.</p>
-            <div className="grid grid-cols-2 gap-12 mt-6">
-              <div>
-                <p className="text-sm font-bold text-gray-700 mb-12">חתימת פיברטק</p>
-                <div className="border-b border-gray-400" />
-                <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-700 mb-12">חתימת המזמין</p>
-                <div className="border-b border-gray-400" />
-                <p className="text-[11px] text-gray-400 mt-2">שם + חתימה + תאריך</p>
-              </div>
-            </div>
-          </div>
-          <QuoteFooter pageNum={totalPages} />
-        </div>
       </div>
 
       <style jsx global>{`
