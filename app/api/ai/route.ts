@@ -5,6 +5,37 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
+// Allow room for sequential per-file calls plus retries on transient overload.
+export const maxDuration = 60;
+
+// Gemini occasionally returns 503 (overloaded) / 429 / 500 — these are transient.
+function isTransientGeminiError(e: any): boolean {
+  const status = e?.status || e?.response?.status;
+  const msg = String(e?.message || '');
+  return status === 503 || status === 429 || status === 500 ||
+    /\b50[03]\b|overloaded|high demand|service unavailable|try again later/i.test(msg);
+}
+
+// Calls Gemini, retrying transient errors with exponential backoff (1s, 2s, 4s).
+async function generateWithRetry(model: any, parts: any, maxRetries = 3): Promise<any> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await model.generateContent(parts);
+    } catch (e: any) {
+      lastErr = e;
+      if (attempt < maxRetries && isTransientGeminiError(e)) {
+        const delay = 1000 * 2 ** attempt;
+        console.warn(`[AI route] transient Gemini error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${e?.message}`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 // Lean prompt used only for file extraction
 const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצי הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
 
@@ -374,7 +405,7 @@ export async function POST(request: NextRequest) {
             systemInstruction: DRAWING_META_PROMPT,
             generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 512 },
           });
-          const result = await model.generateContent([
+          const result = await generateWithRetry(model, [
             { inlineData: { data: f.base64, mimeType: isPdf ? 'application/pdf' : mime } },
             { text: 'חלץ את מספר השרטוט ושם הפרויקט מה-title block.' },
           ]);
@@ -489,6 +520,8 @@ export async function POST(request: NextRequest) {
 
       console.log(`[AI route] per-file extraction: ${filesForGemini.length} file(s) to Gemini, ${excelItems.length} Excel items already parsed`);
 
+      const failedFiles: string[] = [];
+      let lastError: any = null;
       for (const file of filesForGemini) {
         const processed = await processFiles([file]);
         const parts: any[] = [];
@@ -502,19 +535,13 @@ export async function POST(request: NextRequest) {
         console.log(`[AI route] extracting "${file.name}" (pdfs=${processed.pdfFiles.length} images=${processed.imageFiles.length})`);
         let text = '';
         try {
-          const result = await model.generateContent(parts);
+          const result = await generateWithRetry(model, parts);
           text = result.response.text();
         } catch (e: any) {
           const status = e?.status || e?.response?.status;
-          console.error(`[AI route] Gemini error ${status} on "${file.name}": ${e?.message}`);
-          // A single failing file with nothing else extracted → surface the error.
-          if (filesForGemini.length === 1 && allItems.length === 0) {
-            const errMsg = e?.message || 'שגיאה בתקשורת עם Gemini';
-            return NextResponse.json(
-              { error: errMsg, gemini_status: status, summary: `שגיאה ${status || ''}: ${errMsg}`, message: errMsg },
-              { status: 500 },
-            );
-          }
+          console.error(`[AI route] Gemini error ${status} on "${file.name}" (after retries): ${e?.message}`);
+          failedFiles.push(file.name || 'קובץ');
+          lastError = e;
           continue;
         }
 
@@ -524,6 +551,7 @@ export async function POST(request: NextRequest) {
           p = JSON.parse(cleaned);
         } catch {
           console.warn(`[AI route] could not parse JSON from "${file.name}" (first 300): ${text.slice(0, 300)}`);
+          failedFiles.push(file.name || 'קובץ');
           continue;
         }
         if (Array.isArray(p?.data)) {
@@ -533,6 +561,16 @@ export async function POST(request: NextRequest) {
         fillMissing(p?.quote_info);
       }
 
+      // Nothing extracted and at least one call errored → surface the error.
+      if (allItems.length === 0 && lastError) {
+        const status = lastError?.status || lastError?.response?.status;
+        const errMsg = lastError?.message || 'שגיאה בתקשורת עם Gemini';
+        return NextResponse.json(
+          { error: errMsg, gemini_status: status, summary: `שגיאה ${status || ''}: ${errMsg}`, message: errMsg },
+          { status: 500 },
+        );
+      }
+
       const parsed: any = {
         action: 'import',
         target_table: 'supplier_quote',
@@ -540,8 +578,9 @@ export async function POST(request: NextRequest) {
         data: allItems,
         summary: `חולצו ${allItems.length} פריטים מ-${(files || []).length} קבצים`,
       };
+      if (failedFiles.length) parsed.failed_files = failedFiles;
       fillSupplierQuoteInfo(parsed);
-      console.log(`[AI route] merged total: ${allItems.length} items from ${(files || []).length} files`);
+      console.log(`[AI route] merged total: ${allItems.length} items from ${(files || []).length} files (failed: ${failedFiles.length})`);
       return NextResponse.json(parsed);
     }
 
@@ -554,7 +593,7 @@ export async function POST(request: NextRequest) {
 
     let text = '';
     try {
-      const result = await model.generateContent([{ text: userMessage }]);
+      const result = await generateWithRetry(model, [{ text: userMessage }]);
       text = result.response.text();
     } catch (e: any) {
       const status = e?.status || e?.response?.status;

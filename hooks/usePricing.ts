@@ -420,7 +420,10 @@ export function usePricing(projectId: string): UsePricingReturn {
         setEditingCostItems((prev) => (editingCostInput === costInputId && prev.length > 0 ? [...prev, ...items] : items));
         setEditingCostInput(costInputId);
         const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
-        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.`);
+        const failedNote = Array.isArray(data.failed_files) && data.failed_files.length
+          ? `\n\n⚠️ לא הצלחתי לקרוא ${data.failed_files.length} קבצים (עומס זמני בשרת Gemini): ${data.failed_files.join(', ')}.\nנסה להעלות אותם שוב.`
+          : '';
+        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${failedNote}`);
       } else {
         const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
