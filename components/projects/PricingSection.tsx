@@ -724,7 +724,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           )}
 
           {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
-          {!isEditing && <QuoteViewsPanel quoteId={q.id} />}
+          {!isEditing && q.status !== 'draft' && <QuoteViewsPanel quoteId={q.id} />}
           {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
 
           {isEditing ? (
