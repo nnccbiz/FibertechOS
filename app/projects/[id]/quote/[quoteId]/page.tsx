@@ -54,6 +54,7 @@ export default function QuotePreviewPage() {
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
+  const [measuredPages, setMeasuredPages] = useState<any[] | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -326,7 +327,8 @@ export default function QuotePreviewPage() {
     }
   }
 
-  const totalPages = pages.length + attachmentPages.length;
+  const renderPages = measuredPages ?? pages;
+  const totalPages = renderPages.length + attachmentPages.length;
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -573,6 +575,75 @@ export default function QuotePreviewPage() {
     );
   };
 
+  // Measure the real rendered height of every block in a hidden mirror, then pack pages
+  // by those exact heights. Estimates can't track html2canvas output, so measuring is the
+  // only way to fill each page without leaving gaps or clipping. Falls back to estimates.
+  useEffect(() => {
+    if (!quote || loading) return;
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      const root = document.getElementById('pdf-measure');
+      if (!root) return;
+      const rh = (el: Element | null) => (el ? (el as HTMLElement).getBoundingClientRect().height : 0);
+      const page297 = rh(root.querySelector('[data-m="page"]'));
+      const footerH = rh(root.querySelector('[data-m="footer"]'));
+      const padH = rh(root.querySelector('[data-m="pad"]'));
+      const headerH = rh(root.querySelector('[data-m="header"]'));
+      const contLabelH = rh(root.querySelector('[data-m="contlabel"]'));
+      if (!page297 || !footerH) return; // not laid out yet — keep estimate fallback
+
+      const SAFETY = 14; // px — absorbs minor margin/rounding so a page never over-fills
+      const contentAvail = page297 - footerH - padH;
+
+      const itTable = root.querySelector('[data-m="items"] table');
+      const theadH = itTable ? rh(itTable.querySelector('thead')) : 0;
+      const trs = itTable ? (Array.from(itTable.querySelectorAll('tbody tr')) as HTMLElement[]) : [];
+      const rowHs = trs.map((e) => e.getBoundingClientRect().height);
+
+      const tbWrap = root.querySelector('[data-m="trailing"]') as HTMLElement | null;
+      const tbs = tbWrap ? (Array.from(tbWrap.children) as HTMLElement[]) : [];
+      const tops = tbs.map((e) => e.getBoundingClientRect().top);
+      const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
+      const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
+      if (rowHs.length !== items.length || tbHs.length !== trailing.length) return;
+
+      const result: any[] = [];
+      let i = 0;
+      if (items.length === 0) result.push({ hasHeader: true, itemIdxs: [], blocks: [] });
+      while (i < items.length) {
+        const first = result.length === 0;
+        const avail = (first ? contentAvail - headerH : contentAvail - contLabelH) - theadH - SAFETY;
+        let used = 0; const idxs: number[] = [];
+        while (i < items.length && (idxs.length === 0 || used + rowHs[i] <= avail)) { used += rowHs[i]; idxs.push(i); i++; }
+        result.push({ hasHeader: first, itemIdxs: idxs, blocks: [] });
+      }
+
+      let cur = result[result.length - 1];
+      const curBase = (cur.hasHeader ? headerH : contLabelH) + (cur.itemIdxs.length ? theadH : 0) + cur.itemIdxs.reduce((s: number, idx: number) => s + rowHs[idx], 0);
+      let rem = contentAvail - curBase - SAFETY;
+      for (let t = 0; t < trailing.length; t++) {
+        const tb = trailing[t];
+        let need = tbHs[t] || 0;
+        if (tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading')) need += tbHs[t + 1] || 0;
+        if (need > rem && (cur.blocks.length > 0 || cur.itemIdxs.length > 0)) {
+          cur = { hasHeader: false, itemIdxs: [], blocks: [] };
+          result.push(cur);
+          rem = contentAvail - contLabelH - SAFETY;
+        }
+        cur.blocks.push(tb);
+        rem -= (tbHs[t] || 0);
+      }
+      setMeasuredPages(result);
+    };
+    // Measure only after the Heebo web font has loaded — otherwise line heights shift later.
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) fonts.ready.then(() => requestAnimationFrame(measure));
+    else requestAnimationFrame(measure);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, attachments, quote, loading, finalTotal, globalDisc]);
+
   return (
     <div className="bg-gray-100 min-h-screen">
       {/* Print controls */}
@@ -617,15 +688,15 @@ export default function QuotePreviewPage() {
 
       <div id="quote-page-content">
         {/* Portrait pages — items, summary, contract and signatures flow continuously. */}
-        {pages.map((pg, pIdx) => (
-          <div key={`page-${pIdx}`} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+        {renderPages.map((pg: any, pIdx: number) => (
+          <div key={`page-${pIdx}`} className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
             <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
               {pg.hasHeader
                 ? <QuoteHeader />
                 : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
               }
-              {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i) => items[i])} startIdx={pg.itemIdxs[0]} />}
-              {pg.blocks.map((tb, bi) => renderTBlock(tb, bi))}
+              {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i: number) => items[i])} startIdx={pg.itemIdxs[0]} />}
+              {pg.blocks.map((tb: TBlock, bi: number) => renderTBlock(tb, bi))}
             </div>
             <QuoteFooter pageNum={pIdx + 1} />
           </div>
@@ -651,10 +722,25 @@ export default function QuotePreviewPage() {
               <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
               <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
               <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-              <PageMeta pageNum={pages.length + 1 + idx} />
+              <PageMeta pageNum={renderPages.length + 1 + idx} />
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Hidden mirror — measures real rendered heights for exact pagination (not printed/exported). */}
+      <div id="pdf-measure" aria-hidden="true" style={{ position: 'absolute', left: '-99999px', top: 0, width: '210mm', visibility: 'hidden' }}>
+        <div data-m="page" style={{ height: '297mm' }} />
+        <div data-m="pad" className="pt-8 pb-6" style={{ display: 'flow-root' }}><div style={{ height: '1px' }} /></div>
+        <div data-m="footer" style={{ display: 'flow-root' }}><QuoteFooter pageNum={1} /></div>
+        <div className="px-10" dir="rtl">
+          <div data-m="header" style={{ display: 'flow-root' }}><QuoteHeader /></div>
+          <div data-m="contlabel" style={{ display: 'flow-root' }}><p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p></div>
+          <div data-m="items">{items.length > 0 && <ItemsTable slice={items} startIdx={0} />}</div>
+          <div data-m="trailing">
+            {trailing.map((tb, i) => renderTBlock(tb, i))}
+          </div>
+        </div>
       </div>
 
       <style jsx global>{`
