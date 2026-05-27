@@ -6,13 +6,14 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // Lean prompt used only for file extraction
-const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובץ הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
+const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצי הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
 
 ⚠️ חוקים קריטיים:
+0. ייתכן שמצורפים כמה מסמכים/קבצים (PDF/תמונות) באותה בקשה. עבור על **כל** המסמכים שצורפו, חלץ את כל השורות מכל אחד מהם, וצרף את כולם לרשימה אחת ב-data. אסור לדלג על מסמך ואסור לחלץ רק מהראשון.
 1. חלץ את כל השורות מהטבלה ללא יוצא מן הכלל. אם יש 26 שורות בקלט, החזר 26 פריטים ב-data.
 2. אסור להמציא נתונים. רק ערכים שמופיעים בפועל בקלט. אם DN/PN/SN/quantity/price לא קיימים בשורה — אל תכלול את השדה.
 3. אסור לקצר, לסכם, לאחד שורות דומות (גם אם רק ה-DN משתנה), או לדלג על שורות.
-4. ספור את השורות בקלט לפני שאתה מתחיל ובדוק שאתה מחזיר אותו מספר פריטים.
+4. ספור את סך כל השורות בכל המסמכים יחד לפני שאתה מתחיל, ובדוק שאתה מחזיר אותו מספר פריטים.
 
 מבנה התשובה:
 {
@@ -474,7 +475,9 @@ export async function POST(request: NextRequest) {
     for (const img of imageFiles) {
       parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
     }
-    parts.push({ text: userMessage || 'חלץ את כל נתוני התמחור מהקובץ' });
+    const docCount = pdfFiles.length + imageFiles.length;
+    const multiNote = docCount > 1 ? `\n\nשים לב: מצורפים ${docCount} מסמכים — חלץ את כל השורות מכולם וצרף לרשימה אחת.` : '';
+    parts.push({ text: (userMessage || 'חלץ את כל נתוני התמחור מהמסמכים') + multiNote });
 
     let text = '';
     try {

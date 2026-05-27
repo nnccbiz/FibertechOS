@@ -376,7 +376,7 @@ export function usePricing(projectId: string): UsePricingReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: 'חלץ את כל פריטי התמחור מהקובץ המצורף. זהו קובץ תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.',
+          message: `חלץ את כל פריטי התמחור מ-${filesArr.length > 1 ? `${filesArr.length} הקבצים המצורפים (מכולם!)` : 'הקובץ המצורף'}. אלו קבצי תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.`,
           files: filesArr,
         }),
       });
@@ -450,7 +450,7 @@ export function usePricing(projectId: string): UsePricingReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: 'חלץ את כל פריטי התמחור מהקובץ המצורף. זהו קובץ תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.',
+          message: `חלץ את כל פריטי התמחור מ-${filesArr.length > 1 ? `${filesArr.length} הקבצים המצורפים (מכולם!)` : 'הקובץ המצורף'}. אלו קבצי תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.`,
           files: filesArr,
         }),
       });
