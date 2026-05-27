@@ -54,7 +54,6 @@ export interface UsePricingReturn {
   // Actions
   createCostInput: () => Promise<void>;
   parseCostFile: (fileList: FileList, costInputId: string) => Promise<void>;
-  uploadAndCreateCostInput: (fileList: FileList) => Promise<void>;
   updateCostItem: (idx: number, field: string, val: any) => void;
   saveCostInputItems: (costInputId: string) => Promise<void>;
   startEditCostInput: (ciId: string) => void;
@@ -433,88 +432,6 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
   }
 
-  async function uploadAndCreateCostInput(fileList: FileList) {
-    setParsingCostFile(true);
-    try {
-      const filesArr: { base64: string; mimeType: string; name: string }[] = [];
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(file);
-        });
-        filesArr.push({ base64, mimeType: file.type, name: file.name });
-      }
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `חלץ את כל פריטי התמחור מ-${filesArr.length > 1 ? `${filesArr.length} הקבצים המצורפים (מכולם!)` : 'הקובץ המצורף'}. אלו קבצי תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.`,
-          files: filesArr,
-        }),
-      });
-      const data = await res.json();
-
-      if ((data.target_table === 'supplier_quote' || data.target_table === 'cost_input_items') && Array.isArray(data.data)) {
-        const qi = data.quote_info || {};
-        const currency = qi.currency || 'USD';
-        const rate = exchangeRates[currency]?.rate || 1;
-        const rateDate = exchangeRates[currency]?.date || new Date().toISOString().split('T')[0];
-        const isILS = currency === 'ILS';
-        const sourceName = qi.supplier_name || fileList[0]?.name.replace(/\.[^.]+$/, '') || 'ספק';
-
-        const { data: ci, error } = await supabase.from('cost_inputs').insert({
-          project_id: projectId,
-          source_type: 'supplier',
-          source_name: sourceName,
-          notes: [qi.quote_ref ? `Ref: ${qi.quote_ref}` : '', qi.quote_date || ''].filter(Boolean).join(' | ') || '',
-          currency,
-          exchange_rate: rate,
-          exchange_rate_date: rateDate,
-          payment_terms: '',
-        }).select().single();
-
-        if (error) { alert(`שגיאה: ${error.message}`); return; }
-
-        const items = data.data.map((item: any) => {
-          const origPrice = parseFloat(item.unit_price || item.cost_price) || 0;
-          const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
-          const qty = parseFloat(item.quantity) || 1;
-          return {
-            product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
-            dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
-            quantity: qty,
-            unit: item.price_per === 'unit' ? "יח'" : 'מטר',
-            original_price: origPrice,
-            original_currency: currency,
-            cost_price: costPrice,
-            total_cost: Math.round(qty * costPrice * 100) / 100,
-            item_type: item.item_type || '',
-            sn: item.sn || null,
-            pn: item.pn || null,
-            length_m: item.length_m || null,
-          };
-        });
-
-        setCostInputs((prev) => [ci, ...prev]);
-        setExpandedCostInput(ci.id);
-        setEditingCostInput(ci.id);
-        setEditingCostItems(items);
-
-        const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
-        alert(`✅ Roxy חילצה ${items.length} פריטים מ-${sourceName}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate.toFixed(2)})` : ''}.\nבדוק את הפריטים ולחץ שמור.`);
-      } else {
-        const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
-        alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
-      }
-    } catch (err: any) {
-      alert(`שגיאה: ${err.message}`);
-    } finally {
-      setParsingCostFile(false);
-    }
-  }
-
   // === Quote functions ===
   function buildDocNumber(prefix: string, version?: number) {
     const now = new Date();
@@ -799,7 +716,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     expandedQuote, setExpandedQuote,
     expandedCostInput, setExpandedCostInput,
     parsingCostFile, saving, uploadingFile,
-    createCostInput, parseCostFile, uploadAndCreateCostInput, updateCostItem, saveCostInputItems,
+    createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, refreshCustomers,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,

@@ -180,10 +180,6 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
   return (
     <div>
       <div className="flex items-center justify-end gap-2 mb-3">
-        <label className={`text-sm px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400 cursor-not-allowed' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
-          {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📊 העלה קובץ תמחור'}
-          <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.uploadAndCreateCostInput(e.target.files); e.target.value = ''; } }} />
-        </label>
         <button onClick={() => p.setShowNewCostInput(!p.showNewCostInput)} className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 transition-colors">
           {p.showNewCostInput ? 'ביטול' : '+ תמחור חדש'}
         </button>
@@ -368,7 +364,13 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
         )}
       </div>
       <div className="flex items-center justify-between pt-2">
-        <button onClick={p.addCostItem} className="text-[12px] text-amber-700 hover:underline">+ הוסף שורה</button>
+        <div className="flex items-center gap-3">
+          <button onClick={p.addCostItem} className="text-[12px] text-amber-700 hover:underline">+ הוסף שורה</button>
+          <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
+            {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה עוד קובץ ל-Roxy'}
+            <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
+          </label>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-gray-700">סה״כ עלות: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
           <button onClick={p.cancelEditCostInput} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100">ביטול</button>
