@@ -265,7 +265,7 @@ export default function PublicQuotePage() {
                 return (
                   <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                     <td className="py-2 px-3 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-800">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-800 text-right" dir="ltr">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.dn_size || '—'}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>

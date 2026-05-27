@@ -495,7 +495,7 @@ export default function QuotePreviewPage() {
           return (
             <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
               <td className="py-2 px-2 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
-              <td className="py-2 px-3 border border-gray-200 text-gray-800 font-medium">
+              <td className="py-2 px-3 border border-gray-200 text-gray-800 font-medium text-right" dir="ltr">
                 {item.product_name}{item.notes ? <span className="text-gray-400 font-normal"> ({item.notes})</span> : ''}
               </td>
               <td className="py-2 px-3 border border-gray-200 text-gray-500">{item.dn_size || '—'}</td>
