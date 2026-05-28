@@ -20,6 +20,8 @@ const PUBLIC_ROUTES = [
 // API routes that must remain accessible without a session (self-service flows)
 const PUBLIC_API_ROUTES = [
   '/api/access-requests', // POST from request-access page
+  '/api/webhooks/quote-signed', // external webhook — auth via x-webhook-secret header, not session
+  '/api/auth/log-attempt', // called pre-auth on failed login — self-protected via IP rate-limit + validation
 ];
 
 export async function middleware(req: NextRequest) {

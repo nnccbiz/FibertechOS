@@ -1,14 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createHash, timingSafeEqual } from 'node:crypto';
+
+export const runtime = 'nodejs';
+
+/**
+ * Constant-time comparison of the incoming webhook secret against the
+ * configured one. Both values are SHA-256 hashed first so timingSafeEqual
+ * always receives equal-length buffers (it throws on length mismatch, which
+ * would otherwise leak length and crash the handler).
+ */
+function isAuthorized(req: NextRequest): boolean {
+  const expected = process.env.QUOTE_WEBHOOK_SECRET;
+  if (!expected) return false; // fail closed if not configured
+
+  const provided = req.headers.get('x-webhook-secret') || '';
+  const expectedHash = createHash('sha256').update(expected).digest();
+  const providedHash = createHash('sha256').update(provided).digest();
+  return timingSafeEqual(expectedHash, providedHash);
+}
 
 /**
  * POST /api/webhooks/quote-signed
  *
- * Called by Supabase Database Webhook (or from client) when a quote
+ * Called by Supabase Database Webhook (or from Make.com) when a quote
  * transitions to status='signed'. Triggers a summary email to Miri (Finance)
  * via Make.com webhook.
+ *
+ * Auth: requires a matching `x-webhook-secret` header (shared secret).
  */
 export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
