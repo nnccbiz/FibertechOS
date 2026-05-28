@@ -60,6 +60,7 @@ export interface UsePricingReturn {
   cancelEditCostInput: () => void;
   setEditingCostItems: React.Dispatch<React.SetStateAction<any[]>>;
   createQuote: () => Promise<void>;
+  duplicateQuote: (quoteId: string) => Promise<void>;
   startEditQuote: (quoteId: string) => void;
   updateItem: (idx: number, field: string, val: any) => void;
   bulkSetProfit: (category: 'pipe' | 'accessory' | 'all', profitPct: number) => void;
@@ -498,6 +499,46 @@ export function usePricing(projectId: string): UsePricingReturn {
     setExpandedQuote(q.id);
   }
 
+  // Clone a quote (all items + terms) into a fresh draft — e.g. to send the same
+  // offer to another customer. The recipient (customer/contact) and the frozen
+  // snapshot are reset so the copy can be re-addressed.
+  async function duplicateQuote(quoteId: string) {
+    const src = quotes.find((x) => x.id === quoteId);
+    if (!src) return;
+    const existingCount = quotes.filter((x) => x.status !== 'cancelled').length;
+    const num = buildDocNumber('HM', existingCount + 1);
+
+    const { data: nq, error } = await supabase.from('quotes').insert({
+      project_id: projectId, quote_number: num, client_name: src.client_name,
+      customer_id: null, contact_id: null, contact_snapshot: null,
+      status: 'draft', tier: src.tier, cost_source: src.cost_source, supplier_name: src.supplier_name,
+      cost_input_id: src.cost_input_id || null,
+      default_overheads_pct: src.default_overheads_pct, default_profit_pct: src.default_profit_pct,
+      payment_terms: src.payment_terms, disclaimer_type: src.disclaimer_type, disclaimer_text: src.disclaimer_text,
+      global_discount_pct: src.global_discount_pct || 0, total_amount: src.total_amount || 0, total_cost: src.total_cost || 0,
+      notes: src.notes, delivery_time: src.delivery_time,
+    }).select().single();
+    if (error || !nq) { alert(`שגיאה בשכפול: ${error?.message || ''}`); return; }
+
+    const { data: srcItems } = await supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order');
+    if (srcItems && srcItems.length) {
+      const rows = srcItems.map(({ id, quote_id, created_at, ...rest }: any) => ({ ...rest, quote_id: nq.id }));
+      await supabase.from('quote_items').insert(rows);
+    }
+    const { data: newItems } = await supabase.from('quote_items').select('*').eq('quote_id', nq.id).order('sort_order');
+
+    const links = quoteDrawings[quoteId] || [];
+    if (links.length) {
+      await supabase.from('quote_drawings').insert(links.map((aid) => ({ quote_id: nq.id, attachment_id: aid })));
+      setQuoteDrawings((prev) => ({ ...prev, [nq.id]: [...links] }));
+    }
+
+    setQuotes((prev) => [nq, ...prev]);
+    setQuoteItems((prev) => ({ ...prev, [nq.id]: newItems || [] }));
+    setExpandedQuote(nq.id);
+    alert(`✅ ההצעה שוכפלה כטיוטה חדשה (${num}).\nבחר לקוח/איש קשר חדש ושלח.`);
+  }
+
   function startEditQuote(quoteId: string) {
     const q = quotes.find((x) => x.id === quoteId);
     const items = quoteItems[quoteId] || [];
@@ -772,7 +813,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
-    createQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
+    createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment,

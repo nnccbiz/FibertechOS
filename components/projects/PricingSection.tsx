@@ -693,6 +693,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             {q.status !== 'rejected' && q.status !== 'signed' && (
               <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors">❌ נדחה</button>
             )}
+            <button onClick={() => p.duplicateQuote(q.id)} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100 transition-colors">📋 שכפל</button>
             {q.status === 'draft' && (
               <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">🗑️ מחק</button>
             )}
