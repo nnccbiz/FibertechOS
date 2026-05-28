@@ -120,6 +120,7 @@ FibertechOS/
 - **Fine-grained permission matrix**: `user_module_permissions` table = (user x module x level). Nine modules: `dashboard`, `projects`, `marketing`, `import`, `production`, `field`, `inventory`, `reports`, `settings`. Four levels: `none`, `view`, `edit`, `full`.
 - **Admins bypass matrix**: `is_admin()` SQL function returns true for admin role, granting full access everywhere.
 - **RLS enforcement**: 42 RLS policies on all tables. Every query through anon key is filtered by the user's permissions.
+- **New tables — GRANT convention**: Supabase is removing auto-exposure of new `public` tables to the Data API (new projects from 2026-05-30; enforced on new tables in existing projects from 2026-10-30). When a migration creates a table, add an explicit grant alongside RLS so the app (anon key) can reach it, e.g. `GRANT SELECT, INSERT, UPDATE, DELETE ON public.<table> TO authenticated;` (and `GRANT SELECT ... TO anon;` only for tables the public/share flow reads). GRANT opens the table at the API/table level; RLS still governs row access — both are required. Trigger/`SECURITY DEFINER` helper functions don't need `EXECUTE` granted to anon/authenticated — `REVOKE EXECUTE ... FROM anon, authenticated;` to keep them off the RPC surface.
 - **Rate limiting on `/request-access`**: Domain check (`@fibertech.co.il`), 1 pending per email, 30-day cooldown on decline, 3 req/IP/hr, 20 req/hr global.
 
 ### Pricing Engine
