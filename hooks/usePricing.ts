@@ -509,7 +509,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     const num = buildDocNumber('HM', existingCount + 1);
 
     const { data: nq, error } = await supabase.from('quotes').insert({
-      project_id: projectId, quote_number: num, client_name: src.client_name,
+      project_id: projectId, quote_number: num, client_name: '',
       customer_id: null, contact_id: null, contact_snapshot: null,
       status: 'draft', tier: src.tier, cost_source: src.cost_source, supplier_name: src.supplier_name,
       cost_input_id: src.cost_input_id || null,
@@ -635,8 +635,12 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   async function setQuoteCustomer(quoteId: string, customerId: string) {
     const value = customerId || null;
-    await supabase.from('quotes').update({ customer_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, customer_id: value } : q));
+    // When a customer is chosen, reflect its name as the quote's recipient name.
+    const name = value ? (customers.find((c) => c.id === value)?.name || null) : null;
+    const patch: any = { customer_id: value, updated_at: new Date().toISOString() };
+    if (name) patch.client_name = name;
+    await supabase.from('quotes').update(patch).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, customer_id: value, ...(name ? { client_name: name } : {}) } : q));
   }
 
   async function refreshCustomers() {

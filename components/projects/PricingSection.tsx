@@ -622,7 +622,9 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => p.setExpandedQuote(isExpanded ? null : q.id)}>
         <div className="flex items-center gap-3">
           <span className="text-sm font-mono text-gray-400">{q.quote_number}</span>
-          <span className="text-sm font-bold text-gray-700">{q.client_name}</span>
+          {q.client_name?.trim()
+            ? <span className="text-sm font-bold text-gray-700">{q.client_name}</span>
+            : <span className="text-sm font-semibold text-amber-600">לקוח חסר</span>}
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${tier.color}`}>{tier.label}</span>
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
         </div>
