@@ -17,7 +17,7 @@ The system manages the full lifecycle: lead tracking, project management, quote 
 | Database | Supabase (Postgres 17, hosted `eu-west-3`) |
 | Auth | Supabase Auth (email/password), custom permission matrix |
 | Storage | Supabase Storage (quote attachments, drawings) |
-| AI assistant | Groq API (llama-3.3-70b) — internal chatbot "Roxy" (רקסי) |
+| AI assistant | Google Gemini (gemma-3-27b-it) — internal chatbot "Roxy" (רקסי) |
 | PDF generation | jspdf + html2canvas |
 | Hosting | Vercel (auto-deploy from GitHub) |
 | Repo | GitHub `nnccbiz/FibertechOS`, branches: `main` (prod), `dev` (staging) |
@@ -47,7 +47,7 @@ FibertechOS/
 │   │   ├── requests/             # Admin: pending access request approval queue
 │   │   └── users/                # Admin: user permission matrix editor
 │   └── api/
-│       ├── ai/                   # Groq AI proxy — Roxy chatbot
+│       ├── ai/                   # Gemma AI proxy — Roxy chatbot
 │       ├── access-requests/      # Public POST — new access request (rate-limited)
 │       ├── approve-request/      # Admin — approve/decline access requests
 │       ├── auth/log-attempt/     # Audit log for login attempts
@@ -126,7 +126,7 @@ FibertechOS/
 - **Margin validation**: Warns on items with margin < 10% or > 60%, or zero cost.
 
 ### AI Integration (Roxy)
-- Groq API with llama-3.3-70b. Structured JSON output only.
+- Google Gemini (gemma-3-27b-it). Structured JSON output only.
 - System prompt defines available tables and expected response format.
 - Handles: create/update/delete records, import supplier quotes, generate reports, add tasks.
 - Supplier quote extraction: Parses Amiblu/Flowtite quotation documents into structured `cost_input_items`.
@@ -163,7 +163,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://qiccyigkqunxhvqzncol.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase dashboard>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase dashboard — SECRET>
 NEXT_PUBLIC_SITE_URL=<Vercel deployment URL>
-GROQ_API_KEY=<for Roxy AI>
+GEMINI_API_KEY=<for Roxy AI>
 ```
 
 ## 7. Known Issues / TODO
@@ -231,3 +231,54 @@ GROQ_API_KEY=<for Roxy AI>
 ### זיכרון בין שיחות
 - בתחילת כל שיחה - תקרא את CLAUDE.md ואת README אם קיים
 - אם משהו חשוב השתנה במהלך השיחה (החלטה ארכיטקטונית, קונבנציה חדשה) - תזכיר לי לעדכן את CLAUDE.md
+
+## 9. Security invariants — do NOT break these
+
+These controls were added deliberately (security review, 2026-05-28). Future
+changes must preserve them. If you touch the relevant code, keep the guarantee.
+
+### 9.1 Roxy write allowlist (`lib/ai/write-allowlist.ts`)
+Roxy (the AI assistant) produces UNTRUSTED output — it is steered by free-text
+user input and by uploaded document contents.
+
+- **Every model-driven DB write MUST pass `validateWrite(table, data)` before
+  reaching `supabase.from(...)`.** Enforced in `components/ai/CommandBar.tsx` and
+  `components/ai/FloatingChat.tsx`. Do not add a new model-driven insert/update
+  path that bypasses it.
+- Policy is **reject** (not silent-strip): a disallowed table or column refuses
+  the whole write and logs the attempt to `ai_activity_log` (status `failed`).
+- **When you add a new table or column to the DB that Roxy should write to, you
+  MUST also add it to `WRITE_ALLOWLIST`** — otherwise legitimate writes get
+  rejected. Column lists are derived from the ACTUAL schema (migrations), not
+  from the system prompt.
+
+### 9.2 Tables BLOCKED for Roxy (never add to the allowlist)
+`team_members`, `user_module_permissions`, `profiles`, `access_requests`,
+`login_attempts`, `password_history`, `quotes`, `orders`, `payments`,
+`exchange_rate_log`, `ai_activity_log`.
+Reason: user-management / auth / financial / audit tables — model-driven writes
+here are a privilege-escalation or integrity risk. The AI must not manage users
+or finances.
+
+### 9.3 Roxy input is untrusted and delimiter-isolated (`app/api/ai/route.ts`)
+User input, uploaded document text, and existing context are wrapped in
+`<user_input>`, `<document>`, `<context_data>` tags, and the system prompt
+instructs the model to treat tag contents as DATA, never instructions. Keep this
+separation — do not concatenate raw user/document text into the system prompt.
+
+### 9.4 Self-secured public API routes (not session-protected)
+These routes are in `PUBLIC_API_ROUTES` (middleware.ts) by design and protect
+themselves — do NOT assume a session guards them:
+- `/api/webhooks/quote-signed` — auth via `x-webhook-secret` header, compared
+  constant-time against `QUOTE_WEBHOOK_SECRET`. **Env var required** in Vercel;
+  Make.com / Supabase webhook must send the matching header.
+- `/api/auth/log-attempt` — called pre-auth on failed login; self-protected via
+  client-IP validation + per-IP rate limit. Never trust `x-forwarded-for` blindly.
+
+### 9.5 /api/ai rate limiting (`ai_request_log` + `can_make_ai_request`)
+`/api/ai` enforces per-user (15/min, 200/hr) and global (60/min) limits plus
+payload caps (10MB body, 5 files, 7MB/file, 100k doc chars, 10k message),
+all BEFORE the Gemini call. Counting is DB-backed.
+- **The migration `supabase/migrations/20260528_001_ai_rate_limit.sql` must be
+  run in the Supabase SQL Editor** for the limit to be enforced. If the function
+  is missing the route fails open (no limit) but does not error.
