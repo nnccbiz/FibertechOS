@@ -234,6 +234,8 @@ GEMINI_API_KEY=<for Roxy AI>
 
 ## 9. Security invariants — do NOT break these
 
+> 📋 לתיעוד מפורט של הסקירה ושיקולי ההחלטות, ראה [SESSION_LOG_2026-05-29.md](./SESSION_LOG_2026-05-29.md).
+
 These controls were added deliberately (security review, 2026-05-28). Future
 changes must preserve them. If you touch the relevant code, keep the guarantee.
 
