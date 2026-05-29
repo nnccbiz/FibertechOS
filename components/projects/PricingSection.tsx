@@ -6,6 +6,7 @@ import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { createClient } from '@/lib/supabase/client';
 import CustomerForm from '@/components/customers/CustomerForm';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
   calcCostPerMeter,
   calcRokerCostPerMeter,
@@ -215,11 +216,8 @@ function CostsTab({ p }: { p: ReturnType<typeof usePricing> }) {
             {p.newCostInput.source_type === 'supplier' && (
               <div className="min-w-[120px]">
                 <label className="block text-[12px] font-semibold text-gray-500 mb-1">מטבע</label>
-                <select value={p.newCostInput.currency} onChange={(e) => p.setNewCostInput({ ...p.newCostInput, currency: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                  <option value="USD">$ דולר</option>
-                  <option value="EUR">€ אירו</option>
-                  <option value="ILS">₪ שקל</option>
-                </select>
+                <SearchableSelect value={p.newCostInput.currency} onChange={(v) => p.setNewCostInput({ ...p.newCostInput, currency: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                  options={[{ value: 'USD', label: '$ דולר' }, { value: 'EUR', label: '€ אירו' }, { value: 'ILS', label: '₪ שקל' }]} />
               </div>
             )}
             <div className="flex-1 min-w-[150px]">
@@ -513,17 +511,16 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             <div className="md:col-span-2">
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">לקוח</label>
               <div className="flex items-center gap-2">
-                <select
+                <SearchableSelect
                   value={p.newQuote.customer_id}
-                  onChange={(e) => {
-                    const cust = p.customers.find((c: any) => c.id === e.target.value);
-                    p.setNewQuote({ ...p.newQuote, customer_id: e.target.value, client_name: cust?.name || p.newQuote.client_name });
+                  onChange={(v) => {
+                    const cust = p.customers.find((c: any) => c.id === v);
+                    p.setNewQuote({ ...p.newQuote, customer_id: v, client_name: cust?.name || p.newQuote.client_name });
                   }}
-                  className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
-                >
-                  <option value="">— ללא לקוח —</option>
-                  {p.customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                  className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                  placeholder="— ללא לקוח —"
+                  options={[{ value: '', label: '— ללא לקוח —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]}
+                />
                 <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-white border border-[#1a56db] text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-50 whitespace-nowrap">+ לקוח חדש</button>
               </div>
             </div>
@@ -533,16 +530,14 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">איש קשר</label>
-              <select value={p.newQuote.contact_id} onChange={(e) => p.setNewQuote({ ...p.newQuote, contact_id: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                <option value="">— ללא / איש קשר ראשון —</option>
-                {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ''}{c.phone ? ` · ${c.phone}` : ''}</option>)}
-              </select>
+              <SearchableSelect value={p.newQuote.contact_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, contact_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                placeholder="— ללא / איש קשר ראשון —"
+                options={[{ value: '', label: '— ללא / איש קשר ראשון —' }, ...p.contacts.map((c: any) => ({ value: c.id, label: `${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}` }))]} />
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הצעה</label>
-              <select value={p.newQuote.tier} onChange={(e) => p.setNewQuote({ ...p.newQuote, tier: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                {QUOTE_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <SearchableSelect value={p.newQuote.tier} onChange={(v) => p.setNewQuote({ ...p.newQuote, tier: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                options={QUOTE_TIERS.map((t) => ({ value: t.value, label: t.label }))} />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -562,10 +557,9 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             {p.costInputs.length > 0 && (
               <div>
                 <label className="block text-[12px] font-semibold text-gray-500 mb-1">קישור לתמחור</label>
-                <select value={p.newQuote.cost_input_id} onChange={(e) => p.setNewQuote({ ...p.newQuote, cost_input_id: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                  <option value="">ללא קישור</option>
-                  {p.costInputs.map((ci) => <option key={ci.id} value={ci.id}>{ci.source_name} ({ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})</option>)}
-                </select>
+                <SearchableSelect value={p.newQuote.cost_input_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, cost_input_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                  placeholder="ללא קישור"
+                  options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})` }))]} />
               </div>
             )}
             <div>
@@ -580,9 +574,8 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הערות משפטיות</label>
-              <select value={p.newQuote.disclaimer_type} onChange={(e) => p.setNewQuote({ ...p.newQuote, disclaimer_type: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                {DISCLAIMER_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-              </select>
+              <SearchableSelect value={p.newQuote.disclaimer_type} onChange={(v) => p.setNewQuote({ ...p.newQuote, disclaimer_type: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                options={DISCLAIMER_TYPES.map((d) => ({ value: d.value, label: d.label }))} />
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">תנאי תשלום</label>
@@ -649,30 +642,24 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 </label>
                 <span className="flex items-center gap-1 text-[12px] text-gray-500">
                   👤 איש קשר:
-                  <select value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(e) => p.assignQuoteContact(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                    <option value="">— ראשון בפרויקט —</option>
-                    {p.contacts.length > 0 && (
-                      <optgroup label="אנשי קשר בפרויקט">
-                        {p.contacts.map((c) => <option key={c.id} value={`pc:${c.id}`}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
-                      </optgroup>
-                    )}
-                    {q.customer_id && (() => {
-                      const projNames = new Set(p.contacts.map((c) => (c.name || '').trim()).filter(Boolean));
-                      const custOpts = p.customerContacts.filter((c) => c.client_id === q.customer_id && !projNames.has((c.name || '').trim()));
-                      return custOpts.length > 0 ? (
-                        <optgroup label="אנשי קשר של הלקוח">
-                          {custOpts.map((c) => <option key={c.id} value={`cc:${c.id}`}>{c.name}{c.role ? ` (${c.role})` : ''}</option>)}
-                        </optgroup>
-                      ) : null;
-                    })()}
-                  </select>
+                  <SearchableSelect value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(v) => p.assignQuoteContact(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
+                    placeholder="— ראשון בפרויקט —"
+                    options={(() => {
+                      const opts: { value: string; label: string; group?: string }[] = [{ value: '', label: '— ראשון בפרויקט —' }];
+                      p.contacts.forEach((c: any) => opts.push({ value: `pc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר בפרויקט' }));
+                      if (q.customer_id) {
+                        const projNames = new Set(p.contacts.map((c: any) => (c.name || '').trim()).filter(Boolean));
+                        p.customerContacts.filter((c: any) => c.client_id === q.customer_id && !projNames.has((c.name || '').trim()))
+                          .forEach((c: any) => opts.push({ value: `cc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר של הלקוח' }));
+                      }
+                      return opts;
+                    })()} />
                 </span>
                 <span className="flex items-center gap-1 text-[12px] text-gray-500">
                   🏢 לקוח:
-                  <select value={q.customer_id || ''} onChange={(e) => p.setQuoteCustomer(q.id, e.target.value)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20">
-                    <option value="">— ללא —</option>
-                    {p.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <SearchableSelect value={q.customer_id || ''} onChange={(v) => p.setQuoteCustomer(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
+                    placeholder="— ללא —"
+                    options={[{ value: '', label: '— ללא —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]} />
                 </span>
               </>
             )}

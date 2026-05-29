@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
   APP_MODULES,
   MODULE_LABELS_HE,
@@ -145,19 +146,13 @@ export default function UserPermissionsEditor({
                           <span className="ml-2">{MODULE_ICONS[mod]}</span>
                           {MODULE_LABELS_HE[mod]}
                         </div>
-                        <select
+                        <SearchableSelect
                           value={getPerm(m.id, mod)}
-                          onChange={(e) => setPerm(m.id, mod, e.target.value as PermissionLevel)}
+                          onChange={(v) => setPerm(m.id, mod, v as PermissionLevel)}
                           disabled={m.access_level === 'admin'}
-                          title={m.access_level === 'admin' ? 'Admin רואה את הכל ממילא' : undefined}
-                          className="text-[13px] border border-[#e2e8f0] rounded px-2 py-1 disabled:bg-gray-100"
-                        >
-                          {PERMISSION_LEVELS.map((lvl) => (
-                            <option key={lvl} value={lvl}>
-                              {LEVEL_LABELS_HE[lvl]}
-                            </option>
-                          ))}
-                        </select>
+                          className="text-[13px] border border-[#e2e8f0] rounded px-2 py-1 min-w-[110px]"
+                          options={PERMISSION_LEVELS.map((lvl) => ({ value: lvl, label: LEVEL_LABELS_HE[lvl] }))}
+                        />
                       </div>
                     ))}
                   </div>

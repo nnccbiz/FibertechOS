@@ -9,6 +9,7 @@ import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
 import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -43,10 +44,8 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
         type === 'textarea' ? (
           <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-[60px]`} />
         ) : type === 'select' && options ? (
-          <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-            <option value="">—</option>
-            {options.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <SearchableSelect value={value} onChange={onChange} className={inputClass} placeholder="—"
+            options={[{ value: '', label: '—' }, ...options.map((o) => ({ value: o, label: o }))]} />
         ) : (
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
         )
@@ -860,14 +859,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {/* Winning customer — known only after the tender is won */}
           <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2 mb-3">
             <span className="text-[13px] font-semibold text-gray-600">🏆 לקוח זוכה:</span>
-            <select
+            <SearchableSelect
               value={project.customer_id || ''}
-              onChange={(e) => setProjectCustomer(e.target.value)}
-              className="border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 bg-white"
-            >
-              <option value="">— טרם נקבע —</option>
-              {customersList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              onChange={(v) => setProjectCustomer(v)}
+              className="border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
+              placeholder="— טרם נקבע —"
+              options={[{ value: '', label: '— טרם נקבע —' }, ...customersList.map((c: any) => ({ value: c.id, label: c.name }))]}
+            />
             <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
             {project.customer_id && (
               <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
@@ -879,10 +877,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               {contactsForm.map((c, i) => (
                 <div key={i} className="border border-[#e2e8f0] rounded-lg p-3 space-y-2">
                   <div className="flex gap-2 items-center">
-                    <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0 bg-white`}>
-                      <option value="">תפקיד</option>
-                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <SearchableSelect value={c.role || ''} onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], role: v }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} placeholder="תפקיד"
+                      options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]} />
                     <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
                     <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl shrink-0 leading-none">✕</button>
                   </div>
@@ -973,13 +969,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
                     <input type="number" placeholder="ID" value={s.id_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], id_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר פנימי" />
                   </div>
-                  <select value={s.pipe_type || 'הטמנה'} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-36`}>
-                    <option value="הטמנה">הטמנה</option>
-                    <option value="דחיקה">דחיקה (Jacking)</option>
-                    <option value="השחלה">השחלה (Slip Lining)</option>
-                    <option value="עילי">עילי</option>
-                    <option value="ביאקסיאלי">ביאקסיאלי</option>
-                  </select>
+                  <SearchableSelect value={s.pipe_type || 'הטמנה'} onChange={(v) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: v }; setSpecsForm(next); }} className={`${inputClass} w-36`}
+                    options={[{ value: 'הטמנה', label: 'הטמנה' }, { value: 'דחיקה', label: 'דחיקה (Jacking)' }, { value: 'השחלה', label: 'השחלה (Slip Lining)' }, { value: 'עילי', label: 'עילי' }, { value: 'ביאקסיאלי', label: 'ביאקסיאלי' }]} />
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 export interface ProjectContact {
   role: string;
@@ -79,16 +80,13 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
           {contacts.map((contact, i) => (
             <div key={i} className="border border-[#e2e8f0] rounded-lg p-2 space-y-2">
               <div className="flex gap-2 items-center">
-                <select
+                <SearchableSelect
                   value={contact.role}
-                  onChange={(e) => updateContact(i, 'role', e.target.value)}
-                  className="w-36 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db] bg-white"
-                >
-                  <option value="">תפקיד</option>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+                  onChange={(v) => updateContact(i, 'role', v)}
+                  className="w-36 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm"
+                  placeholder="תפקיד"
+                  options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]}
+                />
                 <input
                   type="text"
                   value={contact.name}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { APP_MODULES, MODULE_LABELS_HE, MODULE_ICONS, PERMISSION_LEVELS, LEVEL_LABELS_HE, type AppModule, type PermissionLevel } from '@/lib/auth/permissions';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 type Request = {
   id: string;
@@ -176,15 +177,12 @@ function ApprovalForm({
                 <span className="ml-2">{MODULE_ICONS[m]}</span>
                 {MODULE_LABELS_HE[m]}
               </div>
-              <select
+              <SearchableSelect
                 value={perms[m]}
-                onChange={(e) => setPerms({ ...perms, [m]: e.target.value as PermissionLevel })}
-                className="text-[13px] border border-[#e2e8f0] rounded px-2 py-1"
-              >
-                {PERMISSION_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>{LEVEL_LABELS_HE[lvl]}</option>
-                ))}
-              </select>
+                onChange={(v) => setPerms({ ...perms, [m]: v as PermissionLevel })}
+                className="text-[13px] border border-[#e2e8f0] rounded px-2 py-1 min-w-[110px]"
+                options={PERMISSION_LEVELS.map((lvl) => ({ value: lvl, label: LEVEL_LABELS_HE[lvl] }))}
+              />
             </div>
           ))}
         </div>

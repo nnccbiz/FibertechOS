@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
@@ -316,12 +317,8 @@ export default function NewProjectPage() {
             </div>
             <div>
               <label className={labelClass}>עדיפות</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputClass}>
-                <option value="low">נמוכה</option>
-                <option value="medium">בינונית</option>
-                <option value="high">גבוהה</option>
-                <option value="critical">קריטית</option>
-              </select>
+              <SearchableSelect value={priority} onChange={(v) => setPriority(v)} className={inputClass}
+                options={[{ value: 'low', label: 'נמוכה' }, { value: 'medium', label: 'בינונית' }, { value: 'high', label: 'גבוהה' }, { value: 'critical', label: 'קריטית' }]} />
             </div>
           </div>
         </section>
@@ -387,17 +384,13 @@ export default function NewProjectPage() {
             </div>
             <div>
               <label className={labelClass}>סוג פרויקט</label>
-              <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputClass}>
-                <option value="">בחר סוג</option>
-                {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <SearchableSelect value={projectType} onChange={(v) => setProjectType(v)} className={inputClass} placeholder="בחר סוג"
+                options={[{ value: '', label: 'בחר סוג' }, ...PROJECT_TYPES.map((t) => ({ value: t, label: t }))]} />
             </div>
             <div>
               <label className={labelClass}>סוג התקנה</label>
-              <select value={installationType} onChange={(e) => setInstallationType(e.target.value)} className={inputClass}>
-                <option value="">בחר סוג</option>
-                {INSTALLATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <SearchableSelect value={installationType} onChange={(v) => setInstallationType(v)} className={inputClass} placeholder="בחר סוג"
+                options={[{ value: '', label: 'בחר סוג' }, ...INSTALLATION_TYPES.map((t) => ({ value: t, label: t }))]} />
             </div>
             <div>
               <label className={labelClass}>דרישות מיוחדות לצנרת</label>

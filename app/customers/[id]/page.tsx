@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { formatILS } from '@/lib/revenue';
 import CustomerForm from '@/components/customers/CustomerForm';
 
@@ -188,10 +189,8 @@ export default function CustomerDetailPage() {
       {showMerge && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center gap-2 flex-wrap" dir="rtl">
           <span className="text-sm text-amber-800">מזג לתוך לקוח זה את:</span>
-          <select value={mergeTarget} onChange={(e) => setMergeTarget(e.target.value)} className="border border-amber-300 rounded-lg px-3 py-1.5 text-sm bg-white">
-            <option value="">— בחר לקוח לאיחוד —</option>
-            {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <SearchableSelect value={mergeTarget} onChange={(v) => setMergeTarget(v)} className="border border-amber-300 rounded-lg px-3 py-1.5 text-sm min-w-[200px]" placeholder="— בחר לקוח לאיחוד —"
+            options={[{ value: '', label: '— בחר לקוח לאיחוד —' }, ...allCustomers.map((c: any) => ({ value: c.id, label: c.name }))]} />
           <button onClick={mergeCustomer} disabled={!mergeTarget || merging} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{merging ? 'ממזג…' : 'מזג'}</button>
           <button onClick={() => { setShowMerge(false); setMergeTarget(''); }} className="text-sm text-gray-500 px-3 py-1.5">ביטול</button>
           <span className="text-[12px] text-amber-700 w-full">כל ההצעות, הפרויקטים ואנשי הקשר של הלקוח שתבחר יועברו לכרטיס זה, והוא יימחק.</span>
