@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
+
+// Updates select a row by id. The id comes from untrusted model output, so it
+// must be a well-formed UUID before it reaches the query.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface CommandBarProps {
   onActionComplete?: () => void;
@@ -120,6 +125,18 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
       let previousValues: any = null;
 
       if (result.action === 'create' && result.target_table && result.data) {
+        // Roxy output is untrusted — validate table + columns against the allowlist.
+        const validation = validateWrite(result.target_table, result.data);
+        if (!validation.ok) {
+          await logRejection(supabase, {
+            command, action: result.action, validation,
+            targetLabel: result.target_label, data: result.data,
+            sourceType: documentText ? 'document' : 'command',
+          });
+          setFeedback({ text: rejectionMessage(validation), type: 'error' });
+          return;
+        }
+
         const { data: created, error } = await supabase
           .from(result.target_table)
           .insert(result.data)
@@ -133,33 +150,71 @@ export default function CommandBar({ onActionComplete }: CommandBarProps) {
         if (targetId) {
           if (result.contacts?.length > 0) {
             const rows = result.contacts.filter((c: any) => c.name).map((c: any) => ({ project_id: targetId, ...c }));
+            const bad = rows.find((r: any) => !validateWrite('project_contacts', r).ok);
+            if (bad) {
+              const v = validateWrite('project_contacts', bad);
+              await logRejection(supabase, { command, action: 'create', validation: v, targetLabel: result.target_label, data: bad, sourceType: documentText ? 'document' : 'command' });
+              setFeedback({ text: rejectionMessage(v), type: 'error' });
+              return;
+            }
             if (rows.length > 0) await supabase.from('project_contacts').insert(rows);
           }
           if (result.pipe_specs?.length > 0) {
             const rows = result.pipe_specs.filter((s: any) => s.diameter_mm > 0).map((s: any) => ({ project_id: targetId, ...s }));
+            const bad = rows.find((r: any) => !validateWrite('pipe_specs', r).ok);
+            if (bad) {
+              const v = validateWrite('pipe_specs', bad);
+              await logRejection(supabase, { command, action: 'create', validation: v, targetLabel: result.target_label, data: bad, sourceType: documentText ? 'document' : 'command' });
+              setFeedback({ text: rejectionMessage(v), type: 'error' });
+              return;
+            }
             if (rows.length > 0) await supabase.from('pipe_specs').insert(rows);
           }
         }
       }
 
       if (result.action === 'update' && result.target_table && result.data) {
-        // Get previous values for undo
-        if (result.data.id) {
-          const { data: prev } = await supabase
-            .from(result.target_table)
-            .select('*')
-            .eq('id', result.data.id)
-            .single();
-          previousValues = prev;
-          targetId = result.data.id;
+        const rowId = result.data.id;
+        // Updates target a specific row by id — require a well-formed UUID from
+        // the (untrusted) model output before touching the DB.
+        if (typeof rowId !== 'string' || !UUID_RE.test(rowId)) {
+          setFeedback({ text: 'לא ניתן לעדכן: לא זוהה מזהה רשומה תקין.', type: 'error' });
+          return;
+        }
 
-          const updateData = { ...result.data };
-          delete updateData.id;
-          const { error } = await supabase
-            .from(result.target_table)
-            .update(updateData)
-            .eq('id', result.data.id);
-          if (error) throw error;
+        // Roxy output is untrusted — validate table + columns against the allowlist.
+        const validation = validateWrite(result.target_table, result.data);
+        if (!validation.ok) {
+          await logRejection(supabase, {
+            command, action: result.action, validation,
+            targetLabel: result.target_label, data: result.data,
+            sourceType: documentText ? 'document' : 'command',
+          });
+          setFeedback({ text: rejectionMessage(validation), type: 'error' });
+          return;
+        }
+
+        const { data: prev } = await supabase
+          .from(result.target_table)
+          .select('*')
+          .eq('id', rowId)
+          .single();
+        previousValues = prev;
+        targetId = rowId;
+
+        const updateData = { ...result.data };
+        delete updateData.id;
+        const { data: updatedRows, error } = await supabase
+          .from(result.target_table)
+          .update(updateData)
+          .eq('id', rowId)
+          .select('id');
+        if (error) throw error;
+        // RLS denial or a missing row yields a 0-row update with no error —
+        // surface it instead of reporting a phantom success.
+        if (!updatedRows || updatedRows.length === 0) {
+          setFeedback({ text: 'העדכון לא בוצע: הרשומה לא נמצאה או שאין הרשאה לעדכן אותה.', type: 'error' });
+          return;
         }
       }
 
