@@ -17,7 +17,7 @@ The system manages the full lifecycle: lead tracking, project management, quote 
 | Database | Supabase (Postgres 17, hosted `eu-west-3`) |
 | Auth | Supabase Auth (email/password), custom permission matrix |
 | Storage | Supabase Storage (quote attachments, drawings) |
-| AI assistant | Google Gemini (gemma-3-27b-it) — internal chatbot "Roxy" (רקסי) |
+| AI assistant | Google Gemini (gemini-2.5-flash) — internal chatbot "Roxy" (רקסי) |
 | PDF generation | jspdf + html2canvas |
 | Hosting | Vercel (auto-deploy from GitHub) |
 | Repo | GitHub `nnccbiz/FibertechOS`, branches: `main` (prod), `dev` (staging) |
@@ -126,7 +126,7 @@ FibertechOS/
 - **Margin validation**: Warns on items with margin < 10% or > 60%, or zero cost.
 
 ### AI Integration (Roxy)
-- Google Gemini (gemma-3-27b-it). Structured JSON output only.
+- Google Gemini (gemini-2.5-flash). Structured JSON output only.
 - System prompt defines available tables and expected response format.
 - Handles: create/update/delete records, import supplier quotes, generate reports, add tasks.
 - Supplier quote extraction: Parses Amiblu/Flowtite quotation documents into structured `cost_input_items`.

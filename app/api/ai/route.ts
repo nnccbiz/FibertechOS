@@ -18,7 +18,7 @@ const RATE_LIMIT_MESSAGES: Record<string, string> = {
   user_rate_limit_hour: 'חרגת ממכסת הבקשות לשעה (200). נסה שוב מאוחר יותר.',
   global_rate_limit_minute: 'המערכת עמוסה כרגע (מכסת בקשות כללית). נסה שוב בעוד דקה.',
 };
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מערכת ניהול תפעולית לחברת פיברטק תשתיות (צנרת GRP).
 
