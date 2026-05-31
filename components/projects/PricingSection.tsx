@@ -300,9 +300,11 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
       <div className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${archived ? 'bg-gray-50 hover:bg-gray-100' : 'bg-amber-50/50 hover:bg-amber-50'}`} onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
         <div className="flex items-center gap-3">
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${archived ? 'bg-gray-200 text-gray-500' : ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
-          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{ci.source_name}</span>
+          <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>
+            {ci.source_name}
+            <span className={`mr-1.5 text-[11px] font-normal ${archived ? 'text-gray-400' : 'text-gray-500'}`}>· {formatDate(ci.created_at)}</span>
+          </span>
           {isForex && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{ci.currency} {ci.exchange_rate ? `@ ${parseFloat(ci.exchange_rate).toFixed(2)}` : ''}</span>}
-          <span className="text-[11px] text-gray-400">{formatDate(ci.created_at)}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{formatCurrency(ciTotal)}</span>
@@ -612,7 +614,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                 <label className="block text-[12px] font-semibold text-gray-500 mb-1">קישור לתמחור</label>
                 <SearchableSelect value={p.newQuote.cost_input_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, cost_input_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
                   placeholder="ללא קישור"
-                  options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})` }))]} />
+                  options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
               </div>
             )}
             <div>
@@ -719,7 +721,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     💰 קישור לתמחור:
                     <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
                       placeholder="ללא קישור"
-                      options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})` }))]} />
+                      options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
                   </span>
                 )}
               </>
