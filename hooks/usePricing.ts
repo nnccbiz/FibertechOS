@@ -53,6 +53,7 @@ export interface UsePricingReturn {
 
   // Actions
   createCostInput: () => Promise<void>;
+  duplicateCostInput: (ciId: string) => Promise<void>;
   parseCostFile: (fileList: FileList, costInputId: string) => Promise<void>;
   updateCostItem: (idx: number, field: string, val: any) => void;
   saveCostInputItems: (costInputId: string) => Promise<void>;
@@ -285,6 +286,36 @@ export function usePricing(projectId: string): UsePricingReturn {
     setExpandedCostInput(ci.id);
     setEditingCostInput(ci.id);
     setEditingCostItems([{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0, original_price: 0, original_currency: newCostInput.currency || 'USD', item_type: '' }]);
+  }
+
+  // Clone a cost input (all items, currency, terms) — handy when a new supplier
+  // quote arrives and most fields are the same as a previous one.
+  async function duplicateCostInput(ciId: string) {
+    const src = costInputs.find((c) => c.id === ciId);
+    if (!src) return;
+    const { data: nci, error } = await supabase.from('cost_inputs').insert({
+      project_id: projectId,
+      source_type: src.source_type,
+      source_name: `${src.source_name} (העתק)`,
+      notes: src.notes,
+      currency: src.currency,
+      exchange_rate: src.exchange_rate,
+      exchange_rate_date: src.exchange_rate_date,
+      payment_terms: src.payment_terms,
+    }).select().single();
+    if (error || !nci) { alert(`שגיאה בשכפול: ${error?.message || ''}`); return; }
+
+    const { data: srcItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', ciId);
+    if (srcItems && srcItems.length) {
+      const rows = srcItems.map(({ id, cost_input_id, created_at, ...rest }: any) => ({ ...rest, cost_input_id: nci.id }));
+      await supabase.from('cost_input_items').insert(rows);
+    }
+    const { data: newItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', nci.id);
+
+    setCostInputs((prev) => [nci, ...prev]);
+    setCostInputItems((prev) => ({ ...prev, [nci.id]: newItems || [] }));
+    setExpandedCostInput(nci.id);
+    alert(`✅ התמחור שוכפל (${nci.source_name}).`);
   }
 
   function startEditCostInput(ciId: string) {
@@ -813,7 +844,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     expandedQuote, setExpandedQuote,
     expandedCostInput, setExpandedCostInput,
     parsingCostFile, saving, uploadingFile,
-    createCostInput, parseCostFile, updateCostItem, saveCostInputItems,
+    createCostInput, duplicateCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,

@@ -302,6 +302,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                   <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
                 </label>
               )}
+              <button onClick={(e) => { e.stopPropagation(); p.duplicateCostInput(ci.id); }} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100 transition-colors">📋 שכפל</button>
               <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '🗁 סיים תמחור'}</button>
             </div>
           )}
