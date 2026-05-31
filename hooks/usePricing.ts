@@ -292,35 +292,20 @@ export function usePricing(projectId: string): UsePricingReturn {
   // quote arrives and most fields are the same as a previous one.
   async function duplicateCostInput(ciId: string) {
     try {
-      const src = costInputs.find((c) => c.id === ciId);
-      if (!src) { alert('לא מצאתי את התמחור המקורי'); return; }
-      const insertRow: any = {
-        project_id: projectId,
-        source_type: src.source_type || 'supplier',
-        source_name: `${src.source_name || 'תמחור'} (העתק)`,
-        notes: src.notes || null,
-        currency: src.currency || 'ILS',
-        payment_terms: src.payment_terms || '',
-      };
-      if (src.exchange_rate != null) insertRow.exchange_rate = src.exchange_rate;
-      if (src.exchange_rate_date) insertRow.exchange_rate_date = src.exchange_rate_date;
+      // Atomic server-side copy (row + all items in one transaction).
+      const { data: newId, error: rpcErr } = await supabase.rpc('duplicate_cost_input', { p_ci_id: ciId });
+      if (rpcErr || !newId) { alert(`שגיאה בשכפול: ${rpcErr?.message || 'לא הוחזר מזהה'}`); return; }
 
-      const { data: nci, error } = await supabase.from('cost_inputs').insert(insertRow).select().single();
-      if (error || !nci) { alert(`שגיאה בשכפול: ${error?.message || 'insert לא החזיר שורה'}`); return; }
-
-      const { data: srcItems, error: selErr } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', ciId);
-      if (selErr) { alert(`שכפל את התמחור אבל לא הצלחתי לקרוא פריטים: ${selErr.message}`); }
-      if (srcItems && srcItems.length) {
-        const rows = srcItems.map(({ id, cost_input_id, created_at, ...rest }: any) => ({ ...rest, cost_input_id: nci.id }));
-        const { error: insErr } = await supabase.from('cost_input_items').insert(rows);
-        if (insErr) { alert(`שכפלתי את התמחור אבל העתקת הפריטים נכשלה: ${insErr.message}`); }
-      }
-      const { data: newItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', nci.id);
+      const [{ data: nci, error: ciErr }, { data: items }] = await Promise.all([
+        supabase.from('cost_inputs').select('*').eq('id', newId).single(),
+        supabase.from('cost_input_items').select('*').eq('cost_input_id', newId),
+      ]);
+      if (ciErr || !nci) { alert(`התמחור שוכפל אך טעינתו נכשלה: ${ciErr?.message || ''}`); return; }
 
       setCostInputs((prev) => [nci, ...prev]);
-      setCostInputItems((prev) => ({ ...prev, [nci.id]: newItems || [] }));
+      setCostInputItems((prev) => ({ ...prev, [nci.id]: items || [] }));
       setExpandedCostInput(nci.id);
-      alert(`✅ התמחור שוכפל (${nci.source_name}).`);
+      alert(`✅ התמחור שוכפל (${nci.source_name}) — ${items?.length || 0} פריטים.`);
     } catch (e: any) {
       alert(`שגיאה בשכפול: ${e?.message || e}`);
     }
