@@ -93,6 +93,8 @@ export interface UsePricingReturn {
   toggleArchiveCostInput: (ciId: string) => Promise<void>;
   uploadAttachment: (quoteId: string, file: File) => Promise<void>;
   deleteAttachment: (id: string) => Promise<void>;
+  uploadCostInputAttachment: (ciId: string, file: File) => Promise<any | null>;
+  deleteCostInput: (ciId: string) => Promise<void>;
   uploadingFile: boolean;
 }
 
@@ -237,6 +239,48 @@ export function usePricing(projectId: string): UsePricingReturn {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  // Save an uploaded file as an attachment linked to a cost input — so the
+  // original supplier quote (PDF/image/Excel) stays traceable from the price.
+  async function uploadCostInputAttachment(ciId: string, file: File): Promise<any | null> {
+    const ext = file.name.split('.').pop() || 'file';
+    const path = `${projectId}/cost_inputs/${ciId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
+    if (uploadErr) { console.error('upload cost_input attachment failed', uploadErr); return null; }
+    const { data: att, error: insertErr } = await supabase.from('attachments').insert({
+      entity_type: 'cost_input', entity_id: ciId, project_id: projectId,
+      file_name: file.name, file_url: path,
+      file_type: 'supplier_quote', file_size_bytes: file.size,
+    }).select().single();
+    if (insertErr || !att) { console.error('insert cost_input attachment failed', insertErr); return null; }
+    setAttachments((prev) => [att, ...prev]);
+    return att;
+  }
+
+  // Delete a cost input (its items cascade via FK; attachments are removed
+  // explicitly — both the rows and the underlying storage objects).
+  async function deleteCostInput(ciId: string) {
+    try {
+      const ciAtts = attachments.filter((a) => a.entity_type === 'cost_input' && a.entity_id === ciId);
+      if (ciAtts.length) {
+        const paths = ciAtts
+          .map((a) => a.file_url || '')
+          .filter(Boolean)
+          .map((p: string) => p.startsWith('http') ? (p.match(/project-files\/(.+)$/)?.[1] || p) : p);
+        if (paths.length) await supabase.storage.from('project-files').remove(paths);
+        await supabase.from('attachments').delete().eq('entity_type', 'cost_input').eq('entity_id', ciId);
+      }
+      const { error } = await supabase.from('cost_inputs').delete().eq('id', ciId);
+      if (error) { alert(`שגיאה במחיקה: ${error.message}`); return; }
+      setCostInputs((prev) => prev.filter((c) => c.id !== ciId));
+      setCostInputItems((prev) => { const next = { ...prev }; delete next[ciId]; return next; });
+      setAttachments((prev) => prev.filter((a) => !(a.entity_type === 'cost_input' && a.entity_id === ciId)));
+      if (expandedCostInput === ciId) setExpandedCostInput(null);
+      if (editingCostInput === ciId) setEditingCostInput(null);
+    } catch (e: any) {
+      alert(`שגיאה במחיקה: ${e?.message || e}`);
+    }
+  }
+
   async function loadExchangeRates() {
     setRateLoading(true);
     try {
@@ -302,10 +346,24 @@ export function usePricing(projectId: string): UsePricingReturn {
       ]);
       if (ciErr || !nci) { alert(`התמחור שוכפל אך טעינתו נכשלה: ${ciErr?.message || ''}`); return; }
 
+      // Mirror the source's attachment rows onto the new cost input (reusing
+      // the same storage objects — no duplicated bytes).
+      const srcAtts = attachments.filter((a) => a.entity_type === 'cost_input' && a.entity_id === ciId);
+      let newAtts: any[] = [];
+      if (srcAtts.length) {
+        const rows = srcAtts.map((a) => ({
+          entity_type: 'cost_input', entity_id: newId, project_id: projectId,
+          file_name: a.file_name, file_url: a.file_url, file_type: a.file_type, file_size_bytes: a.file_size_bytes,
+        }));
+        const { data: inserted } = await supabase.from('attachments').insert(rows).select();
+        newAtts = inserted || [];
+      }
+
       setCostInputs((prev) => [nci, ...prev]);
       setCostInputItems((prev) => ({ ...prev, [nci.id]: items || [] }));
+      if (newAtts.length) setAttachments((prev) => [...newAtts, ...prev]);
       setExpandedCostInput(nci.id);
-      alert(`✅ התמחור שוכפל (${nci.source_name}) — ${items?.length || 0} פריטים.`);
+      alert(`✅ התמחור שוכפל (${nci.source_name}) — ${items?.length || 0} פריטים${srcAtts.length ? `, ${srcAtts.length} קבצים` : ''}.`);
     } catch (e: any) {
       alert(`שגיאה בשכפול: ${e?.message || e}`);
     }
@@ -388,6 +446,11 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function parseCostFile(fileList: FileList, costInputId: string) {
     setParsingCostFile(true);
     try {
+      // Save the source files as attachments on the cost input so the
+      // original supplier quotes stay traceable from the parsed price.
+      for (let k = 0; k < fileList.length; k++) {
+        try { await uploadCostInputAttachment(costInputId, fileList[k]); } catch {}
+      }
       const filesArr: { base64: string; mimeType: string; name: string }[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -844,6 +907,6 @@ export function usePricing(projectId: string): UsePricingReturn {
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
-    toggleArchiveCostInput, uploadAttachment, deleteAttachment,
+    toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,
   };
 }

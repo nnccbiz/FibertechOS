@@ -126,6 +126,25 @@ function AutoTextarea({ value, onChange, placeholder, className }: { value: stri
   );
 }
 
+function CostAttachmentLink({ att }: { att: any }) {
+  async function open() {
+    let path = att.file_url || '';
+    if (!path) return;
+    if (path.startsWith('http')) {
+      const m = path.match(/project-files\/(.+)$/);
+      if (m) path = m[1];
+    }
+    const sb = createClient();
+    const { data } = await sb.storage.from('project-files').createSignedUrl(path, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
+  return (
+    <button onClick={open} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0" dir="ltr" title={att.file_name}>
+      📄 {att.file_name}
+    </button>
+  );
+}
+
 const QUOTE_TIER_MAP: Record<string, { label: string; color: string }> = {
   planner_estimate:      { label: 'הערכת מתכנן',  color: 'bg-purple-100 text-purple-700' },
   contractor_pre_tender: { label: 'טרום מכרז',     color: 'bg-amber-100 text-amber-700' },
@@ -302,12 +321,45 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                   <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
                 </label>
               )}
+              {!archived && (
+                <label className="text-[12px] bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer">
+                  📁 צרף קובץ
+                  <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = '';
+                    for (const f of files) { await p.uploadCostInputAttachment(ci.id, f); }
+                  }} />
+                </label>
+              )}
               <button onClick={(e) => { e.stopPropagation(); p.duplicateCostInput(ci.id); }} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100 transition-colors">📋 שכפל</button>
               <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{archived ? '↩ שחזר' : '🗁 סיים תמחור'}</button>
+              <button onClick={(e) => {
+                e.stopPropagation();
+                if (!confirm(`למחוק את התמחור "${ci.source_name}" וכל הפריטים והקבצים שלו? פעולה זו אינה הפיכה.`)) return;
+                if (!confirm('בטוח? למחוק לצמיתות?')) return;
+                p.deleteCostInput(ci.id);
+              }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">🗑️ מחק</button>
             </div>
           )}
           {ci.payment_terms && <p className="text-[12px] text-gray-500 mb-2 whitespace-pre-line">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
           {ci.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {ci.notes}</p>}
+          {(() => {
+            const ciAtts = p.attachments.filter((a: any) => a.entity_type === 'cost_input' && a.entity_id === ci.id);
+            if (ciAtts.length === 0) return null;
+            return (
+              <div className="mb-3 p-2 bg-indigo-50/40 border border-indigo-100 rounded-lg">
+                <p className="text-[11px] font-semibold text-indigo-700 mb-1.5">📎 קבצים מצורפים ({ciAtts.length})</p>
+                <div className="space-y-1">
+                  {ciAtts.map((a: any) => (
+                    <div key={a.id} className="flex items-center gap-2 text-[12px]">
+                      <CostAttachmentLink att={a} />
+                      <button onClick={async () => { if (!confirm('למחוק את הקובץ?')) return; await p.deleteAttachment(a.id); }} className="text-red-400 hover:text-red-600 text-[14px]">×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {isEdit ? (
             <CostItemsEditor ci={ci} p={p} />
