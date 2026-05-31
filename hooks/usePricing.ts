@@ -291,31 +291,39 @@ export function usePricing(projectId: string): UsePricingReturn {
   // Clone a cost input (all items, currency, terms) — handy when a new supplier
   // quote arrives and most fields are the same as a previous one.
   async function duplicateCostInput(ciId: string) {
-    const src = costInputs.find((c) => c.id === ciId);
-    if (!src) return;
-    const { data: nci, error } = await supabase.from('cost_inputs').insert({
-      project_id: projectId,
-      source_type: src.source_type,
-      source_name: `${src.source_name} (העתק)`,
-      notes: src.notes,
-      currency: src.currency,
-      exchange_rate: src.exchange_rate,
-      exchange_rate_date: src.exchange_rate_date,
-      payment_terms: src.payment_terms,
-    }).select().single();
-    if (error || !nci) { alert(`שגיאה בשכפול: ${error?.message || ''}`); return; }
+    try {
+      const src = costInputs.find((c) => c.id === ciId);
+      if (!src) { alert('לא מצאתי את התמחור המקורי'); return; }
+      const insertRow: any = {
+        project_id: projectId,
+        source_type: src.source_type || 'supplier',
+        source_name: `${src.source_name || 'תמחור'} (העתק)`,
+        notes: src.notes || null,
+        currency: src.currency || 'ILS',
+        payment_terms: src.payment_terms || '',
+      };
+      if (src.exchange_rate != null) insertRow.exchange_rate = src.exchange_rate;
+      if (src.exchange_rate_date) insertRow.exchange_rate_date = src.exchange_rate_date;
 
-    const { data: srcItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', ciId);
-    if (srcItems && srcItems.length) {
-      const rows = srcItems.map(({ id, cost_input_id, created_at, ...rest }: any) => ({ ...rest, cost_input_id: nci.id }));
-      await supabase.from('cost_input_items').insert(rows);
+      const { data: nci, error } = await supabase.from('cost_inputs').insert(insertRow).select().single();
+      if (error || !nci) { alert(`שגיאה בשכפול: ${error?.message || 'insert לא החזיר שורה'}`); return; }
+
+      const { data: srcItems, error: selErr } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', ciId);
+      if (selErr) { alert(`שכפל את התמחור אבל לא הצלחתי לקרוא פריטים: ${selErr.message}`); }
+      if (srcItems && srcItems.length) {
+        const rows = srcItems.map(({ id, cost_input_id, created_at, ...rest }: any) => ({ ...rest, cost_input_id: nci.id }));
+        const { error: insErr } = await supabase.from('cost_input_items').insert(rows);
+        if (insErr) { alert(`שכפלתי את התמחור אבל העתקת הפריטים נכשלה: ${insErr.message}`); }
+      }
+      const { data: newItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', nci.id);
+
+      setCostInputs((prev) => [nci, ...prev]);
+      setCostInputItems((prev) => ({ ...prev, [nci.id]: newItems || [] }));
+      setExpandedCostInput(nci.id);
+      alert(`✅ התמחור שוכפל (${nci.source_name}).`);
+    } catch (e: any) {
+      alert(`שגיאה בשכפול: ${e?.message || e}`);
     }
-    const { data: newItems } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', nci.id);
-
-    setCostInputs((prev) => [nci, ...prev]);
-    setCostInputItems((prev) => ({ ...prev, [nci.id]: newItems || [] }));
-    setExpandedCostInput(nci.id);
-    alert(`✅ התמחור שוכפל (${nci.source_name}).`);
   }
 
   function startEditCostInput(ciId: string) {
