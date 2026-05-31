@@ -732,11 +732,71 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   // Re-link a quote to a different cost input (used on a duplicated draft
-  // when the user wants to base it on another supplier quote).
+  // when the user wants to base it on another supplier quote). If the link
+  // changes to a real cost input, the quote's items are replaced (after
+  // confirmation) with rows derived from that cost input — using the quote's
+  // own overheads/profit defaults to compute selling prices.
   async function setQuoteCostInput(quoteId: string, costInputId: string) {
     const value = costInputId || null;
-    await supabase.from('quotes').update({ cost_input_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, cost_input_id: value } : q));
+    const quote = quotes.find((q) => q.id === quoteId);
+
+    // Just clearing the link — keep the items, only update the field.
+    if (!value) {
+      await supabase.from('quotes').update({ cost_input_id: null, updated_at: new Date().toISOString() }).eq('id', quoteId);
+      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, cost_input_id: null } : q));
+      return;
+    }
+
+    const currentItems = quoteItems[quoteId] || [];
+    if (currentItems.length > 0 && !confirm('שינוי הקישור לתמחור יחליף את הפריטים בהצעה (תיאורים, כמויות ועלויות) על-פי התמחור החדש. להמשיך?')) return;
+
+    // Pull the new cost input's items (prefer local cache, fall back to DB).
+    let srcItems = costInputItems[value];
+    if (!srcItems) {
+      const { data } = await supabase.from('cost_input_items').select('*').eq('cost_input_id', value).order('sort_order');
+      srcItems = data || [];
+    }
+
+    const oh = parseFloat(quote?.default_overheads_pct ?? '17') || 0;
+    const pr = parseFloat(quote?.default_profit_pct ?? '25') || 0;
+    const newItems = srcItems.map((ci: any, idx: number) => {
+      const cost = parseFloat(ci.cost_price) || 0;
+      const qty = parseFloat(ci.quantity) || 0;
+      const unitPrice = calcSellingPrice(cost, oh, pr);
+      return {
+        quote_id: quoteId,
+        product_name: ci.product_name || '',
+        dn_size: ci.dn_size || null,
+        quantity: qty,
+        unit: ci.unit || 'מטר',
+        cost_price: cost,
+        overheads_pct: oh,
+        profit_pct: pr,
+        discount_pct: 0,
+        unit_price: unitPrice,
+        total_price: Math.round(qty * unitPrice * 100) / 100,
+        notes: '',
+        sort_order: idx,
+      };
+    });
+
+    const totalCost = newItems.reduce((s, i) => s + (i.cost_price * i.quantity), 0);
+    const totalAmount = newItems.reduce((s, i) => s + i.total_price, 0);
+
+    await supabase.from('quote_items').delete().eq('quote_id', quoteId);
+    if (newItems.length > 0) {
+      const { error: insErr } = await supabase.from('quote_items').insert(newItems);
+      if (insErr) { alert(`שגיאה בהחלפת הפריטים: ${insErr.message}`); return; }
+    }
+
+    await supabase.from('quotes').update({
+      cost_input_id: value, total_cost: totalCost, total_amount: totalAmount, updated_at: new Date().toISOString(),
+    }).eq('id', quoteId);
+
+    const { data: reloaded } = await supabase.from('quote_items').select('*').eq('quote_id', quoteId).order('sort_order');
+    setQuoteItems((prev) => ({ ...prev, [quoteId]: reloaded || [] }));
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, cost_input_id: value, total_cost: totalCost, total_amount: totalAmount } : q));
+    if (editingQuote === quoteId) setEditingQuote(null); // exit any in-progress edit so the new items show
   }
 
   async function refreshCustomers() {
