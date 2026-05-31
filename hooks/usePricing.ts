@@ -69,6 +69,7 @@ export interface UsePricingReturn {
   setQuoteContact: (quoteId: string, contactId: string) => Promise<void>;
   assignQuoteContact: (quoteId: string, value: string) => Promise<void>;
   setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
+  setQuoteCostInput: (quoteId: string, costInputId: string) => Promise<void>;
   refreshCustomers: () => Promise<void>;
   toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
@@ -730,6 +731,14 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, customer_id: value, ...(name ? { client_name: name } : {}) } : q));
   }
 
+  // Re-link a quote to a different cost input (used on a duplicated draft
+  // when the user wants to base it on another supplier quote).
+  async function setQuoteCostInput(quoteId: string, costInputId: string) {
+    const value = costInputId || null;
+    await supabase.from('quotes').update({ cost_input_id: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, cost_input_id: value } : q));
+  }
+
   async function refreshCustomers() {
     const { data } = await supabase.from('clients').select('id, name').order('name');
     setCustomers(data || []);
@@ -904,7 +913,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
-    createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer,
+    createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,

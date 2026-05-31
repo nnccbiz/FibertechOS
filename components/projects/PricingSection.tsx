@@ -714,6 +714,14 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     placeholder="— ללא —"
                     options={[{ value: '', label: '— ללא —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]} />
                 </span>
+                {q.status === 'draft' && p.costInputs.length > 0 && (
+                  <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                    💰 קישור לתמחור:
+                    <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
+                      placeholder="ללא קישור"
+                      options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})` }))]} />
+                  </span>
+                )}
               </>
             )}
             {q.status === 'draft' && (
