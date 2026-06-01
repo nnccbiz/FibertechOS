@@ -461,10 +461,13 @@ export async function POST(request: NextRequest) {
         const mime = file.mimeType || '';
         const name = file.name || '';
         const isExcel = mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name);
+        console.log(`[AI route] file "${name}" mime="${mime}" base64len=${file.base64?.length || 0} isExcel=${isExcel}`);
         if (isExcel && file.base64) {
-          const boqResult: any = parseExcelBOQ(Buffer.from(file.base64, 'base64'), name);
+          let boqResult: any = null;
+          try { boqResult = parseExcelBOQ(Buffer.from(file.base64, 'base64'), name); }
+          catch (e: any) { console.error(`[AI route] parseExcelBOQ threw for "${name}":`, e?.message); }
+          console.log(`[AI route] parseExcelBOQ "${name}": ${boqResult?.data?.length || 0} items (info=${JSON.stringify(boqResult?.quote_info || {})})`);
           if (boqResult && Array.isArray(boqResult.data) && boqResult.data.length) {
-            console.log(`[AI route] Excel "${name}": ${boqResult.data.length} items`);
             excelItems.push(...boqResult.data);
             if (!excelQuoteInfo.supplier_name) excelQuoteInfo = { ...boqResult.quote_info, ...excelQuoteInfo };
             continue;
@@ -549,7 +552,7 @@ export async function POST(request: NextRequest) {
         if (promptText.length > 100000) promptText = promptText.slice(0, 100000) + '\n...(truncated)';
         parts.push({ text: promptText });
 
-        console.log(`[AI route] extracting "${file.name}" (pdfs=${processed.pdfFiles.length} images=${processed.imageFiles.length})`);
+        console.log(`[AI route] extracting "${file.name}" model=${GEMINI_EXTRACTION_MODEL} pdfs=${processed.pdfFiles.length} images=${processed.imageFiles.length} textLen=${processed.text.length} promptLen=${promptText.length}`);
         let text = '';
         try {
           const result = await generateWithRetry(model, parts);
@@ -560,6 +563,11 @@ export async function POST(request: NextRequest) {
           failedFiles.push(file.name || 'קובץ');
           lastError = e;
           continue;
+        }
+
+        // Full response in chunks so Vercel doesn't truncate.
+        for (let off = 0; off < text.length; off += 1500) {
+          console.log(`[AI route] resp "${file.name}" ${off}/${text.length}: ${text.slice(off, off + 1500)}`);
         }
 
         let p: any;
