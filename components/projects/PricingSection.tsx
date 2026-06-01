@@ -127,16 +127,26 @@ function AutoTextarea({ value, onChange, placeholder, className }: { value: stri
 }
 
 function CostAttachmentLink({ att }: { att: any }) {
-  async function open() {
+  function open() {
     let path = att.file_url || '';
     if (!path) return;
     if (path.startsWith('http')) {
       const m = path.match(/project-files\/(.+)$/);
       if (m) path = m[1];
     }
+    // Open the new tab synchronously inside the click handler so Safari doesn't
+    // strip the user-gesture context (it would otherwise block window.open after the await).
+    const newWin = window.open('about:blank', '_blank');
     const sb = createClient();
-    const { data } = await sb.storage.from('project-files').createSignedUrl(path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    sb.storage.from('project-files').createSignedUrl(path, 300).then(({ data, error }) => {
+      if (error || !data?.signedUrl) {
+        if (newWin) newWin.close();
+        alert(`לא הצלחתי לפתוח את הקובץ: ${error?.message || 'נסה שוב'}`);
+        return;
+      }
+      if (newWin) newWin.location.href = data.signedUrl;
+      else window.location.href = data.signedUrl; // fallback when popup was blocked
+    });
   }
   return (
     <button onClick={open} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0" dir="ltr" title={att.file_name}>
@@ -1051,15 +1061,19 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <div className="flex flex-wrap gap-2 mt-1">
               {qAtts.map((a: any) => (
                 <div key={a.id} className="flex items-center gap-1 bg-indigo-50 rounded px-2 py-1 text-[11px] text-indigo-700">
-                  <button onClick={async () => {
+                  <button onClick={() => {
                     let path = a.file_url;
                     if (path.startsWith('http')) {
                       const m = path.match(/project-files\/(.+)$/);
                       if (m) path = m[1];
                     }
+                    const newWin = window.open('about:blank', '_blank');
                     const sb = createClient();
-                    const { data } = await sb.storage.from('project-files').createSignedUrl(path, 300);
-                    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                    sb.storage.from('project-files').createSignedUrl(path, 300).then(({ data, error }) => {
+                      if (error || !data?.signedUrl) { if (newWin) newWin.close(); alert(`לא הצלחתי לפתוח את הקובץ: ${error?.message || ''}`); return; }
+                      if (newWin) newWin.location.href = data.signedUrl;
+                      else window.location.href = data.signedUrl;
+                    });
                   }} className="hover:underline truncate max-w-[180px] cursor-pointer">{a.file_name}</button>
                   <button onClick={() => { if (confirm('למחוק קובץ זה?')) p.deleteAttachment(a.id); }} className="text-red-400 hover:text-red-600 mr-1">×</button>
                 </div>

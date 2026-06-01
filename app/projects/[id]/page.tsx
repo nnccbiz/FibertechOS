@@ -275,10 +275,16 @@ export default function ProjectDetailPage() {
     setProjectAttachments((prev) => prev.filter((a) => a.id !== attId));
   }
 
-  async function openDrawing(path: string) {
+  function openDrawing(path: string) {
     if (/^https?:/.test(path)) { window.open(path, '_blank'); return; }
-    const { data } = await supabase.storage.from('project-files').createSignedUrl(path, 3600);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    // Open synchronously inside the click handler so Safari keeps the user gesture;
+    // otherwise window.open after the await is blocked as a popup.
+    const newWin = window.open('about:blank', '_blank');
+    supabase.storage.from('project-files').createSignedUrl(path, 3600).then(({ data, error }) => {
+      if (error || !data?.signedUrl) { if (newWin) newWin.close(); alert(`לא הצלחתי לפתוח את הקובץ: ${error?.message || ''}`); return; }
+      if (newWin) newWin.location.href = data.signedUrl;
+      else window.location.href = data.signedUrl;
+    });
   }
 
   function updateDetailForm(key: string, val: any) {
