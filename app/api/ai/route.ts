@@ -58,19 +58,24 @@ const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצ
 3. אסור לקצר, לסכם, לאחד שורות דומות (גם אם רק ה-DN משתנה), או לדלג על שורות.
 4. ספור את סך כל השורות בכל המסמכים יחד לפני שאתה מתחיל, ובדוק שאתה מחזיר אותו מספר פריטים.
 
-מבנה התשובה:
+מבנה התשובה (חובה לכלול _audit_rows לפני data):
 {
   "action":"import",
   "target_table":"supplier_quote",
   "quote_info":{"supplier_name":"","quote_ref":"","quote_date":"YYYY-MM-DD","currency":"USD"},
+  "_audit_rows":[
+    "DESCRIPTION='CC-GRP Pipe DN2000 (OD2047) PN01 SN20000 L=2,8m with Stainless Steel Coupling' | DN(mm)='2000' | PN(Bar)='1' | SN(N/m2)='20,000' | Quantity(ea)='50' | Quantity(m)='140' | Unit(m/ea)='m' | Unit Price(EUR)='1,332.00' | Total(EUR)='186,480.00'"
+  ],
   "data":[
-    {"description":"Flowtite GRP Pipe with One Coupling on end L=5.7m","item_type":"pipe_with_coupling","dn":300,"pn":6,"sn":10000,"length_m":5.7,"quantity":370.5,"unit_price":60.00,"price_per":"meter","currency":"USD"},
-    {"description":"Flowtite Rocker Pipe with One Coupling, L=1m","item_type":"roker","dn":400,"pn":6,"sn":15000,"length_m":1,"quantity":1,"unit_price":171.00,"price_per":"meter","currency":"USD"},
-    {"description":"Flowtite Reka Coupling","item_type":"coupling","dn":500,"pn":6,"quantity":1,"unit_price":56.00,"price_per":"unit","currency":"USD"},
-    {"description":"Flowtite Wall Coupling","item_type":"wall_coupling","dn":600,"pn":6,"quantity":1,"unit_price":242.00,"price_per":"unit","currency":"USD"}
+    {"description":"CC-GRP Pipe DN2000 (OD2047) PN01 SN20000 L=2,8m with Stainless Steel Coupling","item_type":"pipe_with_coupling","dn":2000,"pn":1,"sn":20000,"length_m":2.8,"quantity":140,"unit_price":1332.00,"price_per":"meter","currency":"EUR"}
   ],
   "summary":"חולצו N פריטים"
 }
+
+חובת ה-_audit_rows:
+- חובה למלא ב-_audit_rows שורה אחת לכל שורת נתונים שאתה רואה בטבלה. כל איבר במערך = "header1='value1' | header2='value2' | ..." עם השמות והערכים בדיוק כפי שמופיעים בתמונה (כולל פסיקים, נקודות, מקפים, סוגריים).
+- אחרי שכתבת את _audit_rows, בנה את data כך שכל פריט בו תואם במדויק לאיבר במקום זהה ב-_audit_rows. אם ערך לא מופיע ב-_audit_rows, אסור להופיע ב-data.
+- אם תוסיף ב-data ערך שלא הופיע ב-_audit_rows — זה נחשב המצאה. עדיף לדלג על השדה.
 
 מיפוי שדות לעמודות הטבלה:
 - description: התיאור המלא כפי שמופיע (Description / תיאור / פריט)
