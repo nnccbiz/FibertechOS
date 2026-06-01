@@ -42,12 +42,19 @@ async function generateWithRetry(model: any, parts: any, maxRetries = 3): Promis
 // Lean prompt used only for file extraction
 const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצי הצעת מחיר של ספק. החזר JSON בלבד, ללא markdown.
 
+נוהל חובה (בצע בסדר הזה לפני שאתה כותב JSON):
+- שלב 1: קרא את כותרת הטבלה והעתק אותה אל quote_info.project_name (verbatim).
+- שלב 2: זהה את כותרות העמודות (DN, PN, SN, Quantity, Unit, Unit Price, Total וכו') והעתק אותן verbatim.
+- שלב 3: לכל שורת נתונים בטבלה, קרא תא-אחר-תא verbatim. אסור לנחש ספרות.
+- שלב 4: רק אחרי שקראת את כל השורות בנפרד, בנה את JSON כך שכל ערך בו תואם בדיוק לתא שקראת.
+
 ⚠️ חוקים קריטיים:
 0. ייתכן שמצורפים כמה מסמכים/קבצים (PDF/תמונות) באותה בקשה. עבור על **כל** המסמכים שצורפו, חלץ את כל השורות מכל אחד מהם, וצרף את כולם לרשימה אחת ב-data. אסור לדלג על מסמך ואסור לחלץ רק מהראשון.
 1. חלץ את כל השורות מהטבלה ללא יוצא מן הכלל. אם יש 26 שורות בקלט, החזר 26 פריטים ב-data.
 2. אסור להמציא נתונים. רק ערכים שמופיעים בפועל בקלט. אם DN/PN/SN/quantity/price לא קיימים בשורה — אל תכלול את השדה.
-2a. ה-DN, PN, SN, כמות ומחיר חייבים להיות **בדיוק** כפי שמופיעים בקלט — מילה במילה וספרה בספרה. אסור להחליף קוטר (למשל DN1700 ל-DN600 או DN2000 ל-DN800), אסור להחליף PN/SN, ואסור "לעגל" או "להנמיך" ערכים. אם אינך בטוח בשורה כלשהי — דלג עליה ל-quote_info.note במקום להמציא.
-2b. ה-description חייב לכלול את הטקסט המקורי של התיאור כפי שמופיע בקלט (אפשר לחתוך רק רווחים מיותרים). אסור לתרגם, לשנות נוסח, או להחליף שמות מוצרים.
+2a. ה-DN, PN, SN, כמות ומחיר חייבים להיות **בדיוק** כפי שמופיעים בקלט — מילה במילה וספרה בספרה. אסור להחליף קוטר (למשל DN1700 ל-DN600 או DN2000 ל-DN800), אסור להחליף PN/SN (למשל PN03 ל-PN10, או SN20000 ל-SN5000), ואסור "לעגל" או "להנמיך" ערכים. אם אינך בטוח בשורה כלשהי — דלג עליה ל-quote_info.note במקום להמציא.
+2b. ה-description חייב לכלול את הטקסט המקורי של התיאור כפי שמופיע בקלט (אפשר לחתוך רק רווחים מיותרים). אסור לתרגם לעברית, לשנות נוסח, או להחליף שמות מוצרים. אם הטקסט באנגלית (CC-GRP Pipe, with Stainless Steel Coupling וכו') — השאר אותו באנגלית מילה-במילה.
+2c. אם בקלט מופיע "CC-GRP" אז ה-description חייב להתחיל ב-"CC-GRP" — אסור להחליפו ל-"GRP". אותו דבר לכל קידומת/סיומת.
 3. אסור לקצר, לסכם, לאחד שורות דומות (גם אם רק ה-DN משתנה), או לדלג על שורות.
 4. ספור את סך כל השורות בכל המסמכים יחד לפני שאתה מתחיל, ובדוק שאתה מחזיר אותו מספר פריטים.
 
@@ -510,7 +517,7 @@ export async function POST(request: NextRequest) {
       const model = genAI.getGenerativeModel({
         model: GEMINI_EXTRACTION_MODEL,
         systemInstruction: FILE_EXTRACTION_PROMPT,
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 16384 },
+        generationConfig: { responseMimeType: 'application/json', temperature: 0, topK: 1, topP: 0.1, maxOutputTokens: 16384 },
       });
 
       const allItems: any[] = [...excelItems];
