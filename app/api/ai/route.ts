@@ -8,8 +8,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_EXTRACTION_MODEL = 'gemini-2.5-pro';
 
-// Allow room for sequential per-file calls plus retries on transient overload.
-export const maxDuration = 60;
+// Allow room for sequential per-file calls plus retries on transient overload
+// and a generous thinking budget on Pro extraction.
+export const maxDuration = 120;
 
 // Gemini occasionally returns 503 (overloaded) / 429 / 500 — these are transient.
 function isTransientGeminiError(e: any): boolean {
@@ -564,7 +565,17 @@ export async function POST(request: NextRequest) {
       const model = genAI.getGenerativeModel({
         model: GEMINI_EXTRACTION_MODEL,
         systemInstruction: FILE_EXTRACTION_PROMPT,
-        generationConfig: { responseMimeType: 'application/json', temperature: 0, topK: 1, topP: 0.1, maxOutputTokens: 16384 },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0,
+          topK: 1,
+          topP: 0.1,
+          maxOutputTokens: 16384,
+          // Force Pro to spend a generous thinking budget reading the image
+          // before writing JSON, so it grounds in the actual content instead
+          // of pattern-matching to GRP-supplier templates from training.
+          thinkingConfig: { thinkingBudget: 16384, includeThoughts: false },
+        } as any,
       });
 
       const allItems: any[] = [...excelItems];
