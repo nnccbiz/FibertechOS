@@ -354,27 +354,16 @@ async function processFiles(files: { base64: string; mimeType: string; name: str
           const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
           if (rawRows.length === 0) continue;
 
-          let headerIdx = 0;
-          for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
-            const nonEmpty = rawRows[i].filter((c: any) => c !== '' && c !== null && c !== undefined).length;
-            if (nonEmpty >= 3) { headerIdx = i; break; }
-          }
-          const headers = rawRows[headerIdx].map((h: any) => String(h).trim());
-          const dataRows = rawRows.slice(headerIdx + 1).filter((r: any[]) =>
-            r.some((c: any) => c !== '' && c !== null && c !== undefined)
-          );
-          if (dataRows.length === 0) continue;
-
-          const objRows = dataRows.map((row: any[]) => {
-            const obj: Record<string, any> = {};
-            headers.forEach((h, i) => {
-              if (!h) return;
-              const v = row[i];
-              obj[h] = typeof v === 'string' ? v.replace(/[₪$€£,]/g, '').trim() : v;
+          // ALWAYS dump every row verbatim — Gemini handles structure better than
+          // our column-header heuristic, especially for multi-section sheets.
+          const dump = rawRows.map((row, idx) => {
+            const cells = row.map((c) => {
+              if (c === null || c === undefined || c === '') return '';
+              return String(c).replace(/\|/g, '/').trim();
             });
-            return obj;
-          });
-          sheetParts.push(`=== גיליון: ${sheetName} ===\n${JSON.stringify(objRows, null, 0)}`);
+            return `R${idx + 1}: ${cells.join(' | ')}`;
+          }).join('\n');
+          sheetParts.push(`=== גיליון: ${sheetName} (${rawRows.length} שורות) ===\n${dump}`);
         }
         if (sheetParts.length) textParts.push(`[Excel: ${name}]\n${sheetParts.join('\n\n')}`);
         else textParts.push(`[Excel: ${name}] — לא נמצאו שורות נתונים`);
