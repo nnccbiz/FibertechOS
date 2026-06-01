@@ -3,7 +3,10 @@ import * as XLSX from 'xlsx';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Chat = fast/cheap. File extraction (supplier quotes, drawing metadata) uses the
+// stronger model — Pro reads cluttered tables far more reliably than Flash.
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_EXTRACTION_MODEL = 'gemini-2.5-pro';
 
 // Allow room for sequential per-file calls plus retries on transient overload.
 export const maxDuration = 60;
@@ -43,6 +46,8 @@ const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצ
 0. ייתכן שמצורפים כמה מסמכים/קבצים (PDF/תמונות) באותה בקשה. עבור על **כל** המסמכים שצורפו, חלץ את כל השורות מכל אחד מהם, וצרף את כולם לרשימה אחת ב-data. אסור לדלג על מסמך ואסור לחלץ רק מהראשון.
 1. חלץ את כל השורות מהטבלה ללא יוצא מן הכלל. אם יש 26 שורות בקלט, החזר 26 פריטים ב-data.
 2. אסור להמציא נתונים. רק ערכים שמופיעים בפועל בקלט. אם DN/PN/SN/quantity/price לא קיימים בשורה — אל תכלול את השדה.
+2a. ה-DN, PN, SN, כמות ומחיר חייבים להיות **בדיוק** כפי שמופיעים בקלט — מילה במילה וספרה בספרה. אסור להחליף קוטר (למשל DN1700 ל-DN600 או DN2000 ל-DN800), אסור להחליף PN/SN, ואסור "לעגל" או "להנמיך" ערכים. אם אינך בטוח בשורה כלשהי — דלג עליה ל-quote_info.note במקום להמציא.
+2b. ה-description חייב לכלול את הטקסט המקורי של התיאור כפי שמופיע בקלט (אפשר לחתוך רק רווחים מיותרים). אסור לתרגם, לשנות נוסח, או להחליף שמות מוצרים.
 3. אסור לקצר, לסכם, לאחד שורות דומות (גם אם רק ה-DN משתנה), או לדלג על שורות.
 4. ספור את סך כל השורות בכל המסמכים יחד לפני שאתה מתחיל, ובדוק שאתה מחזיר אותו מספר פריטים.
 
@@ -401,7 +406,7 @@ export async function POST(request: NextRequest) {
         try {
           const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
           const model = genAI.getGenerativeModel({
-            model: GEMINI_MODEL,
+            model: GEMINI_EXTRACTION_MODEL,
             systemInstruction: DRAWING_META_PROMPT,
             generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 512 },
           });
@@ -503,7 +508,7 @@ export async function POST(request: NextRequest) {
     // (Several images in a single call makes Gemini focus on just one of them.)
     if (filesForGemini.length > 0) {
       const model = genAI.getGenerativeModel({
-        model: GEMINI_MODEL,
+        model: GEMINI_EXTRACTION_MODEL,
         systemInstruction: FILE_EXTRACTION_PROMPT,
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 16384 },
       });
