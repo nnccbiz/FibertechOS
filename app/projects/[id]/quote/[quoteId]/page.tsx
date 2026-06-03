@@ -48,6 +48,7 @@ export default function QuotePreviewPage() {
   const [items, setItems] = useState<any[]>([]);
   const [project, setProject] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [contractSections, setContractSections] = useState<{ title: string; clauses: { num: number; text: string }[] }[]>(CONTRACT_SECTIONS);
   const [clientContact, setClientContact] = useState<{ name: string; phone: string; email: string } | null>(null);
   const [attachmentPages, setAttachmentPages] = useState<Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }>>([]);
   const [quoteViews, setQuoteViews] = useState<any[]>([]);
@@ -69,6 +70,18 @@ export default function QuotePreviewPage() {
       setQuote(q);
       setItems(its || []);
       setProject(proj);
+
+      // Resolve which contract terms to render: per-quote override (also acts
+      // as the snapshot once issued) > linked template > fallback to the
+      // hard-coded library default.
+      try {
+        if (q?.contract_overrides && Array.isArray(q.contract_overrides) && q.contract_overrides.length > 0) {
+          setContractSections(q.contract_overrides);
+        } else if (q?.contract_template_id) {
+          const { data: tpl } = await supabase.from('contract_term_templates').select('content').eq('id', q.contract_template_id).single();
+          if (tpl?.content && Array.isArray(tpl.content) && tpl.content.length > 0) setContractSections(tpl.content);
+        }
+      } catch (e) { console.error('[contract terms] resolve failed', e); }
 
       // Project drawings linked to this quote (rendered alongside quote attachments).
       let linkedDrawings: any[] = [];
@@ -367,7 +380,7 @@ export default function QuotePreviewPage() {
   trailing.push({ kind: 'summary', key: 'doc', h: 22 });
   if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
   trailing.push({ kind: 'ctitle', h: 18 });
-  CONTRACT_SECTIONS.forEach((s) => {
+  contractSections.forEach((s) => {
     trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
     s.clauses.forEach((cl) => trailing.push({ kind: 'cblock', b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
   });

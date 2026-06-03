@@ -674,6 +674,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const isExpanded = p.expandedQuote === q.id;
   const isEditing = p.editingQuote === q.id;
   const items = p.quoteItems[q.id] || [];
+  const [editTermsQuoteId, setEditTermsQuoteId] = useState<string | null>(null);
 
   return (
     <div className="border border-[#e2e8f0] rounded-xl overflow-hidden">
@@ -732,6 +733,18 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
                       placeholder="ללא קישור"
                       options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
+                  </span>
+                )}
+                {q.status === 'draft' && p.contractTemplates.length > 0 && (
+                  <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                    📜 תנאי הסכם:
+                    <SearchableSelect value={q.contract_template_id || ''} onChange={(v) => p.setQuoteContractTemplate(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[170px]"
+                      placeholder="תבנית"
+                      options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
+                    <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-blue-50 text-[#1a56db] px-2 py-0.5 rounded-lg hover:bg-blue-100">✏️ ערוך להצעה זו</button>
+                    {q.contract_overrides && (
+                      <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-100">🔄 שחזר מהתבנית</button>
+                    )}
                   </span>
                 )}
               </>
@@ -799,6 +812,116 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           )}
         </div>
       )}
+      {editTermsQuoteId === q.id && (
+        <ContractTermsModal q={q} p={p} onClose={() => setEditTermsQuoteId(null)} />
+      )}
+    </div>
+  );
+}
+
+function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof usePricing>; onClose: () => void }) {
+  const [sections, setSections] = useState<{ title: string; clauses: { num: number; text: string }[] }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      if (q.contract_overrides && Array.isArray(q.contract_overrides) && q.contract_overrides.length) {
+        setSections(q.contract_overrides);
+      } else if (q.contract_template_id) {
+        const tpl = await p.fetchTemplateContent(q.contract_template_id);
+        setSections(tpl?.content || []);
+      } else {
+        setSections([]);
+      }
+    })();
+  }, [q.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function updateClause(si: number, ci: number, text: string) {
+    setSections((prev) => prev?.map((s, i) => i === si ? { ...s, clauses: s.clauses.map((c, j) => j === ci ? { ...c, text } : c) } : s) || []);
+  }
+  function updateTitle(si: number, title: string) {
+    setSections((prev) => prev?.map((s, i) => i === si ? { ...s, title } : s) || []);
+  }
+  function deleteClause(si: number, ci: number) {
+    setSections((prev) => prev?.map((s, i) => i === si ? { ...s, clauses: s.clauses.filter((_, j) => j !== ci) } : s) || []);
+  }
+  function addClause(si: number) {
+    setSections((prev) => prev?.map((s, i) => {
+      if (i !== si) return s;
+      const nextNum = s.clauses.length ? Math.max(...s.clauses.map((c) => c.num)) + 1 : 1;
+      return { ...s, clauses: [...s.clauses, { num: nextNum, text: '' }] };
+    }) || []);
+  }
+  function deleteSection(si: number) {
+    if (!confirm('למחוק את הפרק וכל סעיפיו?')) return;
+    setSections((prev) => prev?.filter((_, i) => i !== si) || []);
+  }
+  function addSection() {
+    setSections((prev) => [...(prev || []), { title: 'פרק חדש', clauses: [] }]);
+  }
+  function moveSection(si: number, dir: -1 | 1) {
+    setSections((prev) => {
+      if (!prev) return prev;
+      const next = [...prev];
+      const j = si + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[si], next[j]] = [next[j], next[si]];
+      return next;
+    });
+  }
+  async function save() {
+    if (!sections) return;
+    setSaving(true);
+    await p.setQuoteContractOverrides(q.id, sections);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-[95vw] max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-gray-800">📜 עריכת תנאי הסכם להצעה {q.quote_number}</h3>
+            <p className="text-[11px] text-gray-500">השינויים נשמרים רק על הצעה זו (לא משנים את התבנית).</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {sections === null && <p className="text-sm text-gray-400 text-center py-6">טוען…</p>}
+          {sections && sections.length === 0 && <p className="text-sm text-gray-400 text-center py-6">אין פרקים עדיין. לחץ "+ הוסף פרק" כדי להתחיל.</p>}
+          {sections?.map((s, si) => (
+            <div key={si} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+              <div className="flex items-center gap-2 mb-2">
+                <input value={s.title} onChange={(e) => updateTitle(si, e.target.value)} className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm font-semibold bg-white" />
+                <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-white border border-gray-200 px-2 py-1 rounded hover:bg-gray-50 disabled:opacity-30">↑</button>
+                <button onClick={() => moveSection(si, 1)} disabled={si === (sections?.length || 0) - 1} className="text-[11px] bg-white border border-gray-200 px-2 py-1 rounded hover:bg-gray-50 disabled:opacity-30">↓</button>
+                <button onClick={() => deleteSection(si)} className="text-[11px] text-red-500 hover:text-red-700 px-2">🗑️</button>
+              </div>
+              <div className="space-y-2">
+                {s.clauses.map((c, ci) => (
+                  <div key={ci} className="flex gap-2 items-start">
+                    <span className="text-[12px] font-bold text-[#003d77] pt-2 min-w-[24px]">{c.num}.</span>
+                    <textarea value={c.text} onChange={(e) => updateClause(si, ci, e.target.value)} rows={2} className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-[12px] text-gray-700 bg-white leading-relaxed resize-y" />
+                    <button onClick={() => deleteClause(si, ci)} className="text-red-400 hover:text-red-600 text-lg pt-1">×</button>
+                  </div>
+                ))}
+                <button onClick={() => addClause(si)} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף סעיף</button>
+              </div>
+            </div>
+          ))}
+          {sections !== null && (
+            <button onClick={addSection} className="w-full text-sm border-2 border-dashed border-gray-300 rounded-lg py-2 text-gray-500 hover:bg-gray-50">+ הוסף פרק</button>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between">
+          <p className="text-[11px] text-gray-400">ההצעה תציג את התנאים העדכניים שתשמור.</p>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="text-sm text-gray-500 px-4 py-1.5 rounded-lg hover:bg-gray-100">ביטול</button>
+            <button onClick={save} disabled={saving || sections === null} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? 'שומר…' : 'שמור'}</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

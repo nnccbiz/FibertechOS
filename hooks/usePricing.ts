@@ -70,11 +70,16 @@ export interface UsePricingReturn {
   assignQuoteContact: (quoteId: string, value: string) => Promise<void>;
   setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
   setQuoteCostInput: (quoteId: string, costInputId: string) => Promise<void>;
+  setQuoteContractTemplate: (quoteId: string, templateId: string) => Promise<void>;
+  setQuoteContractOverrides: (quoteId: string, overrides: any) => Promise<void>;
+  fetchTemplateContent: (templateId: string) => Promise<any>;
+  refreshContractTemplates: () => Promise<void>;
   refreshCustomers: () => Promise<void>;
   toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
   customers: any[];
   customerContacts: any[];
+  contractTemplates: any[];
   projectDrawings: any[];
   quoteDrawings: Record<string, string[]>;
   cancelEditQuote: () => void;
@@ -113,6 +118,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [contacts, setContacts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerContacts, setCustomerContacts] = useState<any[]>([]);
+  const [contractTemplates, setContractTemplates] = useState<any[]>([]);
   const [projectDrawings, setProjectDrawings] = useState<any[]>([]);
   const [quoteDrawings, setQuoteDrawings] = useState<Record<string, string[]>>({});
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -149,7 +155,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes, custContactsRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes, custContactsRes, tplRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -158,8 +164,10 @@ export function usePricing(projectId: string): UsePricingReturn {
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('attachments').select('id, file_name, file_url, drawing_number').eq('project_id', projectId).eq('entity_type', 'project').order('created_at'),
       supabase.from('client_contacts').select('id, client_id, name, role, phone, email').order('created_at'),
+      supabase.from('contract_term_templates').select('id, name, description, is_default').order('is_default', { ascending: false }).order('name'),
     ]);
     if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
+    setContractTemplates(tplRes.data || []);
     setContacts(contactsRes.data || []);
     setCustomers(customersRes.data || []);
     setCustomerContacts(custContactsRes.data || []);
@@ -605,6 +613,9 @@ export function usePricing(projectId: string): UsePricingReturn {
       payment_terms: src.payment_terms, disclaimer_type: src.disclaimer_type, disclaimer_text: src.disclaimer_text,
       global_discount_pct: src.global_discount_pct || 0, total_amount: src.total_amount || 0, total_cost: src.total_cost || 0,
       notes: src.notes, delivery_time: src.delivery_time,
+      // Carry the contract terms over so the duplicate starts identical.
+      contract_template_id: src.contract_template_id || null,
+      contract_overrides: src.contract_overrides || null,
     }).select().single();
     if (error || !nq) { alert(`שגיאה בשכפול: ${error?.message || ''}`); return; }
 
@@ -799,6 +810,37 @@ export function usePricing(projectId: string): UsePricingReturn {
     if (editingQuote === quoteId) setEditingQuote(null); // exit any in-progress edit so the new items show
   }
 
+  // Pick a contract-terms template for a quote. Clears any quote-specific
+  // overrides so the new template's content is rendered cleanly.
+  async function setQuoteContractTemplate(quoteId: string, templateId: string) {
+    const value = templateId || null;
+    await supabase.from('quotes').update({
+      contract_template_id: value, contract_overrides: null, updated_at: new Date().toISOString(),
+    }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contract_template_id: value, contract_overrides: null } : q));
+  }
+
+  // Save quote-specific overrides of the contract terms (per-quote customization,
+  // doesn't touch the template). Pass null to clear.
+  async function setQuoteContractOverrides(quoteId: string, overrides: any) {
+    await supabase.from('quotes').update({
+      contract_overrides: overrides, updated_at: new Date().toISOString(),
+    }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contract_overrides: overrides } : q));
+  }
+
+  // Fetch a template's full content (the list cache only holds id/name).
+  async function fetchTemplateContent(templateId: string) {
+    const { data, error } = await supabase.from('contract_term_templates').select('*').eq('id', templateId).single();
+    if (error) { console.error('[contract template] fetch error', error); return null; }
+    return data;
+  }
+
+  async function refreshContractTemplates() {
+    const { data } = await supabase.from('contract_term_templates').select('id, name, description, is_default').order('is_default', { ascending: false }).order('name');
+    setContractTemplates(data || []);
+  }
+
   async function refreshCustomers() {
     const { data } = await supabase.from('clients').select('id, name').order('name');
     setCustomers(data || []);
@@ -861,6 +903,17 @@ export function usePricing(projectId: string): UsePricingReturn {
           };
           await supabase.from('quotes').update({ contact_snapshot: snap }).eq('id', quoteId);
           setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contact_snapshot: snap } : x));
+        }
+      }
+      // Also freeze the contract terms: if no per-quote override exists yet,
+      // copy the linked template's content into contract_overrides so future
+      // template edits won't change an already-issued quote.
+      if (q && !q.contract_overrides && q.contract_template_id) {
+        const tpl = await fetchTemplateContent(q.contract_template_id);
+        const content = tpl?.content;
+        if (content) {
+          await supabase.from('quotes').update({ contract_overrides: content }).eq('id', quoteId);
+          setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contract_overrides: content } : x));
         }
       }
     }
@@ -972,6 +1025,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, duplicateCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
+    contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
