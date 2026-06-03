@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { parsePipeSpec } from '@/lib/pricing';
 
-type CBlock = { type: 'heading' | 'clause' | 'note'; title?: string; clause?: { num: number; text: string }; noteText?: string };
+type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
 
 function currencyPegNote(currency: string | null | undefined): string | null {
   const c = (currency || '').toUpperCase();
@@ -393,19 +393,17 @@ export default function QuotePreviewPage() {
   const trailing: TBlock[] = [];
   trailing.push({ kind: 'summary', key: 'totals', h: globalDisc > 0 ? 52 : 42 });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
-  if (quote.disclaimer_text) trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil((quote.disclaimer_text || '').length / 90) * 4.5 });
+  const currencyNote = currencyPegNote(costCurrency);
+  if (quote.disclaimer_text || currencyNote) {
+    const totalLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
+    trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil(totalLen / 90) * 4.5 });
+  }
   trailing.push({ kind: 'summary', key: 'doc', h: 22 });
   if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
   trailing.push({ kind: 'ctitle', h: 18 });
-  const currencyNote = currencyPegNote(costCurrency);
-  contractSections.forEach((s, si) => {
+  contractSections.forEach((s) => {
     trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
     s.clauses.forEach((cl) => trailing.push({ kind: 'cblock', b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
-    // After the financial-terms section, append an auto-generated note pegging
-    // the prices to the cost input's currency. Hidden when the cost input is in ILS.
-    if (si === 0 && currencyNote) {
-      trailing.push({ kind: 'cblock', b: { type: 'note', noteText: currencyNote }, h: 14 });
-    }
   });
   trailing.push({ kind: 'sign', h: 92 });
 
@@ -607,7 +605,11 @@ export default function QuotePreviewPage() {
     disc: (
       <div key="disc" className="mb-4">
         <h3 className="text-sm font-bold text-gray-800 mb-2 border-r-4 border-[#003d77] pr-3">הערות</h3>
-        <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
+        <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">
+          {quote.disclaimer_text}
+          {quote.disclaimer_text && currencyNote ? '\n' : ''}
+          {currencyNote ? `• ${currencyNote}` : ''}
+        </p>
       </div>
     ),
     doc: (
@@ -648,22 +650,11 @@ export default function QuotePreviewPage() {
       </div>
     );
     if (tb.kind === 'cblock') {
-      if (tb.b.type === 'heading') {
-        return (
-          <div key={key} className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
-            <h3 className="text-[12px] font-bold text-[#003d77]">{tb.b.title}</h3>
-          </div>
-        );
-      }
-      if (tb.b.type === 'note') {
-        return (
-          <div key={key} className="text-[10px] text-gray-700 italic leading-tight mt-1 mb-2 px-3 py-1.5 bg-[#f0f7ff] border border-[#cfe0f7] rounded">
-            <span className="font-semibold text-[#003d77] not-italic">💱 הצמדת מטבע: </span>
-            <span>{tb.b.noteText}</span>
-          </div>
-        );
-      }
-      return (
+      return tb.b.type === 'heading' ? (
+        <div key={key} className="border-r-4 border-[#003d77] pr-3 mt-2 mb-1">
+          <h3 className="text-[12px] font-bold text-[#003d77]">{tb.b.title}</h3>
+        </div>
+      ) : (
         <div key={key} className="flex gap-2 text-[10px] text-gray-700 leading-tight mb-1">
           <span className="font-bold text-[#003d77] min-w-[18px] text-left">{tb.b.clause!.num}.</span>
           <span className="whitespace-pre-line">{tb.b.clause!.text}</span>
