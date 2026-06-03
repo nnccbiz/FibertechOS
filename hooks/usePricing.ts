@@ -67,6 +67,7 @@ export interface UsePricingReturn {
   bulkSetProfit: (category: 'pipe' | 'accessory' | 'all', profitPct: number) => void;
   saveQuoteItems: (quoteId: string) => Promise<void>;
   setQuoteContact: (quoteId: string, contactId: string) => Promise<void>;
+  setQuoteNotes: (quoteId: string, notes: string) => Promise<void>;
   assignQuoteContact: (quoteId: string, value: string) => Promise<void>;
   setQuoteCustomer: (quoteId: string, customerId: string) => Promise<void>;
   setQuoteCostInput: (quoteId: string, costInputId: string) => Promise<void>;
@@ -706,6 +707,12 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contact_id: value } : q));
   }
 
+  async function setQuoteNotes(quoteId: string, notes: string) {
+    const value = notes.trim() ? notes.trim() : null;
+    await supabase.from('quotes').update({ notes: value, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, notes: value } : q));
+  }
+
   // Dropdown values are prefixed: "pc:<id>" = project contact, "cc:<id>" = customer
   // contact. A quote's contact_id must reference project_contacts (the preview reads
   // from there), so a chosen customer contact is first materialized into this project.
@@ -1027,7 +1034,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
-    createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteCustomer, setQuoteCostInput,
+    createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,

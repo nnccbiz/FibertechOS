@@ -801,7 +801,26 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
           {!isEditing && items.length > 0 && <QuoteSummaryPanel q={q} items={items} p={p} />}
           {!isEditing && q.status !== 'draft' && <QuoteViewsPanel quoteId={q.id} />}
-          {q.notes && <p className="text-[12px] text-gray-500 mb-3">📌 {q.notes}</p>}
+          {q.notes ? (
+            <div className="flex items-start gap-2 mb-3">
+              <p className="text-[12px] text-gray-500 flex-1">📌 {q.notes}</p>
+              <button
+                onClick={async () => { const v = prompt('ערוך הערה (השאר ריק כדי למחוק):', q.notes || ''); if (v !== null) await p.setQuoteNotes(q.id, v); }}
+                className="text-[11px] text-gray-400 hover:text-gray-700 px-1"
+                title="ערוך"
+              >✏️</button>
+              <button
+                onClick={async () => { if (confirm('למחוק את ההערה?')) await p.setQuoteNotes(q.id, ''); }}
+                className="text-[11px] text-red-400 hover:text-red-600 px-1"
+                title="מחק"
+              >🗑️</button>
+            </div>
+          ) : q.status === 'draft' && (
+            <button
+              onClick={async () => { const v = prompt('הוסף הערה:', ''); if (v?.trim()) await p.setQuoteNotes(q.id, v); }}
+              className="text-[11px] text-gray-400 hover:text-[#1a56db] mb-3"
+            >+ הוסף הערה</button>
+          )}
 
           {isEditing ? (
             <QuoteItemsEditor q={q} p={p} />
