@@ -253,7 +253,10 @@ export default function QuotePreviewPage() {
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
+  // Quote date reflects when the prices are valid (they're pegged to today's FX rate).
+  // Draft → today (fresh each render). Sent/signed → updated_at (frozen at status change).
+  const quoteDateSource = quote.status === 'draft' ? new Date() : (quote.updated_at ? new Date(quote.updated_at) : new Date());
+  const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
   const hasAnyDiscount = globalDisc > 0 || items.some(i => (parseFloat(i.discount_pct) || 0) > 0);
   const colCount = hasAnyDiscount ? 8 : 7;
