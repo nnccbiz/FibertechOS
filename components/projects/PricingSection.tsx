@@ -580,7 +580,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                   value={p.newQuote.customer_id}
                   onChange={(v) => {
                     const cust = p.customers.find((c: any) => c.id === v);
-                    p.setNewQuote({ ...p.newQuote, customer_id: v, client_name: cust?.name || p.newQuote.client_name });
+                    p.setNewQuote({ ...p.newQuote, customer_id: v, client_name: cust?.name || p.newQuote.client_name, contact_id: '' });
                   }}
                   className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
                   placeholder="— ללא לקוח —"
@@ -595,9 +595,25 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">איש קשר</label>
-              <SearchableSelect value={p.newQuote.contact_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, contact_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
-                placeholder="— ללא / איש קשר ראשון —"
-                options={[{ value: '', label: '— ללא / איש קשר ראשון —' }, ...p.contacts.map((c: any) => ({ value: c.id, label: `${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}` }))]} />
+              {(() => {
+                const customerOpts = p.newQuote.customer_id
+                  ? p.customerContacts
+                      .filter((c: any) => c.client_id === p.newQuote.customer_id)
+                      .map((c: any) => ({ value: `cc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}` }))
+                  : [];
+                const projectOpts = p.newQuote.customer_id
+                  ? []
+                  : p.contacts.map((c: any) => ({ value: `pc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}` }));
+                const opts = [{ value: '', label: '— ללא / איש קשר ראשון —' }, ...customerOpts, ...projectOpts];
+                const placeholder = p.newQuote.customer_id && customerOpts.length === 0
+                  ? '— אין אנשי קשר ללקוח —'
+                  : '— ללא / איש קשר ראשון —';
+                return (
+                  <SearchableSelect value={p.newQuote.contact_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, contact_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
+                    placeholder={placeholder}
+                    options={opts} />
+                );
+              })()}
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-500 mb-1">סוג הצעה</label>

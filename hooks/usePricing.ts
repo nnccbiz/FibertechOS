@@ -557,10 +557,42 @@ export function usePricing(projectId: string): UsePricingReturn {
     const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct || 17);
     const pr = newQuote.default_profit_pct || 25;
 
+    // Resolve the contact picker value into a real project_contacts id.
+    // "cc:<id>" → materialize that customer contact into this project (reuse by
+    // name when possible). "pc:<id>" → use directly. Empty → null.
+    let resolvedContactId: string | null = null;
+    if (newQuote.contact_id) {
+      const [kind, id] = newQuote.contact_id.split(':');
+      if (kind === 'pc' && id) {
+        resolvedContactId = id;
+      } else if (kind === 'cc' && id) {
+        const cc = customerContacts.find((c) => c.id === id);
+        if (cc) {
+          const existing = contacts.find((c) => (c.name || '').trim() === (cc.name || '').trim() && (c.name || '').trim() !== '');
+          if (existing) {
+            resolvedContactId = existing.id;
+          } else {
+            const { data: inserted } = await supabase
+              .from('project_contacts')
+              .insert({ project_id: projectId, name: cc.name || '', role: cc.role || null, phone: cc.phone || null, email: cc.email || null, client_contact_id: cc.id })
+              .select('id, role, name, phone, email')
+              .single();
+            if (inserted) {
+              setContacts((prev) => [...prev, inserted]);
+              resolvedContactId = inserted.id;
+            }
+          }
+        }
+      } else if (!kind.includes(':') && newQuote.contact_id.length > 8) {
+        // Legacy plain uuid (no prefix) — treat as project_contact id.
+        resolvedContactId = newQuote.contact_id;
+      }
+    }
+
     const { data: q, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: newQuote.client_name,
       customer_id: newQuote.customer_id || null,
-      contact_id: newQuote.contact_id || null,
+      contact_id: resolvedContactId,
       status: 'draft', tier: newQuote.tier, cost_source: newQuote.cost_source, supplier_name: newQuote.supplier_name,
       cost_input_id: newQuote.cost_input_id || null,
       default_overheads_pct: oh,
