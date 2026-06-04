@@ -711,58 +711,62 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
       {isExpanded && (
         <div className="px-4 py-3 border-t border-[#e2e8f0]">
+          {/* Row 1 — context pickers (hidden while editing items) */}
+          {!isEditing && (
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                👤 איש קשר:
+                <SearchableSelect value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(v) => p.assignQuoteContact(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
+                  placeholder="— ראשון בפרויקט —"
+                  options={(() => {
+                    const opts: { value: string; label: string; group?: string }[] = [{ value: '', label: '— ראשון בפרויקט —' }];
+                    p.contacts.forEach((c: any) => opts.push({ value: `pc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר בפרויקט' }));
+                    if (q.customer_id) {
+                      const projNames = new Set(p.contacts.map((c: any) => (c.name || '').trim()).filter(Boolean));
+                      p.customerContacts.filter((c: any) => c.client_id === q.customer_id && !projNames.has((c.name || '').trim()))
+                        .forEach((c: any) => opts.push({ value: `cc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר של הלקוח' }));
+                    }
+                    return opts;
+                  })()} />
+              </span>
+              <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                🏢 לקוח:
+                <SearchableSelect value={q.customer_id || ''} onChange={(v) => p.setQuoteCustomer(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
+                  placeholder="— ללא —"
+                  options={[{ value: '', label: '— ללא —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]} />
+              </span>
+              {q.status === 'draft' && p.costInputs.length > 0 && (
+                <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                  💰 קישור לתמחור:
+                  <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
+                    placeholder="ללא קישור"
+                    options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
+                </span>
+              )}
+              {q.status === 'draft' && p.contractTemplates.length > 0 && (
+                <span className="flex items-center gap-1 text-[12px] text-gray-500">
+                  📜 תנאי הסכם:
+                  <SearchableSelect value={q.contract_template_id || ''} onChange={(v) => p.setQuoteContractTemplate(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[170px]"
+                    placeholder="תבנית"
+                    options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
+                  <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-blue-50 text-[#1a56db] px-2 py-0.5 rounded-lg hover:bg-blue-100">✏️ ערוך להצעה זו</button>
+                  {q.contract_overrides && (
+                    <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-100">🔄 שחזר מהתבנית</button>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Row 2 — primary actions · status flow · discount · overflow */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {!isEditing && (
               <>
                 <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors">✏️ ערוך פריטים</button>
                 {items.length > 0 && (
-                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימית</a>
+                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors">📄 תצוגה מקדימה</a>
                 )}
-                <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.uploadingFile ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
-                  {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
-                  <input type="file" className="hidden" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx" disabled={p.uploadingFile} onChange={(e) => { if (e.target.files?.[0]) { p.uploadAttachment(q.id, e.target.files[0]); e.target.value = ''; } }} />
-                </label>
-                <span className="flex items-center gap-1 text-[12px] text-gray-500">
-                  👤 איש קשר:
-                  <SearchableSelect value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(v) => p.assignQuoteContact(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
-                    placeholder="— ראשון בפרויקט —"
-                    options={(() => {
-                      const opts: { value: string; label: string; group?: string }[] = [{ value: '', label: '— ראשון בפרויקט —' }];
-                      p.contacts.forEach((c: any) => opts.push({ value: `pc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר בפרויקט' }));
-                      if (q.customer_id) {
-                        const projNames = new Set(p.contacts.map((c: any) => (c.name || '').trim()).filter(Boolean));
-                        p.customerContacts.filter((c: any) => c.client_id === q.customer_id && !projNames.has((c.name || '').trim()))
-                          .forEach((c: any) => opts.push({ value: `cc:${c.id}`, label: `${c.name}${c.role ? ` (${c.role})` : ''}`, group: 'אנשי קשר של הלקוח' }));
-                      }
-                      return opts;
-                    })()} />
-                </span>
-                <span className="flex items-center gap-1 text-[12px] text-gray-500">
-                  🏢 לקוח:
-                  <SearchableSelect value={q.customer_id || ''} onChange={(v) => p.setQuoteCustomer(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
-                    placeholder="— ללא —"
-                    options={[{ value: '', label: '— ללא —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]} />
-                </span>
-                {q.status === 'draft' && p.costInputs.length > 0 && (
-                  <span className="flex items-center gap-1 text-[12px] text-gray-500">
-                    💰 קישור לתמחור:
-                    <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
-                      placeholder="ללא קישור"
-                      options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
-                  </span>
-                )}
-                {q.status === 'draft' && p.contractTemplates.length > 0 && (
-                  <span className="flex items-center gap-1 text-[12px] text-gray-500">
-                    📜 תנאי הסכם:
-                    <SearchableSelect value={q.contract_template_id || ''} onChange={(v) => p.setQuoteContractTemplate(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[170px]"
-                      placeholder="תבנית"
-                      options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
-                    <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-blue-50 text-[#1a56db] px-2 py-0.5 rounded-lg hover:bg-blue-100">✏️ ערוך להצעה זו</button>
-                    {q.contract_overrides && (
-                      <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-100">🔄 שחזר מהתבנית</button>
-                    )}
-                  </span>
-                )}
+                <span className="w-px h-5 bg-gray-200 mx-1" />
               </>
             )}
             {q.status === 'draft' && (
@@ -782,12 +786,11 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
               </label>
             )}
             {q.status !== 'rejected' && q.status !== 'signed' && (
-              <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors">❌ נדחה</button>
+              <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-red-50 text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors">❌ נדחה</button>
             )}
-            <button onClick={() => p.duplicateQuote(q.id)} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100 transition-colors">📋 שכפל</button>
-            {q.status === 'draft' && (
-              <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors mr-auto">🗑️ מחק</button>
-            )}
+
+            <div className="grow" />
+
             {!isEditing && items.length > 0 && (
               <div className="flex items-center gap-1 text-[12px] text-gray-500">
                 <span>הנחה כללית:</span>
@@ -795,6 +798,26 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 <span>%</span>
               </div>
             )}
+
+            {/* Overflow menu — opens on hover (group-hover) for desktop;
+                tap on the ⋯ button activates :hover on touch devices. */}
+            <div className="relative group">
+              <button className="text-[14px] leading-none bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors" aria-label="פעולות נוספות">⋯</button>
+              <div className="hidden group-hover:block absolute top-full left-0 z-30 pt-1">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                  {!isEditing && (
+                    <label className={`block px-3 py-1.5 text-[12px] cursor-pointer ${p.uploadingFile ? 'text-gray-400' : 'text-indigo-700 hover:bg-indigo-50'}`}>
+                      {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
+                      <input type="file" className="hidden" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx" disabled={p.uploadingFile} onChange={(e) => { if (e.target.files?.[0]) { p.uploadAttachment(q.id, e.target.files[0]); e.target.value = ''; } }} />
+                    </label>
+                  )}
+                  <button onClick={() => p.duplicateQuote(q.id)} className="block w-full text-right px-3 py-1.5 text-[12px] text-purple-700 hover:bg-purple-50">📋 שכפל</button>
+                  {q.status === 'draft' && (
+                    <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="block w-full text-right px-3 py-1.5 text-[12px] text-red-500 hover:bg-red-50">🗑️ מחק</button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {!isEditing && p.projectDrawings.length > 0 && (
