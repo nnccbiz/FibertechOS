@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MONTH_NAMES } from '@/lib/revenue';
@@ -89,6 +89,8 @@ export default function ProjectDetailPage() {
   const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [drawingDragOver, setDrawingDragOver] = useState(false);
+  const drawingDragDepth = useRef(0);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1075,13 +1077,48 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Project drawings */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-[#1a56db] ring-2 ring-blue-200' : 'border-[#e2e8f0]'}`}
+          onDragEnter={(e) => {
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            drawingDragDepth.current += 1;
+            setDrawingDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            drawingDragDepth.current = Math.max(0, drawingDragDepth.current - 1);
+            if (drawingDragDepth.current === 0) setDrawingDragOver(false);
+          }}
+          onDrop={async (e) => {
+            if (uploadingDrawing) return;
+            e.preventDefault();
+            drawingDragDepth.current = 0;
+            setDrawingDragOver(false);
+            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.name));
+            for (const f of files) { await uploadProjectDrawing(f); }
+          }}
+        >
+          {drawingDragOver && (
+            <div className="absolute inset-0 z-20 bg-blue-50/90 border-2 border-dashed border-[#1a56db] rounded-xl flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="text-3xl mb-1">📐</div>
+                <p className="text-sm font-bold text-[#1a56db]">שחרר כדי להעלות שרטוטים</p>
+                <p className="text-[11px] text-blue-600 mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h2 className="text-lg font-bold text-gray-700">📐 שרטוטי הפרויקט</h2>
             <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
               {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
-              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" disabled={uploadingDrawing}
-                onChange={(e) => { if (e.target.files?.[0]) { uploadProjectDrawing(e.target.files[0]); e.target.value = ''; } }} />
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
             </label>
           </div>
           {(() => {
