@@ -304,9 +304,53 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
   const sym = CURRENCY_SYMBOLS[ci.currency] || '₪';
 
   const archived = ci.is_archived;
+  const canDropToRoxy = isExp && !archived && !p.parsingCostFile;
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
+
+  function onDragEnter(e: React.DragEvent) {
+    if (!canDropToRoxy || !e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (!canDropToRoxy || !e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+  function onDragLeave(e: React.DragEvent) {
+    if (!canDropToRoxy) return;
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  }
+  function onDrop(e: React.DragEvent) {
+    if (!canDropToRoxy) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) p.parseCostFile(files, ci.id);
+  }
 
   return (
-    <div className={`border rounded-xl overflow-hidden ${archived ? 'border-gray-200 opacity-60' : 'border-[#e2e8f0]'}`}>
+    <div
+      className={`relative border rounded-xl overflow-hidden transition-colors ${archived ? 'border-gray-200 opacity-60' : dragOver ? 'border-purple-400 ring-2 ring-purple-200' : 'border-[#e2e8f0]'}`}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {dragOver && (
+        <div className="absolute inset-0 z-20 bg-purple-50/90 border-2 border-dashed border-purple-400 rounded-xl flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <div className="text-3xl mb-1">📥</div>
+            <p className="text-sm font-bold text-purple-800">שחרר כדי לשלוח ל-Roxy</p>
+            <p className="text-[11px] text-purple-600 mt-0.5">PDF, Excel, CSV, תמונות</p>
+          </div>
+        </div>
+      )}
       <div className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${archived ? 'bg-gray-50 hover:bg-gray-100' : 'bg-amber-50/50 hover:bg-amber-50'}`} onClick={() => p.setExpandedCostInput(isExp ? null : ci.id)}>
         <div className="flex items-center gap-3">
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${archived ? 'bg-gray-200 text-gray-500' : ci.source_type === 'supplier' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}</span>
