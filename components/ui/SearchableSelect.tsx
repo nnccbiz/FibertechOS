@@ -63,10 +63,47 @@ export default function SearchableSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reposition while open so scroll / resize / keyboard pop-ins keep the popover anchored.
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) setCoords(computeCoords(r));
+    };
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
+
+  function computeCoords(r: DOMRect) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 8;
+    const estHeight = 320; // search box + max-h-64 list + paddings
+    const w = Math.max(r.width, 200);
+
+    // Vertical: prefer below; flip above when there's not enough space below.
+    const spaceBelow = vh - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    const top = spaceBelow >= estHeight || spaceBelow >= spaceAbove
+      ? r.bottom + 4
+      : Math.max(margin, r.top - Math.min(estHeight, spaceAbove) - 4);
+
+    // Horizontal: clamp so the popover stays fully inside the viewport.
+    let left = r.left;
+    if (left + w > vw - margin) left = Math.max(margin, vw - w - margin);
+    if (left < margin) left = margin;
+
+    return { top, left, width: w };
+  }
+
   function openMenu() {
     if (disabled) return;
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
+    if (r) setCoords(computeCoords(r));
     setQuery('');
     setOpen(true);
   }
@@ -90,7 +127,7 @@ export default function SearchableSelect({
         <div
           ref={popRef}
           dir="rtl"
-          style={{ position: 'fixed', top: coords.top, left: coords.left, width: Math.max(coords.width, 200), zIndex: 60 }}
+          style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
           className="bg-white border border-[#e2e8f0] rounded-lg shadow-xl overflow-hidden"
         >
           <div className="p-1.5 border-b border-gray-100">
