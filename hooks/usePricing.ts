@@ -28,6 +28,7 @@ export interface UsePricingReturn {
   exchangeRates: Record<string, ExchangeRateInfo>;
   rateLoading: boolean;
   refreshRate: (currency: string) => Promise<void>;
+  refreshCostInputRate: (ciId: string) => Promise<void>;
 
   // UI state
   pricingTab: 'costs' | 'quotes' | 'orders';
@@ -316,6 +317,60 @@ export function usePricing(projectId: string): UsePricingReturn {
       setRateLoading(false);
     }
   }, []);
+
+  // Pull today's rate for a cost input's currency and re-price all its items
+  // by original_price * newRate. Handy after duplicating a cost input — the
+  // duplicate inherits the source's rate, but the new "today" rate is what
+  // should drive the prices.
+  async function refreshCostInputRate(ciId: string) {
+    const ci = costInputs.find((c) => c.id === ciId);
+    if (!ci) return;
+    // Prefer the cost input's stored currency, but fall back to items' original_currency
+    // (covers the case where a duplicate was saved with currency=ILS by mistake).
+    const items = costInputItems[ciId] || [];
+    const itemForex = items.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+    const currency = (ci.currency && ci.currency !== 'ILS') ? ci.currency : (itemForex?.original_currency || ci.currency);
+    if (!currency || currency === 'ILS') { alert('שער מטבע זמין רק לתמחור במטבע זר (USD / EUR / GBP).'); return; }
+
+    setRateLoading(true);
+    try {
+      const info = await fetchExchangeRate(currency as 'USD' | 'EUR');
+      if (!info?.rate) { alert('שגיאה במשיכת שער המטבע.'); return; }
+      const newRate = info.rate;
+      const newDate = info.date || new Date().toISOString().split('T')[0];
+
+      // Update the cost input — also normalize currency if it was wrongly tagged.
+      await supabase.from('cost_inputs').update({
+        currency,
+        exchange_rate: newRate,
+        exchange_rate_date: newDate,
+      }).eq('id', ciId);
+
+      // Re-price every item from its original_price × new rate. Items without a
+      // foreign original_price are left as-is (their cost_price was set manually).
+      const updated = items.map((i: any) => {
+        const orig = parseFloat(i.original_price);
+        if (!orig || !i.original_currency || i.original_currency === 'ILS') return i;
+        const qty = parseFloat(i.quantity) || 0;
+        const newCost = Math.round(orig * newRate * 100) / 100;
+        const newTotal = Math.round(newCost * qty * 100) / 100;
+        return { ...i, cost_price: newCost, total_cost: newTotal };
+      });
+
+      const rowsToWrite = updated
+        .filter((i: any, idx: number) => i !== items[idx])
+        .map((i: any) => ({ id: i.id, cost_price: i.cost_price, total_cost: i.total_cost }));
+      for (const row of rowsToWrite) {
+        await supabase.from('cost_input_items').update({ cost_price: row.cost_price, total_cost: row.total_cost }).eq('id', row.id);
+      }
+
+      setCostInputs((prev) => prev.map((c) => c.id === ciId ? { ...c, currency, exchange_rate: newRate, exchange_rate_date: newDate } : c));
+      setCostInputItems((prev) => ({ ...prev, [ciId]: updated }));
+      setExchangeRates((prev) => ({ ...prev, [currency]: info }));
+    } finally {
+      setRateLoading(false);
+    }
+  }
 
   // === Cost Input functions ===
   async function createCostInput() {
@@ -1050,7 +1105,7 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   return {
     costInputs, quotes, orders, quoteItems, costInputItems, attachments,
-    exchangeRates, rateLoading, refreshRate,
+    exchangeRates, rateLoading, refreshRate, refreshCostInputRate,
     pricingTab, setPricingTab,
     showNewCostInput, setShowNewCostInput,
     showNewQuote, setShowNewQuote,

@@ -367,7 +367,26 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
           </span>
           {isForex && (() => {
             const rate = ci.exchange_rate || (headerForex ? p.exchangeRates[ci.currency]?.rate : p.exchangeRates[displayCurrency]?.rate) || 0;
-            return <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{displayCurrency} {rate ? `@ ${parseFloat(rate).toFixed(2)}` : ''}</span>;
+            const rateDate = ci.exchange_rate_date ? formatDate(ci.exchange_rate_date) : '';
+            return (
+              <span className="flex items-center gap-1">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium" title={rateDate ? `שער מתאריך ${rateDate}` : ''}>{displayCurrency} {rate ? `@ ${parseFloat(rate).toFixed(2)}` : ''}{rateDate ? ` · ${rateDate}` : ''}</span>
+                {!archived && (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!confirm(`לעדכן את שער ה-${displayCurrency} לשער של היום? כל המחירים בתמחור יחושבו מחדש לפי השער החדש (המחיר במטבע המקור נשאר זהה).`)) return;
+                      await p.refreshCostInputRate(ci.id);
+                    }}
+                    disabled={p.rateLoading}
+                    title="עדכן שער ליום של היום וחשב מחדש"
+                    className="text-[11px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {p.rateLoading ? '⏳' : '🔄'}
+                  </button>
+                )}
+              </span>
+            );
           })()}
         </div>
         <div className="flex items-center gap-3">
