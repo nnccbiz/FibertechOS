@@ -300,8 +300,15 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
   const isEdit = p.editingCostInput === ci.id;
   const citems = p.costInputItems[ci.id] || [];
   const ciTotal = citems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0);
-  const isForex = ci.currency && ci.currency !== 'ILS';
-  const sym = CURRENCY_SYMBOLS[ci.currency] || '₪';
+
+  // Treat the cost input as "forex" if either the header currency is foreign or
+  // any item carries a foreign original_price (e.g. after Roxy parsed a EUR
+  // sheet into a cost input the user originally created as ILS).
+  const headerForex = ci.currency && ci.currency !== 'ILS';
+  const itemsForexItem = citems.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+  const isForex = !!(headerForex || itemsForexItem);
+  const displayCurrency = headerForex ? ci.currency : (itemsForexItem?.original_currency || ci.currency || 'ILS');
+  const sym = CURRENCY_SYMBOLS[displayCurrency] || (isForex ? '$' : '₪');
 
   const archived = ci.is_archived;
   const canDropToRoxy = isExp && !archived && !p.parsingCostFile;
@@ -358,7 +365,10 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
             {ci.source_name}
             <span className={`mr-1.5 text-[11px] font-normal ${archived ? 'text-gray-400' : 'text-gray-500'}`}>· {formatDate(ci.created_at)}</span>
           </span>
-          {isForex && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{ci.currency} {ci.exchange_rate ? `@ ${parseFloat(ci.exchange_rate).toFixed(2)}` : ''}</span>}
+          {isForex && (() => {
+            const rate = ci.exchange_rate || (headerForex ? p.exchangeRates[ci.currency]?.rate : p.exchangeRates[displayCurrency]?.rate) || 0;
+            return <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{displayCurrency} {rate ? `@ ${parseFloat(rate).toFixed(2)}` : ''}</span>;
+          })()}
         </div>
         <div className="flex items-center gap-3">
           <span className={`text-sm font-bold ${archived ? 'text-gray-400' : 'text-gray-700'}`}>{formatCurrency(ciTotal)}</span>
@@ -433,8 +443,13 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
 }
 
 function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> }) {
-  const isForex = ci.currency && ci.currency !== 'ILS';
-  const sym = CURRENCY_SYMBOLS[ci.currency] || '$';
+  // Mirror CostInputCard's "either the header or the items" rule so the editor
+  // shows a foreign-price column whenever there's a real foreign price to edit.
+  const headerForex = ci.currency && ci.currency !== 'ILS';
+  const itemsForexItem = p.editingCostItems.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+  const isForex = !!(headerForex || itemsForexItem);
+  const displayCurrency = headerForex ? ci.currency : (itemsForexItem?.original_currency || ci.currency || 'ILS');
+  const sym = CURRENCY_SYMBOLS[displayCurrency] || (isForex ? '$' : '$');
 
   return (
     <div className="space-y-2">
@@ -452,7 +467,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.original_price || ''} onChange={(e) => p.updateCostItem(idx, 'original_price', e.target.value)} placeholder={sym} className="border border-[#e2e8f0] rounded px-2 py-1.5 text-sm bg-yellow-50" dir="ltr" />
-                <span className="flex items-center text-[11px] text-gray-400 px-1">{parseFloat(ci.exchange_rate || p.exchangeRates[ci.currency]?.rate || 0).toFixed(2)}</span>
+                <span className="flex items-center text-[11px] text-gray-400 px-1">{parseFloat(ci.exchange_rate || p.exchangeRates[displayCurrency]?.rate || 0).toFixed(2)}</span>
                 <span className="flex items-center text-sm font-medium text-gray-600 px-1">₪{(parseFloat(item.cost_price) || 0).toFixed(0)}</span>
                 <button onClick={() => p.removeCostItem(idx)} className="text-red-400 hover:text-red-600 text-lg">×</button>
               </div>
