@@ -453,9 +453,16 @@ export function usePricing(projectId: string): UsePricingReturn {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
       const ci = costInputs.find((c) => c.id === editingCostInput);
-      const currency = ci?.currency || next[idx].original_currency || 'USD';
+      // Effective currency: the cost input's currency if foreign, else any
+      // foreign currency already present on items (handles ci.currency=ILS
+      // mistagged after a duplicate where items are actually EUR/USD).
+      const headerForeign = ci?.currency && ci.currency !== 'ILS';
+      const itemForeign = next.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+      const currency = headerForeign ? ci!.currency : (itemForeign?.original_currency || ci?.currency || 'ILS');
       const rate = ci?.exchange_rate || exchangeRates[currency]?.rate || 1;
       const isILS = currency === 'ILS';
+      // Sync this row's stamp so saved items reflect the effective currency.
+      if (!isILS && next[idx].original_currency !== currency) next[idx].original_currency = currency;
 
       if (field === 'original_price' || field === 'quantity' || field === 'cost_price') {
         if (field === 'original_price' && !isILS) {
@@ -1085,10 +1092,17 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   function addCostItem() {
     const ci = editingCostInput ? costInputs.find((c) => c.id === editingCostInput) : null;
-    setEditingCostItems((prev) => [...prev, {
-      product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0,
-      original_price: 0, original_currency: ci?.currency || 'USD', item_type: '',
-    }]);
+    setEditingCostItems((prev) => {
+      // Pick up the effective currency from existing rows if the header is
+      // mistagged as ILS — same logic the editor uses to decide isForex.
+      const headerForeign = ci?.currency && ci.currency !== 'ILS';
+      const itemForeign = prev.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+      const currency = headerForeign ? ci!.currency : (itemForeign?.original_currency || ci?.currency || 'ILS');
+      return [...prev, {
+        product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0,
+        original_price: 0, original_currency: currency, item_type: '',
+      }];
+    });
   }
 
   function removeCostItem(idx: number) {
