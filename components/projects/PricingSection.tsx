@@ -718,7 +718,15 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                 <label className="block text-[12px] font-semibold text-gray-500 mb-1">קישור לתמחור</label>
                 <SearchableSelect value={p.newQuote.cost_input_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, cost_input_id: v })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm"
                   placeholder="ללא קישור"
-                  options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
+                  options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => {
+                    const cnt = (p.costInputItems[ci.id] || []).length;
+                    const items = cnt === 0 ? '⚠ ריק' : `${cnt} פריטים`;
+                    const cur = ci.currency && ci.currency !== 'ILS' ? ` ${ci.currency}` : '';
+                    return { value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})${cur} · ${formatDate(ci.created_at)} · ${items}` };
+                  })]} />
+                {p.newQuote.cost_input_id && (p.costInputItems[p.newQuote.cost_input_id] || []).length === 0 && (
+                  <p className="mt-1 text-[11px] text-amber-600">⚠️ התמחור הנבחר ריק — ההצעה תיווצר ללא פריטים.</p>
+                )}
               </div>
             )}
             <div>
@@ -818,7 +826,12 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                   💰 קישור לתמחור:
                   <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-[#e2e8f0] rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
                     placeholder="ללא קישור"
-                    options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => ({ value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'}) · ${formatDate(ci.created_at)}` }))]} />
+                    options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => {
+                      const cnt = (p.costInputItems[ci.id] || []).length;
+                      const items = cnt === 0 ? '⚠ ריק' : `${cnt} פריטים`;
+                      const cur = ci.currency && ci.currency !== 'ILS' ? ` ${ci.currency}` : '';
+                      return { value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})${cur} · ${formatDate(ci.created_at)} · ${items}` };
+                    })]} />
                 </span>
               )}
               {q.status === 'draft' && p.contractTemplates.length > 0 && (
