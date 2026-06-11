@@ -149,14 +149,24 @@ export default function CustomerDetailPage() {
       setProjectNames(projMap);
       setProjects(Object.values(allProjects));
 
-      // Project contacts from the customer's linked projects (read-only aggregation).
+      // Project contacts from the customer's linked projects, scoped to people
+      // who actually belong to this customer — match on client_contact_id when
+      // available (preferred, set by the picker), else fall back to a company
+      // name match for older rows that pre-date the cc:/pc: link.
       const allProjectIds = Object.keys(allProjects);
+      const clientContactIds = (cnts || []).map((c: any) => c.id);
+      const customerName = (cust?.name || '').trim();
       if (allProjectIds.length > 0) {
         const { data: pcs } = await supabase
           .from('project_contacts')
-          .select('id, project_id, role, name, company, phone, email')
+          .select('id, project_id, role, name, company, phone, email, client_contact_id')
           .in('project_id', allProjectIds);
-        setProjectContacts((pcs || []).map((pc: any) => ({
+        const mine = (pcs || []).filter((pc: any) => {
+          if (pc.client_contact_id && clientContactIds.includes(pc.client_contact_id)) return true;
+          if (!pc.client_contact_id && customerName && (pc.company || '').trim() === customerName) return true;
+          return false;
+        });
+        setProjectContacts(mine.map((pc: any) => ({
           id: pc.id, project: projMap[pc.project_id] || '', role: pc.role, name: pc.name,
           company: pc.company, phone: pc.phone, email: pc.email,
         })));
