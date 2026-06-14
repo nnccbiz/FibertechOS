@@ -92,6 +92,8 @@ export default function ProjectDetailPage() {
   const [uploadingSpec, setUploadingSpec] = useState(false);
   const [drawingDragOver, setDrawingDragOver] = useState(false);
   const drawingDragDepth = useRef(0);
+  const [specDragOver, setSpecDragOver] = useState(false);
+  const specDragDepth = useRef(0);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1099,7 +1101,71 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           )}
         </section>
 
-        {/* Project drawings */}
+        {/* Project specs (portrait orientation in the quote PDF) */}
+        <section
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${specDragOver ? 'border-amber-400 ring-2 ring-amber-200' : 'border-[#e2e8f0]'}`}
+          onDragEnter={(e) => {
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            specDragDepth.current += 1;
+            setSpecDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            specDragDepth.current = Math.max(0, specDragDepth.current - 1);
+            if (specDragDepth.current === 0) setSpecDragOver(false);
+          }}
+          onDrop={async (e) => {
+            if (uploadingSpec) return;
+            e.preventDefault();
+            specDragDepth.current = 0;
+            setSpecDragOver(false);
+            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g|docx?|xlsx?)$/i.test(f.name));
+            for (const f of files) { await uploadProjectSpec(f); }
+          }}
+        >
+          {specDragOver && (
+            <div className="absolute inset-0 z-20 bg-amber-50/90 border-2 border-dashed border-amber-400 rounded-xl flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="text-3xl mb-1">📋</div>
+                <p className="text-sm font-bold text-amber-700">שחרר כדי להעלות מפרטים</p>
+                <p className="text-[11px] text-amber-600 mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-gray-700">📋 מפרטים טכניים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-gray-100 text-gray-400' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+              {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
+            </label>
+          </div>
+          {(() => {
+            const specs = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type === 'spec');
+            if (specs.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין מפרטים. גרור קבצים פנימה, או לחץ &quot;+ העלה מפרט&quot;. מפרטים יוצגו לאורך בהצעת המחיר.</p>;
+            return (
+              <div className="space-y-2">
+                {specs.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                    </button>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </section>
+
+        {/* Project drawings (landscape orientation in the quote PDF) */}
         <section
           className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-[#1a56db] ring-2 ring-blue-200' : 'border-[#e2e8f0]'}`}
           onDragEnter={(e) => {
@@ -1132,55 +1198,39 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               <div className="text-center">
                 <div className="text-3xl mb-1">📐</div>
                 <p className="text-sm font-bold text-[#1a56db]">שחרר כדי להעלות שרטוטים</p>
-                <p className="text-[11px] text-blue-600 mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית</p>
+                <p className="text-[11px] text-blue-600 mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטים ומפרטים של הפרויקט</h2>
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
-                {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
-                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
-                  onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
-              </label>
-              <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-gray-100 text-gray-400' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
-                {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
-                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
-                  onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
-              </label>
-            </div>
+            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+              {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
+            </label>
           </div>
           {(() => {
-            const files = projectAttachments.filter((a: any) => a.entity_type === 'project');
-            if (files.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים או מפרטים. גרור קבצים פנימה, או לחץ על אחד מהכפתורים מעל.</p>;
+            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type !== 'spec');
+            if (drawings.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
             return (
               <div className="space-y-2">
-                {files.map((att: any) => {
-                  const isSpec = att.file_type === 'spec';
-                  return (
-                    <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                      {isSpec ? (
-                        <span className="text-[12px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
-                      ) : (
-                        <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
-                          {(details.project_number || '—')}/{att.drawing_number || '?'}
-                        </span>
-                      )}
-                      <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
-                        {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
-                      </button>
-                      {!isSpec && (
-                        <label className="text-[11px] text-gray-400 flex items-center gap-1">
-                          מס׳ שרטוט:
-                          <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
-                            placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
-                        </label>
-                      )}
-                      <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
-                    </div>
-                  );
-                })}
+                {drawings.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                      {(details.project_number || '—')}/{att.drawing_number || '?'}
+                    </span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                    </button>
+                    <label className="text-[11px] text-gray-400 flex items-center gap-1">
+                      מס׳ שרטוט:
+                      <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
+                        placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
+                    </label>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                  </div>
+                ))}
               </div>
             );
           })()}

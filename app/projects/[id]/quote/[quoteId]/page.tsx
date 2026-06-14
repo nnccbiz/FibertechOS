@@ -770,68 +770,18 @@ export default function QuotePreviewPage() {
             </div>
 
             {/* Drawing / spec pages slip in right before the first contract page. */}
-            {pIdx + 1 === attachmentInsertIdx && attachmentPages.map((page, idx) => {
-              const isSpec = page.fileType === 'spec';
-              const headerTitle = isSpec ? 'מפרט טכני' : 'שרטוט הפרויקט';
-              const subLabel = isSpec ? page.fileName : `${page.drawingNumber || page.fileName}`;
-              return (
-                <div key={`${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
-                  <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
-                    <div>
-                      <h2 className="text-lg font-bold text-gray-900">{headerTitle}</h2>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        {subLabel}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
-                        &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
-                      </p>
-                    </div>
-                    <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
-                  </div>
-                  <div className="flex-1 flex items-center justify-center px-6 min-h-0">
-                    <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
-                  </div>
-                  <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
-                    <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-                    <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
-                    <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-                    <PageMeta pageNum={attachmentInsertIdx + 1 + idx} />
-                  </div>
-                </div>
-              );
-            })}
+            {pIdx + 1 === attachmentInsertIdx && attachmentPages.map((page, idx) => (
+              <AttachmentPageBlock key={`${page.attId}-${page.pageNum}`} page={page} pageNum={attachmentInsertIdx + 1 + idx} quoteNumber={quote.quote_number} PageMeta={PageMeta} />
+            ))}
           </React.Fragment>
         ))}
 
         {/* Tail case: contract section came out empty (no template + nothing in
             the fallback) so attachmentInsertIdx === renderPages.length — drop
             the attachments after the last portrait page instead. */}
-        {attachmentInsertIdx === renderPages.length && attachmentPages.map((page, idx) => {
-          const isSpec = page.fileType === 'spec';
-          const headerTitle = isSpec ? 'מפרט טכני' : 'שרטוט הפרויקט';
-          const subLabel = isSpec ? page.fileName : `${page.drawingNumber || page.fileName}`;
-          return (
-            <div key={`tail-${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
-              <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{headerTitle}</h2>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {subLabel}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
-                    &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
-                  </p>
-                </div>
-                <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
-              </div>
-              <div className="flex-1 flex items-center justify-center px-6 min-h-0">
-                <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
-              </div>
-              <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
-                <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-                <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
-                <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-                <PageMeta pageNum={renderPages.length + 1 + idx} />
-              </div>
-            </div>
-          );
-        })}
+        {attachmentInsertIdx === renderPages.length && attachmentPages.map((page, idx) => (
+          <AttachmentPageBlock key={`tail-${page.attId}-${page.pageNum}`} page={page} pageNum={renderPages.length + 1 + idx} quoteNumber={quote.quote_number} PageMeta={PageMeta} />
+        ))}
       </div>
 
       {/* Hidden mirror — measures real rendered heights for exact pagination (not printed/exported). */}
@@ -859,6 +809,49 @@ export default function QuotePreviewPage() {
           @page { size: A4; margin: 8mm; }
         }
       `}</style>
+    </div>
+  );
+}
+
+function AttachmentPageBlock({
+  page,
+  pageNum,
+  quoteNumber,
+  PageMeta,
+}: {
+  page: AttachmentPage;
+  pageNum: number;
+  quoteNumber: string;
+  PageMeta: (props: { pageNum: number }) => JSX.Element;
+}) {
+  // Specs print portrait (210×297); drawings print landscape (297×210).
+  // The PDF generator reads data-orient and rotates the page to match.
+  const isSpec = page.fileType === 'spec';
+  const headerTitle = isSpec ? 'מפרט טכני' : 'שרטוט הפרויקט';
+  const subLabel = isSpec ? page.fileName : (page.drawingNumber || page.fileName);
+  const dims = isSpec ? { width: '210mm', height: '297mm' } : { width: '297mm', height: '210mm' };
+  const orient = isSpec ? 'portrait' : 'landscape';
+  return (
+    <div data-orient={orient} className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ ...dims, overflow: 'hidden' }}>
+      <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{headerTitle}</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {subLabel}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
+            &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quoteNumber}</span>
+          </p>
+        </div>
+        <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
+      </div>
+      <div className="flex-1 flex items-center justify-center px-6 min-h-0">
+        <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
+      </div>
+      <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
+        <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+        <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
+        <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+        <PageMeta pageNum={pageNum} />
+      </div>
     </div>
   );
 }
