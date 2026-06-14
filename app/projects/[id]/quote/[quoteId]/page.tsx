@@ -264,7 +264,10 @@ export default function QuotePreviewPage() {
   const quoteDateSource = quote.status === 'draft' ? new Date() : (quote.updated_at ? new Date(quote.updated_at) : new Date());
   const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const hasAnyDiscount = globalDisc > 0 || items.some(i => (parseFloat(i.discount_pct) || 0) > 0);
+  // The per-line "הנחה" column shows only when at least one line has its own
+  // discount. A quote-wide (global) discount is shown in the totals box instead,
+  // so it must NOT force an all-zeros discount column onto the items table.
+  const hasAnyDiscount = items.some(i => (parseFloat(i.discount_pct) || 0) > 0);
   const colCount = hasAnyDiscount ? 8 : 7;
 
   const whatsappText = encodeURIComponent(

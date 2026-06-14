@@ -188,7 +188,10 @@ export default function PublicQuotePage() {
   const quoteDateSource = quote.status === 'draft' ? new Date() : (quote.updated_at ? new Date(quote.updated_at) : new Date());
   const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const colCount = 10;
+  // The per-line discount column appears only when a line actually carries its
+  // own discount. A quote-wide (global) discount is shown in the totals rows.
+  const hasLineDiscount = items.some((i: any) => (parseFloat(i.discount_pct) || 0) > 0);
+  const colCount = hasLineDiscount ? 10 : 9;
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -257,7 +260,7 @@ export default function PublicQuotePage() {
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>
+                {hasLineDiscount && <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>}
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">סה״כ</th>
               </tr>
             </thead>
@@ -274,7 +277,7 @@ export default function PublicQuotePage() {
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>
+                    {hasLineDiscount && <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>}
                     <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
                   </tr>
                 );
