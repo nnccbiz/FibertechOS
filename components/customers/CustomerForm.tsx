@@ -27,6 +27,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: '', tax_id: '', address: '', city: '', phone: '', email: '', notes: '' });
   const [contacts, setContacts] = useState<ContactRow[]>([{ ...EMPTY_CONTACT }]);
+  const [loadedContactIds, setLoadedContactIds] = useState<string[]>([]);
   const [existingNames, setExistingNames] = useState<string[]>([]);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
       ]);
       if (c) setForm({ name: c.name || '', tax_id: c.tax_id || '', address: c.address || '', city: c.city || '', phone: c.phone || '', email: c.email || '', notes: c.notes || '' });
       setContacts((cnts && cnts.length > 0) ? cnts.map((x: any) => ({ id: x.id, name: x.name || '', role: x.role || '', phone: x.phone || '', email: x.email || '' })) : [{ ...EMPTY_CONTACT }]);
+      setLoadedContactIds((cnts || []).map((x: any) => x.id));
       setLoading(false);
     }
     load();
@@ -71,13 +73,33 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
         cid = data.id;
       }
 
-      // Replace the contact set (simple + reliable for small lists).
+      // Diff the contact set instead of delete-then-insert: re-keying every
+      // contact would null project_contacts.client_contact_id (ON DELETE SET
+      // NULL) on every linked project contact. Update existing rows in place
+      // (keeps the id + FK; the master→project sync trigger propagates edits),
+      // insert new ones, and delete only the ones the user actually removed.
       const validContacts = contacts.filter((c) => c.name.trim() || c.phone.trim() || c.email.trim());
-      if (isEdit) await supabase.from('client_contacts').delete().eq('client_id', cid);
-      if (validContacts.length > 0) {
-        await supabase.from('client_contacts').insert(validContacts.map((c) => ({
-          client_id: cid, name: c.name.trim(), role: c.role.trim() || null, phone: c.phone.trim() || null, email: c.email.trim() || null,
-        })));
+      const rowFor = (c: ContactRow) => ({
+        name: c.name.trim(), role: c.role.trim() || null,
+        phone: c.phone.trim() || null, email: c.email.trim() || null,
+      });
+      const existing = validContacts.filter((c) => c.id);
+      const fresh = validContacts.filter((c) => !c.id);
+      if (isEdit) {
+        const keptIds = existing.map((c) => c.id as string);
+        const toDelete = loadedContactIds.filter((id) => !keptIds.includes(id));
+        if (toDelete.length > 0) {
+          const { error } = await supabase.from('client_contacts').delete().in('id', toDelete);
+          if (error) throw error;
+        }
+        for (const c of existing) {
+          const { error } = await supabase.from('client_contacts').update(rowFor(c)).eq('id', c.id as string);
+          if (error) throw error;
+        }
+      }
+      if (fresh.length > 0) {
+        const { error } = await supabase.from('client_contacts').insert(fresh.map((c) => ({ client_id: cid, ...rowFor(c) })));
+        if (error) throw error;
       }
       onSaved(cid as string);
     } catch (err: any) {
