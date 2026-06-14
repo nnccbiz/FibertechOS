@@ -242,17 +242,23 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
   }
 
+  // Remove a storage object only when no remaining attachment row references it.
+  // duplicateCostInput mirrors attachment rows onto the copy while sharing the
+  // same file_url (no duplicated bytes), so a blind storage.remove() on either
+  // side would destroy the blob the sibling still points at. Call this AFTER the
+  // attachment rows have been deleted, so they don't count as live references.
+  async function removeStorageIfOrphan(fileUrl?: string | null) {
+    if (!fileUrl) return;
+    const { data: refs } = await supabase.from('attachments').select('id').eq('file_url', fileUrl).limit(1);
+    if (refs && refs.length > 0) return; // still referenced elsewhere — keep the blob
+    const path = fileUrl.startsWith('http') ? (fileUrl.match(/project-files\/(.+)$/)?.[1] || fileUrl) : fileUrl;
+    await supabase.storage.from('project-files').remove([path]);
+  }
+
   async function deleteAttachment(id: string) {
     const att = attachments.find((a) => a.id === id);
-    if (att?.file_url) {
-      let storagePath = att.file_url;
-      if (storagePath.startsWith('http')) {
-        const match = storagePath.match(/project-files\/(.+)$/);
-        if (match) storagePath = match[1];
-      }
-      await supabase.storage.from('project-files').remove([storagePath]);
-    }
     await supabase.from('attachments').delete().eq('id', id);
+    await removeStorageIfOrphan(att?.file_url);
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
@@ -279,12 +285,11 @@ export function usePricing(projectId: string): UsePricingReturn {
     try {
       const ciAtts = attachments.filter((a) => a.entity_type === 'cost_input' && a.entity_id === ciId);
       if (ciAtts.length) {
-        const paths = ciAtts
-          .map((a) => a.file_url || '')
-          .filter(Boolean)
-          .map((p: string) => p.startsWith('http') ? (p.match(/project-files\/(.+)$/)?.[1] || p) : p);
-        if (paths.length) await supabase.storage.from('project-files').remove(paths);
+        // Delete the rows first, then remove each unique blob only if no other
+        // attachment (e.g. a duplicated cost input) still references it.
         await supabase.from('attachments').delete().eq('entity_type', 'cost_input').eq('entity_id', ciId);
+        const urls = Array.from(new Set(ciAtts.map((a) => a.file_url).filter(Boolean)));
+        for (const url of urls) await removeStorageIfOrphan(url);
       }
       const { error } = await supabase.from('cost_inputs').delete().eq('id', ciId);
       if (error) { alert(`שגיאה במחיקה: ${error.message}`); return; }
