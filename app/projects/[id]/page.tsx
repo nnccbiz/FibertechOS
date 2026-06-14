@@ -89,6 +89,7 @@ export default function ProjectDetailPage() {
   const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [uploadingSpec, setUploadingSpec] = useState(false);
   const [drawingDragOver, setDrawingDragOver] = useState(false);
   const drawingDragDepth = useRef(0);
   const [updates, setUpdates] = useState<any[]>([]);
@@ -258,6 +259,28 @@ export default function ProjectDetailPage() {
       await load();
     } finally {
       setUploadingDrawing(false);
+    }
+  }
+
+  // Project-level technical specs (datasheets, standards). Same attachment row
+  // shape as drawings but file_type='spec' so they render with the 📋 badge,
+  // no drawing-number column, no Gemini extraction.
+  async function uploadProjectSpec(file: File) {
+    setUploadingSpec(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/specs/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: 'spec', file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await load();
+    } finally {
+      setUploadingSpec(false);
     }
   }
 
@@ -1114,34 +1137,50 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטי הפרויקט</h2>
-            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
-              {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
-              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
-                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
-            </label>
+            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטים ומפרטים של הפרויקט</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+                {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
+                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
+                  onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
+              </label>
+              <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-gray-100 text-gray-400' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+                {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
+                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
+                  onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
+              </label>
+            </div>
           </div>
           {(() => {
-            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project');
-            if (drawings.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים. לחץ &quot;+ העלה שרטוט&quot; — מספר השרטוט יזוהה אוטומטית.</p>;
+            const files = projectAttachments.filter((a: any) => a.entity_type === 'project');
+            if (files.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים או מפרטים. גרור קבצים פנימה, או לחץ על אחד מהכפתורים מעל.</p>;
             return (
               <div className="space-y-2">
-                {drawings.map((att: any) => (
-                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
-                      {(details.project_number || '—')}/{att.drawing_number || '?'}
-                    </span>
-                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
-                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
-                    </button>
-                    <label className="text-[11px] text-gray-400 flex items-center gap-1">
-                      מס׳ שרטוט:
-                      <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
-                        placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
-                    </label>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
-                  </div>
-                ))}
+                {files.map((att: any) => {
+                  const isSpec = att.file_type === 'spec';
+                  return (
+                    <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                      {isSpec ? (
+                        <span className="text-[12px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
+                      ) : (
+                        <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                          {(details.project_number || '—')}/{att.drawing_number || '?'}
+                        </span>
+                      )}
+                      <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                        {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                      </button>
+                      {!isSpec && (
+                        <label className="text-[11px] text-gray-400 flex items-center gap-1">
+                          מס׳ שרטוט:
+                          <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
+                            placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
+                        </label>
+                      )}
+                      <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}

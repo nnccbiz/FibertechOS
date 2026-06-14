@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
@@ -26,12 +26,14 @@ function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
 
-async function renderPdfToPages(attId: string, fileName: string, blob: Blob): Promise<Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }>> {
+type AttachmentPage = { attId: string; fileName: string; fileType: string | null; drawingNumber: string | null; pageNum: number; totalPages: number; dataUrl: string };
+
+async function renderPdfToPages(attId: string, fileName: string, fileType: string | null, drawingNumber: string | null, blob: Blob): Promise<AttachmentPage[]> {
   const pdfjsLib: any = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
   const arrayBuffer = await blob.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const pages: Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }> = [];
+  const pages: AttachmentPage[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: 1.5 });
@@ -41,7 +43,7 @@ async function renderPdfToPages(attId: string, fileName: string, blob: Blob): Pr
     const ctx = canvas.getContext('2d');
     if (!ctx) continue;
     await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    pages.push({ attId, fileName, pageNum: i, totalPages: pdf.numPages, dataUrl: canvas.toDataURL('image/jpeg', 0.85) });
+    pages.push({ attId, fileName, fileType, drawingNumber, pageNum: i, totalPages: pdf.numPages, dataUrl: canvas.toDataURL('image/jpeg', 0.85) });
   }
   return pages;
 }
@@ -58,7 +60,7 @@ export default function QuotePreviewPage() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [contractSections, setContractSections] = useState<{ title: string; clauses: { num: number; text: string }[] }[]>(CONTRACT_SECTIONS);
   const [clientContact, setClientContact] = useState<{ name: string; phone: string; email: string } | null>(null);
-  const [attachmentPages, setAttachmentPages] = useState<Array<{ attId: string; fileName: string; pageNum: number; totalPages: number; dataUrl: string }>>([]);
+  const [attachmentPages, setAttachmentPages] = useState<AttachmentPage[]>([]);
   const [quoteViews, setQuoteViews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -143,14 +145,14 @@ export default function QuotePreviewPage() {
               }
               const isPdf = /\.pdf$/i.test(att.file_name);
               if (isPdf) {
-                return await renderPdfToPages(att.id, att.file_name, data);
+                return await renderPdfToPages(att.id, att.file_name, att.file_type ?? null, att.drawing_number ?? null, data);
               }
               const url = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(data);
               });
-              return [{ attId: att.id, fileName: att.file_name, pageNum: 1, totalPages: 1, dataUrl: url }];
+              return [{ attId: att.id, fileName: att.file_name, fileType: att.file_type ?? null, drawingNumber: att.drawing_number ?? null, pageNum: 1, totalPages: 1, dataUrl: url }];
             } catch (err: any) {
               console.error('Failed to load attachment', att.file_name, err?.message);
               return [];
@@ -199,6 +201,9 @@ export default function QuotePreviewPage() {
       const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
       const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
       const tbKeep = tbs.map((e) => e.getAttribute('data-keep') === '1');
+      // Block index where the contract section starts — the JS pack force-breaks
+      // before it so attachment pages can slot in here; mirror the rule.
+      const tbCtitleIdx = tbs.findIndex((e) => e.getAttribute('data-kind') === 'ctitle');
       if (!tbs.length) return;
 
       const result: { hasHeader: boolean; itemIdxs: number[]; blockIdxs: number[] }[] = [];
@@ -218,7 +223,8 @@ export default function QuotePreviewPage() {
       for (let t = 0; t < tbs.length; t++) {
         let need = tbHs[t] || 0;
         if (tbKeep[t]) need += tbHs[t + 1] || 0; // keep a heading/title with the block after it
-        if (need > rem && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
+        const forceBreak = t === tbCtitleIdx;
+        if ((forceBreak || need > rem) && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
           cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
           result.push(cur);
           rem = contentAvail - contLabelH - SAFETY;
@@ -419,6 +425,9 @@ export default function QuotePreviewPage() {
     pages.push({ hasHeader: pIdx === 0, itemIdxs, blockIdxs: [] });
   });
 
+  // Force a hard page break before the contract title so the drawing / spec
+  // attachment pages can sit between the summary section and the contract.
+  const ctitleIdx = trailing.findIndex((t) => t.kind === 'ctitle');
   {
     const lastSlice = itemPages[itemPages.length - 1];
     const lastUsed = (itemPages.length === 1 ? HEADER_H : CONT_LABEL_H) + THEAD_H + lastSlice.reduce((s: number, it: any) => s + rowH(it), 0);
@@ -429,7 +438,8 @@ export default function QuotePreviewPage() {
       // Keep a heading/title with the block that follows it (no orphaned heading at a page foot).
       let need = tb.h;
       if (tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading')) need += trailing[i + 1]?.h || 0;
-      if (need > rem && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
+      const forceBreak = i === ctitleIdx; // attachments slot in here
+      if ((forceBreak || need > rem) && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
         cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
         pages.push(cur);
         rem = USABLE_H - CONT_LABEL_H; // continuation pages carry the small "(המשך)" line
@@ -440,7 +450,15 @@ export default function QuotePreviewPage() {
   }
 
   const renderPages = measuredPages ?? pages;
+  // First portrait page that contains the contract title — attachments inserted right before it.
+  const attachmentInsertIdx = (() => {
+    const i = renderPages.findIndex((p: RPage) => p.blockIdxs.some((bi: number) => trailing[bi]?.kind === 'ctitle'));
+    return i >= 0 ? i : renderPages.length;
+  })();
   const totalPages = renderPages.length + attachmentPages.length;
+  // Page number helper that accounts for the landscape pages sitting in the middle.
+  const displayPageNum = (portraitIdx: number) =>
+    portraitIdx < attachmentInsertIdx ? portraitIdx + 1 : portraitIdx + 1 + attachmentPages.length;
 
   function PageMeta({ pageNum }: { pageNum: number }) {
     return (
@@ -734,45 +752,86 @@ export default function QuotePreviewPage() {
       )}
 
       <div id="quote-page-content">
-        {/* Portrait pages — items, summary, contract and signatures flow continuously. */}
+        {/* Portrait pages — items + summary first, then the attachment pages,
+            then the contract terms + signatures. The pagination above already
+            inserted a hard break before the contract block to make room. */}
         {renderPages.map((pg: any, pIdx: number) => (
-          <div key={`page-${pIdx}`} className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
-            <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
-              {pg.hasHeader
-                ? <QuoteHeader />
-                : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
-              }
-              {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i: number) => items[i])} startIdx={pg.itemIdxs[0]} />}
-              {pg.blockIdxs.map((bi: number) => renderTBlock(trailing[bi], bi))}
+          <React.Fragment key={`page-${pIdx}`}>
+            <div className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+              <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir="rtl">
+                {pg.hasHeader
+                  ? <QuoteHeader />
+                  : <p className="text-sm text-gray-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
+                }
+                {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i: number) => items[i])} startIdx={pg.itemIdxs[0]} />}
+                {pg.blockIdxs.map((bi: number) => renderTBlock(trailing[bi], bi))}
+              </div>
+              <QuoteFooter pageNum={displayPageNum(pIdx)} />
             </div>
-            <QuoteFooter pageNum={pIdx + 1} />
-          </div>
+
+            {/* Drawing / spec pages slip in right before the first contract page. */}
+            {pIdx + 1 === attachmentInsertIdx && attachmentPages.map((page, idx) => {
+              const isSpec = page.fileType === 'spec';
+              const headerTitle = isSpec ? 'מפרט טכני' : 'שרטוט הפרויקט';
+              const subLabel = isSpec ? page.fileName : `${page.drawingNumber || page.fileName}`;
+              return (
+                <div key={`${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
+                  <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">{headerTitle}</h2>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {subLabel}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
+                        &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
+                      </p>
+                    </div>
+                    <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
+                  </div>
+                  <div className="flex-1 flex items-center justify-center px-6 min-h-0">
+                    <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
+                    <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
+                    <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+                    <PageMeta pageNum={attachmentInsertIdx + 1 + idx} />
+                  </div>
+                </div>
+              );
+            })}
+          </React.Fragment>
         ))}
 
-        {/* Drawing / attachment pages — landscape A4 appendix at the end */}
-        {attachmentPages.map((page, idx) => (
-          <div key={`${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
-            <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">שרטוט הפרויקט</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  {page.fileName}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
-                  &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
-                </p>
+        {/* Tail case: contract section came out empty (no template + nothing in
+            the fallback) so attachmentInsertIdx === renderPages.length — drop
+            the attachments after the last portrait page instead. */}
+        {attachmentInsertIdx === renderPages.length && attachmentPages.map((page, idx) => {
+          const isSpec = page.fileType === 'spec';
+          const headerTitle = isSpec ? 'מפרט טכני' : 'שרטוט הפרויקט';
+          const subLabel = isSpec ? page.fileName : `${page.drawingNumber || page.fileName}`;
+          return (
+            <div key={`tail-${page.attId}-${page.pageNum}`} data-orient="landscape" className="mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ width: '297mm', height: '210mm', overflow: 'hidden' }}>
+              <div className="flex items-start justify-between px-8 pt-4" dir="rtl">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">{headerTitle}</h2>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {subLabel}{page.totalPages > 1 ? ` (עמוד ${page.pageNum} מתוך ${page.totalPages})` : ''}
+                    &nbsp;|&nbsp; מס׳ הצעה: <span className="font-semibold">{quote.quote_number}</span>
+                  </p>
+                </div>
+                <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
               </div>
-              <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
+              <div className="flex-1 flex items-center justify-center px-6 min-h-0">
+                <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
+              </div>
+              <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
+                <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
+                <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
+                <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
+                <PageMeta pageNum={renderPages.length + 1 + idx} />
+              </div>
             </div>
-            <div className="flex-1 flex items-center justify-center px-6 min-h-0">
-              <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
-            </div>
-            <div className="bg-[#f0f0f0] px-8 py-3 text-center" dir="rtl">
-              <p className="text-[11px] font-bold text-[#5c5c5c]">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-              <p className="text-[9px] text-gray-500 mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
-              <p className="text-[9px] font-semibold text-[#5c5c5c] mt-0.5">www.fibertech.co.il</p>
-              <PageMeta pageNum={renderPages.length + 1 + idx} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Hidden mirror — measures real rendered heights for exact pagination (not printed/exported). */}
@@ -786,7 +845,7 @@ export default function QuotePreviewPage() {
           <div data-m="items">{items.length > 0 && <ItemsTable slice={items} startIdx={0} />}</div>
           <div data-m="trailing">
             {trailing.map((tb, i) => (
-              <div key={i} data-keep={tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading') ? '1' : '0'} style={{ display: 'flow-root' }}>
+              <div key={i} data-kind={tb.kind} data-keep={tb.kind === 'ctitle' || (tb.kind === 'cblock' && tb.b.type === 'heading') ? '1' : '0'} style={{ display: 'flow-root' }}>
                 {renderTBlock(tb, i)}
               </div>
             ))}

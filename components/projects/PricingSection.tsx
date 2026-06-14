@@ -913,14 +913,17 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
           {!isEditing && p.projectDrawings.length > 0 && (
             <div className="mb-3 bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2">
-              <p className="text-[12px] font-semibold text-gray-600 mb-1.5">📐 שרטוטים לצירוף להצעה זו</p>
+              <p className="text-[12px] font-semibold text-gray-600 mb-1.5">📐 שרטוטים ומפרטים לצירוף להצעה זו</p>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {p.projectDrawings.map((d: any) => {
                   const on = (p.quoteDrawings[q.id] || []).includes(d.id);
+                  const isSpec = d.file_type === 'spec';
                   return (
                     <label key={d.id} className="flex items-center gap-1.5 text-[12px] text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={on} onChange={() => p.toggleQuoteDrawing(q.id, d.id)} />
-                      <span dir="ltr" className="font-medium">{d.drawing_number || '?'}</span>
+                      {isSpec
+                        ? <span className="font-medium text-amber-700">📋 מפרט</span>
+                        : <span dir="ltr" className="font-medium">📐 {d.drawing_number || '?'}</span>}
                       <span className="text-gray-400 truncate max-w-[160px]">{d.file_name}</span>
                     </label>
                   );
