@@ -547,9 +547,15 @@ export function usePricing(projectId: string): UsePricingReturn {
     setParsingCostFile(true);
     try {
       // Save the source files as attachments on the cost input so the
-      // original supplier quotes stay traceable from the parsed price.
+      // original supplier quotes stay traceable from the parsed price. Track
+      // failures (e.g. RLS denial for a marketing-only user) so we can warn —
+      // otherwise the user sees "items extracted" while the source file is lost.
+      let uploadFailures = 0;
       for (let k = 0; k < fileList.length; k++) {
-        try { await uploadCostInputAttachment(costInputId, fileList[k]); } catch {}
+        try {
+          const saved = await uploadCostInputAttachment(costInputId, fileList[k]);
+          if (!saved) uploadFailures++;
+        } catch { uploadFailures++; }
       }
       const filesArr: { base64: string; mimeType: string; name: string }[] = [];
       for (let i = 0; i < fileList.length; i++) {
@@ -616,7 +622,10 @@ export function usePricing(projectId: string): UsePricingReturn {
         const failedNote = Array.isArray(data.failed_files) && data.failed_files.length
           ? `\n\n⚠️ לא הצלחתי לקרוא ${data.failed_files.length} קבצים (עומס זמני בשרת Gemini): ${data.failed_files.join(', ')}.\nנסה להעלות אותם שוב.`
           : '';
-        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${failedNote}`);
+        const uploadNote = uploadFailures > 0
+          ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה (כנראה אין לך הרשאת עריכה לפרויקטים) — הפריטים חולצו אך הקובץ המקורי לא נשמר.`
+          : '';
+        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${failedNote}${uploadNote}`);
       } else {
         const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
