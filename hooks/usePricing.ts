@@ -492,10 +492,11 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function saveCostInputItems(costInputId: string) {
     setSaving(true);
     try {
-      await supabase.from('cost_input_items').delete().eq('cost_input_id', costInputId);
+      const { error: delErr } = await supabase.from('cost_input_items').delete().eq('cost_input_id', costInputId);
+      if (delErr) throw delErr;
       const valid = editingCostItems.filter((i) => i.product_name?.trim());
       if (valid.length > 0) {
-        await supabase.from('cost_input_items').insert(valid.map((i, idx) => ({
+        const { error: insErr } = await supabase.from('cost_input_items').insert(valid.map((i, idx) => ({
           cost_input_id: costInputId,
           product_name: i.product_name,
           dn_size: i.dn_size || null,
@@ -511,8 +512,13 @@ export function usePricing(projectId: string): UsePricingReturn {
           length_m: i.length_m ? parseFloat(i.length_m) : null,
           sort_order: idx,
         })));
+        if (insErr) throw insErr;
       }
-      setCostInputItems((prev) => ({ ...prev, [costInputId]: valid }));
+      // Re-fetch with the real DB ids (and sort order) so per-row updates and the
+      // 🔄 refresh-rate button — which target .eq('id', ...) — actually hit rows.
+      const { data: reloaded } = await supabase.from('cost_input_items')
+        .select('*').eq('cost_input_id', costInputId).order('sort_order');
+      setCostInputItems((prev) => ({ ...prev, [costInputId]: reloaded || [] }));
       setEditingCostInput(null);
     } catch (err: any) {
       alert(`שגיאה: ${err.message}`);
