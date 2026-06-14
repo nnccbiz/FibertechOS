@@ -1126,13 +1126,13 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
           <span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
-          const spec = parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn });
+          const specFromProject = p.resolvePnSn(item.dn_size);
           return (
           <div key={idx} className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
             <AutoTextarea value={item.product_name} onChange={(v) => p.updateItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0 w-full" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />
-            <span className="flex items-center justify-center text-[11px] text-gray-500 min-w-0" title="לחץ עבודה (מתוך תיאור המוצר)">{spec.pn || '—'}</span>
-            <span className="flex items-center justify-center text-[11px] text-gray-500 min-w-0 truncate" title="קשיחות (מתוך תיאור המוצר)">{fmtSn(spec.sn) || '—'}</span>
+            <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
+            <input type="number" value={item.sn ?? ''} onChange={(e) => p.updateItem(idx, 'sn', e.target.value)} placeholder={specFromProject.sn != null ? String(specFromProject.sn) : 'SN'} title="קשיחות (פסקל) — נמשכת מהמפרט לפי DN, ניתנת לעריכה" className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
             <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-[#e2e8f0] rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-[#e2e8f0] rounded px-1.5 py-1 text-[12px] min-w-0" />

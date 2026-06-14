@@ -84,6 +84,8 @@ export interface UsePricingReturn {
   customerContacts: any[];
   contractTemplates: any[];
   projectDrawings: any[];
+  pipeSpecs: any[];
+  resolvePnSn: (dnSize: string | null | undefined) => { pn: number | null; sn: number | null };
   quoteDrawings: Record<string, string[]>;
   cancelEditQuote: () => void;
   updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
@@ -123,6 +125,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [customerContacts, setCustomerContacts] = useState<any[]>([]);
   const [contractTemplates, setContractTemplates] = useState<any[]>([]);
   const [projectDrawings, setProjectDrawings] = useState<any[]>([]);
+  const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
   const [quoteDrawings, setQuoteDrawings] = useState<Record<string, string[]>>({});
   const [uploadingFile, setUploadingFile] = useState(false);
   const [projectNumber, setProjectNumber] = useState<number | null>(null);
@@ -158,7 +161,7 @@ export function usePricing(projectId: string): UsePricingReturn {
   }, [projectId]);
 
   async function loadPricingData() {
-    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes, custContactsRes, tplRes] = await Promise.all([
+    const [quotesRes, costRes, ordersRes, projRes, contactsRes, customersRes, drawingsRes, custContactsRes, tplRes, specsRes] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('cost_inputs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('orders').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -168,6 +171,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       supabase.from('attachments').select('id, file_name, file_url, drawing_number, file_type').eq('project_id', projectId).eq('entity_type', 'project').order('created_at'),
       supabase.from('client_contacts').select('id, client_id, name, role, phone, email').order('created_at'),
       supabase.from('contract_term_templates').select('id, name, description, is_default').order('is_default', { ascending: false }).order('name'),
+      supabase.from('pipe_specs').select('dn_mm, pressure_bar, stiffness_pascal').eq('project_id', projectId).order('dn_mm'),
     ]);
     if (projRes.data?.project_number) setProjectNumber(projRes.data.project_number);
     setContractTemplates(tplRes.data || []);
@@ -175,6 +179,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     setCustomers(customersRes.data || []);
     setCustomerContacts(custContactsRes.data || []);
     setProjectDrawings(drawingsRes.data || []);
+    setPipeSpecs(specsRes.data || []);
 
     const qts = quotesRes.data || [];
     const costs = costRes.data || [];
@@ -602,6 +607,23 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   // === Quote functions ===
+
+  // Pull working pressure (PN, bar) + stiffness (SN, Pascal) from the project's
+  // pipe_specs for a given DN. Matches the numeric part of dn_size (e.g. "DN700"
+  // or "700") to pipe_specs.dn_mm. Returns nulls when there's no matching spec.
+  function resolvePnSn(dnSize: string | null | undefined): { pn: number | null; sn: number | null } {
+    if (dnSize == null) return { pn: null, sn: null };
+    const m = String(dnSize).match(/\d+/);
+    if (!m) return { pn: null, sn: null };
+    const dn = parseInt(m[0], 10);
+    const spec = pipeSpecs.find((s) => Number(s.dn_mm) === dn);
+    if (!spec) return { pn: null, sn: null };
+    return {
+      pn: spec.pressure_bar != null ? Number(spec.pressure_bar) : null,
+      sn: spec.stiffness_pascal != null ? Number(spec.stiffness_pascal) : null,
+    };
+  }
+
   function buildDocNumber(prefix: string, version?: number) {
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, '0');
@@ -671,13 +693,15 @@ export function usePricing(projectId: string): UsePricingReturn {
     const preItems = ciItems.length > 0
       ? ciItems.map((ci: any) => {
           const unitPrice = calcSellingPrice(parseFloat(ci.cost_price) || 0, oh, pr);
+          const spec = resolvePnSn(ci.dn_size);
           return {
             product_name: ci.product_name, dn_size: ci.dn_size, quantity: ci.quantity, unit: ci.unit,
             cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr, discount_pct: 0,
             unit_price: unitPrice, total_price: (ci.quantity || 0) * unitPrice, notes: '',
+            pn: ci.pn ?? spec.pn, sn: ci.sn ?? spec.sn,
           };
         })
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }];
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '', pn: null, sn: null }];
 
     setNewQuote({
       client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
@@ -876,6 +900,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       const cost = parseFloat(ci.cost_price) || 0;
       const qty = parseFloat(ci.quantity) || 0;
       const unitPrice = calcSellingPrice(cost, oh, pr);
+      const spec = resolvePnSn(ci.dn_size);
       return {
         quote_id: quoteId,
         product_name: ci.product_name || '',
@@ -889,6 +914,8 @@ export function usePricing(projectId: string): UsePricingReturn {
         unit_price: unitPrice,
         total_price: Math.round(qty * unitPrice * 100) / 100,
         notes: '',
+        pn: ci.pn ?? spec.pn,
+        sn: ci.sn ?? spec.sn,
         sort_order: idx,
       };
     });
@@ -978,14 +1005,22 @@ export function usePricing(projectId: string): UsePricingReturn {
       await supabase.from('quote_items').delete().eq('quote_id', quoteId);
       const valid = editingItems.filter((i) => i.product_name?.trim());
       if (valid.length > 0) {
-        await supabase.from('quote_items').insert(valid.map((i, idx) => ({
-          quote_id: quoteId, product_name: i.product_name, dn_size: i.dn_size || null,
-          quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
-          cost_price: parseFloat(i.cost_price) || 0, overheads_pct: parseFloat(i.overheads_pct) || 0,
-          profit_pct: parseFloat(i.profit_pct) || 0, discount_pct: parseFloat(i.discount_pct) || 0,
-          unit_price: parseFloat(i.unit_price) || 0, total_price: parseFloat(i.total_price) || 0,
-          notes: i.notes || '', sort_order: idx,
-        })));
+        await supabase.from('quote_items').insert(valid.map((i, idx) => {
+          const spec = resolvePnSn(i.dn_size);
+          const hasPn = i.pn != null && i.pn !== '';
+          const hasSn = i.sn != null && i.sn !== '';
+          return {
+            quote_id: quoteId, product_name: i.product_name, dn_size: i.dn_size || null,
+            quantity: parseFloat(i.quantity) || 0, unit: i.unit || 'מטר',
+            cost_price: parseFloat(i.cost_price) || 0, overheads_pct: parseFloat(i.overheads_pct) || 0,
+            profit_pct: parseFloat(i.profit_pct) || 0, discount_pct: parseFloat(i.discount_pct) || 0,
+            unit_price: parseFloat(i.unit_price) || 0, total_price: parseFloat(i.total_price) || 0,
+            notes: i.notes || '',
+            pn: hasPn ? parseFloat(i.pn) : spec.pn,
+            sn: hasSn ? parseInt(i.sn) : spec.sn,
+            sort_order: idx,
+          };
+        }));
       }
       const totalSell = valid.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
       const totalCost = valid.reduce((s, i) => s + ((parseFloat(i.cost_price) || 0) * (parseFloat(i.quantity) || 0)), 0);
@@ -1147,7 +1182,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
     contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
-    projectDrawings, quoteDrawings, toggleQuoteDrawing,
+    projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, addCostItem, removeCostItem,

@@ -12,9 +12,10 @@ export interface PricingInput {
 }
 
 /**
- * Extract working pressure (PN) and stiffness (SN) from a pipe description.
- * Pipe descriptions encode them, e.g. "...PN01 SN20000...". Falls back to
- * explicit pn/sn fields when present.
+ * Resolve working pressure (PN) and stiffness (SN) for a quote line.
+ * An explicit pn/sn value (pulled from the project's pipe_specs by DN, or hand-
+ * edited on the quote line) wins. Only when none is set do we fall back to
+ * parsing the pipe description, which encodes them, e.g. "...PN01 SN20000...".
  */
 export function parsePipeSpec(
   productName?: string | null,
@@ -23,8 +24,10 @@ export function parsePipeSpec(
   const text = productName || '';
   const pnMatch = text.match(/\bPN\s*0*(\d+(?:[.,]\d+)?)/i);
   const snMatch = text.match(/\bSN\s*0*(\d+)/i);
-  const pn = pnMatch ? pnMatch[1].replace(',', '.') : (fallback?.pn != null && fallback.pn !== '' ? String(fallback.pn) : '');
-  const sn = snMatch ? snMatch[1] : (fallback?.sn != null && fallback.sn !== '' ? String(fallback.sn) : '');
+  const hasFbPn = fallback?.pn != null && fallback.pn !== '';
+  const hasFbSn = fallback?.sn != null && fallback.sn !== '';
+  const pn = hasFbPn ? String(fallback!.pn) : (pnMatch ? pnMatch[1].replace(',', '.') : '');
+  const sn = hasFbSn ? String(fallback!.sn) : (snMatch ? snMatch[1] : '');
   return { pn, sn };
 }
 
