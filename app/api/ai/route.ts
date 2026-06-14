@@ -202,12 +202,13 @@ const BOQ_COL_MAP: [string[], string][] = [
 ];
 
 function detectCol(header: string): string | null {
-  const h = header.trim()
+  const norm = (s: string) => s.trim()
     .replace(/[״"''`]/g, '"')
     .toLowerCase()
     .replace(/\s+/g, ' ');
+  const h = norm(header);
   for (const [keywords, field] of BOQ_COL_MAP) {
-    if (keywords.some(k => h.includes(k.toLowerCase()))) return field;
+    if (keywords.some(k => h.includes(norm(k)))) return field;
   }
   return null;
 }
