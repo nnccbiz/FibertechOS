@@ -98,7 +98,16 @@ export default function QuotePreviewPage() {
       try {
         if (q?.cost_input_id) {
           const { data: ci } = await supabase.from('cost_inputs').select('currency').eq('id', q.cost_input_id).single();
-          if (ci?.currency) setCostCurrency(ci.currency);
+          // Effective currency: trust the header only when it's foreign; if it's
+          // ILS (e.g. a mistagged duplicate) look at the items' original_currency,
+          // so the currency-peg note matches the column shown in the editor.
+          let eff = ci?.currency || null;
+          if (!eff || eff === 'ILS') {
+            const { data: citems } = await supabase.from('cost_input_items').select('original_currency, original_price').eq('cost_input_id', q.cost_input_id);
+            const forex = (citems || []).find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
+            if (forex) eff = forex.original_currency;
+          }
+          if (eff) setCostCurrency(eff);
         }
       } catch {}
 
@@ -260,8 +269,11 @@ export default function QuotePreviewPage() {
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   // Quote date reflects when the prices are valid (they're pegged to today's FX rate).
-  // Draft → today (fresh each render). Sent/signed → updated_at (frozen at status change).
-  const quoteDateSource = quote.status === 'draft' ? new Date() : (quote.updated_at ? new Date(quote.updated_at) : new Date());
+  // Draft → today (fresh each render). Sent/signed → sent_at (frozen on issue);
+  // fall back to updated_at for legacy quotes issued before sent_at existed.
+  const quoteDateSource = quote.status === 'draft'
+    ? new Date()
+    : new Date(quote.sent_at || quote.updated_at || Date.now());
   const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
   // The per-line "הנחה" column shows only when at least one line has its own

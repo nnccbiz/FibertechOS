@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parsePipeSpec } from '@/lib/pricing';
+import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 
 function fmtSn(sn: string) {
   if (!sn) return '';
@@ -184,14 +185,24 @@ export default function PublicQuotePage() {
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  // Same rule as the internal preview: draft = today, sent/signed = frozen updated_at.
-  const quoteDateSource = quote.status === 'draft' ? new Date() : (quote.updated_at ? new Date(quote.updated_at) : new Date());
+  // Same rule as the internal preview: draft = today, sent/signed = frozen sent_at
+  // (fall back to updated_at for quotes issued before sent_at existed).
+  const quoteDateSource = quote.status === 'draft'
+    ? new Date()
+    : new Date(quote.sent_at || quote.updated_at || Date.now());
   const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
   // The per-line discount column appears only when a line actually carries its
   // own discount. A quote-wide (global) discount is shown in the totals rows.
   const hasLineDiscount = items.some((i: any) => (parseFloat(i.discount_pct) || 0) > 0);
   const colCount = hasLineDiscount ? 10 : 9;
+  // Resolve the contract terms the same way the internal preview does: the
+  // per-quote snapshot (contract_overrides, frozen on issue) wins, otherwise the
+  // hard-coded library fallback — so the customer-facing terms match the signed PDF.
+  const contractSections: { title: string; clauses: { num: number; text: string }[] }[] =
+    (Array.isArray(quote.contract_overrides) && quote.contract_overrides.length > 0)
+      ? quote.contract_overrides
+      : CONTRACT_SECTIONS;
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -324,6 +335,28 @@ export default function PublicQuotePage() {
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
               <h3 className="text-sm font-bold text-gray-600 mb-2">תנאי התקשרות</h3>
               <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
+            </div>
+          )}
+
+          {/* Full contract terms — resolved from the quote snapshot / fallback */}
+          {contractSections.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-600 mb-3">תנאי הסכם</h3>
+              <div className="space-y-3">
+                {contractSections.map((section, si) => (
+                  <div key={si}>
+                    <h4 className="text-xs font-bold text-gray-700 mb-1">{section.title}</h4>
+                    <ol className="space-y-1">
+                      {section.clauses.map((cl) => (
+                        <li key={cl.num} className="text-[11px] text-gray-600 leading-relaxed flex gap-1.5">
+                          <span className="font-semibold text-gray-500 shrink-0">{cl.num}.</span>
+                          <span className="whitespace-pre-line">{cl.text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
