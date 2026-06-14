@@ -934,11 +934,13 @@ export function usePricing(projectId: string): UsePricingReturn {
     const totalCost = newItems.reduce((s, i) => s + (i.cost_price * i.quantity), 0);
     const totalAmount = newItems.reduce((s, i) => s + i.total_price, 0);
 
-    await supabase.from('quote_items').delete().eq('quote_id', quoteId);
-    if (newItems.length > 0) {
-      const { error: insErr } = await supabase.from('quote_items').insert(newItems);
-      if (insErr) { alert(`שגיאה בהחלפת הפריטים: ${insErr.message}`); return; }
-    }
+    // Atomic replace: the RPC does DELETE+INSERT in one transaction, so a failed
+    // insert rolls the delete back and the quote keeps its old items (instead of
+    // ending up empty in the DB while the cache still shows the old rows).
+    const { error: rpcErr } = await supabase.rpc('replace_quote_items', {
+      p_quote_id: quoteId, p_items: newItems,
+    });
+    if (rpcErr) { alert(`שגיאה בהחלפת הפריטים: ${rpcErr.message}`); return; }
 
     await supabase.from('quotes').update({
       cost_input_id: value, total_cost: totalCost, total_amount: totalAmount, updated_at: new Date().toISOString(),
