@@ -91,7 +91,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates)
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT)
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -169,7 +169,7 @@ FibertechOS/
 - Master templates live in `contract_term_templates` (jsonb `content` of `{title, clauses: [{num, text}]}[]`). Editor at `/settings/contract-templates` lets admins create, rename, duplicate, mark a default, delete, and edit sections/clauses of templates.
 - `quotes.contract_template_id` picks a template; `quotes.contract_overrides` (jsonb) holds per-quote edits (also used as the snapshot once issued).
 - Each draft quote shows a "📜 תנאי הסכם" picker + ✏️ "ערוך להצעה זו" modal + 🔄 "שחזר מהתבנית" button. `duplicateQuote` carries over `contract_template_id` + `contract_overrides`.
-- On send/signed, if no overrides exist, the linked template's content is copied into `contract_overrides` so future template edits don't change an issued quote. **Known gap**: quotes with `contract_template_id=NULL` aren't snapshotted — they render from `lib/contract-terms.ts:CONTRACT_SECTIONS` at preview time, meaning a code edit can mutate already-signed terms retroactively.
+- On send/signed, if no overrides exist, the resolved sections are copied into `contract_overrides` so future edits don't change an issued quote. **Fixed (2026-06-14, #7)**: this now snapshots even when `contract_template_id=NULL` — the `lib/contract-terms.ts:CONTRACT_SECTIONS` fallback is frozen into `contract_overrides` on issue, so a later code edit can't mutate already-signed terms.
 - Quote preview resolves terms in this order: `contract_overrides` > template.content > `lib/contract-terms.ts` fallback.
 
 ### Cost Inputs (Pricing Source)
@@ -184,7 +184,7 @@ FibertechOS/
 ### Quote Sharing
 - Public share via expiring tokens (`/quote/[token]`). View tracking. No auth required for public quote page.
 - A4 preview with drawings. PDF generation via jspdf + html2canvas. Email via .eml file with PDF attachment.
-- Quote date in the printed header/footer: drafts → today (fresh each render, since prices are pegged to today's FX); sent/signed → `quote.updated_at`. **Known drift**: `updated_at` advances on any back-office tweak (notes, drawings toggle, contact change), so a sent quote's date can shift. Proper fix is a `sent_at` column.
+- Quote date in the printed header/footer: drafts → today (fresh each render, since prices are pegged to today's FX); sent/signed → `quote.sent_at` (frozen on issue, falls back to `updated_at` for legacy quotes). **Fixed (2026-06-14, #6)**: `sent_at` is stamped once in `updateQuoteStatus`, so the printed date no longer drifts when back-office fields change.
 
 ### Navigation
 - Desktop: Collapsible sidebar (hover to expand, 60px collapsed / 200px expanded).
@@ -229,6 +229,13 @@ GEMINI_API_KEY=<for Roxy AI — Google AI Studio, billing must be enabled>
 ### Issues from Code Review (Fri 2026-06-12, branch `claude/read-claude-md-TBUdH`)
 
 Verified findings from a high-effort multi-angle review of the branch. Ranked by severity — fix top-to-bottom.
+
+> **✅ ALL 16 RESOLVED — Sun 2026-06-14, branch `claude/fervent-mayer-dn0diw`.** Each finding below was fixed and pushed:
+> - #1 `801aed5` (detectCol normalizes keywords symmetrically) · #2 `68d76ec` (re-fetch cost items with real ids) · #3 `d55d18f` (diff client contacts instead of delete+insert) · #4 `ee5bcaf` (`removeStorageIfOrphan` — don't delete shared blobs) · #5 `bcc1982` (`replace_quote_items` RPC, atomic).
+> - #6/#7/#9 `9aaf27d` (freeze `sent_at` + snapshot terms even w/o template + snapshot only the linked contact) · #10 `9aaf27d` (preserve manual ILS overrides on rate refresh) · #13 `9aaf27d`+migrations (propagate `length_m`).
+> - #16 `7a9492d` (surface attachment upload failure) · #6/#8/#11 `279e390` (sent_at on both views, full contract terms on public page, effective-currency peg note) · #15 `e88b748` (date-only expiry compare) · #12 `a3f18ab` (drop-zone Files guard) · #14 `b52345d` (GRANT quote_drawings).
+> - New migrations: `20260614_001` (quote_items pn/sn), `_002`+`_006` (replace_quote_items RPC), `_003` (quotes.sent_at), `_004` (quote_items.length_m), `_005` (quote_drawings GRANT). No RLS policies were changed.
+> - **Deferred polish (not bugs):** the `useFileDrop` hook extraction (#12) and the full effective-currency dedup / dropping `cost_inputs.currency` (#11) were left as backlog — only the concrete bugs were fixed.
 
 **🔴 Critical — data loss / wrong-money bugs**
 1. **`app/api/ai/route.ts:200`** — `detectCol` normalizes apostrophes (`replace(/[״"''`]/g, '"')`) but the unit-column keyword list still contains literal `'יח\''`. A header `יח'` becomes `יח"`, never matches the keyword, so `parseExcelBOQ` defaults `price_per` to `'unit'` on every row → meter-priced BoQs save as per-unit, multiplying real cost by the meter count.
@@ -331,4 +338,4 @@ Verified findings from a high-effort multi-angle review of the branch. Ranked by
 - **Quote preview pagination**: רצף הדפים הוא items → summary → drawings/specs (landscape/portrait לפי file_type) → contract title → clauses → signatures. ה-force-break לפני `ctitle` משולב גם ב-pack של ה-estimates וגם ב-DOM measurement. אל תשכח לעדכן את שניהם.
 - **Cost-input duplication bug**: לעיתים שכפול של תמחור משאיר `cost_inputs.currency='ILS'` בעוד שהפריטים ב-EUR/USD. הלוגיקה של "effective currency" ב-6+ מקומות מתמודדת עם זה. הפתרון הנכון הוא לתקן את ה-`duplicate_cost_input` RPC ולנרמל את ה-DB (TODO).
 - **משימה לפני אישור**: כשמטפלים בבעיה שיכולה להיות אובדן נתונים (delete-then-insert בלי טרנזקציה, FK SET NULL בקנה מידה גדול), חובה להתריע ולשאול לפני שמריצים.
-- **Code review דוח (יוני 2026)**: סעיף 7 כולל 16 ממצאים מאומתים מהביקורת. כשמתחילים סשן חדש לתקן באגים — להתחיל מהקריטיים (#1-#5) ולפי הסדר.
+- **Code review דוח (יוני 2026)**: כל 16 הממצאים בסעיף 7 **תוקנו ונדחפו** ב-14.6.2026 (ענף `claude/fervent-mayer-dn0diw`) — ראו הבאנר בראש "Issues from Code Review" עם מיפוי commit לכל אחד. נשאר רק polish ל-backlog (חילוץ `useFileDrop`, נרמול `cost_inputs.currency`).
