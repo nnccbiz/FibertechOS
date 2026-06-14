@@ -182,8 +182,16 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   completed: { label: 'הושלם', color: 'bg-gray-100 text-gray-600' },
 };
 
-export default function PricingSection({ projectId }: { projectId: string }) {
+export default function PricingSection({ projectId, attachmentVersion = 0 }: { projectId: string; attachmentVersion?: number }) {
   const p = usePricing(projectId);
+
+  // When the parent uploads a new spec/drawing it bumps attachmentVersion;
+  // we re-pull projectDrawings so the linking checkboxes show the new file
+  // without a full reload.
+  useEffect(() => {
+    if (attachmentVersion > 0) p.refreshProjectDrawings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentVersion]);
 
   return (
     <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">

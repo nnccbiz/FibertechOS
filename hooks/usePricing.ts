@@ -76,6 +76,7 @@ export interface UsePricingReturn {
   setQuoteContractOverrides: (quoteId: string, overrides: any) => Promise<void>;
   fetchTemplateContent: (templateId: string) => Promise<any>;
   refreshContractTemplates: () => Promise<void>;
+  refreshProjectDrawings: () => Promise<void>;
   refreshCustomers: () => Promise<void>;
   toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
@@ -942,6 +943,18 @@ export function usePricing(projectId: string): UsePricingReturn {
     setContractTemplates(data || []);
   }
 
+  // Pulls fresh project-level attachments (drawings + specs) so newly uploaded
+  // files show up in the quote-card linking checkboxes without a full reload.
+  async function refreshProjectDrawings() {
+    const { data } = await supabase
+      .from('attachments')
+      .select('id, file_name, file_url, drawing_number, file_type')
+      .eq('project_id', projectId)
+      .eq('entity_type', 'project')
+      .order('created_at');
+    setProjectDrawings(data || []);
+  }
+
   async function refreshCustomers() {
     const { data } = await supabase.from('clients').select('id, name').order('name');
     setCustomers(data || []);
@@ -1133,7 +1146,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, duplicateCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
-    contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates,
+    contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
     projectDrawings, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,

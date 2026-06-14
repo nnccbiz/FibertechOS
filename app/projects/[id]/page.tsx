@@ -94,6 +94,9 @@ export default function ProjectDetailPage() {
   const drawingDragDepth = useRef(0);
   const [specDragOver, setSpecDragOver] = useState(false);
   const specDragDepth = useRef(0);
+  // Bumped after every spec/drawing upload so PricingSection refetches the
+  // project-level attachments and the linking checkboxes pick up the new file.
+  const [attachmentVersion, setAttachmentVersion] = useState(0);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -259,6 +262,7 @@ export default function ProjectDetailPage() {
       }
 
       await load();
+      setAttachmentVersion((v) => v + 1);
     } finally {
       setUploadingDrawing(false);
     }
@@ -281,6 +285,7 @@ export default function ProjectDetailPage() {
       });
       if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
       await load();
+      setAttachmentVersion((v) => v + 1);
     } finally {
       setUploadingSpec(false);
     }
@@ -300,6 +305,7 @@ export default function ProjectDetailPage() {
     }
     await supabase.from('attachments').delete().eq('id', attId);
     setProjectAttachments((prev) => prev.filter((a) => a.id !== attId));
+    setAttachmentVersion((v) => v + 1);
   }
 
   function openDrawing(path: string) {
@@ -1237,7 +1243,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Pricing & Quotes — extracted to PricingSection component */}
-        <PricingSection projectId={params.id as string} />
+        <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
         {/* Updates / Meeting log */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <div className="flex items-center justify-between mb-4">
