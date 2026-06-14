@@ -56,7 +56,14 @@ function buildBackground(disclaimerType: string | null, items: Item[]): string {
 }
 
 function statusStyle(q: QuoteRow): { cls: string; label: string } {
-  const expired = q.valid_until && new Date(q.valid_until) < new Date() && q.status !== 'signed';
+  // valid_until is a DATE (UTC midnight); compare date-only against local today
+  // so a quote isn't flagged "פג תוקף" from 03:00 on its own last valid day.
+  const expired = (() => {
+    if (!q.valid_until || q.status === 'signed') return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const vu = new Date(String(q.valid_until).slice(0, 10) + 'T00:00:00');
+    return vu < today;
+  })();
   if (q.status === 'signed') return { cls: 'bg-green-50 text-green-700 border-green-200', label: 'אושר' };
   if (q.status === 'rejected') return { cls: 'bg-red-50 text-red-400 border-red-100', label: 'נדחה' };
   if (expired) return { cls: 'bg-red-50 text-red-400 border-red-100', label: 'פג תוקף' };
