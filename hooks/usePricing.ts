@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
+import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice } from '@/lib/pricing';
 
 // Categorize a quote line by its Hebrew product name for bulk profit operations.
@@ -359,9 +360,18 @@ export function usePricing(projectId: string): UsePricingReturn {
 
       // Re-price every item from its original_price × new rate. Items without a
       // foreign original_price are left as-is (their cost_price was set manually).
+      const oldRate = parseFloat(ci.exchange_rate) || 0;
+      let skipped = 0;
       const updated = items.map((i: any) => {
         const orig = parseFloat(i.original_price);
         if (!orig || !i.original_currency || i.original_currency === 'ILS') return i;
+        // Preserve a manual ILS override: if the current cost_price doesn't match
+        // original_price × the old stored rate, the user typed a custom price
+        // (negotiated/fixed) — don't clobber it with the auto re-price.
+        if (oldRate > 0) {
+          const expectedOld = Math.round(orig * oldRate * 100) / 100;
+          if (Math.abs((parseFloat(i.cost_price) || 0) - expectedOld) > 0.01) { skipped++; return i; }
+        }
         const qty = parseFloat(i.quantity) || 0;
         const newCost = Math.round(orig * newRate * 100) / 100;
         const newTotal = Math.round(newCost * qty * 100) / 100;
@@ -378,6 +388,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       setCostInputs((prev) => prev.map((c) => c.id === ciId ? { ...c, currency, exchange_rate: newRate, exchange_rate_date: newDate } : c));
       setCostInputItems((prev) => ({ ...prev, [ciId]: updated }));
       setExchangeRates((prev) => ({ ...prev, [currency]: info }));
+      if (skipped > 0) alert(`עודכנו המחירים לפי השער החדש. ${skipped} פריטים עם מחיר ידני נשמרו כפי שהם.`);
     } finally {
       setRateLoading(false);
     }
@@ -709,10 +720,10 @@ export function usePricing(projectId: string): UsePricingReturn {
             product_name: ci.product_name, dn_size: ci.dn_size, quantity: ci.quantity, unit: ci.unit,
             cost_price: ci.cost_price, overheads_pct: oh, profit_pct: pr, discount_pct: 0,
             unit_price: unitPrice, total_price: (ci.quantity || 0) * unitPrice, notes: '',
-            pn: ci.pn ?? spec.pn, sn: ci.sn ?? spec.sn,
+            pn: ci.pn ?? spec.pn, sn: ci.sn ?? spec.sn, length_m: ci.length_m ?? null,
           };
         })
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '', pn: null, sn: null }];
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '', pn: null, sn: null, length_m: null }];
 
     setNewQuote({
       client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
@@ -927,6 +938,7 @@ export function usePricing(projectId: string): UsePricingReturn {
         notes: '',
         pn: ci.pn ?? spec.pn,
         sn: ci.sn ?? spec.sn,
+        length_m: ci.length_m ?? null,
         sort_order: idx,
       };
     });
@@ -1031,6 +1043,7 @@ export function usePricing(projectId: string): UsePricingReturn {
             notes: i.notes || '',
             pn: hasPn ? parseFloat(i.pn) : spec.pn,
             sn: hasSn ? parseInt(i.sn) : spec.sn,
+            length_m: i.length_m != null && i.length_m !== '' ? parseFloat(i.length_m) : null,
             sort_order: idx,
           };
         }));
@@ -1049,15 +1062,23 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   async function updateQuoteStatus(quoteId: string, status: string) {
-    await supabase.from('quotes').update({ status, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
+    const q = quotes.find((x) => x.id === quoteId);
+    const now = new Date().toISOString();
+    const patch: any = { status, updated_at: now };
+    // Freeze the printed quote date the first time it's issued — updated_at keeps
+    // moving on later back-office edits, sent_at must not.
+    if ((status === 'sent' || status === 'signed') && q && !q.sent_at) patch.sent_at = now;
+    await supabase.from('quotes').update(patch).eq('id', quoteId);
+    setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, ...patch } : x));
 
     // Freeze the contact on the quote the first time it goes out, so later edits
     // to the contact (sync in either direction) don't change an issued quote.
     if (status === 'sent' || status === 'signed') {
-      const q = quotes.find((x) => x.id === quoteId);
       if (q && !q.contact_snapshot) {
-        const c = (q.contact_id && contacts.find((x) => x.id === q.contact_id)) || contacts[0];
+        // Snapshot ONLY the explicitly linked addressee. Falling back to
+        // contacts[0] would silently freeze the wrong person (often the planner)
+        // when the linked contact was deleted between draft and send.
+        const c = q.contact_id ? contacts.find((x) => x.id === q.contact_id) : null;
         if (c) {
           const snap = {
             name: c.name || '', role: c.role || '', phone: c.phone || '', email: c.email || '',
@@ -1067,12 +1088,17 @@ export function usePricing(projectId: string): UsePricingReturn {
           setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contact_snapshot: snap } : x));
         }
       }
-      // Also freeze the contract terms: if no per-quote override exists yet,
-      // copy the linked template's content into contract_overrides so future
-      // template edits won't change an already-issued quote.
-      if (q && !q.contract_overrides && q.contract_template_id) {
-        const tpl = await fetchTemplateContent(q.contract_template_id);
-        const content = tpl?.content;
+      // Freeze the contract terms. Resolve the same way the preview does
+      // (template content, else the hard-coded fallback sections) and snapshot
+      // it — even without a template — so editing lib/contract-terms.ts can't
+      // retroactively change an already-issued quote.
+      if (q && !q.contract_overrides) {
+        let content: any = null;
+        if (q.contract_template_id) {
+          const tpl = await fetchTemplateContent(q.contract_template_id);
+          content = tpl?.content || null;
+        }
+        if (!content) content = CONTRACT_SECTIONS;
         if (content) {
           await supabase.from('quotes').update({ contract_overrides: content }).eq('id', quoteId);
           setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contract_overrides: content } : x));
@@ -1081,7 +1107,6 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
 
     if (status === 'signed') {
-      const q = quotes.find((x) => x.id === quoteId);
       const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
       const { data: ord } = await supabase.from('orders').insert({
         project_id: projectId, quote_id: quoteId, order_number: orderNum,

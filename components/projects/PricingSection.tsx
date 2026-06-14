@@ -383,7 +383,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (!confirm(`לעדכן את שער ה-${displayCurrency} לשער של היום? כל המחירים בתמחור יחושבו מחדש לפי השער החדש (המחיר במטבע המקור נשאר זהה).`)) return;
+                      if (!confirm(`לעדכן את שער ה-${displayCurrency} לשער של היום? כל המחירים בתמחור יחושבו מחדש לפי השער החדש (המחיר במטבע המקור נשאר זהה; מחירים שהוזנו ידנית יישמרו).`)) return;
                       await p.refreshCostInputRate(ci.id);
                     }}
                     disabled={p.rateLoading}
