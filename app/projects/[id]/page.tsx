@@ -1127,10 +1127,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             if (specDragDepth.current === 0) setSpecDragOver(false);
           }}
           onDrop={async (e) => {
-            if (uploadingSpec) return;
             e.preventDefault();
             specDragDepth.current = 0;
             setSpecDragOver(false);
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
             const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g|docx?|xlsx?)$/i.test(f.name));
             for (const f of files) { await uploadProjectSpec(f); }
           }}
@@ -1191,10 +1191,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             if (drawingDragDepth.current === 0) setDrawingDragOver(false);
           }}
           onDrop={async (e) => {
-            if (uploadingDrawing) return;
             e.preventDefault();
             drawingDragDepth.current = 0;
             setDrawingDragOver(false);
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
             const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.name));
             for (const f of files) { await uploadProjectDrawing(f); }
           }}
