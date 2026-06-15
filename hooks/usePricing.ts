@@ -655,7 +655,9 @@ export function usePricing(projectId: string): UsePricingReturn {
       const items = rawItems.map((item: any) => {
         const origPrice = parseFloat(item.unit_price || item.cost_price) || 0;
         const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
-        const qty = parseFloat(item.quantity) || 1;
+        // Round away floating-point noise from Excel formula cells
+        // (e.g. 51.300000000000004 → 51.3) so quantities display cleanly.
+        const qty = Math.round((parseFloat(item.quantity) || 1) * 1000) / 1000;
         return {
           product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
           dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
