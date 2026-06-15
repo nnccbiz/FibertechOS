@@ -6,6 +6,7 @@ import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice } from '@/lib/pricing';
+import { parseExcelBOQ } from '@/lib/boq-parser';
 
 // Categorize a quote line by its Hebrew product name for bulk profit operations.
 // Short pipes / rokers are grouped with accessories, not full-length pipe runs.
@@ -557,87 +558,127 @@ export function usePricing(projectId: string): UsePricingReturn {
           if (!saved) uploadFailures++;
         } catch { uploadFailures++; }
       }
-      const filesArr: { base64: string; mimeType: string; name: string }[] = [];
+
+      // Collect extracted rows from all files into one list. Excel is parsed
+      // HERE in the browser (where the file already is) — heavy spreadsheets
+      // that embed logos/EMF images can be ~1MB once base64-encoded, and
+      // shipping that to the API was unreliable (the file arrived empty and
+      // fell through to Gemini, which then hallucinated from its prompt
+      // examples). PDFs/images still go to Gemini via /api/ai.
+      const rawItems: any[] = [];
+      const quoteInfo: any = {};
+      let extractedBy = '';
+      const geminiFiles: File[] = [];
+      const excelErrors: string[] = [];
+
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-          };
-          reader.readAsDataURL(file);
-        });
-        filesArr.push({ base64, mimeType: file.type, name: file.name });
-      }
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `חלץ את כל פריטי התמחור מ-${filesArr.length > 1 ? `${filesArr.length} הקבצים המצורפים (מכולם!)` : 'הקובץ המצורף'}. אלו קבצי תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.`,
-          files: filesArr,
-        }),
-      });
-      const data = await res.json();
-      if ((data.target_table === 'supplier_quote' || data.target_table === 'cost_input_items') && Array.isArray(data.data)) {
-        const qi = data.quote_info || {};
-        const currency = qi.currency || data.currency || 'USD';
-        const ci = costInputs.find((c) => c.id === costInputId);
-        const rate = ci?.exchange_rate || exchangeRates[currency]?.rate || 1;
-        const isILS = currency === 'ILS';
-
-        const items = data.data.map((item: any) => {
-          const origPrice = parseFloat(item.unit_price || item.cost_price) || 0;
-          const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
-          const qty = parseFloat(item.quantity) || 1;
-          return {
-            product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
-            dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
-            quantity: qty,
-            unit: item.price_per === 'unit' ? 'יח\'' : 'מטר',
-            original_price: origPrice,
-            original_currency: currency,
-            cost_price: costPrice,
-            total_cost: Math.round(qty * costPrice * 100) / 100,
-            item_type: item.item_type || '',
-            sn: item.sn || null,
-            pn: item.pn || null,
-            length_m: item.length_m || null,
-          };
-        });
-
-        if (ci && ci.currency !== currency) {
-          await supabase.from('cost_inputs').update({
-            currency,
-            exchange_rate: rate,
-            exchange_rate_date: exchangeRates[currency]?.date || new Date().toISOString().split('T')[0],
-          }).eq('id', costInputId);
-          setCostInputs((prev) => prev.map((c) => c.id === costInputId ? { ...c, currency, exchange_rate: rate } : c));
+        const isExcel = /\.(xlsx|xls)$/i.test(file.name)
+          || file.type.includes('spreadsheetml') || file.type.includes('ms-excel');
+        if (!isExcel) { geminiFiles.push(file); continue; }
+        try {
+          const ab = await file.arrayBuffer();
+          const result = parseExcelBOQ(new Uint8Array(ab), file.name);
+          if (result && Array.isArray(result.data) && result.data.length) {
+            rawItems.push(...result.data);
+            if (!quoteInfo.supplier_name) Object.assign(quoteInfo, result.quote_info, quoteInfo);
+            extractedBy = extractedBy ? 'mixed' : 'local_excel';
+          } else {
+            excelErrors.push(`לא זוהתה טבלת תמחור ב-"${file.name}" (צריך שורת כותרת עם קוטר/כמות/מחיר).`);
+          }
+        } catch (e: any) {
+          excelErrors.push(`שגיאה בקריאת "${file.name}": ${e?.message || 'קובץ פגום'}`);
         }
-
-        // Append when adding more files to the same cost input; otherwise start fresh.
-        setEditingCostItems((prev) => (editingCostInput === costInputId && prev.length > 0 ? [...prev, ...items] : items));
-        setEditingCostInput(costInputId);
-        const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
-        const failedNote = Array.isArray(data.failed_files) && data.failed_files.length
-          ? `\n\n⚠️ לא הצלחתי לקרוא ${data.failed_files.length} קבצים (עומס זמני בשרת Gemini): ${data.failed_files.join(', ')}.\nנסה להעלות אותם שוב.`
-          : '';
-        const uploadNote = uploadFailures > 0
-          ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה (כנראה אין לך הרשאת עריכה לפרויקטים) — הפריטים חולצו אך הקובץ המקורי לא נשמר.`
-          : '';
-        // Show which engine read the file: local Excel parser (reliable) vs
-        // Gemini (used for PDF/images; can hallucinate on unreadable input).
-        const sourceNote = data.extracted_by === 'local_excel'
-          ? '\n\n📗 חולץ מקומית מהאקסל (קריאה מדויקת).'
-          : data.extracted_by === 'gemini'
-          ? '\n\n🤖 חולץ ע"י Gemini (PDF/תמונה) — מומלץ לוודא את הפריטים.'
-          : '';
-        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${sourceNote}${failedNote}${uploadNote}`);
-      } else {
-        const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
-        const dbg = Array.isArray(data._debug) && data._debug.length ? `\n\n[אבחון] ${data._debug.join(' ; ')}` : '';
-        alert((errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ') + dbg);
       }
+
+      // Non-Excel files (PDF/image/CSV) → Gemini extraction on the server.
+      if (geminiFiles.length > 0) {
+        const filesArr: { base64: string; mimeType: string; name: string }[] = [];
+        for (const file of geminiFiles) {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(((reader.result as string) || '').split(',')[1] || '');
+            reader.onerror = () => reject(new Error('קריאת הקובץ נכשלה'));
+            reader.readAsDataURL(file);
+          });
+          filesArr.push({ base64, mimeType: file.type, name: file.name });
+        }
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `חלץ את כל פריטי התמחור מ-${filesArr.length > 1 ? `${filesArr.length} הקבצים המצורפים (מכולם!)` : 'הקובץ המצורף'}. אלו קבצי תמחור/הצעת מחיר מספק צנרת GRP. חלץ: שם מוצר, קוטר DN, כמות, יחידה, מחיר ליחידה, סה"כ.`,
+            files: filesArr,
+          }),
+        });
+        const data = await res.json();
+        if (Array.isArray(data?.data) && data.data.length) {
+          rawItems.push(...data.data);
+          if (!quoteInfo.supplier_name) Object.assign(quoteInfo, data.quote_info || {}, quoteInfo);
+          extractedBy = extractedBy ? 'mixed' : (data.extracted_by || 'gemini');
+        } else if (data?.error || data?.message) {
+          excelErrors.push(data.error || data.message);
+        }
+      }
+
+      if (rawItems.length === 0) {
+        alert(excelErrors.length ? excelErrors.join('\n') : 'לא הצלחתי לחלץ פריטים מהקובץ');
+        return;
+      }
+
+      const qi = quoteInfo;
+      const currency = qi.currency || rawItems.find((i) => i.currency)?.currency || 'ILS';
+      const ci = costInputs.find((c) => c.id === costInputId);
+      const rate = ci?.exchange_rate || exchangeRates[currency]?.rate || 1;
+      const isILS = currency === 'ILS';
+
+      const items = rawItems.map((item: any) => {
+        const origPrice = parseFloat(item.unit_price || item.cost_price) || 0;
+        const costPrice = isILS ? origPrice : Math.round(origPrice * rate * 100) / 100;
+        const qty = parseFloat(item.quantity) || 1;
+        return {
+          product_name: item.description || item.product_name || item.item_code || `${item.item_type || ''} DN${item.dn || ''}`.trim() || 'פריט',
+          dn_size: item.dn ? `DN${item.dn}` : (item.dn_size || ''),
+          quantity: qty,
+          unit: item.price_per === 'unit' ? 'יח\'' : 'מטר',
+          original_price: origPrice,
+          original_currency: currency,
+          cost_price: costPrice,
+          total_cost: Math.round(qty * costPrice * 100) / 100,
+          item_type: item.item_type || '',
+          sn: item.sn || null,
+          pn: item.pn || null,
+          length_m: item.length_m || null,
+        };
+      });
+
+      if (ci && ci.currency !== currency) {
+        await supabase.from('cost_inputs').update({
+          currency,
+          exchange_rate: rate,
+          exchange_rate_date: exchangeRates[currency]?.date || new Date().toISOString().split('T')[0],
+        }).eq('id', costInputId);
+        setCostInputs((prev) => prev.map((c) => c.id === costInputId ? { ...c, currency, exchange_rate: rate } : c));
+      }
+
+      // Append when adding more files to the same cost input; otherwise start fresh.
+      setEditingCostItems((prev) => (editingCostInput === costInputId && prev.length > 0 ? [...prev, ...items] : items));
+      setEditingCostInput(costInputId);
+      const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
+      const partialNote = excelErrors.length ? `\n\n⚠️ ${excelErrors.join('\n')}` : '';
+      const uploadNote = uploadFailures > 0
+        ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה (כנראה אין לך הרשאת עריכה לפרויקטים) — הפריטים חולצו אך הקובץ המקורי לא נשמר.`
+        : '';
+      // Show which engine read the file: local Excel parser (reliable) vs
+      // Gemini (used for PDF/images; can hallucinate on unreadable input).
+      const sourceNote = extractedBy === 'local_excel'
+        ? '\n\n📗 חולץ מקומית מהאקסל (קריאה מדויקת).'
+        : extractedBy === 'gemini'
+        ? '\n\n🤖 חולץ ע"י Gemini (PDF/תמונה) — מומלץ לוודא את הפריטים.'
+        : extractedBy === 'mixed'
+        ? '\n\n📗🤖 חולץ מאקסל + Gemini.'
+        : '';
+      alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${sourceNote}${partialNote}${uploadNote}`);
     } catch (err: any) {
       alert(`שגיאה: ${err.message}`);
     } finally {
