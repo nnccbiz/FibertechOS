@@ -635,7 +635,8 @@ export function usePricing(projectId: string): UsePricingReturn {
         alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${sourceNote}${failedNote}${uploadNote}`);
       } else {
         const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
-        alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');
+        const dbg = Array.isArray(data._debug) && data._debug.length ? `\n\n[אבחון] ${data._debug.join(' ; ')}` : '';
+        alert((errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ') + dbg);
       }
     } catch (err: any) {
       alert(`שגיאה: ${err.message}`);

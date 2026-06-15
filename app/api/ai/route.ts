@@ -496,6 +496,8 @@ export async function POST(request: NextRequest) {
     let excelQuoteInfo: any = {};
     // Non-Excel files (PDF/image/CSV) processed by Gemini per-file below.
     const filesForGemini: { base64: string; mimeType: string; name: string }[] = [];
+    // Diagnostic: what each received file looked like on the server (name/mime/base64 length).
+    const fileDebug: string[] = [];
 
     if (files && Array.isArray(files) && files.length > 0) {
       console.log(`[AI route] env check: GEMINI_API_KEY=${GEMINI_API_KEY ? 'SET(' + GEMINI_API_KEY.length + ' chars)' : 'MISSING'} files=${files.length}`);
@@ -509,6 +511,7 @@ export async function POST(request: NextRequest) {
         const mime = file.mimeType || '';
         const name = file.name || '';
         const isExcel = mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name);
+        fileDebug.push(`name="${name}" mime="${mime}" b64=${file.base64?.length || 0} xlsx=${isExcel}`);
         console.log(`[AI route] file "${name}" mime="${mime}" base64len=${file.base64?.length || 0} isExcel=${isExcel}`);
         if (isExcel) {
           // Excel is ALWAYS parsed locally and NEVER falls back to Gemini —
@@ -535,6 +538,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           error: `לא הצלחתי לזהות טבלת תמחור ב-${excelFailures.join(', ')}. ודא שיש שורת כותרת עם DESCRIPTION/DN/Quantity/Unit Price (או תיאור/קוטר/כמות/מחיר).`,
           summary: 'הקובץ לא זוהה כטבלת תמחור — אנא בדוק את המבנה או שלח כתמונה/PDF',
+          _debug: fileDebug,
           data: [],
         }, { status: 200 });
       }
@@ -675,6 +679,7 @@ export async function POST(request: NextRequest) {
         quote_info: mergedQuoteInfo,
         data: allItems,
         extracted_by: excelItems.length > 0 ? 'mixed' : 'gemini',
+        _debug: fileDebug,
         summary: `חולצו ${allItems.length} פריטים מ-${(files || []).length} קבצים`,
       };
       if (failedFiles.length) parsed.failed_files = failedFiles;
