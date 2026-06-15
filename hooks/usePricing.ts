@@ -546,15 +546,21 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   async function parseCostFile(fileList: FileList, costInputId: string) {
     setParsingCostFile(true);
+    // Snapshot the FileList into a stable array IMMEDIATELY (before any await).
+    // The <input onChange> clears the input with `e.target.value = ''` right
+    // after calling us, which empties the live FileList we were handed — so by
+    // the time our async loops run, fileList.length is 0 and nothing extracts.
+    // Array.from here captures the File objects while they're still present.
+    const srcFiles = Array.from(fileList);
     try {
       // Save the source files as attachments on the cost input so the
       // original supplier quotes stay traceable from the parsed price. Track
       // failures (e.g. RLS denial for a marketing-only user) so we can warn —
       // otherwise the user sees "items extracted" while the source file is lost.
       let uploadFailures = 0;
-      for (let k = 0; k < fileList.length; k++) {
+      for (const f of srcFiles) {
         try {
-          const saved = await uploadCostInputAttachment(costInputId, fileList[k]);
+          const saved = await uploadCostInputAttachment(costInputId, f);
           if (!saved) uploadFailures++;
         } catch { uploadFailures++; }
       }
@@ -571,8 +577,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       const geminiFiles: File[] = [];
       const excelErrors: string[] = [];
 
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
+      for (const file of srcFiles) {
         // Detect Excel by EXTENSION/MIME, but don't trust them blindly — Safari
         // and some pickers report empty/garbled type and occasionally a name
         // without the extension. So: anything that isn't clearly a PDF/image is
@@ -636,7 +641,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       }
 
       if (rawItems.length === 0) {
-        const dbg = Array.from(fileList).map((f) => `"${f.name}" (${f.type || 'ללא סוג'}, ${Math.round(f.size / 1024)}KB)`).join(' ; ');
+        const dbg = srcFiles.map((f) => `"${f.name}" (${f.type || 'ללא סוג'}, ${Math.round(f.size / 1024)}KB)`).join(' ; ') || 'אין קבצים';
         alert((excelErrors.length ? excelErrors.join('\n') : 'לא הצלחתי לחלץ פריטים מהקובץ') + `\n\n[אבחון] ${dbg}`);
         return;
       }
