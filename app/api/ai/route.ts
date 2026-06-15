@@ -190,11 +190,15 @@ const SYSTEM_PROMPT = `אתה מערכת AI פנימית של FibertechOS — מ
 // Hebrew BOQ column keywords → normalized field names
 // IMPORTANT: order matters — more specific keywords MUST come before generic ones.
 const BOQ_COL_MAP: [string[], string][] = [
+  [['קוטר נומינאלי', 'קוטר', 'nominal diameter', 'diameter', 'dn'], 'dn'],
+  [['קשיחות', 'stiffness', 'פסקל', 'sn'], 'sn'],
+  [['לחץ בדיקה', 'לחץ עבודה', 'לחץ', 'pressure', 'pn'], 'pn'],
+  [['אורך יחידה', 'אורך', 'length'], 'length'],
+  [['כמות מטרים', 'מספר פריטים', 'כמות', 'qty', 'quantity'], 'quantity'],
   [['תיאור', 'פריט', 'תאור', 'פירוט', 'description', 'item', 'מוצר', 'שם פריט', 'שם המוצר'], 'description'],
   [['סעיף', 'קוד', 'מקט', 'מק"ט', 'code', 'ref', 'item_code'], 'item_code'],
-  [['כמות', 'qty', 'quantity'], 'quantity'],
   [['עלות יח', 'עלות ליח', 'עלות/יח', 'unit cost', 'cost/unit', 'עלות יחידה'], 'cost_price'],
-  [['מחיר יח', 'מחיר יחידה', 'מחיר/יח', 'מחיר ליח', 'unit_price', 'price per'], 'sell_price'],
+  [['מחיר מטר', 'מחיר למטר', 'מחיר ללקוח', 'מחיר יח', 'מחיר יחידה', 'מחיר/יח', 'מחיר ליח', 'unit_price', 'unit price', 'price per'], 'sell_price'],
   [['סה"כ עלות', 'סהכ עלות', 'סה״כ עלות', 'total cost', 'עלות כוללת', 'עלות סה"כ'], 'total_cost'],
   [['סה"כ', 'סהכ', 'סה״כ', 'total', 'סך הכל', 'סך כל'], 'total_sell'],
   [['יחידה', 'יח\'', 'unit', 'units'], 'unit'],
@@ -284,6 +288,14 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         }
       }
 
+      let sectionPricePer: 'meter' | 'unit' = 'unit';
+      for (const [ci, f] of Object.entries(colMap)) {
+        if (f === 'cost_price' || f === 'sell_price') {
+          const hdr = String(rawRows[headerIdx][Number(ci)] ?? '');
+          if (/מטר|meter|\bm\b/i.test(hdr)) sectionPricePer = 'meter';
+        }
+      }
+
       for (let i = headerIdx + 1; i < stopAt; i++) {
         const row = rawRows[i];
         if (!row.some((c: any) => c !== '' && c !== null && c !== undefined)) continue;
@@ -301,7 +313,7 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         const unitPrice = parseFloat(String(item.cost_price)) || 0;
         if (!desc && qty === 0 && unitPrice === 0) continue;
 
-        // Pull DN/PN/SN/length straight from the description if not already mapped.
+        // Pull DN/PN/SN/length from dedicated columns or fall back to description regex.
         const dnExplicit = item.dn ? parseInt(String(item.dn).replace(/[^0-9]/g, '')) : null;
         const dnFromDesc = desc.match(/(?:dn|קוטר|ø)\s*(\d{2,4})/i);
         const dn = dnExplicit || (dnFromDesc ? parseInt(dnFromDesc[1]) : null);
@@ -314,8 +326,9 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         const snFromDesc = desc.match(/\bsn\s*0*(\d{3,6})\b/i);
         const sn = snExplicit || (snFromDesc ? parseInt(snFromDesc[1]) : null);
 
+        const lenFromCol = item.length ? parseFloat(String(item.length)) : null;
         const lenMatch = desc.match(/L\s*=\s*([0-9]+(?:[.,][0-9]+)?)\s*m/i);
-        const lengthM = lenMatch ? parseFloat(lenMatch[1].replace(',', '.')) : null;
+        const lengthM = (lenFromCol && lenFromCol > 0 ? lenFromCol : null) || (lenMatch ? parseFloat(lenMatch[1].replace(',', '.')) : null);
 
         let itemType = 'other';
         if (/grout\s*nozzle/i.test(desc)) itemType = 'pipe_with_coupling';
@@ -329,7 +342,7 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         else if (/rocker|רוקר/i.test(desc)) itemType = 'roker';
 
         const unitStr = String(item.unit || '');
-        const pricePer = /מטר|meter|\bm\b/i.test(unitStr) ? 'meter' : 'unit';
+        const pricePer = /מטר|meter|\bm\b/i.test(unitStr) ? 'meter' : sectionPricePer;
 
         allItems.push({
           description: desc || item.item_code || `פריט ${i}`,
