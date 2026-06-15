@@ -573,9 +573,18 @@ export function usePricing(projectId: string): UsePricingReturn {
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const isExcel = /\.(xlsx|xls)$/i.test(file.name)
-          || file.type.includes('spreadsheetml') || file.type.includes('ms-excel');
-        if (!isExcel) { geminiFiles.push(file); continue; }
+        // Detect Excel by EXTENSION/MIME, but don't trust them blindly — Safari
+        // and some pickers report empty/garbled type and occasionally a name
+        // without the extension. So: anything that isn't clearly a PDF/image is
+        // *attempted* as a spreadsheet by reading its bytes (XLSX sniffs the
+        // ZIP/OLE magic). Only genuine PDFs/images skip straight to Gemini.
+        const isPdfOrImage = file.type.startsWith('image/')
+          || file.type === 'application/pdf'
+          || /\.(pdf|png|jpe?g|gif|webp|heic|bmp|tiff?)$/i.test(file.name);
+        const looksExcel = /\.(xlsx|xlsm|xls)$/i.test(file.name)
+          || file.type.includes('spreadsheet') || file.type.includes('ms-excel')
+          || file.type.includes('officedocument');
+        if (isPdfOrImage) { geminiFiles.push(file); continue; }
         try {
           const ab = await file.arrayBuffer();
           const result = parseExcelBOQ(new Uint8Array(ab), file.name);
@@ -583,11 +592,16 @@ export function usePricing(projectId: string): UsePricingReturn {
             rawItems.push(...result.data);
             if (!quoteInfo.supplier_name) Object.assign(quoteInfo, result.quote_info, quoteInfo);
             extractedBy = extractedBy ? 'mixed' : 'local_excel';
-          } else {
+          } else if (looksExcel) {
             excelErrors.push(`לא זוהתה טבלת תמחור ב-"${file.name}" (צריך שורת כותרת עם קוטר/כמות/מחיר).`);
+          } else {
+            geminiFiles.push(file); // not a spreadsheet we could read → let Gemini try
           }
         } catch (e: any) {
-          excelErrors.push(`שגיאה בקריאת "${file.name}": ${e?.message || 'קובץ פגום'}`);
+          // Bytes aren't a spreadsheet (or it's corrupt). If it looked like
+          // Excel, report; otherwise hand the original file to Gemini.
+          if (looksExcel) excelErrors.push(`שגיאה בקריאת "${file.name}" (${file.type || 'ללא סוג'}): ${e?.message || 'קובץ פגום'}`);
+          else geminiFiles.push(file);
         }
       }
 
@@ -622,7 +636,8 @@ export function usePricing(projectId: string): UsePricingReturn {
       }
 
       if (rawItems.length === 0) {
-        alert(excelErrors.length ? excelErrors.join('\n') : 'לא הצלחתי לחלץ פריטים מהקובץ');
+        const dbg = Array.from(fileList).map((f) => `"${f.name}" (${f.type || 'ללא סוג'}, ${Math.round(f.size / 1024)}KB)`).join(' ; ');
+        alert((excelErrors.length ? excelErrors.join('\n') : 'לא הצלחתי לחלץ פריטים מהקובץ') + `\n\n[אבחון] ${dbg}`);
         return;
       }
 
