@@ -625,7 +625,14 @@ export function usePricing(projectId: string): UsePricingReturn {
         const uploadNote = uploadFailures > 0
           ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה (כנראה אין לך הרשאת עריכה לפרויקטים) — הפריטים חולצו אך הקובץ המקורי לא נשמר.`
           : '';
-        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${failedNote}${uploadNote}`);
+        // Show which engine read the file: local Excel parser (reliable) vs
+        // Gemini (used for PDF/images; can hallucinate on unreadable input).
+        const sourceNote = data.extracted_by === 'local_excel'
+          ? '\n\n📗 חולץ מקומית מהאקסל (קריאה מדויקת).'
+          : data.extracted_by === 'gemini'
+          ? '\n\n🤖 חולץ ע"י Gemini (PDF/תמונה) — מומלץ לוודא את הפריטים.'
+          : '';
+        alert(`Roxy חילצה ${items.length} פריטים${qi.supplier_name ? ` מ-${qi.supplier_name}` : ''}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} — מטבע: ${sym}${!isILS ? ` (שער: ${rate})` : ''}.\nאפשר להעלות עוד קובץ (יתווסף), ואז לבדוק וללחוץ שמור.${sourceNote}${failedNote}${uploadNote}`);
       } else {
         const errDetail = data.error ? `שגיאה ${data.gemini_status || ''}: ${data.error}` : null;
         alert(errDetail || data.summary || data.message || 'לא הצלחתי לחלץ פריטים מהקובץ');

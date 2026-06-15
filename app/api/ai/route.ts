@@ -510,7 +510,11 @@ export async function POST(request: NextRequest) {
         const name = file.name || '';
         const isExcel = mime.includes('spreadsheetml') || mime.includes('ms-excel') || /\.(xlsx|xls)$/i.test(name);
         console.log(`[AI route] file "${name}" mime="${mime}" base64len=${file.base64?.length || 0} isExcel=${isExcel}`);
-        if (isExcel && file.base64) {
+        if (isExcel) {
+          // Excel is ALWAYS parsed locally and NEVER falls back to Gemini —
+          // even when base64 is empty/corrupt. A clear error beats Gemini
+          // hallucinating from its prompt examples (DN800 / coupling / elbow).
+          if (!file.base64) { console.error(`[AI route] Excel "${name}" arrived with empty base64`); excelFailures.push(name); continue; }
           let boqResult: any = null;
           try { boqResult = parseExcelBOQ(Buffer.from(file.base64, 'base64'), name); }
           catch (e: any) { console.error(`[AI route] parseExcelBOQ threw for "${name}":`, e?.message); }
@@ -542,6 +546,7 @@ export async function POST(request: NextRequest) {
           action: 'import', target_table: 'supplier_quote',
           quote_info: { ...excelQuoteInfo, currency },
           data: excelItems,
+          extracted_by: 'local_excel',
           summary: `חולצו ${excelItems.length} פריטים מ-${files.length} קבצים (מטבע: ${currency})`,
         });
       }
@@ -669,6 +674,7 @@ export async function POST(request: NextRequest) {
         target_table: 'supplier_quote',
         quote_info: mergedQuoteInfo,
         data: allItems,
+        extracted_by: excelItems.length > 0 ? 'mixed' : 'gemini',
         summary: `חולצו ${allItems.length} פריטים מ-${(files || []).length} קבצים`,
       };
       if (failedFiles.length) parsed.failed_files = failedFiles;
