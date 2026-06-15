@@ -259,8 +259,10 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         const m = rowStr.match(/\d{4,}/);
         if (m) quoteRef = m[0];
       }
-      if (/\$|usd|דולר/i.test(rowStr)) currency = 'USD';
-      else if (/€|eur|אירו/i.test(rowStr)) currency = 'EUR';
+      const hasUsd = /\$|usd|דולר/i.test(rowStr);
+      const hasEur = /€|eur|אירו/i.test(rowStr);
+      if (hasUsd && !hasEur) currency = 'USD';
+      else if (hasEur && !hasUsd) currency = 'EUR';
     }
 
     // Find EVERY header row in the sheet (a BoQ can have multiple sections),
@@ -312,6 +314,8 @@ function parseExcelBOQ(buffer: Buffer, fileName: string): object | null {
         const qty = parseFloat(String(item.quantity)) || 0;
         const unitPrice = parseFloat(String(item.cost_price)) || 0;
         if (!desc && qty === 0 && unitPrice === 0) continue;
+        if (qty === 0 && unitPrice === 0) continue;
+        if (!desc && qty === 0) continue;
 
         // Pull DN/PN/SN/length from dedicated columns or fall back to description regex.
         const dnExplicit = item.dn ? parseInt(String(item.dn).replace(/[^0-9]/g, '')) : null;
