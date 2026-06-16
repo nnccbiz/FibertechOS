@@ -952,7 +952,7 @@ export function usePricing(projectId: string): UsePricingReturn {
 
     const { data: inserted, error } = await supabase
       .from('project_contacts')
-      .insert({ project_id: projectId, name: cc.name || '', role: cc.role || null, phone: cc.phone || null, email: cc.email || null, client_contact_id: cc.id })
+      .insert({ project_id: projectId, name: cc.name || '', role: cc.role || 'איש קשר', phone: cc.phone || null, email: cc.email || null, client_contact_id: cc.id })
       .select('id, role, name, phone, email')
       .single();
     if (error || !inserted) { alert(`שגיאה בהוספת איש הקשר: ${error?.message || ''}`); return; }
