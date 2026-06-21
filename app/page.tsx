@@ -212,12 +212,12 @@ export default function DashboardPage() {
       }
       const totalYear = monthsData.reduce((s, m) => s + m.total, 0);
 
-      // 2. 100% certain (realization_status = 'הזמנה') — all, not just this year
-      const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
+      // 2. 100% certain (realization_status = 'הזמנה') — only projects with delivery months marked
+      const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה' && detMap[p.id]);
       const totalCertain = certain.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
 
-      // 3. High probability (realization_status = 'גבוהה')
-      const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה');
+      // 3. High probability (realization_status = 'גבוהה') — only projects with delivery months marked
+      const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה' && detMap[p.id]);
       const totalHighProb = highProb.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
 
       setReportData({
