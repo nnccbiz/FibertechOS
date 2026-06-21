@@ -178,32 +178,39 @@ export default function DashboardPage() {
       const detMap: Record<string, string> = {};
       allDet.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
 
-      // 1. Expected revenue in the next 3 months (projects with deliveries)
+      // 1. Expected revenue across all 12 months of the current year
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
-      const next3Months: { month: number; year: number; key: string; label: string }[] = [];
-      for (let i = 0; i < 3; i++) {
-        const m = ((currentMonth - 1 + i) % 12) + 1;
-        const y = currentYear + Math.floor((currentMonth - 1 + i) / 12);
-        next3Months.push({ month: m, year: y, key: `${y}-${m}`, label: `${MONTH_NAMES[m]} ${y}` });
-      }
 
-      const next3MonthsData: { month: string; projects: { name: string; value: number }[]; total: number }[] = [];
-      next3Months.forEach((nm) => {
-        const monthProjects: { name: string; value: number }[] = [];
+      const monthsData: {
+        month: number;
+        year: number;
+        label: string;
+        isFuture: boolean;
+        projects: { name: string; value: number; status: string }[];
+        total: number;
+      }[] = [];
+
+      for (let m = 1; m <= 12; m++) {
+        const key = `${currentYear}-${m}`;
+        const isFuture = m >= currentMonth; // current month + future months
+        const monthProjects: { name: string; value: number; status: string }[] = [];
         allProj.forEach((p: any) => {
           const monthsList = detMap[p.id];
           if (!monthsList) return;
           const entries = monthsList.split(',').filter(Boolean);
-          if (!entries.includes(nm.key)) return;
+          if (!entries.includes(key)) return;
           const totalMonths = entries.length || 1;
           const perMonth = (p.order_value || 0) / totalMonths;
-          monthProjects.push({ name: p.name, value: perMonth });
+          monthProjects.push({ name: p.name, value: perMonth, status: p.realization_status || '' });
         });
         const total = monthProjects.reduce((s, mp) => s + mp.value, 0);
-        next3MonthsData.push({ month: nm.label, projects: monthProjects, total });
-      });
-      const totalNext3 = next3MonthsData.reduce((s, m) => s + m.total, 0);
+        const label = isFuture
+          ? `צפי ${MONTH_NAMES[m]} ${currentYear}`
+          : `${MONTH_NAMES[m]} ${currentYear}`;
+        monthsData.push({ month: m, year: currentYear, label, isFuture, projects: monthProjects, total });
+      }
+      const totalYear = monthsData.reduce((s, m) => s + m.total, 0);
 
       // 2. 100% certain (realization_status = 'הזמנה') — all, not just this year
       const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
@@ -215,8 +222,8 @@ export default function DashboardPage() {
 
       setReportData({
         currentYear,
-        next3MonthsData,
-        totalNext3,
+        monthsData,
+        totalYear,
         certain,
         totalCertain,
         highProb,
@@ -238,17 +245,17 @@ export default function DashboardPage() {
     text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
     text += `${'═'.repeat(40)}\n\n`;
 
-    text += `📋 הכנסות צפויות לשלושה חודשים הקרובים\n`;
+    text += `📋 הכנסות צפויות לפי חודש — ${r.currentYear}\n`;
     text += `${'─'.repeat(30)}\n`;
-    if (r.totalNext3 > 0) {
-      r.next3MonthsData.forEach((m: any) => {
+    if (r.totalYear > 0) {
+      r.monthsData.forEach((m: any) => {
         if (m.total > 0) {
-          text += `${m.month}: ${fmtILS(Math.round(m.total))}`;
+          text += `${m.label}: ${fmtILS(Math.round(m.total))}`;
           if (m.projects.length <= 3) text += ` (${m.projects.map((p: any) => p.name).join(', ')})`;
           text += '\n';
         }
       });
-      text += `סה"כ 3 חודשים: ${fmtILS(Math.round(r.totalNext3))}\n`;
+      text += `סה"כ שנה: ${fmtILS(Math.round(r.totalYear))}\n`;
     } else {
       text += `אין אספקות צפויות\n`;
     }
@@ -620,8 +627,8 @@ export default function DashboardPage() {
                     {/* Summary cards */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-green-600 font-semibold">3 חודשים קרובים</p>
-                        <p className="text-lg font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
+                        <p className="text-[12px] text-green-600 font-semibold">סה"כ שנה {reportData.currentYear}</p>
+                        <p className="text-lg font-bold text-green-700">{formatILS(Math.round(reportData.totalYear))}</p>
                         <p className="text-[11px] text-green-500">הכנסות צפויות</p>
                       </div>
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
@@ -636,39 +643,73 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Expected revenue — next 3 months */}
+                    {/* Expected revenue — all 12 months of the year */}
                     <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                        <span>📋</span> הכנסות צפויות לשלושה חודשים הקרובים
-                      </h4>
-                      {reportData.totalNext3 > 0 ? (
-                        <div className="space-y-2">
-                          {reportData.next3MonthsData.map((m: any, idx: number) => (
-                            <div key={idx} className="rounded-lg border border-green-100 overflow-hidden">
-                              <div className="flex items-center justify-between bg-green-50 px-3 py-2">
-                                <span className="text-sm font-bold text-green-700">{m.month}</span>
-                                <span className="text-sm font-bold text-green-700">{formatILS(Math.round(m.total))}</span>
-                              </div>
-                              {m.projects.length > 0 && (
-                                <div className="px-3 py-1.5 space-y-1">
-                                  {m.projects.map((p: any, j: number) => (
-                                    <div key={j} className="flex items-center justify-between text-[12px]">
-                                      <span className="text-gray-600">{p.name}</span>
-                                      <span className="text-gray-500">{formatILS(Math.round(p.value))}</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                          <span>📋</span> הכנסות צפויות לפי חודש — {reportData.currentYear}
+                        </h4>
+                        <div className="flex items-center gap-3 text-[11px]">
+                          <span className="flex items-center gap-1 text-blue-600">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" /> בהזמנה
+                          </span>
+                          <span className="flex items-center gap-1 text-purple-600">
+                            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" /> סבירות גבוהה
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        {reportData.monthsData.map((m: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className={`rounded-xl border overflow-hidden flex flex-col ${
+                              m.isFuture ? 'border-green-200' : 'border-gray-200'
+                            }`}
+                          >
+                            <div
+                              className={`px-2.5 py-2 ${
+                                m.isFuture ? 'bg-green-50' : 'bg-gray-50'
+                              }`}
+                            >
+                              <p className={`text-[12px] font-bold leading-tight ${
+                                m.isFuture ? 'text-green-700' : 'text-gray-600'
+                              }`}>
+                                {m.label}
+                              </p>
+                              <p className={`text-[13px] font-bold ${
+                                m.isFuture ? 'text-green-700' : 'text-gray-700'
+                              }`}>
+                                {m.total > 0 ? formatILS(Math.round(m.total)) : '—'}
+                              </p>
+                            </div>
+                            <div className="px-2.5 py-2 space-y-1 flex-1">
+                              {m.projects.length > 0 ? (
+                                m.projects.map((p: any, j: number) => {
+                                  const isOrder = p.status === 'הזמנה';
+                                  const isHigh = p.status === 'גבוהה';
+                                  const color = isOrder
+                                    ? 'text-blue-600'
+                                    : isHigh
+                                    ? 'text-purple-600'
+                                    : 'text-gray-500';
+                                  return (
+                                    <div key={j} className="flex items-center justify-between gap-1 text-[11px]">
+                                      <span className={`truncate ${color}`} title={p.name}>{p.name}</span>
+                                      <span className={`shrink-0 ${color}`}>{formatILS(Math.round(p.value))}</span>
                                     </div>
-                                  ))}
-                                </div>
+                                  );
+                                })
+                              ) : (
+                                <p className="text-[11px] text-gray-300 text-center py-1">—</p>
                               )}
                             </div>
-                          ))}
-                          <div className="flex items-center justify-between pt-2 border-t border-green-100">
-                            <p className="text-sm font-bold text-gray-700">סה"כ 3 חודשים</p>
-                            <p className="text-sm font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
                           </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-400 text-center py-3">אין אספקות צפויות ב-3 חודשים הקרובים</p>
-                      )}
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-3 mt-1 border-t border-green-100">
+                        <p className="text-sm font-bold text-gray-700">סה"כ שנה {reportData.currentYear}</p>
+                        <p className="text-sm font-bold text-green-700">{formatILS(Math.round(reportData.totalYear))}</p>
+                      </div>
                     </div>
 
                     {/* 100% Certain */}
