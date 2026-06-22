@@ -199,6 +199,7 @@ export default function DashboardPage() {
           const monthsList = detMap[p.id];
           if (!monthsList) return;
           if (!p.order_value) return; // skip projects without an amount
+          if (p.realization_status !== 'הזמנה') return; // only 100% (orders)
           const entries = monthsList.split(',').filter(Boolean);
           if (!entries.includes(key)) return;
           const totalMonths = entries.length || 1;
@@ -652,10 +653,7 @@ export default function DashboardPage() {
                         </h4>
                         <div className="flex items-center gap-3 text-[11px]">
                           <span className="flex items-center gap-1 text-blue-600">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" /> בהזמנה
-                          </span>
-                          <span className="flex items-center gap-1 text-purple-600">
-                            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" /> סבירות גבוהה
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" /> בהזמנה (100%)
                           </span>
                         </div>
                       </div>
