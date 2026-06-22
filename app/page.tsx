@@ -198,6 +198,7 @@ export default function DashboardPage() {
         allProj.forEach((p: any) => {
           const monthsList = detMap[p.id];
           if (!monthsList) return;
+          if (!p.order_value) return; // skip projects without an amount
           const entries = monthsList.split(',').filter(Boolean);
           if (!entries.includes(key)) return;
           const totalMonths = entries.length || 1;
@@ -658,7 +659,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                         {reportData.monthsData.map((m: any, idx: number) => (
                           <div
                             key={idx}
@@ -693,8 +694,8 @@ export default function DashboardPage() {
                                     ? 'text-purple-600'
                                     : 'text-gray-500';
                                   return (
-                                    <div key={j} className="flex items-center justify-between gap-1 text-[11px]">
-                                      <span className={`truncate ${color}`} title={p.name}>{p.name}</span>
+                                    <div key={j} className="flex items-start justify-between gap-1.5 text-[11px]">
+                                      <span className={`flex-1 break-words leading-snug ${color}`}>{p.name}</span>
                                       <span className={`shrink-0 ${color}`}>{formatILS(Math.round(p.value))}</span>
                                     </div>
                                   );
