@@ -647,8 +647,16 @@ export function usePricing(projectId: string): UsePricingReturn {
       }
 
       const qi = quoteInfo;
-      const currency = qi.currency || rawItems.find((i) => i.currency)?.currency || 'ILS';
       const ci = costInputs.find((c) => c.id === costInputId);
+      // A detected FOREIGN currency (from the file / Gemini) is authoritative.
+      // 'ILS' from the parser only means "no currency marker found" — in that
+      // case keep the currency the user chose on the cost input rather than
+      // forcing ILS. (Price files often carry no currency indicator at all.)
+      const detectedForeign =
+        (qi.currency && qi.currency !== 'ILS' ? qi.currency : null) ||
+        rawItems.find((i) => i.currency && i.currency !== 'ILS')?.currency ||
+        null;
+      const currency = detectedForeign || ci?.currency || 'ILS';
       const rate = ci?.exchange_rate || exchangeRates[currency]?.rate || 1;
       const isILS = currency === 'ILS';
 
