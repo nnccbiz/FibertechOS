@@ -555,7 +555,7 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
           const typeLabel = itemTypeLabels(item.item_type) === '—' ? '' : itemTypeLabels(item.item_type);
           return (
             <tr key={item.id} className="border-b border-gray-50 align-top">
-              <td className="py-1.5 pr-1 text-gray-700 leading-snug break-words text-right" dir="ltr">{item.product_name}</td>
+              <td className="py-1.5 pr-1 text-gray-700 leading-snug break-words text-right" dir="rtl">{item.product_name}</td>
               <td className="py-1.5 px-2 text-[11px] text-gray-500 whitespace-nowrap">{typeLabel}</td>
               <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap">{item.dn_size || '—'}</td>
               <td className="py-1.5 px-2 text-gray-500 whitespace-nowrap">{item.quantity} {item.unit}</td>
@@ -1240,7 +1240,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             return (
               <tr key={item.id} className="border-b border-[#f0f0f0] hover:bg-blue-50/30 transition-colors">
                 <td className="py-2 px-2 text-gray-700 text-[12px]">
-                  <span title={item.product_name} className="block break-words text-right" dir="ltr">{item.product_name}</span>
+                  <span title={item.product_name} className="block break-words text-right" dir="rtl">{item.product_name}</span>
                 </td>
                 <td className="py-2 px-1 text-gray-600 text-[12px] text-center border-r border-[#f0f0f0] whitespace-nowrap">{item.dn_size || '—'}</td>
                 {(() => { const spec = parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }); return (<>
