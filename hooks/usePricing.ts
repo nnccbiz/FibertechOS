@@ -482,8 +482,10 @@ export function usePricing(projectId: string): UsePricingReturn {
         if (field === 'unit_price') {
           const up = parseFloat(val) || 0;
           const costWithOH = cost * (1 + oh / 100);
-          if (costWithOH > 0) {
-            next[idx].profit_pct = Math.round(((up / costWithOH) - 1) * 10000) / 100;
+          if (costWithOH > 0 && up > 0) {
+            // profit is a gross margin "from below": up = costWithOH / (1 − profit%)
+            // ⇒ profit% = (1 − costWithOH / up) × 100
+            next[idx].profit_pct = Math.round((1 - costWithOH / up) * 10000) / 100;
           }
         } else {
           const pr = parseFloat(next[idx].profit_pct) || 0;
