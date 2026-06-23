@@ -741,8 +741,8 @@ export function usePricing(projectId: string): UsePricingReturn {
     const existingCount = quotes.filter((q) => q.status !== 'cancelled').length;
     const num = buildDocNumber('HM', existingCount + 1);
     const disclaimer = DISCLAIMER_TEMPLATES[newQuote.disclaimer_type]?.text || '';
-    const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct || 17);
-    const pr = newQuote.default_profit_pct || 25;
+    const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct ?? 17);
+    const pr = newQuote.default_profit_pct ?? 25;
 
     // Resolve the contact picker value into a real project_contacts id.
     // "cc:<id>" → materialize that customer contact into this project (reuse by
@@ -888,8 +888,10 @@ export function usePricing(projectId: string): UsePricingReturn {
         if (field === 'unit_price') {
           const up = parseFloat(val) || 0;
           const costWithOH = cost * (1 + oh / 100);
-          if (costWithOH > 0) {
-            next[idx].profit_pct = Math.round(((up / costWithOH) - 1) * 10000) / 100;
+          if (costWithOH > 0 && up > 0) {
+            // profit is a gross margin "from below": up = costWithOH / (1 − profit%)
+            // ⇒ profit% = (1 − costWithOH / up) × 100
+            next[idx].profit_pct = Math.round((1 - costWithOH / up) * 10000) / 100;
           }
         } else {
           const pr = parseFloat(next[idx].profit_pct) || 0;
