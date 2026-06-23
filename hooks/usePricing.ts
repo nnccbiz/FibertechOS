@@ -413,8 +413,8 @@ export function usePricing(projectId: string): UsePricingReturn {
     const existingCount = quotes.filter((q) => q.status !== 'cancelled').length;
     const num = buildDocNumber('HM', existingCount + 1);
     const disclaimer = DISCLAIMER_TEMPLATES[newQuote.disclaimer_type]?.text || '';
-    const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct || 17);
-    const pr = newQuote.default_profit_pct || 25;
+    const oh = newQuote.cost_source === 'internal' ? 0 : (newQuote.default_overheads_pct ?? 17);
+    const pr = newQuote.default_profit_pct ?? 25;
 
     const { data: q, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: newQuote.client_name,
