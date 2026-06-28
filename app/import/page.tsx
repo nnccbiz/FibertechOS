@@ -1,56 +1,55 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 
 export const dynamic = 'force-dynamic';
 
 // ---------- helpers ----------
-function formatMoney(v: number | null, currency = 'EUR') {
+function money(v: number | null | undefined, currency = 'USD') {
   if (v == null) return '—';
-  try {
-    return new Intl.NumberFormat('he-IL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v);
-  } catch {
-    return `${v} ${currency}`;
-  }
+  try { return new Intl.NumberFormat('he-IL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v); }
+  catch { return `${v} ${currency}`; }
 }
-function formatDate(d: string | null) {
+function fmtDate(d: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('he-IL');
 }
+function num(v: any) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 
-// ---------- constants ----------
-const STAGES = [
-  { key: 'po_sent', label: 'הזמנה נשלחה', icon: '📤' },
-  { key: 'confirmed', label: 'אושר ע״י ספק', icon: '✅' },
-  { key: 'booking', label: 'שריון אוניה', icon: '🛳️' },
-  { key: 'sailing', label: 'בהפלגה', icon: '🌊' },
-  { key: 'docs_received', label: 'מסמכים התקבלו', icon: '📄' },
-  { key: 'at_port', label: 'הגיע לנמל', icon: '⚓' },
-  { key: 'customs_cleared', label: 'שוחרר ממכס', icon: '🛃' },
-  { key: 'delivered', label: 'סופק ללקוח', icon: '🚚' },
-  { key: 'closed', label: 'נסגר', icon: '🔒' },
-];
-const STAGE_ORDER = STAGES.map((s) => s.key);
-const STAGE_MAP: Record<string, { label: string; icon: string }> = Object.fromEntries(
-  STAGES.map((s) => [s.key, { label: s.label, icon: s.icon }])
-);
+const ORDER_STATUS: Record<string, { label: string; color: string }> = {
+  open: { label: 'פתוחה', color: 'bg-gray-100 text-gray-600' },
+  confirmed: { label: 'אושרה', color: 'bg-blue-50 text-blue-700' },
+  in_transit: { label: 'בשילוח', color: 'bg-indigo-50 text-indigo-700' },
+  partially_received: { label: 'התקבלה חלקית', color: 'bg-amber-50 text-amber-700' },
+  received: { label: 'התקבלה', color: 'bg-green-50 text-green-700' },
+  closed: { label: 'נסגרה', color: 'bg-gray-100 text-gray-500' },
+};
+const ORDER_STATUS_KEYS = Object.keys(ORDER_STATUS);
+
+const SHIPMENT_STATUS: Record<string, { label: string; color: string }> = {
+  booked: { label: 'הוזמן', color: 'bg-gray-100 text-gray-600' },
+  sailing: { label: 'בהפלגה', color: 'bg-blue-50 text-blue-700' },
+  arrived: { label: 'הגיע לנמל', color: 'bg-indigo-50 text-indigo-700' },
+  customs: { label: 'במכס', color: 'bg-amber-50 text-amber-700' },
+  delivered: { label: 'שוחרר', color: 'bg-green-50 text-green-700' },
+  closed: { label: 'נסגר', color: 'bg-gray-100 text-gray-500' },
+};
+const SHIPMENT_STATUS_KEYS = Object.keys(SHIPMENT_STATUS);
 
 const DOC_TYPES = [
-  { key: 'purchase_order', label: 'הזמנת רכש' },
-  { key: 'order_confirmation', label: 'אישור הזמנה' },
-  { key: 'packing_list', label: 'רשימת אריזה' },
-  { key: 'commercial_invoice', label: 'חשבונית מסחרית' },
-  { key: 'vgm', label: 'VGM' },
-  { key: 'analysis', label: 'אנליזות' },
+  { key: 'email', label: '📧 אימייל' },
+  { key: 'order_confirmation', label: 'אישור הזמנה (OC)' },
+  { key: 'proforma_invoice', label: 'חשבונית פרופורמה (PI)' },
+  { key: 'commercial_invoice', label: 'חשבונית מסחרית (CI)' },
+  { key: 'packing_list', label: 'תעודת משלוח / Packing List' },
   { key: 'bl', label: 'שטר מטען (BL)' },
-  { key: 'customs_account', label: 'גמר חשבון מכס' },
+  { key: 'coa', label: 'תעודת אנליזה (COA)' },
   { key: 'other', label: 'אחר' },
 ];
 const DOC_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPES.map((d) => [d.key, d.label]));
-
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'ILS'];
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS'];
 
 // ============================================================
 // Page
@@ -59,127 +58,124 @@ export default function ImportPage() {
   const supabase = createClient();
   const { canAccess } = usePermissions();
   const canEdit = canAccess('import', 'edit');
+  const canDelete = canAccess('import', 'full');
 
-  const [orders, setOrders] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [view, setView] = useState<'orders' | 'shipments'>('orders');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('active');
-  const [showNew, setShowNew] = useState(false);
+  const [data, setData] = useState<any>({
+    orders: [], items: [], shipments: [], containers: [], packing: [],
+    invoices: [], coa: [], docs: [], custDeliv: [], suppliers: [], projects: [],
+  });
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showNewShipment, setShowNewShipment] = useState(false);
 
-  async function loadData() {
-    const [ordersRes, supRes, projRes] = await Promise.all([
-      supabase
-        .from('import_orders')
-        .select('*, suppliers(name), projects(name, client_name)')
-        .order('created_at', { ascending: false }),
+  async function load() {
+    const [o, it, sh, co, pk, inv, coa, doc, cd, sup, proj] = await Promise.all([
+      supabase.from('import_orders').select('*, suppliers(name), projects(name, client_name)').order('created_at', { ascending: false }),
+      supabase.from('import_order_items').select('*').order('sort_order'),
+      supabase.from('import_shipments').select('*, suppliers(name)').order('created_at', { ascending: false }),
+      supabase.from('import_containers').select('*').order('created_at'),
+      supabase.from('import_packing_lines').select('*').order('created_at'),
+      supabase.from('import_invoices').select('*').order('invoice_date'),
+      supabase.from('import_coa').select('*').order('coa_date'),
+      supabase.from('import_documents').select('*').order('created_at'),
+      supabase.from('import_customer_deliveries').select('*').order('created_at'),
       supabase.from('suppliers').select('id, name').order('name'),
       supabase.from('projects').select('id, name, client_name').order('name'),
     ]);
-    setOrders(ordersRes.data || []);
-    setSuppliers(supRes.data || []);
-    setProjects(projRes.data || []);
+    setData({
+      orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
+      packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [],
+    });
     setLoading(false);
   }
-
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { load(); }, []);
 
   if (loading) {
-    return (
-      <div className="p-6" dir="rtl">
-        <p className="text-gray-400 text-center py-12">טוען הזמנות יבוא...</p>
-      </div>
-    );
+    return <div className="p-6" dir="rtl"><p className="text-gray-400 text-center py-12">טוען יבוא...</p></div>;
   }
-
-  const filtered = orders.filter((o) => {
-    if (filter === 'active') return o.status !== 'closed';
-    if (filter === 'all') return true;
-    return o.status === filter;
-  });
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">🚢 יבוא</h1>
-          <p className="text-sm text-gray-500 mt-1">הזמנות רכש מספקים, מעקב משלוח, מסמכים ואספקה ללקוח</p>
+          <p className="text-sm text-gray-500 mt-1">הזמנות רכש, משלוחים ומכולות, מסמכים ואספקה</p>
         </div>
-        {canEdit && (
-          <button
-            onClick={() => setShowNew(true)}
-            className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            + הזמנת יבוא חדשה
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-100 rounded-lg p-0.5">
+            <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הזמנות</button>
+            <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>משלוחים</button>
+          </div>
+          {canEdit && view === 'orders' && (
+            <button onClick={() => setShowNewOrder(true)} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">+ הזמנה</button>
+          )}
+          {canEdit && view === 'shipments' && (
+            <button onClick={() => setShowNewShipment(true)} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">+ משלוח</button>
+          )}
+        </div>
       </div>
 
-      {/* filter chips */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        <FilterChip label="פעילות" active={filter === 'active'} onClick={() => setFilter('active')} />
-        <FilterChip label="הכל" active={filter === 'all'} onClick={() => setFilter('all')} />
-        {STAGES.map((s) => (
-          <FilterChip key={s.key} label={`${s.icon} ${s.label}`} active={filter === s.key} onClick={() => setFilter(s.key)} />
-        ))}
-      </div>
+      {view === 'orders'
+        ? <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />
+        : <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
 
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-4xl mb-3">📦</p>
-          <p className="text-gray-500">אין הזמנות יבוא להצגה</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filtered.map((order) => (
-            <OrderCard key={order.id} order={order} canEdit={canEdit} canDelete={canAccess('import', 'full')} onUpdate={loadData} />
-          ))}
-        </div>
-      )}
-
-      {showNew && (
-        <NewOrderModal
-          suppliers={suppliers}
-          projects={projects}
-          onClose={() => setShowNew(false)}
-          onCreated={() => { setShowNew(false); loadData(); }}
-        />
-      )}
+      {showNewOrder && <NewOrderModal data={data} onClose={() => setShowNewOrder(false)} onCreated={() => { setShowNewOrder(false); load(); }} />}
+      {showNewShipment && <NewShipmentModal data={data} onClose={() => setShowNewShipment(false)} onCreated={() => { setShowNewShipment(false); load(); }} />}
     </div>
   );
 }
 
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-[12px] px-3 py-1.5 rounded-full border transition-colors ${
-        active ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-      }`}
-    >
-      {label}
-    </button>
-  );
+function Info({ label, value }: { label: string; value?: any }) {
+  return (<div><p className="text-[11px] text-gray-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-gray-700">{value || '—'}</p></div>);
 }
 
 // ============================================================
-// Order card
+// Orders view
 // ============================================================
-function OrderCard({ order, canEdit, canDelete, onUpdate }: { order: any; canEdit: boolean; canDelete: boolean; onUpdate: () => void }) {
-  const supabase = createClient();
-  const [expanded, setExpanded] = useState(false);
-  const [tab, setTab] = useState<'items' | 'docs' | 'containers' | 'delivery'>('items');
-  const stage = STAGE_MAP[order.status] || { label: order.status, icon: '•' };
-  const currentIdx = STAGE_ORDER.indexOf(order.status);
+function OrdersView({ data, canEdit, canDelete, onUpdate }: any) {
+  const [filter, setFilter] = useState('active');
+  const orders = data.orders.filter((o: any) => filter === 'all' ? true : filter === 'active' ? o.status !== 'closed' : o.status === filter);
 
-  async function changeStatus(newStatus: string) {
-    await supabase.from('import_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', order.id);
-    onUpdate();
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-5">
+        <Chip label="פעילות" active={filter === 'active'} onClick={() => setFilter('active')} />
+        <Chip label="הכל" active={filter === 'all'} onClick={() => setFilter('all')} />
+        {ORDER_STATUS_KEYS.map((k) => <Chip key={k} label={ORDER_STATUS[k].label} active={filter === k} onClick={() => setFilter(k)} />)}
+      </div>
+      {orders.length === 0
+        ? <Empty text="אין הזמנות יבוא" />
+        : <div className="space-y-4">{orders.map((o: any) => <OrderCard key={o.id} order={o} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />)}</div>}
+    </div>
+  );
+}
+
+function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs'>('items');
+  const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
+  const items = data.items.filter((i: any) => i.import_order_id === order.id);
+  const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
+
+  // received qty per item = sum of packing lines matched to that item (or by material/dn)
+  function receivedFor(item: any) {
+    return packing.filter((p: any) =>
+      p.import_order_item_id === item.id ||
+      (p.material_no && item.material_no && p.material_no === item.material_no) ||
+      (!p.import_order_item_id && !p.material_no && p.dn && item.dn && p.dn === item.dn)
+    ).reduce((s: number, p: any) => s + num(p.shipped_qty), 0);
   }
 
-  async function deleteOrder() {
-    if (!confirm(`למחוק את הזמנת היבוא ${order.po_number || ''}? פעולה זו תמחק גם פריטים, מסמכים, מכולות ותעודות משלוח.`)) return;
-    if (!confirm('האם אתה בטוח? לא ניתן לשחזר.')) return;
+  async function setStatus(s: string) {
+    await supabase.from('import_orders').update({ status: s, updated_at: new Date().toISOString() }).eq('id', order.id);
+    onUpdate();
+  }
+  async function del() {
+    if (!confirm('למחוק את ההזמנה? פעולה זו תמחק גם פריטים, חשבוניות ומסמכים מקושרים.')) return;
+    if (!confirm('בטוח? לא ניתן לשחזר.')) return;
     await supabase.from('import_orders').delete().eq('id', order.id);
     onUpdate();
   }
@@ -187,407 +183,218 @@ function OrderCard({ order, canEdit, canDelete, onUpdate }: { order: any; canEdi
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="px-5 py-4">
-        {/* header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-mono text-gray-400">{order.po_number || '—'}</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700">
-              {stage.icon} {stage.label}
-            </span>
-            {order.is_stock ? (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700">יבוא מלאי</span>
-            ) : null}
+            <span className="text-sm font-mono text-gray-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+            {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700">מלאי</span>}
           </div>
-          <span className="text-sm font-bold text-gray-700">{formatMoney(order.total_amount, order.currency)}</span>
+          <span className="text-sm font-bold text-gray-700">{money(order.total_amount, order.currency)}</span>
         </div>
-
-        {/* info grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <Info label="ספק" value={order.suppliers?.name} />
-          <Info label="פרויקט / לקוח" value={order.is_stock ? 'מלאי' : (order.projects?.name || order.projects?.client_name)} />
-          <Info label="הפלגה (ETD)" value={formatDate(order.etd)} />
-          <Info label="הגעה צפויה (ETA)" value={formatDate(order.eta)} />
+          <Info label="פרויקט" value={order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name)} />
+          <Info label="הזמנת ספק" value={order.supplier_order_no} />
+          <Info label="Incoterms" value={order.incoterms} />
         </div>
-
-        {/* stage progress */}
-        <div className="border-t border-gray-100 pt-3">
-          <div className="flex flex-wrap gap-1.5">
-            {STAGES.map((s, idx) => {
-              const done = currentIdx >= idx;
-              const isCurrent = currentIdx === idx;
-              return (
-                <button
-                  key={s.key}
-                  disabled={!canEdit}
-                  onClick={() => canEdit && changeStatus(s.key)}
-                  title={s.label}
-                  className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
-                    isCurrent
-                      ? 'bg-[#1a56db] text-white border-[#1a56db]'
-                      : done
-                      ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-gray-50 text-gray-400 border-gray-200'
-                  } ${canEdit ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                >
-                  {s.icon}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* actions */}
-        <div className="flex items-center gap-3 mt-3">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[12px] text-[#1a56db] font-medium hover:underline"
-          >
-            {expanded ? 'הסתר פרטים ▲' : 'פרטים, מסמכים, מכולות ואספקה ▼'}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setOpen(!open)} className="text-[12px] text-[#1a56db] font-medium hover:underline">
+            {open ? 'הסתר ▲' : 'פריטים, חשבוניות, COA ומסמכים ▼'}
           </button>
-          {canDelete && (
-            <button onClick={deleteOrder} className="text-[12px] text-red-500 hover:underline mr-auto">מחיקה</button>
+          {canEdit && (
+            <select value={order.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 text-gray-600">
+              {ORDER_STATUS_KEYS.map((k) => <option key={k} value={k}>{ORDER_STATUS[k].label}</option>)}
+            </select>
           )}
+          {canDelete && <button onClick={del} className="text-[12px] text-red-500 hover:underline mr-auto">מחיקה</button>}
         </div>
       </div>
 
-      {expanded && (
+      {open && (
         <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4">
-          {/* shipment / customs / invoice details */}
-          <ShipmentDetails order={order} canEdit={canEdit} onUpdate={onUpdate} />
-
-          {/* tabs */}
-          <div className="flex gap-2 mt-4 mb-3 border-b border-gray-200">
-            {([
-              ['items', 'פריטים'],
-              ['docs', 'מסמכים'],
-              ['containers', 'מכולות'],
-              ['delivery', 'תעודות משלוח'],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`text-[13px] px-3 py-2 -mb-px border-b-2 transition-colors ${
-                  tab === key ? 'border-[#1a56db] text-[#1a56db] font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {label}
-              </button>
+          <div className="flex gap-2 mb-3 border-b border-gray-200">
+            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-[#1a56db] text-[#1a56db] font-semibold' : 'border-transparent text-gray-500'}`}>{l}</button>
             ))}
           </div>
 
-          {tab === 'items' && <ItemsSection orderId={order.id} currency={order.currency} canEdit={canEdit} canDelete={canDelete} />}
-          {tab === 'docs' && <DocsSection orderId={order.id} canEdit={canEdit} canDelete={canDelete} />}
-          {tab === 'containers' && <ContainersSection orderId={order.id} canEdit={canEdit} canDelete={canDelete} />}
-          {tab === 'delivery' && <DeliverySection order={order} canEdit={canEdit} canDelete={canDelete} />}
+          {tab === 'items' && (
+            <div className="overflow-x-auto">
+              {items.length === 0 ? <p className="text-[13px] text-gray-400 py-2">אין פריטים</p> : (
+                <table className="w-full text-[13px]">
+                  <thead><tr className="text-gray-400 text-[11px] text-right">
+                    <th className="font-medium py-1">חומר</th><th className="font-medium py-1">תיאור</th>
+                    <th className="font-medium py-1">DN</th><th className="font-medium py-1">PN</th><th className="font-medium py-1">SN</th>
+                    <th className="font-medium py-1">הוזמן</th><th className="font-medium py-1">התקבל</th><th className="font-medium py-1">נותר</th><th className="font-medium py-1">מחיר</th>
+                  </tr></thead>
+                  <tbody>
+                    {items.map((it: any) => {
+                      const rec = receivedFor(it); const rem = num(it.ordered_qty) - rec;
+                      const pct = it.ordered_qty ? Math.min(100, Math.round((rec / it.ordered_qty) * 100)) : 0;
+                      return (
+                        <tr key={it.id} className="border-t border-gray-100">
+                          <td className="py-1.5 text-gray-500 font-mono" dir="ltr">{it.material_no || '—'}</td>
+                          <td className="py-1.5 text-gray-700" dir="rtl">{it.description}</td>
+                          <td className="py-1.5 text-gray-500" dir="ltr">{it.dn || '—'}</td>
+                          <td className="py-1.5 text-gray-500" dir="ltr">{it.pn || '—'}</td>
+                          <td className="py-1.5 text-gray-500" dir="ltr">{it.sn || '—'}</td>
+                          <td className="py-1.5 text-gray-500">{it.ordered_qty} {it.unit}</td>
+                          <td className="py-1.5 text-gray-700">{rec} {it.unit}</td>
+                          <td className="py-1.5">
+                            <span className={rem > 0 ? 'text-amber-600' : 'text-green-600'}>{Math.round(rem * 100) / 100}</span>
+                            <div className="w-14 h-1 bg-gray-100 rounded-full mt-0.5 overflow-hidden"><div className={`h-full ${pct >= 100 ? 'bg-green-500' : 'bg-[#1a56db]'}`} style={{ width: `${pct}%` }} /></div>
+                          </td>
+                          <td className="py-1.5 text-gray-500">{money(it.unit_price, order.currency)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+              {packing.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] text-gray-400 mb-1">משלוחים שהתקבלו (לפי מכולה)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {packing.map((p: any) => {
+                      const cont = data.containers.find((c: any) => c.id === p.container_id);
+                      return <span key={p.id} className="text-[11px] bg-white border border-gray-200 rounded px-2 py-1" dir="ltr">{cont?.container_number || '—'}: {p.dn} × {p.shipped_qty}{p.unit} (DN {p.delivery_note_no})</span>;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'invoices' && <InvoicesSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
+          {tab === 'coa' && <CoaSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
+          {tab === 'docs' && <DocsSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
         </div>
       )}
     </div>
   );
 }
 
-function Info({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div>
-      <p className="text-[11px] text-gray-400 mb-0.5">{label}</p>
-      <p className="text-sm font-semibold text-gray-700">{value || '—'}</p>
-    </div>
-  );
-}
-
-// ============================================================
-// Shipment / customs / invoice editable details
-// ============================================================
-function ShipmentDetails({ order, canEdit, onUpdate }: { order: any; canEdit: boolean; onUpdate: () => void }) {
+// ---------- Invoices ----------
+function InvoicesSection({ order, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<any>({
-    confirmed_ship_date: order.confirmed_ship_date || '',
-    booking_ref: order.booking_ref || '',
-    vessel_name: order.vessel_name || '',
-    bl_number: order.bl_number || '',
-    etd: order.etd || '',
-    eta: order.eta || '',
-    port: order.port || '',
-    customs_agent: order.customs_agent || '',
-    customs_clearance_date: order.customs_clearance_date || '',
-    customs_final_amount: order.customs_final_amount ?? '',
-    supplier_invoice_number: order.supplier_invoice_number || '',
-    supplier_invoice_amount: order.supplier_invoice_amount ?? '',
-    invoice_matches_po: order.invoice_matches_po ?? false,
-    carrier: order.carrier || '',
-  });
-
-  async function save() {
-    const payload: any = { ...form, updated_at: new Date().toISOString() };
-    // normalize empty strings to null for date/number cols
-    ['confirmed_ship_date', 'etd', 'eta', 'customs_clearance_date'].forEach((k) => { if (!payload[k]) payload[k] = null; });
-    ['customs_final_amount', 'supplier_invoice_amount'].forEach((k) => { payload[k] = payload[k] === '' ? null : Number(payload[k]); });
-    await supabase.from('import_orders').update(payload).eq('id', order.id);
-    setEditing(false);
-    onUpdate();
-  }
-
-  if (!editing) {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[12px] font-semibold text-gray-600">פרטי משלוח, מכס וחשבונית</p>
-          {canEdit && <button onClick={() => setEditing(true)} className="text-[12px] text-[#1a56db] hover:underline">עריכה</button>}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Info label="בוקינג / שריון" value={order.booking_ref} />
-          <Info label="אוניה" value={order.vessel_name} />
-          <Info label="שטר מטען (BL)" value={order.bl_number} />
-          <Info label="נמל יעד" value={order.port} />
-          <Info label="עמיל מכס" value={order.customs_agent} />
-          <Info label="תאריך שחרור" value={formatDate(order.customs_clearance_date)} />
-          <Info label="גמר חשבון מכס" value={order.customs_final_amount != null ? formatMoney(order.customs_final_amount, 'ILS') : '—'} />
-          <Info label="מוביל" value={order.carrier} />
-          <Info label="חשבונית ספק #" value={order.supplier_invoice_number} />
-          <Info label="סכום חשבונית ספק" value={order.supplier_invoice_amount != null ? formatMoney(order.supplier_invoice_amount, order.currency) : '—'} />
-          <Info label="תואמת הזמנת רכש?" value={order.invoice_matches_po == null ? '—' : order.invoice_matches_po ? 'כן ✓' : 'לא ✗'} />
-        </div>
-      </div>
-    );
-  }
-
-  const Field = ({ k, label, type = 'text' }: { k: string; label: string; type?: string }) => (
-    <label className="block">
-      <span className="text-[11px] text-gray-400">{label}</span>
-      <input
-        type={type}
-        value={form[k]}
-        onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-        className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5"
-      />
-    </label>
-  );
-
-  return (
-    <div>
-      <p className="text-[12px] font-semibold text-gray-600 mb-2">עריכת פרטי משלוח, מכס וחשבונית</p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Field k="confirmed_ship_date" label="תאריך יעד למשלוח" type="date" />
-        <Field k="booking_ref" label="בוקינג / שריון" />
-        <Field k="vessel_name" label="שם אוניה" />
-        <Field k="bl_number" label="שטר מטען (BL)" />
-        <Field k="etd" label="הפלגה (ETD)" type="date" />
-        <Field k="eta" label="הגעה צפויה (ETA)" type="date" />
-        <Field k="port" label="נמל יעד" />
-        <Field k="carrier" label="מוביל" />
-        <Field k="customs_agent" label="עמיל מכס" />
-        <Field k="customs_clearance_date" label="תאריך שחרור" type="date" />
-        <Field k="customs_final_amount" label="גמר חשבון מכס (₪)" type="number" />
-        <Field k="supplier_invoice_number" label="חשבונית ספק #" />
-        <Field k="supplier_invoice_amount" label="סכום חשבונית ספק" type="number" />
-        <label className="flex items-center gap-2 mt-5">
-          <input
-            type="checkbox"
-            checked={!!form.invoice_matches_po}
-            onChange={(e) => setForm({ ...form, invoice_matches_po: e.target.checked })}
-          />
-          <span className="text-[12px] text-gray-600">חשבונית תואמת הזמנת רכש</span>
-        </label>
-      </div>
-      <div className="flex gap-2 mt-3">
-        <button onClick={save} className="bg-[#1a56db] text-white text-[13px] px-4 py-1.5 rounded-lg hover:bg-blue-700">שמירה</button>
-        <button onClick={() => setEditing(false)} className="text-[13px] px-4 py-1.5 rounded-lg border border-gray-200 text-gray-600">ביטול</button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Items section — quantitative tracking
-// ============================================================
-function ItemsSection({ orderId, currency, canEdit, canDelete }: { orderId: string; currency: string; canEdit: boolean; canDelete: boolean }) {
-  const supabase = createClient();
-  const [items, setItems] = useState<any[]>([]);
+  const rows = data.invoices.filter((i: any) => i.import_order_id === order.id);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<any>({ description: '', dn: '', unit: 'm', ordered_qty: '', unit_price: '' });
-
-  async function load() {
-    const { data } = await supabase.from('import_order_items').select('*').eq('import_order_id', orderId).order('sort_order');
-    setItems(data || []);
-  }
-  useEffect(() => { load(); }, [orderId]);
-
-  async function addItem() {
-    if (!form.description) return;
-    await supabase.from('import_order_items').insert({
-      import_order_id: orderId,
-      description: form.description,
-      dn: form.dn || null,
-      unit: form.unit || 'm',
-      ordered_qty: form.ordered_qty === '' ? 0 : Number(form.ordered_qty),
-      unit_price: form.unit_price === '' ? null : Number(form.unit_price),
-      sort_order: items.length,
+  const [f, setF] = useState<any>({ invoice_no: '', invoice_type: 'commercial', invoice_date: '', net_value: '', freight: '', down_payment: '', final_amount: '' });
+  async function add() {
+    if (!f.invoice_no) return;
+    await supabase.from('import_invoices').insert({
+      import_order_id: order.id, invoice_no: f.invoice_no, invoice_type: f.invoice_type,
+      invoice_date: f.invoice_date || null, currency: order.currency,
+      net_value: f.net_value === '' ? null : Number(f.net_value), freight: f.freight === '' ? null : Number(f.freight),
+      down_payment: f.down_payment === '' ? null : Number(f.down_payment), final_amount: f.final_amount === '' ? null : Number(f.final_amount),
     });
-    setForm({ description: '', dn: '', unit: 'm', ordered_qty: '', unit_price: '' });
-    setAdding(false);
-    load();
+    setF({ invoice_no: '', invoice_type: 'commercial', invoice_date: '', net_value: '', freight: '', down_payment: '', final_amount: '' });
+    setAdding(false); onUpdate();
   }
-
-  async function updateReceived(id: string, val: string) {
-    await supabase.from('import_order_items').update({ received_qty: val === '' ? 0 : Number(val) }).eq('id', id);
-    load();
-  }
-
-  async function removeItem(id: string) {
-    if (!confirm('למחוק פריט זה?')) return;
-    await supabase.from('import_order_items').delete().eq('id', id);
-    load();
-  }
-
+  async function del(id: string) { if (!confirm('למחוק חשבונית?')) return; await supabase.from('import_invoices').delete().eq('id', id); onUpdate(); }
   return (
     <div>
-      {items.length === 0 && <p className="text-[13px] text-gray-400 py-2">אין פריטים</p>}
-      {items.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-gray-400 text-[11px] text-right">
-                <th className="font-medium py-1">תיאור</th>
-                <th className="font-medium py-1">DN</th>
-                <th className="font-medium py-1">הוזמן</th>
-                <th className="font-medium py-1">התקבל</th>
-                <th className="font-medium py-1">נותר</th>
-                <th className="font-medium py-1">מחיר יח׳</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it) => {
-                const remaining = (Number(it.ordered_qty) || 0) - (Number(it.received_qty) || 0);
-                const pct = it.ordered_qty ? Math.min(100, Math.round((it.received_qty / it.ordered_qty) * 100)) : 0;
-                return (
-                  <tr key={it.id} className="border-t border-gray-100">
-                    <td className="py-1.5 text-gray-700">{it.description}</td>
-                    <td className="py-1.5 text-gray-500">{it.dn || '—'}</td>
-                    <td className="py-1.5 text-gray-500">{it.ordered_qty} {it.unit}</td>
-                    <td className="py-1.5">
-                      {canEdit ? (
-                        <input
-                          type="number"
-                          defaultValue={it.received_qty}
-                          onBlur={(e) => updateReceived(it.id, e.target.value)}
-                          className="w-20 border border-gray-200 rounded px-1.5 py-0.5 text-[12px]"
-                        />
-                      ) : (
-                        <span>{it.received_qty} {it.unit}</span>
-                      )}
-                    </td>
-                    <td className="py-1.5">
-                      <span className={remaining > 0 ? 'text-amber-600' : 'text-green-600'}>{remaining} {it.unit}</span>
-                      <div className="w-16 h-1 bg-gray-100 rounded-full mt-0.5 overflow-hidden">
-                        <div className={`h-full ${pct >= 100 ? 'bg-green-500' : 'bg-[#1a56db]'}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </td>
-                    <td className="py-1.5 text-gray-500">{it.unit_price != null ? formatMoney(it.unit_price, currency) : '—'}</td>
-                    <td className="py-1.5 text-left">
-                      {canDelete && <button onClick={() => removeItem(it.id)} className="text-red-400 hover:text-red-600 text-[12px]">✕</button>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {canEdit && (adding ? (
-        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="תיאור" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 flex-1 min-w-[140px]" />
-          <input placeholder="DN" value={form.dn} onChange={(e) => setForm({ ...form, dn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-20" />
-          <input placeholder="יח׳" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-16" />
-          <input placeholder="כמות" type="number" value={form.ordered_qty} onChange={(e) => setForm({ ...form, ordered_qty: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
-          <input placeholder="מחיר יח׳" type="number" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
-          <button onClick={addItem} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
-          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
-        </div>
-      ) : (
-        <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף פריט</button>
-      ))}
-    </div>
-  );
-}
-
-// ============================================================
-// Documents section
-// ============================================================
-function DocsSection({ orderId, canEdit, canDelete }: { orderId: string; canEdit: boolean; canDelete: boolean }) {
-  const supabase = createClient();
-  const [docs, setDocs] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [docType, setDocType] = useState('purchase_order');
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
-  async function load() {
-    const { data } = await supabase.from('import_documents').select('*').eq('import_order_id', orderId).order('created_at');
-    setDocs(data || []);
-  }
-  useEffect(() => { load(); }, [orderId]);
-
-  async function upload(file: File) {
-    setUploading(true);
-    try {
-      const path = `import/${orderId}/${docType}_${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage.from('project-files').upload(path, file);
-      if (error) { alert('שגיאה בהעלאת הקובץ'); return; }
-      await supabase.from('import_documents').insert({
-        import_order_id: orderId,
-        doc_type: docType,
-        file_name: file.name,
-        file_path: path,
-      });
-      load();
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function openDoc(d: any) {
-    const { data } = await supabase.storage.from('project-files').createSignedUrl(d.file_path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
-  }
-
-  async function removeDoc(d: any) {
-    if (!confirm('למחוק מסמך זה?')) return;
-    await supabase.storage.from('project-files').remove([d.file_path]);
-    await supabase.from('import_documents').delete().eq('id', d.id);
-    load();
-  }
-
-  return (
-    <div>
-      {docs.length === 0 && <p className="text-[13px] text-gray-400 py-2">לא הועלו מסמכים</p>}
-      <div className="flex flex-wrap gap-2">
-        {docs.map((d) => (
-          <div key={d.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
-            <button onClick={() => openDoc(d)} className="text-[12px] text-gray-700 hover:text-[#1a56db]">
-              📄 <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span>
-              <span className="text-gray-400 mr-1">{d.file_name}</span>
-            </button>
-            {canDelete && <button onClick={() => removeDoc(d)} className="text-red-400 hover:text-red-600 text-[12px]">✕</button>}
+      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין חשבוניות</p>}
+      <div className="space-y-2">
+        {rows.map((iv: any) => (
+          <div key={iv.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-[13px]">
+            <div><span className="font-semibold text-gray-700" dir="ltr">🧾 {iv.invoice_no}</span><span className="text-gray-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-gray-500 mr-2">{fmtDate(iv.invoice_date)}</span></div>
+            <div className="flex items-center gap-3"><span className="text-gray-700 font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-red-400 hover:text-red-600">✕</button>}</div>
           </div>
         ))}
       </div>
+      {canEdit && (adding ? (
+        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
+          <input placeholder="מס' חשבונית" value={f.invoice_no} onChange={(e) => setF({ ...f, invoice_no: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-36" dir="ltr" />
+          <select value={f.invoice_type} onChange={(e) => setF({ ...f, invoice_type: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1"><option value="commercial">CI</option><option value="proforma">PI</option><option value="advance">מקדמה</option></select>
+          <input type="date" value={f.invoice_date} onChange={(e) => setF({ ...f, invoice_date: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1" />
+          <input placeholder="ערך נטו" type="number" value={f.net_value} onChange={(e) => setF({ ...f, net_value: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
+          <input placeholder="freight" type="number" value={f.freight} onChange={(e) => setF({ ...f, freight: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-20" />
+          <input placeholder="סופי" type="number" value={f.final_amount} onChange={(e) => setF({ ...f, final_amount: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
+          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
+        </div>
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף חשבונית</button>)}
+    </div>
+  );
+}
 
+// ---------- COA ----------
+function CoaSection({ order, data, canEdit, canDelete, onUpdate }: any) {
+  const supabase = createClient();
+  const rows = data.coa.filter((c: any) => c.import_order_id === order.id);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState<any>({ coa_no: '', coa_date: '', dn: '', pn: '', sn: '', delivery_notes: '', passed: true });
+  async function add() {
+    if (!f.coa_no) return;
+    await supabase.from('import_coa').insert({ import_order_id: order.id, ...f, coa_date: f.coa_date || null });
+    setF({ coa_no: '', coa_date: '', dn: '', pn: '', sn: '', delivery_notes: '', passed: true }); setAdding(false); onUpdate();
+  }
+  async function del(id: string) { if (!confirm('למחוק COA?')) return; await supabase.from('import_coa').delete().eq('id', id); onUpdate(); }
+  return (
+    <div>
+      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין תעודות אנליזה</p>}
+      <div className="space-y-2">
+        {rows.map((c: any) => (
+          <div key={c.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-[13px]">
+            <div><span className="font-semibold text-gray-700" dir="ltr">🔬 {c.coa_no}</span><span className="text-gray-500 mr-2" dir="ltr">DN{c.dn} PN{c.pn} SN{c.sn}</span>{c.passed != null && <span className={c.passed ? 'text-green-600' : 'text-red-600'}>{c.passed ? '✓ עבר' : '✗ נכשל'}</span>}</div>
+            {canDelete && <button onClick={() => del(c.id)} className="text-red-400 hover:text-red-600">✕</button>}
+          </div>
+        ))}
+      </div>
+      {canEdit && (adding ? (
+        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
+          <input placeholder="מס' COA" value={f.coa_no} onChange={(e) => setF({ ...f, coa_no: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-28" dir="ltr" />
+          <input type="date" value={f.coa_date} onChange={(e) => setF({ ...f, coa_date: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1" />
+          <input placeholder="DN" value={f.dn} onChange={(e) => setF({ ...f, dn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-16" dir="ltr" />
+          <input placeholder="PN" value={f.pn} onChange={(e) => setF({ ...f, pn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-14" dir="ltr" />
+          <input placeholder="SN" value={f.sn} onChange={(e) => setF({ ...f, sn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-16" dir="ltr" />
+          <input placeholder="תעודות משלוח" value={f.delivery_notes} onChange={(e) => setF({ ...f, delivery_notes: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-40" dir="ltr" />
+          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
+        </div>
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף COA</button>)}
+    </div>
+  );
+}
+
+// ---------- Documents (shared by order + shipment) ----------
+function DocsSection({ order, shipment, data, canEdit, canDelete, onUpdate }: any) {
+  const supabase = createClient();
+  const rows = data.docs.filter((d: any) => order ? d.import_order_id === order.id : d.shipment_id === shipment.id);
+  const [uploading, setUploading] = useState(false);
+  const [docType, setDocType] = useState('commercial_invoice');
+  const ownerId = order ? order.id : shipment.id;
+  const ownerCol = order ? 'import_order_id' : 'shipment_id';
+  async function upload(file: File) {
+    setUploading(true);
+    try {
+      const path = `import/${ownerCol}/${ownerId}/${docType}_${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from('project-files').upload(path, file);
+      if (error) { alert('שגיאה בהעלאת הקובץ'); return; }
+      await supabase.from('import_documents').insert({ [ownerCol]: ownerId, doc_type: docType, file_name: file.name, file_path: path });
+      onUpdate();
+    } finally { setUploading(false); }
+  }
+  async function openDoc(d: any) { const { data: s } = await supabase.storage.from('project-files').createSignedUrl(d.file_path, 300); if (s?.signedUrl) window.open(s.signedUrl, '_blank'); }
+  async function del(d: any) { if (!confirm('למחוק מסמך?')) return; await supabase.storage.from('project-files').remove([d.file_path]); await supabase.from('import_documents').delete().eq('id', d.id); onUpdate(); }
+  return (
+    <div>
+      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">לא הועלו מסמכים</p>}
+      <div className="flex flex-wrap gap-2">
+        {rows.map((d: any) => (
+          <div key={d.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+            <button onClick={() => openDoc(d)} className="text-[12px] text-gray-700 hover:text-[#1a56db]">📄 <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span> <span className="text-gray-400 mr-1" dir="ltr">{d.file_name}</span></button>
+            {canDelete && <button onClick={() => del(d)} className="text-red-400 hover:text-red-600 text-[12px]">✕</button>}
+          </div>
+        ))}
+      </div>
       {canEdit && (
         <div className="flex items-center gap-2 mt-3 bg-white p-2.5 rounded-lg border border-gray-200 w-fit">
-          <select value={docType} onChange={(e) => setDocType(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1">
-            {DOC_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
+          <select value={docType} onChange={(e) => setDocType(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1">{DOC_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
           <label className={`text-[12px] px-3 py-1.5 rounded cursor-pointer ${uploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
             {uploading ? 'מעלה...' : '⬆ העלאה'}
-            <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
-              disabled={uploading}
-              onChange={async (e) => { const f = e.target.files?.[0]; if (f) await upload(f); e.target.value = ''; }}
-            />
+            <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" disabled={uploading} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await upload(f); e.target.value = ''; }} />
           </label>
         </div>
       )}
@@ -596,253 +403,211 @@ function DocsSection({ orderId, canEdit, canDelete }: { orderId: string; canEdit
 }
 
 // ============================================================
-// Containers section (basic)
+// Shipments view
 // ============================================================
-function ContainersSection({ orderId, canEdit, canDelete }: { orderId: string; canEdit: boolean; canDelete: boolean }) {
-  const supabase = createClient();
-  const [rows, setRows] = useState<any[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<any>({ container_number: '', seal_number: '', contents: '', notes: '' });
-
-  async function load() {
-    const { data } = await supabase.from('import_containers').select('*').eq('import_order_id', orderId).order('created_at');
-    setRows(data || []);
-  }
-  useEffect(() => { load(); }, [orderId]);
-
-  async function add() {
-    if (!form.container_number && !form.contents) return;
-    await supabase.from('import_containers').insert({ import_order_id: orderId, ...form });
-    setForm({ container_number: '', seal_number: '', contents: '', notes: '' });
-    setAdding(false);
-    load();
-  }
-  async function remove(id: string) {
-    if (!confirm('למחוק מכולה זו?')) return;
-    await supabase.from('import_containers').delete().eq('id', id);
-    load();
-  }
-
+function ShipmentsView({ data, canEdit, canDelete, onUpdate }: any) {
+  const [filter, setFilter] = useState('active');
+  const ships = data.shipments.filter((s: any) => filter === 'all' ? true : filter === 'active' ? s.status !== 'closed' : s.status === filter);
   return (
     <div>
-      <p className="text-[11px] text-gray-400 mb-2">מבנה בסיסי. פירוט מלא פר-מכולה יתווסף לפי קובץ האקסל.</p>
-      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין מכולות</p>}
-      <div className="space-y-2">
-        {rows.map((c) => (
-          <div key={c.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
-            <div className="text-[13px]">
-              <span className="font-semibold text-gray-700">📦 {c.container_number || '—'}</span>
-              {c.seal_number && <span className="text-gray-400 mr-2">חותם: {c.seal_number}</span>}
-              {c.contents && <span className="text-gray-500 mr-2">— {c.contents}</span>}
-            </div>
-            {canDelete && <button onClick={() => remove(c.id)} className="text-red-400 hover:text-red-600 text-[12px]">✕</button>}
-          </div>
-        ))}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <Chip label="פעילים" active={filter === 'active'} onClick={() => setFilter('active')} />
+        <Chip label="הכל" active={filter === 'all'} onClick={() => setFilter('all')} />
+        {SHIPMENT_STATUS_KEYS.map((k) => <Chip key={k} label={SHIPMENT_STATUS[k].label} active={filter === k} onClick={() => setFilter(k)} />)}
       </div>
-      {canEdit && (adding ? (
-        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="מספר מכולה" value={form.container_number} onChange={(e) => setForm({ ...form, container_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-40" />
-          <input placeholder="חותם" value={form.seal_number} onChange={(e) => setForm({ ...form, seal_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-32" />
-          <input placeholder="תכולה" value={form.contents} onChange={(e) => setForm({ ...form, contents: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 flex-1 min-w-[140px]" />
-          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
-          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
-        </div>
-      ) : (
-        <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף מכולה</button>
-      ))}
+      {ships.length === 0 ? <Empty text="אין משלוחים" /> : <div className="space-y-4">{ships.map((s: any) => <ShipmentCard key={s.id} shipment={s} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />)}</div>}
     </div>
   );
 }
 
-// ============================================================
-// Delivery notes section
-// ============================================================
-function DeliverySection({ order, canEdit, canDelete }: { order: any; canEdit: boolean; canDelete: boolean }) {
+function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
-  const [rows, setRows] = useState<any[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<any>({ delivery_note_number: '', delivery_date: '', quantity_summary: '' });
+  const [open, setOpen] = useState(false);
+  const st = SHIPMENT_STATUS[shipment.status] || SHIPMENT_STATUS.booked;
+  const containers = data.containers.filter((c: any) => c.shipment_id === shipment.id);
+  async function setStatus(s: string) { await supabase.from('import_shipments').update({ status: s, updated_at: new Date().toISOString() }).eq('id', shipment.id); onUpdate(); }
+  async function del() { if (!confirm('למחוק משלוח? המכולות שלו יימחקו.')) return; if (!confirm('בטוח?')) return; await supabase.from('import_shipments').delete().eq('id', shipment.id); onUpdate(); }
 
-  async function load() {
-    const { data } = await supabase.from('import_delivery_notes').select('*').eq('import_order_id', order.id).order('created_at');
-    setRows(data || []);
-  }
-  useEffect(() => { load(); }, [order.id]);
-
-  async function add() {
-    if (!form.delivery_note_number && !form.quantity_summary) return;
-    await supabase.from('import_delivery_notes').insert({
-      import_order_id: order.id,
-      project_id: order.project_id || null,
-      delivery_note_number: form.delivery_note_number || null,
-      delivery_date: form.delivery_date || null,
-      quantity_summary: form.quantity_summary || null,
-    });
-    setForm({ delivery_note_number: '', delivery_date: '', quantity_summary: '' });
-    setAdding(false);
-    load();
-  }
-  async function toggle(id: string, field: string, val: boolean) {
-    await supabase.from('import_delivery_notes').update({ [field]: val }).eq('id', id);
-    load();
-  }
-  async function setInvoiceNumber(id: string, val: string) {
-    await supabase.from('import_delivery_notes').update({ invoice_number: val || null }).eq('id', id);
-    load();
-  }
-  async function remove(id: string) {
-    if (!confirm('למחוק תעודת משלוח זו?')) return;
-    await supabase.from('import_delivery_notes').delete().eq('id', id);
-    load();
+  function orderName(orderId: string) {
+    const o = data.orders.find((x: any) => x.id === orderId);
+    return o ? (o.project_name || o.projects?.name || o.po_number || o.supplier_order_no || 'הזמנה') : '—';
   }
 
   return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-mono text-gray-400" dir="ltr">BL {shipment.bl_number || '—'}</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+            <span className="text-[12px] text-gray-500">{containers.length} מכולות</span>
+          </div>
+          <span className="text-sm text-gray-600" dir="ltr">{shipment.vessel_name}</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+          <Info label="ספק" value={shipment.suppliers?.name} />
+          <Info label="נמלים" value={shipment.port_loading && shipment.port_discharge ? `${shipment.port_loading} → ${shipment.port_discharge}` : null} />
+          <Info label="ETD" value={fmtDate(shipment.etd)} />
+          <Info label="ETA" value={fmtDate(shipment.eta)} />
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setOpen(!open)} className="text-[12px] text-[#1a56db] font-medium hover:underline">{open ? 'הסתר ▲' : 'מכולות, תכולה ומסמכים ▼'}</button>
+          {canEdit && <select value={shipment.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 text-gray-600">{SHIPMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{SHIPMENT_STATUS[k].label}</option>)}</select>}
+          {canDelete && <button onClick={del} className="text-[12px] text-red-500 hover:underline mr-auto">מחיקה</button>}
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4 space-y-4">
+          <ContainersSection shipment={shipment} containers={containers} data={data} orderName={orderName} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />
+          <div>
+            <p className="text-[12px] font-semibold text-gray-600 mb-2">מסמכי משלוח</p>
+            <DocsSection shipment={shipment} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContainersSection({ shipment, containers, data, orderName, canEdit, canDelete, onUpdate }: any) {
+  const supabase = createClient();
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState<any>({ container_number: '', seal_number: '', pieces: '', gross_weight: '' });
+  async function add() {
+    if (!f.container_number) return;
+    await supabase.from('import_containers').insert({ shipment_id: shipment.id, container_number: f.container_number, seal_number: f.seal_number || null, pieces: f.pieces === '' ? null : Number(f.pieces), gross_weight: f.gross_weight === '' ? null : Number(f.gross_weight) });
+    setF({ container_number: '', seal_number: '', pieces: '', gross_weight: '' }); setAdding(false); onUpdate();
+  }
+  async function del(id: string) { if (!confirm('למחוק מכולה?')) return; await supabase.from('import_containers').delete().eq('id', id); onUpdate(); }
+  return (
     <div>
-      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין תעודות משלוח</p>}
+      <p className="text-[12px] font-semibold text-gray-600 mb-2">מכולות ותכולה</p>
+      {containers.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין מכולות</p>}
       <div className="space-y-2">
-        {rows.map((d) => (
-          <div key={d.id} className="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[13px] font-semibold text-gray-700">🚚 ת. משלוח {d.delivery_note_number || '—'}</span>
-              <span className="text-[12px] text-gray-400">{formatDate(d.delivery_date)}</span>
-            </div>
-            {d.quantity_summary && <p className="text-[12px] text-gray-500 mb-2">{d.quantity_summary}</p>}
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
-                <input type="checkbox" disabled={!canEdit} checked={!!d.signed} onChange={(e) => toggle(d.id, 'signed', e.target.checked)} />
-                נחתם ע״י לקוח
-              </label>
-              <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
-                <input type="checkbox" disabled={!canEdit} checked={!!d.sent_to_accounting} onChange={(e) => toggle(d.id, 'sent_to_accounting', e.target.checked)} />
-                הועבר להנה״ח
-              </label>
-              <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
-                <input type="checkbox" disabled={!canEdit} checked={!!d.invoice_issued} onChange={(e) => toggle(d.id, 'invoice_issued', e.target.checked)} />
-                הופקה חשבונית מס
-              </label>
-              {d.invoice_issued && (
-                canEdit ? (
-                  <input
-                    placeholder="מס׳ חשבונית"
-                    defaultValue={d.invoice_number || ''}
-                    onBlur={(e) => setInvoiceNumber(d.id, e.target.value)}
-                    className="text-[12px] border border-gray-200 rounded px-2 py-0.5 w-32"
-                  />
-                ) : (
-                  d.invoice_number && <span className="text-[12px] text-gray-500">חשבונית {d.invoice_number}</span>
-                )
+        {containers.map((c: any) => {
+          const lines = data.packing.filter((p: any) => p.container_id === c.id);
+          return (
+            <div key={c.id} className="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[13px] font-semibold text-gray-700" dir="ltr">📦 {c.container_number}{c.seal_number ? ` · חותם ${c.seal_number}` : ''}</span>
+                <span className="text-[12px] text-gray-400">{c.pieces ? `${c.pieces} צינורות` : ''} {c.gross_weight ? `· ${c.gross_weight} ק"ג` : ''}{canDelete && <button onClick={() => del(c.id)} className="text-red-400 hover:text-red-600 mr-2">✕</button>}</span>
+              </div>
+              {lines.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {lines.map((p: any) => (
+                    <span key={p.id} className="text-[11px] bg-gray-50 border border-gray-200 rounded px-2 py-0.5" dir="rtl">
+                      <span className="text-gray-500">{orderName(p.import_order_id)}:</span> <span dir="ltr">{p.dn} × {p.shipped_qty}{p.unit}</span>
+                    </span>
+                  ))}
+                </div>
               )}
-              {canDelete && <button onClick={() => remove(d.id)} className="text-red-400 hover:text-red-600 text-[12px] mr-auto">✕</button>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {canEdit && (adding ? (
         <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="מספר תעודה" value={form.delivery_note_number} onChange={(e) => setForm({ ...form, delivery_note_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-32" />
-          <input type="date" value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1" />
-          <input placeholder="סיכום כמות שסופקה" value={form.quantity_summary} onChange={(e) => setForm({ ...form, quantity_summary: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 flex-1 min-w-[160px]" />
+          <input placeholder="מס' מכולה" value={f.container_number} onChange={(e) => setF({ ...f, container_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-40" dir="ltr" />
+          <input placeholder="חותם" value={f.seal_number} onChange={(e) => setF({ ...f, seal_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-28" dir="ltr" />
+          <input placeholder="צינורות" type="number" value={f.pieces} onChange={(e) => setF({ ...f, pieces: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-20" />
+          <input placeholder='משקל ק"ג' type="number" value={f.gross_weight} onChange={(e) => setF({ ...f, gross_weight: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
           <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
           <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
         </div>
-      ) : (
-        <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף תעודת משלוח</button>
-      ))}
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף מכולה</button>)}
     </div>
   );
 }
 
+// ---------- shared bits ----------
+function Chip({ label, active, onClick }: any) {
+  return <button onClick={onClick} className={`text-[12px] px-3 py-1.5 rounded-full border ${active ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{label}</button>;
+}
+function Empty({ text }: { text: string }) {
+  return <div className="bg-white rounded-xl border border-gray-200 p-12 text-center"><p className="text-4xl mb-3">📦</p><p className="text-gray-500">{text}</p></div>;
+}
+
 // ============================================================
-// New order modal
+// Modals
 // ============================================================
-function NewOrderModal({ suppliers, projects, onClose, onCreated }: { suppliers: any[]; projects: any[]; onClose: () => void; onCreated: () => void }) {
+function NewOrderModal({ data, onClose, onCreated }: any) {
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<any>({
-    po_number: '',
-    supplier_id: '',
-    project_id: '',
-    is_stock: false,
-    currency: 'EUR',
-    total_amount: '',
-    order_date: '',
-    status: 'po_sent',
-  });
-
+  const [f, setF] = useState<any>({ po_number: '', supplier_id: '', project_id: '', is_stock: false, supplier_order_no: '', project_name: '', currency: 'USD', incoterms: '', payment_terms: '', total_amount: '', order_date: '' });
   async function create() {
     setSaving(true);
     try {
       const { error } = await supabase.from('import_orders').insert({
-        po_number: form.po_number || null,
-        supplier_id: form.supplier_id || null,
-        project_id: form.is_stock ? null : (form.project_id || null),
-        is_stock: form.is_stock,
-        currency: form.currency,
-        total_amount: form.total_amount === '' ? 0 : Number(form.total_amount),
-        order_date: form.order_date || null,
-        status: form.status,
+        po_number: f.po_number || null, supplier_id: f.supplier_id || null, project_id: f.is_stock ? null : (f.project_id || null),
+        is_stock: f.is_stock, supplier_order_no: f.supplier_order_no || null, project_name: f.project_name || null,
+        currency: f.currency, incoterms: f.incoterms || null, payment_terms: f.payment_terms || null,
+        total_amount: f.total_amount === '' ? 0 : Number(f.total_amount), order_date: f.order_date || null,
       });
-      if (error) { alert('שגיאה ביצירת ההזמנה: ' + error.message); return; }
+      if (error) { alert('שגיאה: ' + error.message); return; }
       onCreated();
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
+  return (
+    <Modal title="הזמנת יבוא חדשה" onClose={onClose} onSave={create} saving={saving}>
+      <Field label="מספר הזמנת רכש (שלנו)"><input value={f.po_number} onChange={(e) => setF({ ...f, po_number: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="הזמנת ספק (Sales Order)"><input value={f.supplier_order_no} onChange={(e) => setF({ ...f, supplier_order_no: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+      <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-gray-600">יבוא למלאי (ללא פרויקט)</span></label>
+      {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name || p.client_name}</option>)}</select></Field>}
+      <Field label="שם פרויקט אצל הספק" full><input value={f.project_name} onChange={(e) => setF({ ...f, project_name: e.target.value })} className={inp} placeholder="IL - Electra - Matash Stage 4" /></Field>
+      <Field label="מטבע"><select value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })} className={inp}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+      <Field label="סכום"><input type="number" value={f.total_amount} onChange={(e) => setF({ ...f, total_amount: e.target.value })} className={inp} /></Field>
+      <Field label="Incoterms"><input value={f.incoterms} onChange={(e) => setF({ ...f, incoterms: e.target.value })} className={inp} placeholder="CIF Ashdod" /></Field>
+      <Field label="תנאי תשלום"><input value={f.payment_terms} onChange={(e) => setF({ ...f, payment_terms: e.target.value })} className={inp} /></Field>
+      <Field label="תאריך הזמנה"><input type="date" value={f.order_date} onChange={(e) => setF({ ...f, order_date: e.target.value })} className={inp} /></Field>
+    </Modal>
+  );
+}
 
+function NewShipmentModal({ data, onClose, onCreated }: any) {
+  const supabase = createClient();
+  const [saving, setSaving] = useState(false);
+  const [f, setF] = useState<any>({ bl_number: '', supplier_id: '', carrier: '', vessel_name: '', voyage_no: '', port_loading: '', port_discharge: 'Ashdod', etd: '', eta: '' });
+  async function create() {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('import_shipments').insert({
+        bl_number: f.bl_number || null, supplier_id: f.supplier_id || null, carrier: f.carrier || null,
+        vessel_name: f.vessel_name || null, voyage_no: f.voyage_no || null, port_loading: f.port_loading || null,
+        port_discharge: f.port_discharge || null, etd: f.etd || null, eta: f.eta || null,
+      });
+      if (error) { alert('שגיאה: ' + error.message); return; }
+      onCreated();
+    } finally { setSaving(false); }
+  }
+  return (
+    <Modal title="משלוח חדש" onClose={onClose} onSave={create} saving={saving}>
+      <Field label="שטר מטען / Booking"><input value={f.bl_number} onChange={(e) => setF({ ...f, bl_number: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+      <Field label="חברת ספנות"><input value={f.carrier} onChange={(e) => setF({ ...f, carrier: e.target.value })} className={inp} placeholder="Maersk" /></Field>
+      <Field label="אוניה"><input value={f.vessel_name} onChange={(e) => setF({ ...f, vessel_name: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="מס' הפלגה"><input value={f.voyage_no} onChange={(e) => setF({ ...f, voyage_no: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="נמל טעינה"><input value={f.port_loading} onChange={(e) => setF({ ...f, port_loading: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="נמל פריקה"><input value={f.port_discharge} onChange={(e) => setF({ ...f, port_discharge: e.target.value })} className={inp} dir="ltr" /></Field>
+      <Field label="ETD"><input type="date" value={f.etd} onChange={(e) => setF({ ...f, etd: e.target.value })} className={inp} /></Field>
+      <Field label="ETA"><input type="date" value={f.eta} onChange={(e) => setF({ ...f, eta: e.target.value })} className={inp} /></Field>
+    </Modal>
+  );
+}
+
+const inp = 'w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5';
+function Field({ label, children, full }: any) {
+  return <label className={`block ${full ? 'col-span-2' : ''}`}><span className="text-[11px] text-gray-400">{label}</span>{children}</label>;
+}
+function Modal({ title, children, onClose, onSave, saving }: any) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-800 mb-4">הזמנת יבוא חדשה</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="text-[11px] text-gray-400">מספר הזמנת רכש</span>
-            <input value={form.po_number} onChange={(e) => setForm({ ...form, po_number: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] text-gray-400">ספק</span>
-            <select value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5">
-              <option value="">— בחר ספק —</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 col-span-2">
-            <input type="checkbox" checked={form.is_stock} onChange={(e) => setForm({ ...form, is_stock: e.target.checked })} />
-            <span className="text-[13px] text-gray-600">יבוא למלאי (ללא פרויקט)</span>
-          </label>
-          {!form.is_stock && (
-            <label className="block col-span-2">
-              <span className="text-[11px] text-gray-400">פרויקט</span>
-              <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5">
-                <option value="">— בחר פרויקט —</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name || p.client_name}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="block">
-            <span className="text-[11px] text-gray-400">מטבע</span>
-            <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5">
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] text-gray-400">סכום ההזמנה</span>
-            <input type="number" value={form.total_amount} onChange={(e) => setForm({ ...form, total_amount: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] text-gray-400">תאריך הזמנה</span>
-            <input type="date" value={form.order_date} onChange={(e) => setForm({ ...form, order_date: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] text-gray-400">שלב</span>
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5">
-              {STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-            </select>
-          </label>
-        </div>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-800 mb-4">{title}</h2>
+        <div className="grid grid-cols-2 gap-3">{children}</div>
         <div className="flex gap-2 mt-5">
-          <button onClick={create} disabled={saving} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'יוצר...' : 'צור הזמנה'}
-          </button>
+          <button onClick={onSave} disabled={saving} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? 'שומר...' : 'שמירה'}</button>
           <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600">ביטול</button>
         </div>
       </div>
