@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
+import SmartUpload from '@/components/import/SmartUpload';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,7 @@ export default function ImportPage() {
   });
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showNewShipment, setShowNewShipment] = useState(false);
+  const [showSmart, setShowSmart] = useState(false);
 
   async function load() {
     const [o, it, sh, co, pk, inv, coa, doc, cd, sup, proj] = await Promise.all([
@@ -104,6 +106,9 @@ export default function ImportPage() {
           <p className="text-sm text-gray-500 mt-1">הזמנות רכש, משלוחים ומכולות, מסמכים ואספקה</p>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && (
+            <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-[#1a56db] to-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90">⚡ העלאה חכמה</button>
+          )}
           <div className="flex bg-gray-100 rounded-lg p-0.5">
             <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הזמנות</button>
             <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>משלוחים</button>
@@ -123,6 +128,7 @@ export default function ImportPage() {
 
       {showNewOrder && <NewOrderModal data={data} onClose={() => setShowNewOrder(false)} onCreated={() => { setShowNewOrder(false); load(); }} />}
       {showNewShipment && <NewShipmentModal data={data} onClose={() => setShowNewShipment(false)} onCreated={() => { setShowNewShipment(false); load(); }} />}
+      {showSmart && <SmartUpload data={data} onClose={() => setShowSmart(false)} onSaved={() => { setShowSmart(false); load(); }} />}
     </div>
   );
 }
