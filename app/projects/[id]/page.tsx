@@ -7,6 +7,7 @@ import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
+import ImportPanel from '@/components/projects/ImportPanel';
 import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -1244,6 +1245,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Pricing & Quotes — extracted to PricingSection component */}
         <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
+        {/* Import — documents & orders linked to this project */}
+        <ImportPanel projectId={params.id as string} />
         {/* Updates / Meeting log */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <div className="flex items-center justify-between mb-4">

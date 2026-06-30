@@ -161,7 +161,7 @@ function OrdersView({ data, canEdit, canDelete, onUpdate }: any) {
 function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs'>('items');
+  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'map'>('items');
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
   const items = data.items.filter((i: any) => i.import_order_id === order.id);
   const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
@@ -219,7 +219,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
       {open && (
         <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4">
           <div className="flex gap-2 mb-3 border-b border-gray-200">
-            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים']] as const).map(([k, l]) => (
+            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['map', '🗺️ מפת קשרים']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-[#1a56db] text-[#1a56db] font-semibold' : 'border-transparent text-gray-500'}`}>{l}</button>
             ))}
           </div>
@@ -274,8 +274,109 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           {tab === 'invoices' && <InvoicesSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'coa' && <CoaSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'docs' && <DocsSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
+          {tab === 'map' && <RelationshipMap order={order} data={data} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// Relationship map — bidirectional document/entity links for a lot
+// ============================================================
+function RelationshipMap({ order, data }: any) {
+  const supabase = createClient();
+  const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
+  const invoices = data.invoices.filter((i: any) => i.import_order_id === order.id);
+  const coa = data.coa.filter((c: any) => c.import_order_id === order.id);
+  const orderDocs = data.docs.filter((d: any) => d.import_order_id === order.id);
+  const contIds = new Set(packing.map((p: any) => p.container_id).filter(Boolean));
+  const containers = data.containers.filter((c: any) => contIds.has(c.id));
+  const shipIds = new Set(containers.map((c: any) => c.shipment_id).filter(Boolean));
+  const shipments = data.shipments.filter((s: any) => shipIds.has(s.id));
+
+  async function openPath(path: string) {
+    const w = window.open('about:blank', '_blank');
+    const { data: s } = await supabase.storage.from('project-files').createSignedUrl(path, 300);
+    if (s?.signedUrl) { if (w) w.location.href = s.signedUrl; else window.open(s.signedUrl, '_blank'); }
+    else if (w) w.close();
+  }
+  function docFor(predicate: (d: any) => boolean) {
+    return [...orderDocs, ...data.docs.filter((d: any) => shipIds.has(d.shipment_id))].find(predicate);
+  }
+
+  const projectHref = order.project_id ? `/projects/${order.project_id}` : null;
+  const projectLabel = order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name || 'ללא פרויקט');
+
+  return (
+    <div className="text-[13px]">
+      <p className="text-[11px] text-gray-400 mb-2">לחיצה על מסמך (📎) פותחת את המקור. הפרויקט מקשר חזרה לעמוד הפרויקט.</p>
+      <div className="space-y-1">
+        <Node icon="📁" color="bg-emerald-50 border-emerald-200 text-emerald-800" depth={0}>
+          פרויקט: {projectHref ? <a href={projectHref} className="font-semibold underline hover:text-emerald-900">{projectLabel} ↗</a> : <span className="font-semibold">{projectLabel}</span>}
+        </Node>
+        <Node icon="📋" color="bg-blue-50 border-blue-200 text-blue-800" depth={1}>
+          הזמנה: <span className="font-mono" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
+          {order.supplier_order_no && <span className="text-blue-500 mr-2" dir="ltr">Sales Order {order.supplier_order_no}</span>}
+        </Node>
+
+        {invoices.map((iv: any) => {
+          const d = docFor((x: any) => x.doc_type?.includes('invoice') && (x.doc_number === iv.invoice_no || x.file_name?.includes(iv.invoice_no)));
+          return <Node key={iv.id} icon="🧾" color="bg-gray-50 border-gray-200 text-gray-700" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            חשבונית <span dir="ltr">{iv.invoice_no}</span>{iv.delivery_notes ? <span className="text-gray-400 mr-2" dir="ltr">→ ת.משלוח {iv.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          </Node>;
+        })}
+        {coa.map((c: any) => {
+          const d = docFor((x: any) => x.doc_type === 'coa' && (x.doc_number === c.coa_no || x.file_name?.includes((c.coa_no || '').replace('/', '_'))));
+          return <Node key={c.id} icon="🔬" color="bg-gray-50 border-gray-200 text-gray-700" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            COA <span dir="ltr">{c.coa_no}</span> <span className="text-gray-400" dir="ltr">DN{c.dn}</span>{c.delivery_notes ? <span className="text-gray-400 mr-2" dir="ltr">→ {c.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          </Node>;
+        })}
+
+        {shipments.map((s: any) => {
+          const bl = data.docs.find((d: any) => d.shipment_id === s.id && d.doc_type === 'bl');
+          return (
+            <div key={s.id}>
+              <Node icon="🚢" color="bg-indigo-50 border-indigo-200 text-indigo-800" depth={2} onClick={bl ? () => openPath(bl.file_path) : undefined}>
+                משלוח BL <span dir="ltr">{s.bl_number || '—'}</span> <span className="text-indigo-400" dir="ltr">{s.vessel_name || ''}</span>{bl ? ' 📎' : ''}
+              </Node>
+              {containers.filter((c: any) => c.shipment_id === s.id).map((c: any) => {
+                const lines = packing.filter((p: any) => p.container_id === c.id);
+                return (
+                  <div key={c.id}>
+                    <Node icon="📦" color="bg-amber-50 border-amber-200 text-amber-800" depth={3}>
+                      מכולה <span dir="ltr">{c.container_number}</span>{c.pieces ? <span className="text-amber-500 mr-1">· {c.pieces} צינ'</span> : ''}
+                    </Node>
+                    {lines.map((pl: any) => {
+                      const d = pl.delivery_note_no ? docFor((x: any) => x.doc_type === 'packing_list' && x.file_name?.includes(pl.delivery_note_no)) : null;
+                      return <Node key={pl.id} icon="📦" color="bg-white border-gray-200 text-gray-600" depth={4} onClick={d ? () => openPath(d.file_path) : undefined}>
+                        <span dir="ltr">{pl.dn} × {pl.shipped_qty}{pl.unit}</span>{pl.delivery_note_no ? <span className="text-gray-400 mr-2" dir="ltr">ת.משלוח {pl.delivery_note_no}</span> : ''}{d ? ' 📎' : ''}
+                      </Node>;
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+
+        {orderDocs.filter((d: any) => !d.doc_type?.includes('invoice') && d.doc_type !== 'coa' && d.doc_type !== 'bl' && d.doc_type !== 'packing_list').map((d: any) => (
+          <Node key={d.id} icon="📄" color="bg-gray-50 border-gray-200 text-gray-600" depth={2} onClick={() => openPath(d.file_path)}>
+            <span dir="ltr">{d.file_name}</span> 📎
+          </Node>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Node({ icon, color, depth, children, onClick }: any) {
+  return (
+    <div style={{ marginRight: `${depth * 18}px` }} className="flex items-center">
+      {depth > 0 && <span className="text-gray-300 ml-1">└</span>}
+      <span onClick={onClick} className={`inline-flex items-center gap-1.5 border rounded-lg px-2.5 py-1 ${color} ${onClick ? 'cursor-pointer hover:brightness-95' : ''}`}>
+        <span>{icon}</span><span>{children}</span>
+      </span>
     </div>
   );
 }
