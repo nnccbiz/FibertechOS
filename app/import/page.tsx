@@ -61,11 +61,11 @@ export default function ImportPage() {
   const canEdit = canAccess('import', 'edit');
   const canDelete = canAccess('import', 'full');
 
-  const [view, setView] = useState<'orders' | 'shipments'>('orders');
+  const [view, setView] = useState<'quotes' | 'orders' | 'shipments'>('quotes');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({
     orders: [], items: [], shipments: [], containers: [], packing: [],
-    invoices: [], coa: [], docs: [], custDeliv: [], suppliers: [], projects: [],
+    invoices: [], coa: [], docs: [], custDeliv: [], suppliers: [], projects: [], signedQuotes: [],
   });
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showNewShipment, setShowNewShipment] = useState(false);
@@ -85,10 +85,15 @@ export default function ImportPage() {
       supabase.from('suppliers').select('id, name').order('name'),
       supabase.from('projects').select('id, name, client_name').order('name'),
     ]);
+    const { data: sq } = await supabase
+      .from('quotes')
+      .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
+      .eq('status', 'signed')
+      .order('updated_at', { ascending: false });
     setData({
       orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
-      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [],
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [],
     });
     setLoading(false);
   }
@@ -110,6 +115,7 @@ export default function ImportPage() {
             <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-[#1a56db] to-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90">⚡ העלאה חכמה</button>
           )}
           <div className="flex bg-gray-100 rounded-lg p-0.5">
+            <button onClick={() => setView('quotes')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'quotes' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הצעות מאושרות</button>
             <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הזמנות</button>
             <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>משלוחים</button>
           </div>
@@ -122,9 +128,9 @@ export default function ImportPage() {
         </div>
       </div>
 
-      {view === 'orders'
-        ? <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />
-        : <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
+      {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} />}
+      {view === 'orders' && <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
+      {view === 'shipments' && <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
 
       {showNewOrder && <NewOrderModal data={data} onClose={() => setShowNewOrder(false)} onCreated={() => { setShowNewOrder(false); load(); }} />}
       {showNewShipment && <NewShipmentModal data={data} onClose={() => setShowNewShipment(false)} onCreated={() => { setShowNewShipment(false); load(); }} />}
@@ -135,6 +141,72 @@ export default function ImportPage() {
 
 function Info({ label, value }: { label: string; value?: any }) {
   return (<div><p className="text-[11px] text-gray-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-gray-700">{value || '—'}</p></div>);
+}
+
+// ============================================================
+// Approved-quotes view — every signed quote + its import status
+// ============================================================
+function ApprovedQuotesView({ data, onSmartUpload }: any) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'ordered'>('all');
+
+  function orderFor(q: any) {
+    return data.orders.find((o: any) => o.quote_id === q.id)
+      || (q.project_id ? data.orders.find((o: any) => o.project_id && o.project_id === q.project_id) : null)
+      || null;
+  }
+  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q) }));
+  const pendingCount = rows.filter((r: any) => !r.order).length;
+  const shown = rows.filter((r: any) => filter === 'all' ? true : filter === 'pending' ? !r.order : !!r.order);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <Chip label={`הכל (${rows.length})`} active={filter === 'all'} onClick={() => setFilter('all')} />
+        <Chip label={`🔴 טרם הזמנת יבוא (${pendingCount})`} active={filter === 'pending'} onClick={() => setFilter('pending')} />
+        <Chip label="עם הזמנת יבוא" active={filter === 'ordered'} onClick={() => setFilter('ordered')} />
+      </div>
+
+      {shown.length === 0 ? <Empty text="אין הצעות מאושרות להצגה" /> : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-400 text-[11px] text-right">
+                <th className="font-medium py-2 px-3">הצעה</th>
+                <th className="font-medium py-2 px-3">לקוח</th>
+                <th className="font-medium py-2 px-3">סכום</th>
+                <th className="font-medium py-2 px-3">אושרה</th>
+                <th className="font-medium py-2 px-3">סטטוס יבוא</th>
+                <th className="font-medium py-2 px-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map(({ q, order }: any) => {
+                const st = order ? (ORDER_STATUS[order.status] || ORDER_STATUS.open) : null;
+                return (
+                  <tr key={q.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                    <td className="py-2 px-3 font-mono text-gray-500" dir="ltr">{q.quote_number || '—'}</td>
+                    <td className="py-2 px-3 text-gray-700">{q.client_name || '—'}</td>
+                    <td className="py-2 px-3 text-gray-600">{money(q.total_amount, q.currency || 'ILS')}</td>
+                    <td className="py-2 px-3 text-gray-500">{fmtDate(q.sent_at || q.updated_at)}</td>
+                    <td className="py-2 px-3">
+                      {order && st
+                        ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+                        : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-600">🔴 טרם הזמנת יבוא</span>}
+                    </td>
+                    <td className="py-2 px-3 text-left">
+                      {!order
+                        ? <button onClick={onSmartUpload} className="text-[12px] text-[#1a56db] hover:underline">פתח הזמנה ⚡</button>
+                        : <span className="text-[11px] text-gray-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ============================================================
