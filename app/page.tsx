@@ -10,6 +10,7 @@ import ProjectsTable from '@/components/dashboard/ProjectsTable';
 import Pipeline from '@/components/dashboard/Pipeline';
 import TeamStatus from '@/components/dashboard/TeamStatus';
 import InventoryWidget from '@/components/dashboard/InventoryWidget';
+import OpenQuotesWidget from '@/components/dashboard/OpenQuotesWidget';
 import ActivityLog from '@/components/ai/ActivityLog';
 
 interface DashboardData {
@@ -426,6 +427,9 @@ export default function DashboardPage() {
               </div>
               <div className="animate-fade-in-up-delay-2">
                 <ProjectsTable projects={data?.projects || []} loading={loading} />
+              </div>
+              <div className="animate-fade-in-up-delay-2">
+                <OpenQuotesWidget />
               </div>
               <div className="animate-fade-in-up-delay-3">
                 <Pipeline leads={data?.leads || []} loading={loading} />
