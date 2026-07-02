@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseExcelBOQ } from '@/lib/boq-parser';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// --- Abuse guards (from the security hardening on main; the SDK already sends
+// the key in a header, not the URL). Payload caps + per-user/global rate limits. ---
+const MAX_BODY_BYTES = 10 * 1024 * 1024;   // 10 MB total request body
+const RATE_LIMIT_MESSAGES: Record<string, string> = {
+  user_rate_limit_minute: 'חרגת ממכסת הבקשות (15 לדקה). נסה שוב בעוד דקה.',
+  user_rate_limit_hour: 'חרגת ממכסת הבקשות לשעה (200). נסה שוב מאוחר יותר.',
+  global_rate_limit_minute: 'המערכת עמוסה כרגע (מכסת בקשות כללית). נסה שוב בעוד דקה.',
+};
 // Chat = fast/cheap. File extraction (supplier quotes, drawing metadata) uses the
 // stronger model — Pro reads cluttered tables far more reliably than Flash.
 const GEMINI_MODEL = 'gemini-2.5-flash';
@@ -256,6 +266,30 @@ export async function POST(request: NextRequest) {
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
     }
+
+    // Payload cap — reject oversized bodies before any Gemini call (cost guard).
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json({ error: 'הבקשה גדולה מדי. הגודל המרבי הוא 10MB.' }, { status: 413 });
+    }
+
+    // Per-user + global rate limiting (before any Gemini call). Requires a
+    // session; the browser sends the auth cookie with every Roxy request.
+    const sb = await createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'לא מורשה.' }, { status: 401 });
+    }
+    const admin = createAdminClient();
+    const { data: limitCode } = await admin.rpc('can_make_ai_request', { p_user_id: user.id });
+    if (limitCode) {
+      return NextResponse.json(
+        { error: RATE_LIMIT_MESSAGES[limitCode as string] || 'חרגת ממכסת הבקשות. נסה שוב מאוחר יותר.' },
+        { status: 429 },
+      );
+    }
+    // Count this request toward the rate-limit windows (the RPC only reads the log).
+    await admin.from('ai_request_log').insert({ user_id: user.id, route: 'ai' });
 
     const body = await request.json();
     const { message, context, document_text, files, mode } = body;

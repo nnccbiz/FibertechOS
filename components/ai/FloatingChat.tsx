@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
 
 interface AiMessage {
   role: 'user' | 'ai';
@@ -146,7 +147,22 @@ export default function FloatingChat() {
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
-    // Handle pending quote confirmation (save to supplier_quotes)
+    // Roxy output is untrusted — every AI-driven write is validated against the
+    // allowlist before reaching Supabase. Returns false (and notifies + logs) on reject.
+    const passesAllowlist = async (table: string, payload: any, label?: string): Promise<boolean> => {
+      const v = validateWrite(table, payload);
+      if (!v.ok) {
+        await logRejection(supabase, {
+          command: userMsg, action: 'create', validation: v,
+          targetLabel: label, data: payload, sourceType: 'chat',
+        });
+        setMessages((prev) => [...prev, { role: 'ai', text: rejectionMessage(v) }]);
+        return false;
+      }
+      return true;
+    };
+
+    // Handle pending quote confirmation
     if (pendingQuote) {
       const isYes = /^(כן|yes|אישור|שמור|ok|אוקיי|בטח)$/i.test(userMsg.trim());
       const isNo = /^(לא|no|ביטול|cancel)$/i.test(userMsg.trim());
@@ -160,17 +176,26 @@ export default function FloatingChat() {
             if (existing) {
               supplierId = existing.id;
             } else {
-              const { data: newSup } = await supabase.from('suppliers').insert({ name: qi.supplier_name, currency: qi.currency || 'USD' }).select('id').single();
+              const supplierPayload = { name: qi.supplier_name, currency: qi.currency || 'USD' };
+              if (!(await passesAllowlist('suppliers', supplierPayload, qi.supplier_name))) {
+                setPendingQuote(null); setLoading(false); return;
+              }
+              const { data: newSup } = await supabase.from('suppliers').insert(supplierPayload).select('id').single();
               if (newSup) supplierId = newSup.id;
             }
           }
-          const { data: sq, error: sqErr } = await supabase.from('supplier_quotes').insert({
+          // Create supplier_quote
+          const quotePayload = {
             supplier_id: supplierId,
             quote_ref: qi.quote_ref || null,
             quote_date: qi.quote_date || null,
             project_name: qi.project_name || null,
             currency: qi.currency || 'USD',
-          }).select('id').single();
+          };
+          if (!(await passesAllowlist('supplier_quotes', quotePayload, qi.quote_ref))) {
+            setPendingQuote(null); setLoading(false); return;
+          }
+          const { data: sq, error: sqErr } = await supabase.from('supplier_quotes').insert(quotePayload).select('id').single();
           if (sqErr) throw sqErr;
           if (sq && items.length > 0) {
             const rows = items.map((it: any) => ({
@@ -185,6 +210,11 @@ export default function FloatingChat() {
               currency: it.currency || qi.currency || 'USD',
               description: it.description || null,
             }));
+            const badRow = rows.find((r: any) => !validateWrite('supplier_quote_items', r).ok);
+            if (badRow) {
+              await passesAllowlist('supplier_quote_items', badRow, qi.quote_ref);
+              setPendingQuote(null); setLoading(false); return;
+            }
             await supabase.from('supplier_quote_items').insert(rows);
           }
           setMessages((prev) => [...prev, { role: 'ai', text: `✅ נשמר בהצלחה — ${items.length} פריטים מ-${qi.supplier_name || 'ספק'} (Ref: ${qi.quote_ref || '—'})` }]);
@@ -319,25 +349,36 @@ export default function FloatingChat() {
           if (projectName) {
             const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
             if (proj) {
-              await supabase.from('project_updates').insert({
+              const updatePayload = {
                 project_id: proj.id,
                 update_date: new Date().toISOString().substring(0, 10),
                 people: data.data.people || '',
                 title: data.data.title || '',
                 description: data.data.description || '',
                 tasks: data.data.tasks || '',
-              });
+              };
+              if (!(await passesAllowlist('project_updates', updatePayload, projectName))) {
+                setLoading(false); return;
+              }
+              await supabase.from('project_updates').insert(updatePayload);
+              // Auto-create tasks as alerts
               const tasksText = data.data.tasks || '';
               if (tasksText.trim()) {
                 const taskLines = tasksText.split(/[,\n]/).map((t: string) => t.replace(/^\d+[.):\s]+/, '').trim()).filter(Boolean);
                 for (const task of taskLines) {
-                  await supabase.from('alerts').insert({
+                  // Real alerts schema: severity/title/message/category/is_read (no type/is_resolved/assigned_to).
+                  const alertPayload = {
                     project_id: proj.id,
-                    type: 'task',
+                    severity: 'info',
+                    category: 'task',
+                    title: task,
                     message: task,
-                    is_resolved: false,
-                    assigned_to: projectName,
-                  });
+                    is_read: false,
+                  };
+                  if (!(await passesAllowlist('alerts', alertPayload, projectName))) {
+                    setLoading(false); return;
+                  }
+                  await supabase.from('alerts').insert(alertPayload);
                 }
               }
               setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${data.summary}\n\nהעדכון נוסף לכרטיס הפרויקט.${tasksText.trim() ? '\n📌 המשימות נוספו ללוח הבקרה.' : ''}` }]);
@@ -354,13 +395,20 @@ export default function FloatingChat() {
             const { data: proj } = await supabase.from('projects').select('id').ilike('name', `%${projectName}%`).limit(1).single();
             if (proj) projectId = proj.id;
           }
-          await supabase.from('alerts').insert({
+          // Real alerts schema: severity/title/message/category/is_read (no type/is_resolved/assigned_to).
+          const alertText = data.data.message || data.summary;
+          const alertPayload = {
             project_id: projectId,
-            type: data.data.type || 'task',
-            message: data.data.message || data.summary,
-            is_resolved: false,
-            assigned_to: data.data.assigned_to || projectName || null,
-          });
+            severity: 'info',
+            category: 'task',
+            title: alertText,
+            message: alertText,
+            is_read: false,
+          };
+          if (!(await passesAllowlist('alerts', alertPayload, projectName))) {
+            setLoading(false); return;
+          }
+          await supabase.from('alerts').insert(alertPayload);
           setMessages((prev) => [...prev, { role: 'ai', text: `📌 ${data.summary}\n\nהמשימה נוספה ללוח הבקרה.` }]);
         } else if (data.target_table === 'supplier_quote' && data.action === 'import' && Array.isArray(data.data)) {
           const qi = data.quote_info || {};
