@@ -1157,7 +1157,15 @@ export function usePricing(projectId: string): UsePricingReturn {
     const patch: any = { status, updated_at: now };
     // Freeze the printed quote date the first time it's issued — updated_at keeps
     // moving on later back-office edits, sent_at must not.
-    if ((status === 'sent' || status === 'signed') && q && !q.sent_at) patch.sent_at = now;
+    if ((status === 'sent' || status === 'signed') && q && !q.sent_at) {
+      patch.sent_at = now;
+      // Start the expiry clock: valid_until was never written anywhere, so all
+      // the "פג תוקף" displays could never fire. 45 days unless already set.
+      if (!q.valid_until) {
+        const vu = new Date(now); vu.setDate(vu.getDate() + 45);
+        patch.valid_until = vu.toISOString().slice(0, 10);
+      }
+    }
     await supabase.from('quotes').update(patch).eq('id', quoteId);
     setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, ...patch } : x));
 

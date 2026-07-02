@@ -604,6 +604,7 @@ function ShipmentsView({ data, canEdit, canDelete, onUpdate }: any) {
 function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
+  const [tracking, setTracking] = useState(false);
   const st = SHIPMENT_STATUS[shipment.status] || SHIPMENT_STATUS.booked;
   const containers = data.containers.filter((c: any) => c.shipment_id === shipment.id);
   async function setStatus(s: string) { await supabase.from('import_shipments').update({ status: s, updated_at: new Date().toISOString() }).eq('id', shipment.id); onUpdate(); }
@@ -623,7 +624,14 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
             <span className="text-[12px] text-gray-500">{containers.length} מכולות</span>
           </div>
-          <span className="text-sm text-gray-600" dir="ltr">{shipment.vessel_name}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600" dir="ltr">{shipment.vessel_name}</span>
+            {shipment.vessel_name && (
+              <button onClick={() => setTracking(!tracking)} className={`text-[12px] px-2 py-0.5 rounded-full border ${tracking ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'}`}>
+                🛰️ אתר ספינה
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <Info label="ספק" value={shipment.suppliers?.name} />
@@ -631,6 +639,7 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
           <Info label="ETD" value={fmtDate(shipment.etd)} />
           <Info label="ETA" value={fmtDate(shipment.eta)} />
         </div>
+        {tracking && <VesselTracker vesselName={shipment.vessel_name} />}
         <div className="flex items-center gap-3">
           <button onClick={() => setOpen(!open)} className="text-[12px] text-[#1a56db] font-medium hover:underline">{open ? 'הסתר ▲' : 'מכולות, תכולה ומסמכים ▼'}</button>
           {canEdit && <select value={shipment.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 text-gray-600">{SHIPMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{SHIPMENT_STATUS[k].label}</option>)}</select>}
@@ -697,6 +706,79 @@ function ContainersSection({ shipment, containers, data, orderName, canEdit, can
           <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
         </div>
       ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף מכולה</button>)}
+    </div>
+  );
+}
+
+// ============================================================
+// Live vessel tracking — where is the ship, when does it reach
+// Ashdod/Haifa. Data via /api/import/vessel-track (Datalastic when
+// configured; external map links always).
+// ============================================================
+function VesselTracker({ vesselName }: { vesselName: string }) {
+  const [state, setState] = useState<any>({ loading: true });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/import/vessel-track?vessel=${encodeURIComponent(vesselName)}`);
+        const json = await res.json();
+        if (!cancelled) setState({ loading: false, ...json });
+      } catch {
+        if (!cancelled) setState({ loading: false, error: 'fetch_failed' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [vesselName]);
+
+  const v = state.vessel;
+  const fmtWhen = (iso: string | null) => iso ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+
+  return (
+    <div className="bg-cyan-50/60 border border-cyan-100 rounded-lg px-4 py-3 mb-3 text-[13px]">
+      {state.loading ? (
+        <p className="text-cyan-700">🛰️ מאתר את {vesselName}...</p>
+      ) : v ? (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="font-semibold text-cyan-900" dir="ltr">🚢 {v.name}</span>
+            {v.lat != null && (
+              <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer" className="text-cyan-700 underline" dir="ltr">
+                {v.lat.toFixed(2)}°, {v.lon.toFixed(2)}°
+              </a>
+            )}
+            {v.speed_kn > 0 && <span className="text-gray-600" dir="ltr">{v.speed_kn} kn</span>}
+            {v.destination && <span className="text-gray-600">יעד מדווח: <b dir="ltr">{v.destination}</b></span>}
+            {v.reported_eta && <span className="text-gray-600">ETA מדווח: {fmtWhen(v.reported_eta)}</span>}
+          </div>
+          {state.ports?.length > 0 && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {state.ports.map((p: any) => (
+                <span key={p.key} className="text-gray-700">
+                  ⚓ {p.name}: <b>{p.distance_nm.toLocaleString()}</b> מייל ימי
+                  {p.eta_date ? <> · הגעה משוערת <b>{fmtWhen(p.eta_date)}</b></> : ' (הספינה עוגנת/איטית)'}
+                </span>
+              ))}
+            </div>
+          )}
+          {v.last_position_at && <p className="text-[11px] text-gray-400">עדכון מיקום אחרון: {fmtWhen(v.last_position_at)}</p>}
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-gray-600">
+            {state.configured === false
+              ? 'מעקב חי לא מוגדר (חסר DATALASTIC_API_KEY) — אפשר לפתוח במפה חיצונית:'
+              : `לא נמצא מידע חי על ${vesselName} — נסו במפה חיצונית:`}
+          </p>
+          {state.links && (
+            <p className="flex gap-3">
+              <a href={state.links.vesselfinder} target="_blank" rel="noreferrer" className="text-cyan-700 underline">VesselFinder ↗</a>
+              <a href={state.links.marinetraffic} target="_blank" rel="noreferrer" className="text-cyan-700 underline">MarineTraffic ↗</a>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

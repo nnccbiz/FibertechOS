@@ -11,18 +11,17 @@ interface NavItem {
   href: string;
 }
 
+// Only routes that actually exist — keep in sync with Sidebar.tsx.
 const navItems: NavItem[] = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
   { icon: '📐', label: 'שרטוטים', key: 'projects', href: '/drawings' },
-  { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
   { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
   { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: '🚛', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
   { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
-  { icon: '👷', label: 'שדה', key: 'field', href: '/field' },
-  { icon: '📦', label: 'מלאי', key: 'inventory', href: '/inventory' },
-  { icon: '📈', label: 'דוחות', key: 'reports', href: '/reports' },
-  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings' },
+  { icon: '📄', label: 'טפסים', key: 'field', href: '/forms' },
+  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings/users' },
 ];
 
 export default function BottomNav() {

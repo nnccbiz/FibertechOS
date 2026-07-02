@@ -74,10 +74,13 @@ migration: `supabase/migrations/20260628_001_import_module_v2.sql` (מחליף �
 - `20260622_001_import_module.sql` — v1 (הוחלף).
 - `20260628_001_import_module_v2.sql` — v2, 9 טבלאות (מבנה נוכחי).
 - `20260628_002_import_quote_link.sql` — `import_orders.quote_id` + פוליסת RLS `quotes_import_select` (משתמש יבוא רואה הצעות signed בלבד).
+- `20260702_001_import_order_origin.sql` — `origin` ('manual'/'auto_from_quote') + `reviewed_at`/`reviewed_by` (הכנה לשלב תפ"י). **הוחלה 2.7.2026.**
 
 **קבצים מרכזיים:**
-- `app/import/page.tsx` — הדף (3 מבטים + מפת קשרים).
+- `app/import/page.tsx` — הדף (3 מבטים + מפת קשרים + 🛰️ מעקב ספינה חי).
 - `app/api/import/extract/route.ts` — חילוץ Gemini Pro.
+- `app/api/import/from-quote/route.ts` — זריעת טיוטת הזמנת יבוא מהצעה חתומה (service-role, אידמפוטנטי, + התראת חתימה in-app).
+- `app/api/import/vessel-track/route.ts` — מיקום ספינה חי + ETA לאשדוד/חיפה (Datalastic; דורש `DATALASTIC_API_KEY`, בלעדיו מחזיר קישורי VesselFinder/MarineTraffic).
 - `lib/import-reconcile.ts` — reconciliation.
 - `components/import/SmartUpload.tsx`, `components/projects/ImportPanel.tsx`, `components/dashboard/OpenQuotesWidget.tsx`.
 
@@ -89,9 +92,9 @@ migration: `supabase/migrations/20260628_001_import_module_v2.sql` (מחליף �
 
 ## 7. מה נשאר / TODO
 
-**Upstream (צד ניצן / תפ״י) — לא נבנה עדיין:**
-- [ ] חיבור אוטומטי: הצעה נחתמת (`updateQuoteStatus`→'signed', ב-`hooks/usePricing.ts` ~שורה 1199 שם כבר נוצרת הזמנת ייצור) → יצירת **טיוטת הזמנת יבוא** נזרעת מפריטי ההצעה + ה-cost_input, כולל מילוי `import_orders.quote_id`.
-- [ ] שלב תפ״י: סטטוס טיוטה→תוכנן(ניצן שחרר)→ביבוא, מסך לניצן לבדוק/לתקן.
+**Upstream (צד ניצן / תפ״י):**
+- [x] ~~חיבור אוטומטי: הצעה נחתמת → טיוטת הזמנת יבוא~~ — **בוצע 2.7.2026** (`app/api/import/from-quote`, נזרע מ-`cost_input_items` עם fallback ל-`quote_items`, `origin='auto_from_quote'`, `status='draft'`).
+- [ ] שלב תפ״י: מסך שחרור לניצן — כפתור "✔️ שחרר" שכותב `reviewed_at`/`reviewed_by` (העמודות קיימות) ומעביר `draft→planned`. כרגע השחרור אפשרי רק דרך dropdown הסטטוס הכללי.
 - [ ] מנוע הצעות שלומד מתיקוני ניצן (כללים+מיפוי "מוצר מכירה↔קוד ספק", לא ML). כולל מקרי חומר-גלם ומחברי-שוחה (החלטות הנדסה → הצעה+אישור אדם).
 - [ ] התראת איחוד משלוחים ("הזמנת לאחרונה מאותו ספק → אפשרות איחוד → בקש פרופורמה מעודכנת").
 

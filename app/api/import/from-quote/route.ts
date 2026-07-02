@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   //    quote — this route is the signed hand-off, not a generic importer.
   const { data: quote, error: qErr } = await admin
     .from('quotes')
-    .select('id, project_id, status, cost_input_id, supplier_name, currency')
+    .select('id, project_id, status, cost_input_id, supplier_name, currency, quote_number, total_amount')
     .eq('id', quoteId)
     .maybeSingle();
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
@@ -186,6 +186,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: iErr.message }, { status: 500 });
     }
   }
+
+  // 8. Surface the win: an in-app alert on the dashboard ("משימות לביצוע").
+  //    The old /api/webhooks/quote-signed path was never called and targeted a
+  //    schema that doesn't exist — this is the working replacement. Runs only on
+  //    first creation (idempotency above), so re-signing can't spam alerts.
+  const ils = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 });
+  const { error: alertErr } = await admin.from('alerts').insert({
+    type: 'signature',
+    project_id: quote.project_id || null,
+    assigned_to: projectName || '',
+    message: `🎉 נחתמה הצעה ${quote.quote_number || ''}${projectName ? ` בפרויקט ${projectName}` : ''} על סך ${ils.format(quote.total_amount || 0)} — נוצרה טיוטת הזמנת יבוא לבדיקת תפ"י`,
+    is_resolved: false,
+  });
+  if (alertErr) console.error('signed-quote alert insert failed:', alertErr.message);
 
   return NextResponse.json({ importOrderId: order.id, created: true, lines: lines.length });
 }

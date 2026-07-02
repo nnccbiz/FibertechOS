@@ -18,12 +18,13 @@ interface DashboardData {
   alerts: any[];
   leads: any[];
   teamMembers: any[];
+  shipments: any[];
   kpi: {
     activeProjects: number;
     monthlyRevenue: number;
     openAlerts: number;
-    clientIssues: number;
-    supplierIssues: number;
+    openQuotes: number;
+    importDrafts: number;
     shipmentsEnRoute: number;
   };
 }
@@ -51,12 +52,17 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        const [projectsRes, alertsRes, leadsRes, teamRes, detailsRes] = await Promise.all([
+        const [projectsRes, alertsRes, leadsRes, teamRes, detailsRes, shipmentsRes, openQuotesRes, importDraftsRes] = await Promise.all([
           supabase.from('projects').select('*'),
           supabase.from('alerts').select('*').order('created_at', { ascending: false }),
           supabase.from('leads').select('*'),
           supabase.from('team_members').select('*'),
           supabase.from('project_details').select('project_id, winning_contractor, delivery_months_list'),
+          // Real operational counts. RLS silently filters these to [] for users
+          // without the relevant module permission — that's fine, show 0.
+          supabase.from('import_shipments').select('id, vessel_name, bl_number, eta, status').in('status', ['booked', 'sailing']),
+          supabase.from('quotes').select('id, status').in('status', ['draft', 'sent']),
+          supabase.from('import_orders').select('id').eq('status', 'draft'),
         ]);
 
         if (projectsRes.error) throw projectsRes.error;
@@ -102,20 +108,21 @@ export default function DashboardPage() {
           return sum + (p.order_value || 0) / totalMonths;
         }, 0);
 
-        const shipmentAlerts = alerts.filter((a) => a.type === 'shipment' && !a.is_resolved);
+        const shipments = shipmentsRes.data || [];
 
         setData({
           projects: activeProjects,
           alerts,
           leads,
           teamMembers,
+          shipments,
           kpi: {
             activeProjects: activeProjects.length,
             monthlyRevenue,
             openAlerts: openAlerts.length,
-            clientIssues: 0,
-            supplierIssues: 0,
-            shipmentsEnRoute: shipmentAlerts.length,
+            openQuotes: (openQuotesRes.data || []).length,
+            importDrafts: (importDraftsRes.data || []).length,
+            shipmentsEnRoute: shipments.length,
           },
         });
       } catch (err: any) {
@@ -327,15 +334,15 @@ export default function DashboardPage() {
       color: '#dc2626',
     },
     {
-      title: 'נושאים פתוחים — לקוחות',
-      value: data?.kpi.clientIssues ?? '—',
-      icon: '👤',
+      title: 'הצעות מחיר פתוחות',
+      value: data?.kpi.openQuotes ?? '—',
+      icon: '📝',
       color: '#7c3aed',
     },
     {
-      title: 'נושאים פתוחים — ספקים',
-      value: data?.kpi.supplierIssues ?? '—',
-      icon: '🏭',
+      title: 'טיוטות יבוא לבדיקה',
+      value: data?.kpi.importDrafts ?? '—',
+      icon: '🚢',
       color: '#d97706',
     },
     {
@@ -453,18 +460,23 @@ export default function DashboardPage() {
                         <div key={i} className="skeleton h-10 w-full" />
                       ))}
                     </div>
-                  ) : (data?.kpi.shipmentsEnRoute ?? 0) > 0 ? (
+                  ) : (data?.shipments || []).length > 0 ? (
                     <div className="space-y-2">
-                      {(data?.alerts || [])
-                        .filter((a) => a.type === 'shipment' && !a.is_resolved)
-                        .map((shipment) => (
-                          <div
-                            key={shipment.id}
-                            className="bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2"
-                          >
-                            <p className="text-sm font-medium text-gray-700">{shipment.message}</p>
-                          </div>
-                        ))}
+                      {(data?.shipments || []).map((s: any) => (
+                        <a
+                          key={s.id}
+                          href="/import"
+                          className="block bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2 no-underline hover:bg-cyan-100 transition-colors"
+                        >
+                          <p className="text-sm font-medium text-gray-700" dir="ltr">
+                            {s.vessel_name || s.bl_number || 'משלוח'}
+                          </p>
+                          <p className="text-[12px] text-gray-500">
+                            {s.status === 'sailing' ? 'בהפלגה' : 'שוריין'}
+                            {s.eta ? ` · ETA ${new Date(s.eta).toLocaleDateString('he-IL')}` : ''}
+                          </p>
+                        </a>
+                      ))}
                     </div>
                   ) : (
                     <p className="text-lg text-gray-400 text-center py-3">אין משלוחים פעילים</p>

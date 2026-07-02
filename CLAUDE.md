@@ -221,6 +221,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase dashboard>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase dashboard — SECRET>
 NEXT_PUBLIC_SITE_URL=<Vercel deployment URL>
 GEMINI_API_KEY=<for Roxy AI — Google AI Studio, billing must be enabled>
+DATALASTIC_API_KEY=<optional — live vessel tracking on /import; without it the tracker shows external map links only>
 ```
 (`GROQ_API_KEY` is no longer used — Roxy runs entirely on Gemini.)
 
@@ -266,8 +267,9 @@ Verified findings from a high-effort multi-angle review of the branch. Ranked by
 - Some team members still missing email addresses and auth accounts (7 out of 9).
 
 ### Important
-- `/field` and `/import` routes return 404 — modules not yet built.
-- `/marketing`, `/inventory`, `/reports`, `/settings` routes may also be stubs or missing.
+- **System-wide process review (2026-07-02):** see `SYSTEM_REVIEW_2026-07-02.md` — full flow map + prioritized backlog (automation / control / connectivity / visibility). Phase A (broken-stuff fixes: nav, valid_until, signed-quote alert, dead code removal, real KPIs) done 2026-07-02; phases B–D open.
+- `/import` module is built (see `IMPORT_MODULE.md`). A signed quote auto-seeds a draft import order (`/api/import/from-quote`) + writes an in-app signature alert. Live vessel tracking on shipment cards via `/api/import/vessel-track` (needs `DATALASTIC_API_KEY`; degrades to VesselFinder/MarineTraffic links without it).
+- `/marketing`, `/field`, `/inventory`, `/reports` — modules not built; their dead nav links were removed 2026-07-02 (re-add per module when built). `/settings` nav now points at `/settings/users`. `/forms` got an index page, and forms + Iskoor logistics were added to the nav — but form submissions still don't persist (submit = console.log, see review #5).
 - Password rotation (90-day) not enforced in middleware — only defined as policy.
 - Password history check (last 3 passwords) not implemented at application level.
 - No admin email notification for new access requests.
