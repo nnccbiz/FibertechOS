@@ -3,6 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { parsePipeSpec } from '@/lib/pricing';
+import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
+
+function fmtSn(sn: string) {
+  if (!sn) return '';
+  const n = parseInt(sn, 10);
+  return isNaN(n) ? sn : n.toLocaleString('en-US');
+}
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -167,7 +175,7 @@ export default function PublicQuotePage() {
           <p className="text-gray-500">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
           <div className="mt-6 pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
-            <p className="text-sm text-gray-400">09-7929441 | nitzan@fibertech.co.il</p>
+            <p className="text-sm text-gray-400">09-7929441 | info@fibertech.co.il</p>
           </div>
         </div>
       </div>
@@ -177,9 +185,24 @@ export default function PublicQuotePage() {
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  const quoteDate = quote.created_at ? new Date(quote.created_at).toLocaleDateString('he-IL') : '';
+  // Same rule as the internal preview: draft = today, sent/signed = frozen sent_at
+  // (fall back to updated_at for quotes issued before sent_at existed).
+  const quoteDateSource = quote.status === 'draft'
+    ? new Date()
+    : new Date(quote.sent_at || quote.updated_at || Date.now());
+  const quoteDate = quoteDateSource.toLocaleDateString('he-IL');
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
-  const colCount = 8;
+  // The per-line discount column appears only when a line actually carries its
+  // own discount. A quote-wide (global) discount is shown in the totals rows.
+  const hasLineDiscount = items.some((i: any) => (parseFloat(i.discount_pct) || 0) > 0);
+  const colCount = hasLineDiscount ? 10 : 9;
+  // Resolve the contract terms the same way the internal preview does: the
+  // per-quote snapshot (contract_overrides, frozen on issue) wins, otherwise the
+  // hard-coded library fallback — so the customer-facing terms match the signed PDF.
+  const contractSections: { title: string; clauses: { num: number; text: string }[] }[] =
+    (Array.isArray(quote.contract_overrides) && quote.contract_overrides.length > 0)
+      ? quote.contract_overrides
+      : CONTRACT_SECTIONS;
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -243,10 +266,12 @@ export default function PublicQuotePage() {
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">#</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">תיאור פריט</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קוטר</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">לחץ (PN)</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קשיחות (SN)</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>
+                {hasLineDiscount && <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>}
                 <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">סה״כ</th>
               </tr>
             </thead>
@@ -256,12 +281,14 @@ export default function PublicQuotePage() {
                 return (
                   <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                     <td className="py-2 px-3 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-800">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-800 text-right" dir="rtl">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.dn_size || '—'}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
+                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
                     <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>
+                    {hasLineDiscount && <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>}
                     <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
                   </tr>
                 );
@@ -311,6 +338,28 @@ export default function PublicQuotePage() {
             </div>
           )}
 
+          {/* Full contract terms — resolved from the quote snapshot / fallback */}
+          {contractSections.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-600 mb-3">תנאי הסכם</h3>
+              <div className="space-y-3">
+                {contractSections.map((section, si) => (
+                  <div key={si}>
+                    <h4 className="text-xs font-bold text-gray-700 mb-1">{section.title}</h4>
+                    <ol className="space-y-1">
+                      {section.clauses.map((cl) => (
+                        <li key={cl.num} className="text-[11px] text-gray-600 leading-relaxed flex gap-1.5">
+                          <span className="font-semibold text-gray-500 shrink-0">{cl.num}.</span>
+                          <span className="whitespace-pre-line">{cl.text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Notes */}
           {quote.notes && (
             <div className="mb-6">
@@ -353,7 +402,7 @@ export default function PublicQuotePage() {
         {/* Company footer */}
         <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
           <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
-          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | nitzan@fibertech.co.il</p>
+          <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
           <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
           <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
         </div>

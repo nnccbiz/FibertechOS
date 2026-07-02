@@ -13,16 +13,18 @@ interface NavItem {
   href: string;
 }
 
+// Only routes that actually exist. /marketing, /field, /inventory, /reports
+// were dead 404 links — re-add each when its module is built.
 const navItems: NavItem[] = [
   { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
   { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
-  { icon: '📊', label: 'שיווק', key: 'marketing', href: '/marketing' },
+  { icon: '📐', label: 'שרטוטים', key: 'projects', href: '/drawings' },
+  { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
   { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: '🚛', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
   { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
-  { icon: '👷', label: 'שדה', key: 'field', href: '/field' },
-  { icon: '📦', label: 'מלאי', key: 'inventory', href: '/inventory' },
-  { icon: '📈', label: 'דוחות', key: 'reports', href: '/reports' },
-  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings' },
+  { icon: '📄', label: 'טפסים', key: 'field', href: '/forms' },
+  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings/users' },
 ];
 
 export default function Sidebar() {
@@ -43,13 +45,13 @@ export default function Sidebar() {
     router.refresh();
   }
 
-  function getActiveKey() {
-    if (pathname === '/') return 'dashboard';
+  function getActiveHref() {
+    if (pathname === '/') return '/';
     const match = navItems.find((item) => item.href !== '/' && pathname.startsWith(item.href));
-    return match?.key || 'dashboard';
+    return match?.href || '/';
   }
 
-  const activeKey = getActiveKey();
+  const activeHref = getActiveHref();
   const visibleItems = loading ? navItems : navItems.filter((item) => canAccess(item.key));
 
   return (
@@ -78,12 +80,12 @@ export default function Sidebar() {
       <nav className="flex-1 py-2 overflow-y-auto">
         {visibleItems.map((item) => (
           <a
-            key={item.key}
+            key={item.href}
             href={item.href}
             className={`flex items-center gap-3 py-3 text-lg font-medium transition-all duration-200 no-underline ${
               expanded ? 'px-4' : 'px-0 justify-center'
             } ${
-              activeKey === item.key
+              activeHref === item.href
                 ? 'bg-blue-50 text-[#1a56db] border-l-[3px] border-[#1a56db]'
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
             }`}

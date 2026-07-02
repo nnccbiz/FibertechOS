@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SignaturePad from '../ui/SignaturePad';
 import PhotoUpload from '../ui/PhotoUpload';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 /** B-116 — דוח פיקוח שדה שוטף לצנרת דחיקה */
 export default function FormB116() {
@@ -97,10 +98,8 @@ export default function FormB116() {
           {numInput('max_jacking_force_ton', 'כוח דחיקה מותר', 'טון')}
           <div>
             <label className="block text-lg text-gray-600">סוג מחבר (שרוול)</label>
-            <select value={form.connector_type} onChange={(e) => set('connector_type', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm">
-              <option value="GRP">GRP</option>
-              <option value="נירוסטה">נירוסטה</option>
-            </select>
+            <SearchableSelect value={form.connector_type} onChange={(v) => set('connector_type', v)} className="mt-1 block w-full rounded border border-gray-300 px-2 py-1.5 shadow-sm text-sm"
+              options={[{ value: 'GRP', label: 'GRP' }, { value: 'נירוסטה', label: 'נירוסטה' }]} />
           </div>
           {numInput('max_machine_force_kn', 'כוח מקסימלי מכונה', 'KN')}
           {numInput('max_pressure_bar', 'לחץ מקסימלי', 'Bar')}

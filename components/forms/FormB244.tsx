@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SignaturePad from '../ui/SignaturePad';
 import PhotoUpload from '../ui/PhotoUpload';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 /** B-244 — טופס תיוג להנעה והדרכה של צנרת דחיקה */
 export default function FormB244() {
@@ -73,10 +74,8 @@ export default function FormB244() {
         </div>
         <div>
           <label className="block text-lg font-medium text-gray-700">סוג הדרכה</label>
-          <select value={form.training_type} onChange={(e) => set('training_type', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm">
-            <option value="הנעה">הנעה</option>
-            <option value="הדרכה">הדרכה</option>
-          </select>
+          <SearchableSelect value={form.training_type} onChange={(v) => set('training_type', v)} className="mt-1 block w-full rounded border border-gray-300 px-2 py-1.5 shadow-sm text-sm"
+            options={[{ value: 'הנעה', label: 'הנעה' }, { value: 'הדרכה', label: 'הדרכה' }]} />
         </div>
       </div>
 

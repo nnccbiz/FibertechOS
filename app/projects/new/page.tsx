@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
@@ -58,6 +59,14 @@ export default function NewProjectPage() {
   // Related data
   const [contacts, setContacts] = useState<ProjectContact[]>([]);
   const [pipeSpecs, setPipeSpecs] = useState<PipeSpec[]>([]);
+  const [pendingDrawings, setPendingDrawings] = useState<File[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    createClient().from('clients').select('name').order('name').then(({ data }) => {
+      setCustomerOptions((data || []).map((c: any) => c.name).filter(Boolean));
+    });
+  }, []);
 
   // Handle AI-extracted data
   function handleAiData(data: any) {
@@ -191,6 +200,39 @@ export default function NewProjectPage() {
         if (specErr) throw specErr;
       }
 
+      // 5. Upload drawings (with AI number detection)
+      for (const file of pendingDrawings) {
+        try {
+          const ext = file.name.split('.').pop() || 'file';
+          const path = `${project.id}/drawings/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+          if (upErr) continue;
+          const { data: att } = await supabase.from('attachments').insert({
+            entity_type: 'project', entity_id: project.id, project_id: project.id,
+            file_name: file.name, file_url: path, file_type: 'drawing', file_size_bytes: file.size,
+          }).select().single();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result).split(',')[1] || '');
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          });
+          const res = await fetch('/api/ai', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
+          });
+          const meta = await res.json();
+          let detected = meta?.drawing_number || '';
+          if (!detected) {
+            const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+            if (m) detected = m[0];
+          }
+          if (detected && att) {
+            await supabase.from('attachments').update({ drawing_number: detected }).eq('id', att.id);
+          }
+        } catch { /* skip a failed drawing */ }
+      }
+
       router.push('/');
     } catch (err: any) {
       console.error('Error saving project:', err);
@@ -275,12 +317,8 @@ export default function NewProjectPage() {
             </div>
             <div>
               <label className={labelClass}>עדיפות</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputClass}>
-                <option value="low">נמוכה</option>
-                <option value="medium">בינונית</option>
-                <option value="high">גבוהה</option>
-                <option value="critical">קריטית</option>
-              </select>
+              <SearchableSelect value={priority} onChange={(v) => setPriority(v)} className={inputClass}
+                options={[{ value: 'low', label: 'נמוכה' }, { value: 'medium', label: 'בינונית' }, { value: 'high', label: 'גבוהה' }, { value: 'critical', label: 'קריטית' }]} />
             </div>
           </div>
         </section>
@@ -333,7 +371,7 @@ export default function NewProjectPage() {
         {/* === אנשי קשר === */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-3">
           <h2 className="text-lg font-bold text-gray-700 mb-4">👥 אנשי קשר</h2>
-          <ContactsInput contacts={contacts} onChange={setContacts} />
+          <ContactsInput contacts={contacts} onChange={setContacts} customerOptions={customerOptions} />
         </section>
 
         {/* === סוג פרויקט והתקנה === */}
@@ -346,17 +384,13 @@ export default function NewProjectPage() {
             </div>
             <div>
               <label className={labelClass}>סוג פרויקט</label>
-              <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputClass}>
-                <option value="">בחר סוג</option>
-                {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <SearchableSelect value={projectType} onChange={(v) => setProjectType(v)} className={inputClass} placeholder="בחר סוג"
+                options={[{ value: '', label: 'בחר סוג' }, ...PROJECT_TYPES.map((t) => ({ value: t, label: t }))]} />
             </div>
             <div>
               <label className={labelClass}>סוג התקנה</label>
-              <select value={installationType} onChange={(e) => setInstallationType(e.target.value)} className={inputClass}>
-                <option value="">בחר סוג</option>
-                {INSTALLATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <SearchableSelect value={installationType} onChange={(v) => setInstallationType(v)} className={inputClass} placeholder="בחר סוג"
+                options={[{ value: '', label: 'בחר סוג' }, ...INSTALLATION_TYPES.map((t) => ({ value: t, label: t }))]} />
             </div>
             <div>
               <label className={labelClass}>דרישות מיוחדות לצנרת</label>
@@ -398,6 +432,30 @@ export default function NewProjectPage() {
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5 animate-fade-in-up-delay-4">
           <h2 className="text-lg font-bold text-gray-700 mb-4">📐 מפרטים טכניים ושרטוטים</h2>
           <PipeSpecsInput specs={pipeSpecs} onChange={setPipeSpecs} />
+
+          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <h3 className="text-sm font-bold text-gray-500">שרטוטים</h3>
+              <label className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg cursor-pointer hover:bg-blue-100">
+                + הוסף שרטוט
+                <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple
+                  onChange={(e) => { if (e.target.files) { setPendingDrawings((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; } }} />
+              </label>
+            </div>
+            {pendingDrawings.length === 0 ? (
+              <p className="text-[13px] text-gray-400">מספר השרטוט יזוהה אוטומטית אחרי שמירת הפרויקט.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {pendingDrawings.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
+                    <span>{f.name.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                    <span className="flex-1 truncate text-gray-700">{f.name}</span>
+                    <button type="button" onClick={() => setPendingDrawings((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* === סיפור ואינטליגנציה === */}

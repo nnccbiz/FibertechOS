@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SignaturePad from '../ui/SignaturePad';
 import PhotoUpload from '../ui/PhotoUpload';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 /** B-12-2 — ארוע חריג / תקלות בשטח */
 export default function FormB12_2() {
@@ -72,14 +73,8 @@ export default function FormB12_2() {
 
       <div>
         <label className="block text-lg font-medium text-gray-700">סוג אירוע</label>
-        <select value={form.incident_type} onChange={(e) => set('incident_type', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm">
-          <option value="partial_report">דיווח חלקי</option>
-          <option value="investigation">ברור</option>
-          <option value="defect">תקלה</option>
-          <option value="repair_report">דו״ח תיקון</option>
-          <option value="interim_report">דו״ח ביניים</option>
-          <option value="summary_report">דו״ח מסכם</option>
-        </select>
+        <SearchableSelect value={form.incident_type} onChange={(v) => set('incident_type', v)} className="mt-1 block w-full rounded border border-gray-300 px-2 py-1.5 shadow-sm text-sm"
+          options={[{ value: 'partial_report', label: 'דיווח חלקי' }, { value: 'investigation', label: 'ברור' }, { value: 'defect', label: 'תקלה' }, { value: 'repair_report', label: 'דו״ח תיקון' }, { value: 'interim_report', label: 'דו״ח ביניים' }, { value: 'summary_report', label: 'דו״ח מסכם' }]} />
       </div>
 
       {/* Reporter */}

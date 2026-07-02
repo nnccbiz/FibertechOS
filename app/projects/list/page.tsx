@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
 
 interface ProjectDetail {
@@ -378,12 +379,10 @@ export default function ProjectsListPage() {
                           </td>
                           <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                             {editingCell?.id === project.id && editingCell?.field === 'realization_status' ? (
-                              <select value={editValue} onChange={(e) => saveInlineEdit(project.id, 'realization_status', e.target.value)}
-                                onBlur={() => setEditingCell(null)}
-                                className="border border-[#1a56db] rounded px-1 py-0.5 text-sm focus:outline-none" autoFocus>
-                                <option value="">—</option>
-                                {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                              </select>
+                              <SearchableSelect value={editValue} autoOpen
+                                onChange={(v) => { saveInlineEdit(project.id, 'realization_status', v); setEditingCell(null); }}
+                                className="border border-[#1a56db] rounded px-1 py-0.5 text-sm min-w-[120px]" placeholder="—"
+                                options={[{ value: '', label: '—' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))]} />
                             ) : (
                               <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${
                                 STATUS_COLORS[project.realization_status] || 'bg-gray-100 text-gray-600'

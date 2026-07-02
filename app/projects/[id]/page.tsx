@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
+import ImportPanel from '@/components/projects/ImportPanel';
+import CustomerForm from '@/components/customers/CustomerForm';
+import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -41,10 +45,8 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
         type === 'textarea' ? (
           <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-[60px]`} />
         ) : type === 'select' && options ? (
-          <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-            <option value="">—</option>
-            {options.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <SearchableSelect value={value} onChange={onChange} className={inputClass} placeholder="—"
+            options={[{ value: '', label: '—' }, ...options.map((o) => ({ value: o, label: o }))]} />
         ) : (
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
         )
@@ -85,6 +87,17 @@ export default function ProjectDetailPage() {
   const [pipeSpecs, setPipeSpecs] = useState<any[]>([]);
   const [projectAttachments, setProjectAttachments] = useState<any[]>([]);
   const [projectQuotes, setProjectQuotes] = useState<any[]>([]);
+  const [customersList, setCustomersList] = useState<{ id: string; name: string }[]>([]);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [uploadingSpec, setUploadingSpec] = useState(false);
+  const [drawingDragOver, setDrawingDragOver] = useState(false);
+  const drawingDragDepth = useRef(0);
+  const [specDragOver, setSpecDragOver] = useState(false);
+  const specDragDepth = useRef(0);
+  // Bumped after every spec/drawing upload so PricingSection refetches the
+  // project-level attachments and the linking checkboxes pick up the new file.
+  const [attachmentVersion, setAttachmentVersion] = useState(0);
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,15 +132,39 @@ export default function ProjectDetailPage() {
   const [contactsForm, setContactsForm] = useState<any[]>([]);
   const [specsForm, setSpecsForm] = useState<any[]>([]);
   const [contractorsForm, setContractorsForm] = useState<string[]>([]);
+  const [contactPickerSupported, setContactPickerSupported] = useState(false);
 
   useEffect(() => {
     load();
+    setContactPickerSupported(
+      typeof navigator !== 'undefined' &&
+      'contacts' in navigator &&
+      // @ts-ignore
+      typeof navigator.contacts?.select === 'function'
+    );
   }, [params.id]);
+
+  async function pickContactFromPhone() {
+    try {
+      // @ts-ignore
+      const results = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true });
+      if (!results || results.length === 0) return;
+      const newContacts = results.map((c: any) => ({
+        role: '',
+        name: c.name?.[0] || '',
+        phone: c.tel?.[0] || '',
+        email: c.email?.[0] || '',
+      }));
+      setContactsForm((prev) => [...prev, ...newContacts]);
+    } catch {
+      // ביטל בחירה
+    }
+  }
 
   async function load() {
     try {
       const id = params.id as string;
-      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes] = await Promise.all([
+      const [projRes, detRes, conRes, specRes, updRes, attRes, qRes, clientsRes] = await Promise.all([
         supabase.from('projects').select('*').eq('id', id).single(),
         supabase.from('project_details').select('*').eq('project_id', id).maybeSingle(),
         supabase.from('project_contacts').select('*').eq('project_id', id),
@@ -135,7 +172,9 @@ export default function ProjectDetailPage() {
         supabase.from('project_updates').select('*').eq('project_id', id).order('created_at', { ascending: false }),
         supabase.from('attachments').select('*').eq('project_id', id).order('created_at', { ascending: false }),
         supabase.from('quotes').select('id, quote_number, client_name').eq('project_id', id),
+        supabase.from('clients').select('id, name').order('name'),
       ]);
+      setCustomersList(clientsRes.data || []);
 
       const proj = projRes.data;
       const det = detRes.data || {};
@@ -164,6 +203,122 @@ export default function ProjectDetailPage() {
 
   function updateForm(key: string, val: any) {
     setForm((prev: any) => ({ ...prev, [key]: val }));
+  }
+
+  async function setProjectCustomer(customerId: string) {
+    const value = customerId || null;
+    await supabase.from('projects').update({ customer_id: value }).eq('id', params.id as string);
+    setProject((prev: any) => ({ ...prev, customer_id: value }));
+    setForm((prev: any) => ({ ...prev, customer_id: value }));
+  }
+
+  async function refreshCustomers() {
+    const { data } = await supabase.from('clients').select('id, name').order('name');
+    setCustomersList(data || []);
+  }
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function uploadProjectDrawing(file: File) {
+    setUploadingDrawing(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/drawings/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { data: att, error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: 'drawing', file_size_bytes: file.size,
+      }).select().single();
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+
+      // Detect the drawing number: AI from the title block, with a filename fallback.
+      try {
+        let detected = '';
+        const base64 = await fileToBase64(file);
+        const res = await fetch('/api/ai', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
+        });
+        const meta = await res.json();
+        detected = meta?.drawing_number || '';
+        if (!detected) {
+          const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+          if (m) detected = m[0];
+        }
+        if (detected && att) {
+          await supabase.from('attachments').update({ drawing_number: detected }).eq('id', att.id);
+        }
+      } catch {
+        const m = file.name.replace(/\.[^.]+$/, '').match(/\d{3,5}-\d{1,4}/);
+        if (m && att) await supabase.from('attachments').update({ drawing_number: m[0] }).eq('id', att.id);
+      }
+
+      await load();
+      setAttachmentVersion((v) => v + 1);
+    } finally {
+      setUploadingDrawing(false);
+    }
+  }
+
+  // Project-level technical specs (datasheets, standards). Same attachment row
+  // shape as drawings but file_type='spec' so they render with the 📋 badge,
+  // no drawing-number column, no Gemini extraction.
+  async function uploadProjectSpec(file: File) {
+    setUploadingSpec(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/specs/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: 'spec', file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await load();
+      setAttachmentVersion((v) => v + 1);
+    } finally {
+      setUploadingSpec(false);
+    }
+  }
+
+  async function setDrawingNumber(attId: string, drawingNumber: string) {
+    await supabase.from('attachments').update({ drawing_number: drawingNumber || null }).eq('id', attId);
+    setProjectAttachments((prev) => prev.map((a) => a.id === attId ? { ...a, drawing_number: drawingNumber } : a));
+  }
+
+  async function deleteProjectDrawing(attId: string) {
+    const att = projectAttachments.find((a) => a.id === attId);
+    if (att?.file_url) {
+      let storagePath = att.file_url;
+      if (storagePath.startsWith('http')) { const m = storagePath.match(/project-files\/(.+)$/); if (m) storagePath = m[1]; }
+      await supabase.storage.from('project-files').remove([storagePath]);
+    }
+    await supabase.from('attachments').delete().eq('id', attId);
+    setProjectAttachments((prev) => prev.filter((a) => a.id !== attId));
+    setAttachmentVersion((v) => v + 1);
+  }
+
+  function openDrawing(path: string) {
+    if (/^https?:/.test(path)) { window.open(path, '_blank'); return; }
+    // Open synchronously inside the click handler so Safari keeps the user gesture;
+    // otherwise window.open after the await is blocked as a popup.
+    const newWin = window.open('about:blank', '_blank');
+    supabase.storage.from('project-files').createSignedUrl(path, 3600).then(({ data, error }) => {
+      if (error || !data?.signedUrl) { if (newWin) newWin.close(); alert(`לא הצלחתי לפתוח את הקובץ: ${error?.message || ''}`); return; }
+      if (newWin) newWin.location.href = data.signedUrl;
+      else window.location.href = data.signedUrl;
+    });
   }
 
   function updateDetailForm(key: string, val: any) {
@@ -433,15 +588,49 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             project_id: id,
             role: c.role || '',
             name: c.name,
+            company: c.company || '',
             phone: c.phone || '',
             email: c.email || '',
           }))
         );
       }
+
+      // Auto-sync contacts that have a company into the customers list (one-way: project -> customers).
+      await syncContactsToCustomers(valid);
+
       setEditContacts(false);
       await load();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // For each project contact with a company, find-or-create the customer and upsert the contact under it.
+  async function syncContactsToCustomers(rows: any[]) {
+    const withCompany = rows.filter((c) => c.name?.trim() && c.company?.trim());
+    if (withCompany.length === 0) return;
+
+    const companyNames = Array.from(new Set(withCompany.map((c) => c.company.trim())));
+    const { data: existing } = await supabase.from('clients').select('id, name').in('name', companyNames);
+    const idByName: Record<string, string> = {};
+    (existing || []).forEach((c: any) => { idByName[c.name] = c.id; });
+
+    const missing = companyNames.filter((n) => !idByName[n]);
+    if (missing.length > 0) {
+      const { data: created } = await supabase.from('clients').insert(missing.map((n) => ({ name: n, type: 'לקוח' }))).select('id, name');
+      (created || []).forEach((c: any) => { idByName[c.name] = c.id; });
+    }
+
+    for (const c of withCompany) {
+      const clientId = idByName[c.company.trim()];
+      if (!clientId) continue;
+      const { data: match } = await supabase.from('client_contacts').select('id').eq('client_id', clientId).eq('name', c.name.trim()).limit(1);
+      const payload = { role: c.role || null, phone: c.phone || null, email: c.email || null };
+      if (match && match.length > 0) {
+        await supabase.from('client_contacts').update(payload).eq('id', match[0].id);
+      } else {
+        await supabase.from('client_contacts').insert({ client_id: clientId, name: c.name.trim(), ...payload });
+      }
     }
   }
 
@@ -512,12 +701,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
   const d = detailForm;
   const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
-  const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
+  const contactInput = 'border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'רכש', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
     <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
       <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
             <p className="text-[13px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
@@ -536,7 +726,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-5">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-5">
         {/* Status */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <h2 className="text-lg font-bold text-gray-700 mb-3">📌 סטטוס</h2>
@@ -562,6 +752,17 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           )}
         </section>
+
+        {showCustomerForm && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+              <CustomerForm
+                onCancel={() => setShowCustomerForm(false)}
+                onSaved={async (id) => { setShowCustomerForm(false); await refreshCustomers(); await setProjectCustomer(id); }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Basic info */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
@@ -694,21 +895,53 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         {/* Contacts */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <SectionHeader title="אנשי קשר" icon="👥" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
+
+          {/* Winning customer — known only after the tender is won */}
+          <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2 mb-3">
+            <span className="text-[13px] font-semibold text-gray-600">🏆 לקוח זוכה:</span>
+            <SearchableSelect
+              value={project.customer_id || ''}
+              onChange={(v) => setProjectCustomer(v)}
+              className="border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
+              placeholder="— טרם נקבע —"
+              options={[{ value: '', label: '— טרם נקבע —' }, ...customersList.map((c: any) => ({ value: c.id, label: c.name }))]}
+            />
+            <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
+            {project.customer_id && (
+              <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
+            )}
+          </div>
+
           {editContacts ? (
             <div className="space-y-2">
               {contactsForm.map((c, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <select value={c.role || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], role: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-28`}>
-                    <option value="">תפקיד</option>
-                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <input type="text" placeholder="שם" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${inputClass} flex-1`} />
-                  <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-32`} dir="ltr" />
-                  <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${inputClass} w-40`} dir="ltr" />
-                  <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
+                <div key={i} className="border border-[#e2e8f0] rounded-lg p-3 space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <SearchableSelect value={c.role || ''} onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], role: v }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} placeholder="תפקיד"
+                      options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]} />
+                    <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
+                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl shrink-0 leading-none">✕</button>
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <CompanyAutocomplete
+                      value={c.company || ''}
+                      onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], company: v }; setContactsForm(next); }}
+                      options={customersList.map((cl) => cl.name)}
+                      className={`${contactInput} w-full`}
+                    />
+                    <input type="text" placeholder="טלפון" value={c.phone || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], phone: e.target.value }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} dir="ltr" />
+                    <input type="text" placeholder="מייל" value={c.email || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], email: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} dir="ltr" />
+                  </div>
                 </div>
               ))}
-              <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', company: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+                {contactPickerSupported && (
+                  <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                    📱 בחר מאנשי הקשר
+                  </button>
+                )}
+              </div>
             </div>
           ) : contacts.length > 0 ? (
             <div className="overflow-x-auto">
@@ -717,6 +950,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <tr className="border-b border-[#e2e8f0]">
                     <th className="text-right text-gray-500 font-medium pb-2 pr-2">תפקיד</th>
                     <th className="text-right text-gray-500 font-medium pb-2">שם</th>
+                    <th className="text-right text-gray-500 font-medium pb-2">חברה</th>
                     <th className="text-right text-gray-500 font-medium pb-2">טלפון</th>
                     <th className="text-right text-gray-500 font-medium pb-2">מייל</th>
                   </tr>
@@ -726,6 +960,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <tr key={c.id} className="border-b border-gray-50">
                       <td className="py-2 pr-2 text-gray-600">{c.role}</td>
                       <td className="py-2 font-medium text-gray-800">{c.name}</td>
+                      <td className="py-2 text-gray-600">{c.company || '—'}</td>
                       <td className="py-2 text-gray-600" dir="ltr">{c.phone || '—'}</td>
                       <td className="py-2 text-gray-600" dir="ltr">{c.email || '—'}</td>
                     </tr>
@@ -774,13 +1009,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
                     <input type="number" placeholder="ID" value={s.id_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], id_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר פנימי" />
                   </div>
-                  <select value={s.pipe_type || 'הטמנה'} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-36`}>
-                    <option value="הטמנה">הטמנה</option>
-                    <option value="דחיקה">דחיקה (Jacking)</option>
-                    <option value="השחלה">השחלה (Slip Lining)</option>
-                    <option value="עילי">עילי</option>
-                    <option value="ביאקסיאלי">ביאקסיאלי</option>
-                  </select>
+                  <SearchableSelect value={s.pipe_type || 'הטמנה'} onChange={(v) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: v }; setSpecsForm(next); }} className={`${inputClass} w-36`}
+                    options={[{ value: 'הטמנה', label: 'הטמנה' }, { value: 'דחיקה', label: 'דחיקה (Jacking)' }, { value: 'השחלה', label: 'השחלה (Slip Lining)' }, { value: 'עילי', label: 'עילי' }, { value: 'ביאקסיאלי', label: 'ביאקסיאלי' }]} />
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>
@@ -878,8 +1108,145 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           )}
         </section>
 
+        {/* Project specs (portrait orientation in the quote PDF) */}
+        <section
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${specDragOver ? 'border-amber-400 ring-2 ring-amber-200' : 'border-[#e2e8f0]'}`}
+          onDragEnter={(e) => {
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            specDragDepth.current += 1;
+            setSpecDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            specDragDepth.current = Math.max(0, specDragDepth.current - 1);
+            if (specDragDepth.current === 0) setSpecDragOver(false);
+          }}
+          onDrop={async (e) => {
+            e.preventDefault();
+            specDragDepth.current = 0;
+            setSpecDragOver(false);
+            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g|docx?|xlsx?)$/i.test(f.name));
+            for (const f of files) { await uploadProjectSpec(f); }
+          }}
+        >
+          {specDragOver && (
+            <div className="absolute inset-0 z-20 bg-amber-50/90 border-2 border-dashed border-amber-400 rounded-xl flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="text-3xl mb-1">📋</div>
+                <p className="text-sm font-bold text-amber-700">שחרר כדי להעלות מפרטים</p>
+                <p className="text-[11px] text-amber-600 mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-gray-700">📋 מפרטים טכניים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-gray-100 text-gray-400' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+              {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
+            </label>
+          </div>
+          {(() => {
+            const specs = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type === 'spec');
+            if (specs.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין מפרטים. גרור קבצים פנימה, או לחץ &quot;+ העלה מפרט&quot;. מפרטים יוצגו לאורך בהצעת המחיר.</p>;
+            return (
+              <div className="space-y-2">
+                {specs.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                    </button>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </section>
+
+        {/* Project drawings (landscape orientation in the quote PDF) */}
+        <section
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-[#1a56db] ring-2 ring-blue-200' : 'border-[#e2e8f0]'}`}
+          onDragEnter={(e) => {
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            drawingDragDepth.current += 1;
+            setDrawingDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            drawingDragDepth.current = Math.max(0, drawingDragDepth.current - 1);
+            if (drawingDragDepth.current === 0) setDrawingDragOver(false);
+          }}
+          onDrop={async (e) => {
+            e.preventDefault();
+            drawingDragDepth.current = 0;
+            setDrawingDragOver(false);
+            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
+            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.name));
+            for (const f of files) { await uploadProjectDrawing(f); }
+          }}
+        >
+          {drawingDragOver && (
+            <div className="absolute inset-0 z-20 bg-blue-50/90 border-2 border-dashed border-[#1a56db] rounded-xl flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="text-3xl mb-1">📐</div>
+                <p className="text-sm font-bold text-[#1a56db]">שחרר כדי להעלות שרטוטים</p>
+                <p className="text-[11px] text-blue-600 mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+              {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
+            </label>
+          </div>
+          {(() => {
+            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type !== 'spec');
+            if (drawings.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
+            return (
+              <div className="space-y-2">
+                {drawings.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                      {(details.project_number || '—')}/{att.drawing_number || '?'}
+                    </span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                    </button>
+                    <label className="text-[11px] text-gray-400 flex items-center gap-1">
+                      מס׳ שרטוט:
+                      <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
+                        placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
+                    </label>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </section>
+
         {/* Pricing & Quotes — extracted to PricingSection component */}
-        <PricingSection projectId={params.id as string} />
+        <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
+        {/* Import — documents & orders linked to this project */}
+        <ImportPanel projectId={params.id as string} />
         {/* Updates / Meeting log */}
         <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
           <div className="flex items-center justify-between mb-4">

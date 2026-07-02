@@ -11,6 +11,26 @@ export interface PricingInput {
   profitPct?: number;    // default 25%
 }
 
+/**
+ * Resolve working pressure (PN) and stiffness (SN) for a quote line.
+ * An explicit pn/sn value (pulled from the project's pipe_specs by DN, or hand-
+ * edited on the quote line) wins. Only when none is set do we fall back to
+ * parsing the pipe description, which encodes them, e.g. "...PN01 SN20000...".
+ */
+export function parsePipeSpec(
+  productName?: string | null,
+  fallback?: { pn?: number | string | null; sn?: number | string | null },
+): { pn: string; sn: string } {
+  const text = productName || '';
+  const pnMatch = text.match(/\bPN\s*0*(\d+(?:[.,]\d+)?)/i);
+  const snMatch = text.match(/\bSN\s*0*(\d+)/i);
+  const hasFbPn = fallback?.pn != null && fallback.pn !== '';
+  const hasFbSn = fallback?.sn != null && fallback.sn !== '';
+  const pn = hasFbPn ? String(fallback!.pn) : (pnMatch ? pnMatch[1].replace(',', '.') : '');
+  const sn = hasFbSn ? String(fallback!.sn) : (snMatch ? snMatch[1] : '');
+  return { pn, sn };
+}
+
 export interface PricingResult {
   sellingPrice: number;
   overheadsAmount: number;
@@ -91,6 +111,17 @@ function round2(n: number): number {
 }
 
 /**
+ * Apply profit as a GROSS MARGIN "from below": selling = base / (1 − profit%).
+ * e.g. profit 60% → selling = base / 0.4 (NOT base × 1.6).
+ * The entered profit% therefore equals the actual gross margin on the sell price.
+ * Guard: clamps margin below 100% to avoid division by zero / negative price.
+ */
+export function applyProfitMargin(base: number, profitPct: number): number {
+  const p = Math.min(profitPct / 100, 0.99);
+  return base / (1 - p);
+}
+
+/**
  * Calculate true cost per meter for a pipe + coupling combo.
  * @param pipeBarePrice - מחיר צינור ללא מחבר למטר
  * @param couplingPrice - מחיר מחבר ליחידה
@@ -165,7 +196,7 @@ export interface PipeCostChainResult {
 
 /**
  * Full pipe cost chain: supplier price → exchange rate → overheads → profit → selling price.
- * Uses multiplicative formula: cost × (1 + overheads%) × (1 + profit%)
+ * Overheads = markup on cost; profit = gross margin "from below": withOverheads / (1 − profit%).
  */
 export function calcPipeCostChain(input: PipeCostChainInput): PipeCostChainResult {
   const { barePriceForeign, couplingPriceForeign, pipeLength, exchangeRate, overheadsPct, profitPct } = input;
@@ -173,7 +204,7 @@ export function calcPipeCostChain(input: PipeCostChainInput): PipeCostChainResul
   const costPerMeterForeign = calcCostPerMeter(barePriceForeign, couplingPriceForeign, pipeLength);
   const costPerMeterILS = round2(costPerMeterForeign * exchangeRate);
   const withOverheads = round2(costPerMeterILS * (1 + overheadsPct / 100));
-  const sellingPrice = round2(withOverheads * (1 + profitPct / 100));
+  const sellingPrice = round2(applyProfitMargin(withOverheads, profitPct));
   const overheadsAmount = round2(withOverheads - costPerMeterILS);
   const profitAmount = round2(sellingPrice - withOverheads);
 
@@ -211,7 +242,7 @@ export function calcRokerCostChain(input: RokerCostChainInput): RokerCostChainRe
     : barePriceForeign;
   const costPerMeterILS = round2(costPerMeterForeign * exchangeRate);
   const withOverheads = round2(costPerMeterILS * (1 + overheadsPct / 100));
-  const sellingPrice = round2(withOverheads * (1 + profitPct / 100));
+  const sellingPrice = round2(applyProfitMargin(withOverheads, profitPct));
   const totalRokerCostILS = round2(costPerMeterILS * rokerLength);
   const totalRokerSelling = round2(sellingPrice * rokerLength);
 
@@ -241,7 +272,7 @@ export function calcAccessoryCost(input: AccessoryCostInput): AccessoryCostResul
 
   const costILS = round2(costPriceForeign * exchangeRate);
   const withOverheads = round2(costILS * (1 + overheadsPct / 100));
-  const sellingPrice = round2(withOverheads * (1 + profitPct / 100));
+  const sellingPrice = round2(applyProfitMargin(withOverheads, profitPct));
   const overheadsAmount = round2(withOverheads - costILS);
   const profitAmount = round2(sellingPrice - withOverheads);
 
@@ -249,11 +280,14 @@ export function calcAccessoryCost(input: AccessoryCostInput): AccessoryCostResul
 }
 
 /**
- * Generic selling price calculation (multiplicative formula).
+ * Generic selling price calculation.
+ * Overheads are a markup on cost; profit is a gross margin "from below"
+ * (selling = costWithOverheads / (1 − profit%)).
  * Used by the quote item editor.
  */
 export function calcSellingPrice(costILS: number, overheadsPct: number, profitPct: number): number {
-  return round2(costILS * (1 + overheadsPct / 100) * (1 + profitPct / 100));
+  const withOverheads = costILS * (1 + overheadsPct / 100);
+  return round2(applyProfitMargin(withOverheads, profitPct));
 }
 
 // =========================================================
@@ -264,7 +298,10 @@ export type ItemType =
   | 'pipe_with_coupling'
   | 'pipe_bare'
   | 'coupling'
+  | 'wall_coupling'
   | 'roker'
+  | 'floating_roker'
+  | 'buoy'
   | 'elbow'
   | 'flange'
   | 'reducer'
@@ -305,7 +342,7 @@ export function calcItemPrice(item: QuoteLineItem): QuoteLineItemPriced {
     // For roker: cost_price is treated as cost-per-meter ILS; recalculate via roker formula
     const rokerLength = round2((dn / 1000) * 2);
     const withOverheads = round2(item.cost_price * (1 + item.overheads_pct / 100));
-    unitPrice = round2(withOverheads * (1 + item.profit_pct / 100) * rokerLength);
+    unitPrice = round2(applyProfitMargin(withOverheads, item.profit_pct) * rokerLength);
   } else {
     unitPrice = calcSellingPrice(item.cost_price, item.overheads_pct, item.profit_pct);
   }
@@ -339,7 +376,10 @@ const ITEM_CATEGORY: Record<string, string> = {
   pipe_with_coupling: 'צינורות',
   pipe_bare:          'צינורות',
   coupling:           'מחברים',
+  wall_coupling:      'מחברים',
   roker:              'רוקרים',
+  floating_roker:     'רוקרים',
+  buoy:               'אחר',
   elbow:              'ברכיים',
   flange:             'אוגנים',
   reducer:            'מעברים',
