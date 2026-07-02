@@ -19,6 +19,13 @@ const SELECTABLE = ['draft', 'sent', 'rejected', 'expired'];
 type SortKey = 'quote_number' | 'project' | 'client_name' | 'date' | 'total_amount' | 'status';
 
 function fmtDate(d: string | null) { return d ? new Date(d).toLocaleDateString('he-IL') : '—'; }
+// Show only the meaningful suffix of a quote number: HM-010726-P050-V01 → -P050-V01
+// (strip the "HM-DDMMYY" prefix). Falls back to the raw value if it doesn't match.
+function shortQuoteNumber(n: string | null): string {
+  if (!n) return '—';
+  const short = n.replace(/^[A-Za-z]+-\d+/, '');
+  return short || n;
+}
 
 export default function OpenQuotesWidget() {
   const supabase = createClient();
@@ -100,7 +107,7 @@ export default function OpenQuotesWidget() {
                 const st = STATUS[q.status] || STATUS.draft;
                 return (
                   <tr key={q.id} className="border-b border-gray-50 hover:bg-gray-50/60">
-                    <td className="py-2 font-mono text-gray-500 whitespace-nowrap" dir="ltr">{q.quote_number || '—'}</td>
+                    <td className="py-2 font-mono text-gray-500 whitespace-nowrap" dir="ltr" title={q.quote_number || ''}>{shortQuoteNumber(q.quote_number)}</td>
                     <td className="py-2 text-gray-700">
                       <button onClick={() => router.push(`/projects/${q.project_id}`)} className="hover:text-[#1a56db] hover:underline text-right">
                         {q.projects?.name || '—'}
