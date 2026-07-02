@@ -20,6 +20,8 @@ function fmtDate(d: string | null) {
 function num(v: any) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
+  draft: { label: 'טיוטה (מהצעה)', color: 'bg-purple-50 text-purple-700' },
+  planned: { label: 'מתוכננת (תפ"י)', color: 'bg-teal-50 text-teal-700' },
   open: { label: 'פתוחה', color: 'bg-gray-100 text-gray-600' },
   confirmed: { label: 'אושרה', color: 'bg-blue-50 text-blue-700' },
   in_transit: { label: 'בשילוח', color: 'bg-indigo-50 text-indigo-700' },

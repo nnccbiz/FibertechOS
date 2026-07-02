@@ -1197,15 +1197,35 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
 
     if (status === 'signed') {
-      const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
-      const { data: ord } = await supabase.from('orders').insert({
-        project_id: projectId, quote_id: quoteId, order_number: orderNum,
-        status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
-      }).select().single();
-      if (ord) setOrders((prev) => [ord, ...prev]);
+      // Create the production order — but only once. Re-signing a quote (e.g.
+      // toggling status back and forth) must not spawn duplicate orders.
+      const alreadyOrdered = orders.some((o) => o.quote_id === quoteId);
+      if (!alreadyOrdered) {
+        const { data: existingOrd } = await supabase.from('orders').select('id').eq('quote_id', quoteId).maybeSingle();
+        if (!existingOrd) {
+          const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
+          const { data: ord } = await supabase.from('orders').insert({
+            project_id: projectId, quote_id: quoteId, order_number: orderNum,
+            status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
+          }).select().single();
+          if (ord) setOrders((prev) => [ord, ...prev]);
+        }
+      }
       const signedQuotes = quotes.map((x) => x.id === quoteId ? { ...x, status: 'signed' } : x).filter((x) => x.status === 'signed');
       const totalValue = signedQuotes.reduce((s, x) => s + (x.total_amount || 0), 0);
       await supabase.from('projects').update({ order_value: totalValue, last_updated_at: new Date().toISOString() }).eq('id', projectId);
+
+      // Hand off to the import module: seed a DRAFT import order from this signed
+      // quote (server-side — the signer usually lacks import.edit, so RLS would
+      // block a direct insert). Best-effort: if it fails, the /import approved-
+      // quotes worklist still flags this quote as "no import order yet".
+      try {
+        await fetch('/api/import/from-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quoteId }),
+        });
+      } catch { /* non-fatal */ }
     }
   }
 
