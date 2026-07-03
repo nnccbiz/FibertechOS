@@ -12,8 +12,8 @@ The system manages the full lifecycle: lead tracking, project management, quote 
 |---|---|
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript (strict mode) |
-| UI | React 18, Tailwind CSS 3.4 |
-| Font | Heebo (Google Fonts, Hebrew-optimized) |
+| UI | React 18, Tailwind CSS 3.4 — Fibertech **design-token layer** (see §5) |
+| Font | Assistant (Google Fonts, Hebrew+Latin) — `--ft-font-*`; Roboto Mono for technical figures |
 | Database | Supabase (Postgres 17, hosted `eu-west-3`) |
 | Auth | Supabase Auth (email/password), custom permission matrix |
 | Storage | Supabase Storage (quote attachments, drawings) |
@@ -27,7 +27,7 @@ The system manages the full lifecycle: lead tracking, project management, quote 
 ```
 FibertechOS/
 ├── app/                          # Next.js App Router pages
-│   ├── layout.tsx                # Root layout — RTL, Heebo font, AppShell wrapper
+│   ├── layout.tsx                # Root layout — RTL, Assistant font, AppShell wrapper
 │   ├── page.tsx                  # Dashboard — KPIs, alerts, pipeline, reports
 │   ├── globals.css               # Tailwind + animations (fadeInUp, skeleton shimmer, aiGlow)
 │   ├── login/                    # Login page + LoginForm component
@@ -63,6 +63,14 @@ FibertechOS/
 │   │   ├── AppShell.tsx          # Layout shell — Sidebar + BottomNav + FloatingChat
 │   │   ├── Sidebar.tsx           # Desktop sidebar — permission-gated nav items
 │   │   ├── BottomNav.tsx         # Mobile bottom nav — permission-gated
+│   │   ├── Button.tsx            # Primitive — variants primary/secondary/ghost/danger, sizes sm/md/lg
+│   │   ├── Input.tsx             # Primitives — Input / Textarea / Select (token-styled, invalid/iconLeft)
+│   │   ├── Field.tsx             # Primitive — label + hint/error wrapper
+│   │   ├── Card.tsx              # Primitive — variants default/sunken/navy/outline, accent rule
+│   │   ├── Badge.tsx             # Primitive — navy/steel/solid/outline/aqua
+│   │   ├── StatusPill.tsx        # Primitive — success/warning/danger/info/neutral with dot
+│   │   ├── Modal.tsx             # Primitive — fixed-inset overlay, Escape/backdrop close, RTL
+│   │   ├── Toast.tsx             # Primitive — ToastProvider + useToast() (mounted in AppShell)
 │   │   ├── PhotoUpload.tsx       # Photo upload component
 │   │   └── SignaturePad.tsx      # Signature capture pad
 │   ├── dashboard/                # KpiCard, AlertsList, ProjectsTable, Pipeline, TeamStatus, InventoryWidget
@@ -81,6 +89,7 @@ FibertechOS/
 │   ├── auth/
 │   │   ├── permissions.ts        # Permission constants, types, validatePassword()
 │   │   └── permissions-context.tsx # React context — usePermissions() hook
+│   ├── cn.ts                     # Minimal className joiner (no clsx/tailwind-merge dep) — used by primitives
 │   ├── pricing.ts                # Gross-margin pricing engine (pipe cost chain, roker, accessories, quote summary)
 │   ├── revenue.ts                # Monthly revenue calculator, formatILS(), MONTH_NAMES
 │   ├── exchange-rate.ts          # Currency conversion utilities
@@ -103,7 +112,7 @@ FibertechOS/
 
 - **Language**: All UI text is in Hebrew. Code identifiers are in English.
 - **RTL**: Root `<html lang="he" dir="rtl">`. Layout flows right-to-left. Sidebar is on the right (`fixed top-0 right-0`). `mr-[60px]` on main content.
-- **Styling**: Tailwind CSS utility classes inline. No CSS modules, no styled-components. Custom animations defined in `globals.css`. Primary color: `#1a56db` (blue).
+- **Styling**: Tailwind CSS utility classes inline. No CSS modules, no styled-components. Custom animations defined in `globals.css`. **Colors come from the design-token layer (see §5) — never hardcode hex.** Primary/brand is navy `#15427E` (Tailwind `primary`/`navy`), accent is water-azure `#1A73B8` (`azure`, links/interactive). Legacy `#1a56db` and raw `gray-*`/`blue-*`/etc. have been migrated to tokens.
 - **Components**: Functional components with hooks. `'use client'` directive on interactive components. No class components.
 - **Imports**: `@/*` path alias maps to project root. Supabase clients imported from `@/lib/supabase/client` (browser) or `@/lib/supabase/server` (server).
 - **Data fetching**: Client-side `useEffect` + `createClient()` for most pages. Server-side `createClient()` from `@/lib/supabase/server` in API routes and server components.
@@ -114,6 +123,15 @@ FibertechOS/
 - **No i18n library**: Hebrew strings are hardcoded in components.
 
 ## 5. Architectural Decisions
+
+### Design System (Tokens & Primitives)
+- **Source**: the "Fibertech Design System" built in Claude Design (industrial water-infrastructure palette: navy + steel + water-azure, squared/technical corners, Assistant + Roboto Mono). Applied on branch `claude/ui-ux-rebrand` → merged to `main` 2026-07-03.
+- **Token layer** (two files, additive & authoritative):
+  - `app/globals.css` `:root` — all CSS variables verbatim from the kit: colors (`--ft-navy*`, `--ft-steel*`, `--ft-azure*`, `--ft-gray*`, status), semantic aliases (`--text-*`, `--surface-*`, `--border-*`), type scale (`--fs-*`, `--lh-*`, `--ls-*`), spacing (`--sp-*`), radii (`--radius-*`), shadows (`--shadow-*`), motion. Plus brand utilities `.ft-section-marker`, `.ft-eyebrow`, `.ft-figure`, `::selection`, `:focus-visible`. Global font is Assistant (`* { font-family: var(--ft-font-sans) }`).
+  - `tailwind.config.ts` — binds friendly Tailwind class names to those vars: `primary`/`navy` (navy ramp 50–800), `steel`, `azure`, `aqua`, `ink`, `neutral` (brand gray ramp), `success`/`warning`/`danger`/`info` (each `DEFAULT` + `soft`), semantic `surface-*` / `line-*` / `content-*`, `font-sans/display/mono`, the type scale (`text-3xs`…`text-5xl` with line-heights), `rounded-md/lg/pill`, `shadow-xs…navy` + `shadow-focus`, `ease-brand`, `duration-fast/base/slow`.
+- **Naming map used during migration** (apply the same when writing new UI): `#1a56db`→`primary` (navy); links/interactive→`azure`; `#e2e8f0` & `gray-*` borders→`line-subtle`/`line-strong`; text `gray-*`→`content-strong/body/muted` or `neutral-400/300`; page bg→`surface-page`; `green→success`, `red→danger`, `amber/yellow/orange→warning`, `blue→azure` (info) — **except** active/selected/brand-CTA blues → `primary`; `indigo/violet/purple→primary/navy`; `cyan/teal→azure`. **Never** put a Tailwind opacity modifier (`/20`,`/30`) on a token color (they're CSS vars — use a solid shade like `ring-primary-100` instead).
+- **Legacy `gray-*` is NOT overridden** in the config (only `neutral` carries the brand ramp) so any not-yet-migrated `gray-*` keeps Tailwind's default — migrate `gray-*`→`neutral-*` when touching a file. As of the rebrand, all pages/components were migrated (0 legacy hits); intentional keeps: WhatsApp/email share buttons (green `#dcf8c6` / pink `#fce4ec`) and the signature-ink color `#1a1a2e`.
+- **Primitives** in `components/ui/` (`Button`, `Input`/`Textarea`/`Select`, `Field`, `Card`, `Badge`, `StatusPill`, `Modal`, `Toast`) are token-styled TSX faithful to the kit's component specs. `ToastProvider` is mounted app-wide in `AppShell`; use `useToast().show(msg, { variant })`. Prefer these over ad-hoc markup for new UI.
 
 ### Authentication & Authorization
 - **Middleware gate**: `middleware.ts` checks Supabase session on every request. Unauthenticated users redirect to `/login`. Public routes: `/login`, `/request-access`, `/auth/callback`, `/set-password`, `/forgot-password`, `/quote`.
