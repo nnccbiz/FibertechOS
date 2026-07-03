@@ -65,8 +65,8 @@ export default function DrawingsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">📐 שרטוטים</h1>
-        <span className="text-sm text-gray-400">{filtered.length} שרטוטים</span>
+        <h1 className="text-2xl font-bold text-content-strong">📐 שרטוטים</h1>
+        <span className="text-sm text-neutral-400">{filtered.length} שרטוטים</span>
       </div>
 
       <input
@@ -74,18 +74,18 @@ export default function DrawingsPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="חיפוש לפי מספר שרטוט, שם פרויקט או מספר פרויקט…"
-        className="w-full border border-[#e2e8f0] rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
+        className="w-full border border-line-subtle rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-100"
       />
 
       {loading ? (
-        <p className="text-center text-gray-400 py-10">טוען…</p>
+        <p className="text-center text-neutral-400 py-10">טוען…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-gray-400 py-10">לא נמצאו שרטוטים.</p>
+        <p className="text-center text-neutral-400 py-10">לא נמצאו שרטוטים.</p>
       ) : (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+        <div className="bg-white border border-line-subtle rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-[#e2e8f0] text-[12px] text-gray-500">
+              <tr className="bg-neutral-50 border-b border-line-subtle text-[12px] text-content-muted">
                 <th className="text-right font-semibold px-4 py-2.5">מס׳ שרטוט</th>
                 <th className="text-right font-semibold px-4 py-2.5">קובץ</th>
                 <th className="text-right font-semibold px-4 py-2.5">פרויקט</th>
@@ -94,21 +94,21 @@ export default function DrawingsPage() {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
+                <tr key={r.id} className="border-b border-line-subtle hover:bg-azure-100 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                    <span className="text-[12px] font-bold text-navy-700 bg-primary-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
                       {(r.project_number ?? '—')}/{r.drawing_number || '?'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => openDrawing(r.file_url)} className="text-[#1a56db] hover:underline">
+                    <button onClick={() => openDrawing(r.file_url)} className="text-primary hover:underline">
                       {r.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {r.file_name}
                     </button>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => router.push(`/projects/${r.project_id}`)} className="text-gray-700 hover:text-[#1a56db]">{r.project_name}</button>
+                    <button onClick={() => router.push(`/projects/${r.project_id}`)} className="text-content-body hover:text-primary">{r.project_name}</button>
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-[12px]">{new Date(r.created_at).toLocaleDateString('he-IL')}</td>
+                  <td className="px-4 py-3 text-neutral-400 text-[12px]">{new Date(r.created_at).toLocaleDateString('he-IL')}</td>
                 </tr>
               ))}
             </tbody>

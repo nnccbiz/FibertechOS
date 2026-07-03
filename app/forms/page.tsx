@@ -12,20 +12,20 @@ const FORMS = [
 export default function FormsIndexPage() {
   return (
     <div className="min-h-screen" dir="rtl">
-      <header className="bg-white border-b border-[#e2e8f0] px-5 py-4">
+      <header className="bg-white border-b border-line-subtle px-5 py-4">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-800">📄 טפסי שטח</h1>
-          <p className="text-[13px] text-gray-400">טפסים תקניים ישראליים למילוי באתר</p>
+          <h1 className="text-2xl font-bold text-content-strong">📄 טפסי שטח</h1>
+          <p className="text-[13px] text-neutral-400">טפסים תקניים ישראליים למילוי באתר</p>
         </div>
       </header>
       <div className="max-w-4xl mx-auto px-4 md:px-6 pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         {FORMS.map((f) => (
-          <a key={f.href} href={f.href} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-[#1a56db] transition-all no-underline">
+          <a key={f.href} href={f.href} className="bg-white rounded-xl border border-line-subtle p-5 hover:shadow-md hover:border-primary transition-all no-underline">
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-[12px] font-bold text-[#1a56db] bg-blue-50 px-2 py-0.5 rounded" dir="ltr">{f.code}</span>
-              <h2 className="text-lg font-bold text-gray-800">{f.title}</h2>
+              <span className="text-[12px] font-bold text-primary bg-primary-50 px-2 py-0.5 rounded" dir="ltr">{f.code}</span>
+              <h2 className="text-lg font-bold text-content-strong">{f.title}</h2>
             </div>
-            <p className="text-sm text-gray-500">{f.desc}</p>
+            <p className="text-sm text-content-muted">{f.desc}</p>
           </a>
         ))}
       </div>

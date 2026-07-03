@@ -21,11 +21,11 @@ export default async function RequestsPage() {
     .select('*');
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f0f4f8]">
-      <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
+    <div dir="rtl" className="min-h-screen bg-surface-page">
+      <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-800">🔐 בקשות גישה ממתינות</h1>
-          <p className="text-[13px] text-gray-400">
+          <h1 className="text-2xl font-bold text-content-strong">🔐 בקשות גישה ממתינות</h1>
+          <p className="text-[13px] text-neutral-400">
             {requests?.length || 0} בקשות ממתינות לאישור
           </p>
         </div>

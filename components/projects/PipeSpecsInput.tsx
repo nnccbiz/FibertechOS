@@ -80,9 +80,9 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
         <div className="overflow-x-auto mb-3">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#e2e8f0]">
+              <tr className="border-b border-line-subtle">
                 {COLUMNS.map((col) => (
-                  <th key={col} className="text-right text-[13px] text-gray-500 font-medium pb-2 px-2">
+                  <th key={col} className="text-right text-[13px] text-content-muted font-medium pb-2 px-2">
                     {col}
                   </th>
                 ))}
@@ -91,21 +91,21 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
             </thead>
             <tbody>
               {specs.map((spec, i) => (
-                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2 px-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.od_mm || '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.id_mm || '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
-                  <td className="py-2 px-2 text-gray-600" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.pressure_bar ?? '—'}</td>
-                  <td className="py-2 px-2 text-gray-600">{spec.notes || '—'}</td>
+                <tr key={i} className="border-b border-line-subtle hover:bg-neutral-50">
+                  <td className="py-2 px-2 font-semibold text-content-strong">{spec.dn_mm || '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.od_mm || '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.id_mm || '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.pipe_type || 'הטמנה'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.line_length_m ?? '—'}</td>
+                  <td className="py-2 px-2 text-content-body" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.stiffness_pascal ?? '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.pressure_bar ?? '—'}</td>
+                  <td className="py-2 px-2 text-content-body">{spec.notes || '—'}</td>
                   <td className="py-2 px-1">
                     <button
                       type="button"
                       onClick={() => removeSpec(i)}
-                      className="text-red-400 hover:text-red-600 text-sm"
+                      className="text-danger hover:text-danger text-sm"
                     >
                       ✕
                     </button>
@@ -122,36 +122,36 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
         <button
           type="button"
           onClick={() => setShowRaw(true)}
-          className="text-sm text-[#1a56db] hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           + הוסף שורות צנרת
         </button>
       )}
 
       {showRaw && (
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-[12px] text-gray-500 mb-2">
+        <div className="bg-neutral-50 rounded-lg p-3">
+          <p className="text-[12px] text-content-muted mb-2">
             הזן שורה לכל צינור — מופרד בפסיקים: קוטר, אורך קו, אורך יחידה, קשיחות, לחץ, הערות
           </p>
           <textarea
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
             placeholder={`700, 1350, 5.7, 10000, 2\n800, 95, 5.7, 10000, 2\n500, 75, 5.7, 10000, 2`}
-            className="w-full border border-[#e2e8f0] rounded-lg p-2.5 text-sm font-mono text-gray-700 resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+            className="w-full border border-line-subtle rounded-lg p-2.5 text-sm font-mono text-content-body resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
             dir="ltr"
           />
           <div className="flex gap-2 mt-2">
             <button
               type="button"
               onClick={handleParse}
-              className="text-sm bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+              className="text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
             >
               הוסף לטבלה
             </button>
             <button
               type="button"
               onClick={() => { setShowRaw(false); setRawInput(''); }}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-content-muted hover:text-content-body"
             >
               ביטול
             </button>

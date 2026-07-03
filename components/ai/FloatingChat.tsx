@@ -498,7 +498,7 @@ export default function FloatingChat() {
       <button
         onClick={() => setOpen(!open)}
         className={`fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 ${
-          open ? 'bg-gray-700 text-white rotate-45' : 'bg-[#1a56db] text-white'
+          open ? 'bg-neutral-700 text-white rotate-45' : 'bg-primary text-white'
         }`}
         title={`רקסי AI (${shortcutLabel})`}
       >
@@ -514,26 +514,26 @@ export default function FloatingChat() {
 
       {/* Shortcut hint — only when closed */}
       {!open && (
-        <div className="fixed bottom-[88px] left-6 z-50 bg-gray-800 text-white text-[12px] px-2 py-1 rounded-full opacity-60">
+        <div className="fixed bottom-[88px] left-6 z-50 bg-neutral-900 text-white text-[12px] px-2 py-1 rounded-full opacity-60">
           {shortcutLabel}
         </div>
       )}
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 left-6 z-50 w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-[#e2e8f0] flex flex-col overflow-hidden animate-fade-in-up">
+        <div className="fixed bottom-24 left-6 z-50 w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-line-subtle flex flex-col overflow-hidden animate-fade-in-up">
           {/* Header */}
-          <div className="px-4 py-3 bg-[#fce4ec] flex items-center justify-between flex-shrink-0">
+          <div className="px-4 py-3 bg-azure-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-2xl">✨</span>
               <div>
-                <p className="text-lg font-bold text-[#1a56db]">רקסי AI</p>
-                <p className="text-[12px] text-[#1a56db]/60">{context}</p>
+                <p className="text-lg font-bold text-azure-600">רקסי AI</p>
+                <p className="text-[12px] text-navy-500">{context}</p>
               </div>
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="text-[#1a56db]/40 hover:text-[#1a56db] transition-colors"
+              className="text-navy-300 hover:text-azure-600 transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -549,8 +549,8 @@ export default function FloatingChat() {
                 <div
                   className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
                     msg.role === 'user'
-                      ? 'bg-[#1a56db] text-white rounded-tr-none'
-                      : 'bg-gray-100 text-gray-700 rounded-tl-none'
+                      ? 'bg-primary text-white rounded-tr-none'
+                      : 'bg-neutral-100 text-content-body rounded-tl-none'
                   }`}
                 >
                   {msg.text}
@@ -559,11 +559,11 @@ export default function FloatingChat() {
             ))}
             {loading && (
               <div className="flex justify-end">
-                <div className="bg-gray-100 rounded-xl px-4 py-2 rounded-tl-none">
+                <div className="bg-neutral-100 rounded-xl px-4 py-2 rounded-tl-none">
                   <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -573,7 +573,7 @@ export default function FloatingChat() {
 
           {/* Uploaded files */}
           {uploadedFiles.length > 0 && (
-            <div className="px-3 py-2 border-t border-[#e2e8f0] space-y-1.5 flex-shrink-0 max-h-[120px] overflow-y-auto">
+            <div className="px-3 py-2 border-t border-line-subtle space-y-1.5 flex-shrink-0 max-h-[120px] overflow-y-auto">
               {uploadedFiles.map((file, i) => {
                 const ext = file.name.split('.').pop()?.toLowerCase() || '';
                 const icon = file.mimeType.startsWith('image/') ? '🖼️'
@@ -582,12 +582,12 @@ export default function FloatingChat() {
                   : ['doc', 'docx'].includes(ext) ? '📝'
                   : '📄';
                 return (
-                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5 group">
+                  <div key={i} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-2.5 py-1.5 group">
                     <span className="text-lg flex-shrink-0">{icon}</span>
-                    <span className="text-[12px] text-gray-700 truncate flex-1" dir="ltr">{file.name}</span>
+                    <span className="text-[12px] text-content-body truncate flex-1" dir="ltr">{file.name}</span>
                     <button
                       onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
-                      className="text-gray-300 hover:text-red-500 text-sm flex-shrink-0 transition-colors"
+                      className="text-neutral-300 hover:text-danger text-sm flex-shrink-0 transition-colors"
                     >
                       ✕
                     </button>
@@ -598,7 +598,7 @@ export default function FloatingChat() {
           )}
 
           {/* Input */}
-          <div className="border-t border-[#e2e8f0] px-3 py-2 flex-shrink-0">
+          <div className="border-t border-line-subtle px-3 py-2 flex-shrink-0">
             <input
               ref={fileInputRef}
               type="file"
@@ -619,7 +619,7 @@ export default function FloatingChat() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
-                className="text-gray-400 hover:text-[#1a56db] p-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+                className="text-neutral-400 hover:text-primary p-1.5 rounded-lg hover:bg-primary-50 transition-colors disabled:opacity-50"
                 title="העלה קובץ"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -631,8 +631,8 @@ export default function FloatingChat() {
                 disabled={loading}
                 className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
                   isRecording
-                    ? 'text-red-500 bg-red-50 animate-pulse'
-                    : 'text-gray-400 hover:text-[#1a56db] hover:bg-blue-50'
+                    ? 'text-danger bg-danger-soft animate-pulse'
+                    : 'text-neutral-400 hover:text-primary hover:bg-primary-50'
                 }`}
                 title={isRecording ? 'עצור הקלטה' : 'הקלט קולי'}
               >
@@ -650,13 +650,13 @@ export default function FloatingChat() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="שאל את רקסי..."
-                className="flex-1 border border-[#e2e8f0] rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                className="flex-1 border border-line-subtle rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                 disabled={loading}
               />
               <button
                 onClick={() => handleSend()}
                 disabled={loading || (!input.trim() && uploadedFiles.length === 0)}
-                className="bg-[#fce4ec] text-[#1a56db] font-semibold px-2.5 py-2 rounded-lg text-sm hover:bg-[#f8bbd0] transition-colors disabled:opacity-50"
+                className="bg-primary text-white font-semibold px-2.5 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
                 שלח
               </button>

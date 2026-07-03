@@ -68,21 +68,21 @@ export default function ContractTemplatesEditor({ templates: initial }: { templa
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
-        <button onClick={createNew} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">+ תבנית חדשה</button>
+        <button onClick={createNew} className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary-700">+ תבנית חדשה</button>
       </div>
       {templates.map((t) => (
-        <div key={t.id} className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50" onClick={() => setOpenId(openId === t.id ? null : t.id)}>
+        <div key={t.id} className="bg-white border border-line-subtle rounded-xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-neutral-50" onClick={() => setOpenId(openId === t.id ? null : t.id)}>
             <div className="flex items-center gap-3">
-              <span className="text-base font-bold text-gray-800">{t.name}</span>
-              {t.is_default && <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">ברירת מחדל</span>}
-              <span className="text-[11px] text-gray-400">{t.content.length} פרקים · {t.content.reduce((s, sec) => s + sec.clauses.length, 0)} סעיפים</span>
+              <span className="text-base font-bold text-content-strong">{t.name}</span>
+              {t.is_default && <span className="text-[11px] px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold">ברירת מחדל</span>}
+              <span className="text-[11px] text-neutral-400">{t.content.length} פרקים · {t.content.reduce((s, sec) => s + sec.clauses.length, 0)} סעיפים</span>
             </div>
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              <button onClick={() => rename(t)} className="text-[12px] bg-gray-50 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-100">שנה שם</button>
-              <button onClick={() => duplicate(t)} className="text-[12px] bg-purple-50 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-100">📋 שכפל</button>
-              {!t.is_default && <button onClick={() => setDefault(t)} className="text-[12px] bg-green-50 text-green-700 px-3 py-1 rounded-lg hover:bg-green-100">קבע כברירת מחדל</button>}
-              {!t.is_default && <button onClick={() => deleteTemplate(t)} className="text-[12px] text-red-400 px-3 py-1 rounded-lg hover:bg-red-50">🗑️ מחק</button>}
+              <button onClick={() => rename(t)} className="text-[12px] bg-neutral-50 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-100">שנה שם</button>
+              <button onClick={() => duplicate(t)} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50">📋 שכפל</button>
+              {!t.is_default && <button onClick={() => setDefault(t)} className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft">קבע כברירת מחדל</button>}
+              {!t.is_default && <button onClick={() => deleteTemplate(t)} className="text-[12px] text-danger px-3 py-1 rounded-lg hover:bg-danger-soft">🗑️ מחק</button>}
             </div>
           </div>
           {openId === t.id && <TemplateEditor template={t} onSaved={refresh} />}
@@ -142,36 +142,36 @@ function TemplateEditor({ template, onSaved }: { template: Template; onSaved: ()
   }
 
   return (
-    <div className="border-t border-gray-200 bg-gray-50 p-4 space-y-3" dir="rtl">
+    <div className="border-t border-line-subtle bg-neutral-50 p-4 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-gray-500">⚠️ שינויים בתבנית זו ייכנסו להצעות עתידיות. הצעות שיצאו (נשלחו/נחתמו) מוקפאות עם תנאיהן.</p>
+        <p className="text-[11px] text-content-muted">⚠️ שינויים בתבנית זו ייכנסו להצעות עתידיות. הצעות שיצאו (נשלחו/נחתמו) מוקפאות עם תנאיהן.</p>
         <div className="flex gap-2">
-          <button onClick={reset} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100">בטל שינויים</button>
-          <button onClick={save} disabled={saving} className="text-sm bg-[#1a56db] text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? 'שומר…' : '💾 שמור תבנית'}</button>
+          <button onClick={reset} className="text-sm text-content-muted px-3 py-1.5 rounded-lg hover:bg-neutral-100">בטל שינויים</button>
+          <button onClick={save} disabled={saving} className="text-sm bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-primary-700 disabled:opacity-50">{saving ? 'שומר…' : '💾 שמור תבנית'}</button>
         </div>
       </div>
-      {sections.length === 0 && <p className="text-sm text-gray-400 text-center py-6">אין פרקים. לחץ "+ הוסף פרק".</p>}
+      {sections.length === 0 && <p className="text-sm text-neutral-400 text-center py-6">אין פרקים. לחץ "+ הוסף פרק".</p>}
       {sections.map((s, si) => (
-        <div key={si} className="border border-gray-200 rounded-lg p-3 bg-white">
+        <div key={si} className="border border-line-subtle rounded-lg p-3 bg-white">
           <div className="flex items-center gap-2 mb-2">
-            <input value={s.title} onChange={(e) => updateTitle(si, e.target.value)} className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm font-semibold" />
-            <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-gray-50 border border-gray-200 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">↑</button>
-            <button onClick={() => moveSection(si, 1)} disabled={si === sections.length - 1} className="text-[11px] bg-gray-50 border border-gray-200 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">↓</button>
-            <button onClick={() => deleteSection(si)} className="text-[11px] text-red-500 hover:text-red-700 px-2">🗑️</button>
+            <input value={s.title} onChange={(e) => updateTitle(si, e.target.value)} className="flex-1 border border-line-subtle rounded-lg px-3 py-1.5 text-sm font-semibold" />
+            <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30">↑</button>
+            <button onClick={() => moveSection(si, 1)} disabled={si === sections.length - 1} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30">↓</button>
+            <button onClick={() => deleteSection(si)} className="text-[11px] text-danger hover:text-danger px-2">🗑️</button>
           </div>
           <div className="space-y-2">
             {s.clauses.map((c, ci) => (
               <div key={ci} className="flex gap-2 items-start">
-                <span className="text-[12px] font-bold text-[#003d77] pt-2 min-w-[24px]">{c.num}.</span>
-                <textarea value={c.text} onChange={(e) => updateClause(si, ci, e.target.value)} rows={2} className="flex-1 border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-[12px] text-gray-700 leading-relaxed resize-y" />
-                <button onClick={() => deleteClause(si, ci)} className="text-red-400 hover:text-red-600 text-lg pt-1">×</button>
+                <span className="text-[12px] font-bold text-navy-700 pt-2 min-w-[24px]">{c.num}.</span>
+                <textarea value={c.text} onChange={(e) => updateClause(si, ci, e.target.value)} rows={2} className="flex-1 border border-line-subtle rounded-lg px-3 py-1.5 text-[12px] text-content-body leading-relaxed resize-y" />
+                <button onClick={() => deleteClause(si, ci)} className="text-danger hover:text-danger text-lg pt-1">×</button>
               </div>
             ))}
-            <button onClick={() => addClause(si)} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף סעיף</button>
+            <button onClick={() => addClause(si)} className="text-[11px] text-primary hover:underline">+ הוסף סעיף</button>
           </div>
         </div>
       ))}
-      <button onClick={addSection} className="w-full text-sm border-2 border-dashed border-gray-300 rounded-lg py-2 text-gray-500 hover:bg-white">+ הוסף פרק</button>
+      <button onClick={addSection} className="w-full text-sm border-2 border-dashed border-line-strong rounded-lg py-2 text-content-muted hover:bg-white">+ הוסף פרק</button>
     </div>
   );
 }

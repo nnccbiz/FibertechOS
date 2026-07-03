@@ -106,7 +106,7 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+      <div className="bg-white rounded-xl border border-line-subtle p-5">
         <div className="skeleton h-5 w-36 mb-4" />
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -118,18 +118,18 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+    <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-gray-700">✨ פעולות AI אחרונות</h3>
+        <h3 className="text-lg font-bold text-content-body">✨ פעולות AI אחרונות</h3>
         {entries.length > 0 && (
-          <span className="text-[12px] text-gray-400">{entries.length} פעולות</span>
+          <span className="text-[12px] text-neutral-400">{entries.length} פעולות</span>
         )}
       </div>
 
       {entries.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-lg text-gray-400">אין פעולות עדיין</p>
-          <p className="text-[12px] text-gray-300 mt-1">לחץ ⌘K להפעלת רקסי</p>
+          <p className="text-lg text-neutral-400">אין פעולות עדיין</p>
+          <p className="text-[12px] text-neutral-300 mt-1">לחץ ⌘K להפעלת רקסי</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -138,8 +138,8 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
               key={entry.id}
               className={`rounded-lg p-2.5 border transition-colors ${
                 entry.status === 'reverted'
-                  ? 'bg-gray-50 border-gray-200 opacity-50'
-                  : 'bg-blue-50/50 border-blue-100'
+                  ? 'bg-neutral-50 border-line-subtle opacity-50'
+                  : 'bg-azure-100 border-azure'
               }`}
             >
               <div className="flex items-start gap-2">
@@ -147,19 +147,19 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
                   {actionIcons[entry.action_type] || '⚡'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700">{entry.summary}</p>
+                  <p className="text-sm text-content-body">{entry.summary}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[12px] text-gray-400">
+                    <span className="text-[12px] text-neutral-400">
                       {timeAgo(entry.created_at)}
                     </span>
-                    <span className="text-[12px] text-gray-300">•</span>
-                    <span className="text-[12px] text-gray-400">
+                    <span className="text-[12px] text-neutral-300">•</span>
+                    <span className="text-[12px] text-neutral-400">
                       {sourceLabels[entry.source_type] || entry.source_type}
                     </span>
                     {entry.fields_count > 0 && (
                       <>
-                        <span className="text-[12px] text-gray-300">•</span>
-                        <span className="text-[12px] text-gray-400">
+                        <span className="text-[12px] text-neutral-300">•</span>
+                        <span className="text-[12px] text-neutral-400">
                           {entry.fields_count} שדות
                         </span>
                       </>
@@ -169,13 +169,13 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
                 {entry.status === 'applied' && entry.previous_values && (
                   <button
                     onClick={() => handleUndo(entry)}
-                    className="text-[12px] text-red-400 hover:text-red-600 bg-white px-2 py-1 rounded border border-red-200 hover:border-red-300 transition-colors flex-shrink-0"
+                    className="text-[12px] text-danger hover:text-danger bg-white px-2 py-1 rounded border border-danger hover:border-danger transition-colors flex-shrink-0"
                   >
                     ביטול
                   </button>
                 )}
                 {entry.status === 'reverted' && (
-                  <span className="text-[12px] text-gray-400 flex-shrink-0">בוטל</span>
+                  <span className="text-[12px] text-neutral-400 flex-shrink-0">בוטל</span>
                 )}
               </div>
             </div>

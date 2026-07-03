@@ -58,30 +58,30 @@ export default function FormB244() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-lg font-medium text-gray-700">מספר דו״ח</label>
-          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">מספר דו״ח</label>
+          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg font-medium text-gray-700">תאריך</label>
-          <input type="date" value={form.report_date} onChange={(e) => set('report_date', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">תאריך</label>
+          <input type="date" value={form.report_date} onChange={(e) => set('report_date', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-lg font-medium text-gray-700">שם קבלן</label>
-          <input type="text" value={form.contractor_name} onChange={(e) => set('contractor_name', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">שם קבלן</label>
+          <input type="text" value={form.contractor_name} onChange={(e) => set('contractor_name', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg font-medium text-gray-700">סוג הדרכה</label>
-          <SearchableSelect value={form.training_type} onChange={(v) => set('training_type', v)} className="mt-1 block w-full rounded border border-gray-300 px-2 py-1.5 shadow-sm text-sm"
+          <label className="block text-lg font-medium text-content-body">סוג הדרכה</label>
+          <SearchableSelect value={form.training_type} onChange={(v) => set('training_type', v)} className="mt-1 block w-full rounded border border-line-strong px-2 py-1.5 shadow-sm text-sm"
             options={[{ value: 'הנעה', label: 'הנעה' }, { value: 'הדרכה', label: 'הדרכה' }]} />
         </div>
       </div>
 
       <div>
-        <label className="block text-lg font-medium text-gray-700">קוטר (DN)</label>
-        <input type="text" value={form.dn_size} onChange={(e) => set('dn_size', e.target.value)} placeholder="e.g. DN900" className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">קוטר (DN)</label>
+        <input type="text" value={form.dn_size} onChange={(e) => set('dn_size', e.target.value)} placeholder="e.g. DN900" className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
 
       {/* Attendees */}
@@ -89,12 +89,12 @@ export default function FormB244() {
         <legend className="text-lg font-semibold px-2">משתתפים</legend>
         {form.attendees.map((a, i) => (
           <div key={i} className="grid grid-cols-3 gap-2">
-            <input type="text" placeholder="שם" value={a.name} onChange={(e) => updateAttendee(i, 'name', e.target.value)} className="rounded border-gray-300 shadow-sm" />
-            <input type="text" placeholder="תפקיד" value={a.role} onChange={(e) => updateAttendee(i, 'role', e.target.value)} className="rounded border-gray-300 shadow-sm" />
-            <input type="tel" placeholder="טלפון" value={a.phone} onChange={(e) => updateAttendee(i, 'phone', e.target.value)} className="rounded border-gray-300 shadow-sm" />
+            <input type="text" placeholder="שם" value={a.name} onChange={(e) => updateAttendee(i, 'name', e.target.value)} className="rounded border-line-strong shadow-sm" />
+            <input type="text" placeholder="תפקיד" value={a.role} onChange={(e) => updateAttendee(i, 'role', e.target.value)} className="rounded border-line-strong shadow-sm" />
+            <input type="tel" placeholder="טלפון" value={a.phone} onChange={(e) => updateAttendee(i, 'phone', e.target.value)} className="rounded border-line-strong shadow-sm" />
           </div>
         ))}
-        <button type="button" onClick={addAttendee} className="text-lg text-blue-600 hover:underline">+ הוסף משתתף</button>
+        <button type="button" onClick={addAttendee} className="text-lg text-azure-600 hover:underline">+ הוסף משתתף</button>
       </fieldset>
 
       {/* Checklist */}
@@ -117,8 +117,8 @@ export default function FormB244() {
       <PhotoUpload label="תמונות מההדרכה" onUpload={setPhotos} />
 
       <div>
-        <label className="block text-lg font-medium text-gray-700">הערות</label>
-        <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">הערות</label>
+        <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -126,7 +126,7 @@ export default function FormB244() {
         <SignaturePad label="חתימת פיברטק" onSave={setFibertechSig} />
       </div>
 
-      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-2xl font-semibold hover:bg-blue-700">
+      <button type="submit" className="w-full py-3 bg-primary text-white rounded-lg text-2xl font-semibold hover:bg-primary-700">
         שלח דו״ח B-244
       </button>
     </form>

@@ -157,10 +157,10 @@ export default function PublicQuotePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-neutral-50">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-[#1b3a6b] border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-500">טוען הצעת מחיר...</p>
+          <div className="animate-spin h-8 w-8 border-4 border-navy-700 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-content-muted">טוען הצעת מחיר...</p>
         </div>
       </div>
     );
@@ -168,14 +168,14 @@ export default function PublicQuotePage() {
 
   if (expired || !quote) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50" dir="rtl">
+      <div className="flex items-center justify-center min-h-screen bg-neutral-50" dir="rtl">
         <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-md">
           <div className="text-5xl mb-4">⏰</div>
-          <h1 className="text-xl font-bold text-gray-800 mb-2">קישור להצעת מחיר פג תוקף</h1>
-          <p className="text-gray-500">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-sm text-gray-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
-            <p className="text-sm text-gray-400">09-7929441 | info@fibertech.co.il</p>
+          <h1 className="text-xl font-bold text-content-strong mb-2">קישור להצעת מחיר פג תוקף</h1>
+          <p className="text-content-muted">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
+          <div className="mt-6 pt-6 border-t border-line-subtle">
+            <p className="text-sm text-neutral-400">פיברטק תעשיות צנרת וכימיקלים בע״מ</p>
+            <p className="text-sm text-neutral-400">09-7929441 | info@fibertech.co.il</p>
           </div>
         </div>
       </div>
@@ -205,16 +205,16 @@ export default function PublicQuotePage() {
       : CONTRACT_SECTIONS;
 
   return (
-    <div className="bg-gray-100 min-h-screen">
+    <div className="bg-neutral-100 min-h-screen">
       {/* Top bar */}
-      <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 justify-center">
-        <button onClick={() => window.print()} className="bg-[#1a56db] text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+      <div className="print:hidden sticky top-0 z-50 bg-white border-b border-line-subtle px-6 py-3 flex items-center gap-3 justify-center">
+        <button onClick={() => window.print()} className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">
           🖨️ הדפס
         </button>
         <button
           onClick={handleDownloadPdf}
           disabled={generatingPdf}
-          className="bg-blue-50 text-blue-700 text-sm px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+          className="bg-azure-100 text-azure-600 text-sm px-4 py-2 rounded-lg hover:bg-azure-100 transition-colors disabled:opacity-50"
         >
           {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
         </button>
@@ -227,69 +227,69 @@ export default function PublicQuotePage() {
         <div className="px-12 py-10 print:px-10 print:py-8" dir="rtl">
 
           {/* Header */}
-          <div className="flex justify-between items-start mb-8 border-b-2 border-[#1b3a6b] pb-6">
+          <div className="flex justify-between items-start mb-8 border-b-2 border-navy-700 pb-6">
             <div className="flex items-center gap-4">
               <img src="/logo.png" alt="Fibertech" className="h-14 object-contain" />
               <div>
-                <h1 className="text-xl font-bold text-[#1b3a6b]">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
-                <p className="text-xs text-gray-400 mt-1">ח.פ 510931389 | מקבוצת מאיה אופקים</p>
+                <h1 className="text-xl font-bold text-navy-700">פיברטק תעשיות צנרת וכימיקלים בע״מ</h1>
+                <p className="text-xs text-neutral-400 mt-1">ח.פ 510931389 | מקבוצת מאיה אופקים</p>
               </div>
             </div>
             <div className="text-left">
-              <p className="text-lg font-bold text-green-700">הצעת מחיר</p>
-              <p className="text-sm text-gray-500 font-mono">{quote.quote_number}</p>
-              <p className="text-xs text-gray-400 mt-1">תאריך: {quoteDate}</p>
-              {validUntil && <p className="text-xs text-gray-400">תוקף עד: {validUntil}</p>}
+              <p className="text-lg font-bold text-success">הצעת מחיר</p>
+              <p className="text-sm text-content-muted font-mono">{quote.quote_number}</p>
+              <p className="text-xs text-neutral-400 mt-1">תאריך: {quoteDate}</p>
+              {validUntil && <p className="text-xs text-neutral-400">תוקף עד: {validUntil}</p>}
             </div>
           </div>
 
           {/* Client + Project info */}
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div>
-              <h3 className="text-sm font-bold text-gray-600 mb-2">לכבוד</h3>
-              <p className="text-base font-bold text-gray-800">{quote.client_name}</p>
+              <h3 className="text-sm font-bold text-content-body mb-2">לכבוד</h3>
+              <p className="text-base font-bold text-content-strong">{quote.client_name}</p>
               {project?.client_name && project.client_name !== quote.client_name && (
-                <p className="text-sm text-gray-500">{project.client_name}</p>
+                <p className="text-sm text-content-muted">{project.client_name}</p>
               )}
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-600 mb-2">פרויקט</h3>
-              <p className="text-base font-bold text-gray-800">{project?.name || '—'}</p>
-              {project?.location && <p className="text-sm text-gray-500">📍 {project.location}</p>}
+              <h3 className="text-sm font-bold text-content-body mb-2">פרויקט</h3>
+              <p className="text-base font-bold text-content-strong">{project?.name || '—'}</p>
+              {project?.location && <p className="text-sm text-content-muted">📍 {project.location}</p>}
             </div>
           </div>
 
           {/* Items table */}
           <table className="w-full text-sm border-collapse mb-6">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">#</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">תיאור פריט</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קוטר</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">לחץ (PN)</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">קשיחות (SN)</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">כמות</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">יחידה</th>
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">מחיר ליחידה</th>
-                {hasLineDiscount && <th className="text-right py-2.5 px-3 font-semibold text-orange-600 border border-gray-200">הנחה</th>}
-                <th className="text-right py-2.5 px-3 font-semibold text-gray-600 border border-gray-200">סה״כ</th>
+              <tr className="bg-neutral-50">
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">#</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">תיאור פריט</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">קוטר</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">לחץ (PN)</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">קשיחות (SN)</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">כמות</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">יחידה</th>
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">מחיר ליחידה</th>
+                {hasLineDiscount && <th className="text-right py-2.5 px-3 font-semibold text-warning border border-line-subtle">הנחה</th>}
+                <th className="text-right py-2.5 px-3 font-semibold text-content-body border border-line-subtle">סה״כ</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, idx) => {
                 const disc = parseFloat(item.discount_pct) || 0;
                 return (
-                  <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-400 text-center">{idx + 1}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-800 text-right" dir="rtl">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.dn_size || '—'}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.quantity}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{item.unit}</td>
-                    <td className="py-2 px-3 border border-gray-200 text-gray-600">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
-                    {hasLineDiscount && <td className="py-2 px-3 border border-gray-200 text-orange-600">{disc > 0 ? `${disc}%` : '—'}</td>}
-                    <td className="py-2 px-3 border border-gray-200 font-semibold text-gray-800">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
+                  <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-neutral-50'}>
+                    <td className="py-2 px-3 border border-line-subtle text-neutral-400 text-center">{idx + 1}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-strong text-right" dir="rtl">{item.product_name}{item.notes ? ` (${item.notes})` : ''}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{item.dn_size || '—'}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{item.quantity}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{item.unit}</td>
+                    <td className="py-2 px-3 border border-line-subtle text-content-body">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
+                    {hasLineDiscount && <td className="py-2 px-3 border border-line-subtle text-warning">{disc > 0 ? `${disc}%` : '—'}</td>}
+                    <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
                   </tr>
                 );
               })}
@@ -297,19 +297,19 @@ export default function PublicQuotePage() {
             <tfoot>
               {globalDisc > 0 && (
                 <>
-                  <tr className="bg-gray-50">
-                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-gray-500 border border-gray-200">סה״כ לפני הנחה</td>
-                    <td className="py-2 px-3 text-sm text-gray-500 border border-gray-200">{formatCurrency(totalAfterLineDisc)}</td>
+                  <tr className="bg-neutral-50">
+                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-content-muted border border-line-subtle">סה״כ לפני הנחה</td>
+                    <td className="py-2 px-3 text-sm text-content-muted border border-line-subtle">{formatCurrency(totalAfterLineDisc)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-orange-600 border border-gray-200">הנחה {globalDisc}%</td>
-                    <td className="py-2 px-3 text-sm text-orange-600 border border-gray-200">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+                    <td colSpan={colCount - 1} className="py-2 px-3 text-left text-sm text-warning border border-line-subtle">הנחה {globalDisc}%</td>
+                    <td className="py-2 px-3 text-sm text-warning border border-line-subtle">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
                   </tr>
                 </>
               )}
-              <tr className="bg-green-50">
-                <td colSpan={colCount - 1} className="py-3 px-3 text-left font-bold text-lg text-gray-800 border border-gray-200">סה״כ</td>
-                <td className="py-3 px-3 font-bold text-lg text-green-700 border border-gray-200">{formatCurrency(finalTotal)}</td>
+              <tr className="bg-success-soft">
+                <td colSpan={colCount - 1} className="py-3 px-3 text-left font-bold text-lg text-content-strong border border-line-subtle">סה״כ</td>
+                <td className="py-3 px-3 font-bold text-lg text-success border border-line-subtle">{formatCurrency(finalTotal)}</td>
               </tr>
             </tfoot>
           </table>
@@ -317,39 +317,39 @@ export default function PublicQuotePage() {
           {/* Payment terms */}
           {quote.payment_terms && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">תנאי תשלום</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.payment_terms}</p>
+              <h3 className="text-sm font-bold text-content-body mb-1">תנאי תשלום</h3>
+              <p className="text-sm text-content-body whitespace-pre-line">{quote.payment_terms}</p>
             </div>
           )}
 
           {/* Delivery time */}
           {quote.delivery_time && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">זמן אספקה</h3>
-              <p className="text-sm text-gray-700">{quote.delivery_time}</p>
+              <h3 className="text-sm font-bold text-content-body mb-1">זמן אספקה</h3>
+              <p className="text-sm text-content-body">{quote.delivery_time}</p>
             </div>
           )}
 
           {/* Terms */}
           {quote.disclaimer_text && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">תנאי התקשרות</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
+            <div className="mb-6 p-4 bg-neutral-50 rounded-lg border border-line-subtle">
+              <h3 className="text-sm font-bold text-content-body mb-2">תנאי התקשרות</h3>
+              <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.disclaimer_text}</p>
             </div>
           )}
 
           {/* Full contract terms — resolved from the quote snapshot / fallback */}
           {contractSections.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-3">תנאי הסכם</h3>
+              <h3 className="text-sm font-bold text-content-body mb-3">תנאי הסכם</h3>
               <div className="space-y-3">
                 {contractSections.map((section, si) => (
                   <div key={si}>
-                    <h4 className="text-xs font-bold text-gray-700 mb-1">{section.title}</h4>
+                    <h4 className="text-xs font-bold text-content-body mb-1">{section.title}</h4>
                     <ol className="space-y-1">
                       {section.clauses.map((cl) => (
-                        <li key={cl.num} className="text-[11px] text-gray-600 leading-relaxed flex gap-1.5">
-                          <span className="font-semibold text-gray-500 shrink-0">{cl.num}.</span>
+                        <li key={cl.num} className="text-[11px] text-content-body leading-relaxed flex gap-1.5">
+                          <span className="font-semibold text-content-muted shrink-0">{cl.num}.</span>
                           <span className="whitespace-pre-line">{cl.text}</span>
                         </li>
                       ))}
@@ -363,20 +363,20 @@ export default function PublicQuotePage() {
           {/* Notes */}
           {quote.notes && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-1">הערות</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{quote.notes}</p>
+              <h3 className="text-sm font-bold text-content-body mb-1">הערות</h3>
+              <p className="text-sm text-content-body whitespace-pre-line">{quote.notes}</p>
             </div>
           )}
 
           {/* Non-image attachments listed */}
           {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">מפרטים טכניים ושרטוטים</h3>
+              <h3 className="text-sm font-bold text-content-body mb-2">מפרטים טכניים ושרטוטים</h3>
               <div className="space-y-1">
                 {attachments.filter((a) => !/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name)).map((att) => (
                   <div key={att.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-400">📄</span>
-                    <span className="text-gray-700">{att.file_name}</span>
+                    <span className="text-neutral-400">📄</span>
+                    <span className="text-content-body">{att.file_name}</span>
                   </div>
                 ))}
               </div>
@@ -384,15 +384,15 @@ export default function PublicQuotePage() {
           )}
 
           {/* Signature */}
-          <div className="mt-12 pt-6 border-t border-gray-200">
+          <div className="mt-12 pt-6 border-t border-line-subtle">
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <p className="text-sm font-bold text-gray-600 mb-8">חתימת פיברטק</p>
-                <div className="border-b border-gray-300 w-48"></div>
+                <p className="text-sm font-bold text-content-body mb-8">חתימת פיברטק</p>
+                <div className="border-b border-line-strong w-48"></div>
               </div>
               <div>
-                <p className="text-sm font-bold text-gray-600 mb-8">חתימת הלקוח</p>
-                <div className="border-b border-gray-300 w-48"></div>
+                <p className="text-sm font-bold text-content-body mb-8">חתימת הלקוח</p>
+                <div className="border-b border-line-strong w-48"></div>
               </div>
             </div>
           </div>
@@ -400,11 +400,11 @@ export default function PublicQuotePage() {
         </div>
 
         {/* Company footer */}
-        <div className="mt-auto border-t border-[#1b3a6b]/30 px-12 py-3 text-center text-[9px] text-gray-400 leading-relaxed">
-          <p className="font-semibold text-[#1b3a6b] text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
+        <div className="mt-auto border-t border-navy-700 px-12 py-3 text-center text-[9px] text-neutral-400 leading-relaxed">
+          <p className="font-semibold text-navy-700 text-[10px]">פיברטק תעשיות צנרת וכימיקלים מקבוצת מאיה אופקים</p>
           <p>מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 206 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
           <p>קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
-          <p className="font-semibold text-[#1b3a6b]">www.fibertech.co.il</p>
+          <p className="font-semibold text-navy-700">www.fibertech.co.il</p>
         </div>
       </div>
 
@@ -413,7 +413,7 @@ export default function PublicQuotePage() {
         .filter((a) => /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(a.file_name) && imageDataUrls[a.id])
         .map((att) => (
           <div key={att.id} className="max-w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col items-center justify-center p-8" style={{ minHeight: '297mm', pageBreakBefore: 'always' }}>
-            <p className="text-sm text-gray-500 mb-4 self-end" dir="rtl">{att.file_name}</p>
+            <p className="text-sm text-content-muted mb-4 self-end" dir="rtl">{att.file_name}</p>
             <img src={imageDataUrls[att.id]} alt={att.file_name} className="max-w-full max-h-[260mm] object-contain" />
           </div>
         ))}

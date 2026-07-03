@@ -59,17 +59,17 @@ export default function CompanyAutocomplete({ value, onChange, options, classNam
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         placeholder={placeholder || 'שם חברה'}
-        className={className || 'w-full border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm'}
+        className={className || 'w-full border border-line-subtle rounded-lg px-2 py-2 text-sm'}
         autoComplete="off"
       />
       {open && matches.length > 0 && (
-        <div className="absolute z-40 mt-1 right-0 left-0 bg-white border border-[#e2e8f0] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-40 mt-1 right-0 left-0 bg-white border border-line-subtle rounded-lg shadow-lg max-h-48 overflow-y-auto">
           {matches.map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => { onChange(m); setOpen(false); }}
-              className="block w-full text-right px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50"
+              className="block w-full text-right px-3 py-1.5 text-sm text-content-body hover:bg-azure-100"
             >
               {m}
             </button>
@@ -77,9 +77,9 @@ export default function CompanyAutocomplete({ value, onChange, options, classNam
         </div>
       )}
       {similar.length > 0 && (
-        <p className="text-[11px] text-amber-600 mt-1">
+        <p className="text-[11px] text-warning mt-1">
           ⚠️ קיים לקוח דומה: <span className="font-semibold">{similar[0]}</span>
-          <button type="button" onClick={() => onChange(similar[0])} className="text-[#1a56db] hover:underline mr-1">השתמש בו</button>
+          <button type="button" onClick={() => onChange(similar[0])} className="text-primary hover:underline mr-1">השתמש בו</button>
         </p>
       )}
     </div>

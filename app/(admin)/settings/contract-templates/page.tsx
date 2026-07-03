@@ -22,14 +22,14 @@ export default async function ContractTemplatesPage() {
     .order('name');
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
-      <header className="bg-white border-b border-[#e2e8f0] px-6 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-surface-page" dir="rtl">
+      <header className="bg-white border-b border-line-subtle px-6 py-4 sticky top-0 z-10">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">📜 תבניות תנאי הסכם</h1>
-            <p className="text-[12px] text-gray-500">מאגר תבניות לבחירה בהצעות מחיר</p>
+            <h1 className="text-xl font-bold text-content-strong">📜 תבניות תנאי הסכם</h1>
+            <p className="text-[12px] text-content-muted">מאגר תבניות לבחירה בהצעות מחיר</p>
           </div>
-          <Link href="/" className="text-sm text-[#1a56db] hover:underline">← חזרה</Link>
+          <Link href="/" className="text-sm text-primary hover:underline">← חזרה</Link>
         </div>
       </header>
       <div className="max-w-[1400px] mx-auto px-6 py-6">

@@ -83,10 +83,10 @@ export default function CustomersPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">👥 לקוחות</h1>
+        <h1 className="text-2xl font-bold text-content-strong">👥 לקוחות</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">{filtered.length} לקוחות</span>
-          <button onClick={() => setShowForm(true)} className="text-sm bg-[#1a56db] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">+ לקוח חדש</button>
+          <span className="text-sm text-neutral-400">{filtered.length} לקוחות</span>
+          <button onClick={() => setShowForm(true)} className="text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">+ לקוח חדש</button>
         </div>
       </div>
 
@@ -99,15 +99,15 @@ export default function CustomersPage() {
       )}
 
       {dupPairs.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-          <p className="text-sm font-semibold text-amber-800 mb-2">⚠️ כפילויות אפשריות ({dupPairs.length})</p>
+        <div className="bg-warning-soft border border-warning rounded-xl p-4 mb-5">
+          <p className="text-sm font-semibold text-warning mb-2">⚠️ כפילויות אפשריות ({dupPairs.length})</p>
           <div className="space-y-1">
             {dupPairs.map(([a, b], idx) => (
-              <div key={idx} className="text-[13px] text-amber-800 flex items-center gap-2 flex-wrap">
+              <div key={idx} className="text-[13px] text-warning flex items-center gap-2 flex-wrap">
                 <button onClick={() => router.push(`/customers/${a.id}`)} className="font-medium hover:underline">{a.name}</button>
-                <span className="text-amber-400">↔</span>
+                <span className="text-warning">↔</span>
                 <button onClick={() => router.push(`/customers/${b.id}`)} className="font-medium hover:underline">{b.name}</button>
-                <span className="text-[11px] text-amber-600">— היכנס לאחד מהם ולחץ &quot;מזג כפילות&quot;</span>
+                <span className="text-[11px] text-warning">— היכנס לאחד מהם ולחץ &quot;מזג כפילות&quot;</span>
               </div>
             ))}
           </div>
@@ -119,18 +119,18 @@ export default function CustomersPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="חיפוש לפי שם חברה, איש קשר, טלפון או מייל…"
-        className="w-full border border-[#e2e8f0] rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20"
+        className="w-full border border-line-subtle rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-100"
       />
 
       {loading ? (
-        <p className="text-center text-gray-400 py-10">טוען…</p>
+        <p className="text-center text-neutral-400 py-10">טוען…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-gray-400 py-10">לא נמצאו לקוחות.</p>
+        <p className="text-center text-neutral-400 py-10">לא נמצאו לקוחות.</p>
       ) : (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+        <div className="bg-white border border-line-subtle rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-[#e2e8f0] text-[12px] text-gray-500">
+              <tr className="bg-neutral-50 border-b border-line-subtle text-[12px] text-content-muted">
                 <th className="text-right font-semibold px-4 py-2.5">שם הלקוח</th>
                 <th className="text-right font-semibold px-4 py-2.5">איש קשר</th>
                 <th className="text-right font-semibold px-4 py-2.5">טלפון</th>
@@ -148,17 +148,17 @@ export default function CustomersPage() {
                   <tr
                     key={c.id}
                     onClick={() => router.push(`/customers/${c.id}`)}
-                    className="border-b border-gray-50 hover:bg-blue-50/40 cursor-pointer transition-colors"
+                    className="border-b border-line-subtle hover:bg-azure-100 cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-800">
+                    <td className="px-4 py-3 font-medium text-content-strong">
                       {c.name}
-                      {c.city && <span className="text-gray-400 font-normal"> · {c.city}</span>}
+                      {c.city && <span className="text-neutral-400 font-normal"> · {c.city}</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{primary}</td>
-                    <td className="px-4 py-3 text-gray-500"><span dir="ltr">{phone}</span></td>
-                    <td className="px-4 py-3 text-gray-500" style={{ unicodeBidi: 'plaintext' }}>{email}</td>
-                    <td className="px-4 py-3 text-center text-gray-700">{quoteCounts[c.id] || 0}</td>
-                    <td className="px-4 py-3 text-center text-gray-700">{projectCounts[c.id] || 0}</td>
+                    <td className="px-4 py-3 text-content-body">{primary}</td>
+                    <td className="px-4 py-3 text-content-muted"><span dir="ltr">{phone}</span></td>
+                    <td className="px-4 py-3 text-content-muted" style={{ unicodeBidi: 'plaintext' }}>{email}</td>
+                    <td className="px-4 py-3 text-center text-content-body">{quoteCounts[c.id] || 0}</td>
+                    <td className="px-4 py-3 text-center text-content-body">{projectCounts[c.id] || 0}</td>
                   </tr>
                 );
               })}

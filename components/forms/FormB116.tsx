@@ -60,8 +60,8 @@ export default function FormB116() {
   function numInput(key: keyof typeof form, label: string, unit?: string) {
     return (
       <div>
-        <label className="block text-lg text-gray-600">{label} {unit && <span className="text-gray-400">({unit})</span>}</label>
-        <input type="number" step="any" value={form[key] as string} onChange={(e) => set(key, e.target.value as any)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg text-content-body">{label} {unit && <span className="text-neutral-400">({unit})</span>}</label>
+        <input type="number" step="any" value={form[key] as string} onChange={(e) => set(key, e.target.value as any)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
     );
   }
@@ -77,12 +77,12 @@ export default function FormB116() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-lg font-medium text-gray-700">מספר דו״ח</label>
-          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">מספר דו״ח</label>
+          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg font-medium text-gray-700">תאריך פיקוח</label>
-          <input type="date" value={form.inspection_date} onChange={(e) => set('inspection_date', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">תאריך פיקוח</label>
+          <input type="date" value={form.inspection_date} onChange={(e) => set('inspection_date', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
       </div>
 
@@ -97,8 +97,8 @@ export default function FormB116() {
           {numInput('max_jacking_force_kn', 'כוח דחיקה מותר', 'KN')}
           {numInput('max_jacking_force_ton', 'כוח דחיקה מותר', 'טון')}
           <div>
-            <label className="block text-lg text-gray-600">סוג מחבר (שרוול)</label>
-            <SearchableSelect value={form.connector_type} onChange={(v) => set('connector_type', v)} className="mt-1 block w-full rounded border border-gray-300 px-2 py-1.5 shadow-sm text-sm"
+            <label className="block text-lg text-content-body">סוג מחבר (שרוול)</label>
+            <SearchableSelect value={form.connector_type} onChange={(v) => set('connector_type', v)} className="mt-1 block w-full rounded border border-line-strong px-2 py-1.5 shadow-sm text-sm"
               options={[{ value: 'GRP', label: 'GRP' }, { value: 'נירוסטה', label: 'נירוסטה' }]} />
           </div>
           {numInput('max_machine_force_kn', 'כוח מקסימלי מכונה', 'KN')}
@@ -124,7 +124,7 @@ export default function FormB116() {
           {numInput('total_jacked_length_m', 'אורך קו שנדחק', 'מ׳')}
         </div>
         {[1, 2, 3].map((stage) => (
-          <div key={stage} className="bg-gray-50 rounded p-3">
+          <div key={stage} className="bg-neutral-50 rounded p-3">
             <h4 className="text-lg font-medium mb-2">שלב {stage}</h4>
             <div className="grid grid-cols-3 gap-2">
               {numInput(`stage${stage}_pressure_bar` as any, 'לחץ', 'Bar')}
@@ -146,26 +146,26 @@ export default function FormB116() {
 
       {/* Notes */}
       <div>
-        <label className="block text-lg font-medium text-gray-700">תקלות בעת הדחיקה</label>
-        <textarea value={form.defects_during_push} onChange={(e) => set('defects_during_push', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">תקלות בעת הדחיקה</label>
+        <textarea value={form.defects_during_push} onChange={(e) => set('defects_during_push', e.target.value)} rows={2} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
       <div>
-        <label className="block text-lg font-medium text-gray-700">הערות לקבלן</label>
-        <textarea value={form.contractor_notes} onChange={(e) => set('contractor_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">הערות לקבלן</label>
+        <textarea value={form.contractor_notes} onChange={(e) => set('contractor_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
       <div>
-        <label className="block text-lg font-medium text-gray-700">הערות כלליות</label>
-        <textarea value={form.general_notes} onChange={(e) => set('general_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">הערות כלליות</label>
+        <textarea value={form.general_notes} onChange={(e) => set('general_notes', e.target.value)} rows={2} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
 
       <div>
-        <label className="block text-lg font-medium text-gray-700">שם מנהל עבודה</label>
-        <input type="text" value={form.site_manager_name} onChange={(e) => set('site_manager_name', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">שם מנהל עבודה</label>
+        <input type="text" value={form.site_manager_name} onChange={(e) => set('site_manager_name', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
 
       <SignaturePad label="חתימת מפקח" onSave={setInspectorSig} />
 
-      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-2xl font-semibold hover:bg-blue-700">
+      <button type="submit" className="w-full py-3 bg-primary text-white rounded-lg text-2xl font-semibold hover:bg-primary-700">
         שלח דו״ח B-116
       </button>
     </form>

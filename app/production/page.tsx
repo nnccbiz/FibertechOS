@@ -22,11 +22,11 @@ function calcDeadline(signedDate: string | null, deliveryTime: string | null): s
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: 'ממתין', color: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: 'הזמנה אושרה', color: 'bg-blue-100 text-blue-700' },
-  in_production: { label: 'בייצור', color: 'bg-purple-100 text-purple-700' },
-  delivered: { label: 'סופק', color: 'bg-green-100 text-green-700' },
-  completed: { label: 'הושלם', color: 'bg-gray-100 text-gray-600' },
+  pending: { label: 'ממתין', color: 'bg-warning-soft text-warning' },
+  confirmed: { label: 'הזמנה אושרה', color: 'bg-azure-100 text-azure-600' },
+  in_production: { label: 'בייצור', color: 'bg-primary-50 text-primary' },
+  delivered: { label: 'סופק', color: 'bg-success-soft text-success' },
+  completed: { label: 'הושלם', color: 'bg-neutral-100 text-content-body' },
 };
 
 const STEPS = [
@@ -98,7 +98,7 @@ export default function ProductionPage() {
   if (loading) {
     return (
       <div className="p-6" dir="rtl">
-        <p className="text-gray-400 text-center py-12">טוען הזמנות...</p>
+        <p className="text-neutral-400 text-center py-12">טוען הזמנות...</p>
       </div>
     );
   }
@@ -110,19 +110,19 @@ export default function ProductionPage() {
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">🏭 ייצור</h1>
-          <p className="text-sm text-gray-500 mt-1">הזמנות שאושרו לייצור מכל הפרויקטים</p>
+          <h1 className="text-2xl font-bold text-content-strong">🏭 ייצור</h1>
+          <p className="text-sm text-content-muted mt-1">הזמנות שאושרו לייצור מכל הפרויקטים</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{activeOrders.length} הזמנות פעילות</span>
+          <span className="text-sm text-content-muted">{activeOrders.length} הזמנות פעילות</span>
         </div>
       </div>
 
       {activeOrders.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-line-subtle p-12 text-center">
           <p className="text-4xl mb-3">📭</p>
-          <p className="text-gray-500">אין הזמנות פעילות כרגע</p>
-          <p className="text-sm text-gray-400 mt-1">הזמנות חדשות יופיעו כאן כאשר הצעת מחיר תסומן כנחתמה</p>
+          <p className="text-content-muted">אין הזמנות פעילות כרגע</p>
+          <p className="text-sm text-neutral-400 mt-1">הזמנות חדשות יופיעו כאן כאשר הצעת מחיר תסומן כנחתמה</p>
         </div>
       )}
 
@@ -136,7 +136,7 @@ export default function ProductionPage() {
 
       {completedOrders.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold text-gray-600 mb-3">הזמנות שהושלמו ({completedOrders.length})</h2>
+          <h2 className="text-lg font-bold text-content-body mb-3">הזמנות שהושלמו ({completedOrders.length})</h2>
           <div className="space-y-3 opacity-60">
             {completedOrders.map((order) => (
               <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} onUpdate={loadData} />
@@ -204,48 +204,48 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
   }
 
   return (
-    <div className={`bg-white rounded-xl border ${isOverdue ? 'border-red-300' : 'border-gray-200'} overflow-hidden`}>
+    <div className={`bg-white rounded-xl border ${isOverdue ? 'border-danger' : 'border-line-subtle'} overflow-hidden`}>
       <div className="px-5 py-4">
         {/* Header row */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-mono text-gray-400">{order.order_number}</span>
+            <span className="text-sm font-mono text-neutral-400">{order.order_number}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-            {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-600">⚠️ באיחור</span>}
+            {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">⚠️ באיחור</span>}
           </div>
-          <span className="text-sm font-bold text-gray-700">{formatCurrency(order.total_amount || 0)}</span>
+          <span className="text-sm font-bold text-content-body">{formatCurrency(order.total_amount || 0)}</span>
         </div>
 
         {/* Info grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">לקוח</p>
-            <p className="text-sm font-semibold text-gray-700">{project?.client_name || quote?.client_name || '—'}</p>
+            <p className="text-[11px] text-neutral-400 mb-0.5">לקוח</p>
+            <p className="text-sm font-semibold text-content-body">{project?.client_name || quote?.client_name || '—'}</p>
           </div>
           <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">פרויקט</p>
-            <p className="text-sm font-semibold text-gray-700">{project?.name || '—'}</p>
+            <p className="text-[11px] text-neutral-400 mb-0.5">פרויקט</p>
+            <p className="text-sm font-semibold text-content-body">{project?.name || '—'}</p>
           </div>
           <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">מועד הזמנה</p>
-            <p className="text-sm text-gray-700">{formatDate(order.created_at)}</p>
+            <p className="text-[11px] text-neutral-400 mb-0.5">מועד הזמנה</p>
+            <p className="text-sm text-content-body">{formatDate(order.created_at)}</p>
           </div>
           <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">מועד אספקה אחרון</p>
-            <p className={`text-sm font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>{formatDate(order.deadline)}</p>
+            <p className="text-[11px] text-neutral-400 mb-0.5">מועד אספקה אחרון</p>
+            <p className={`text-sm font-semibold ${isOverdue ? 'text-danger' : 'text-content-body'}`}>{formatDate(order.deadline)}</p>
           </div>
         </div>
 
         {/* Items to produce */}
         {order.items.length > 0 && (
-          <div className="border-t border-gray-100 pt-3 mb-3">
-            <p className="text-[11px] text-gray-400 mb-1.5">אביזרים לייצור</p>
+          <div className="border-t border-line-subtle pt-3 mb-3">
+            <p className="text-[11px] text-neutral-400 mb-1.5">אביזרים לייצור</p>
             <div className="flex flex-wrap gap-2">
               {order.items.map((item: any) => (
-                <div key={item.id} className="bg-gray-50 rounded-lg px-2.5 py-1 text-[12px]">
-                  <span className="text-gray-700 font-medium">{item.product_name}</span>
-                  {item.dn_size && <span className="text-gray-400 mr-1">({item.dn_size})</span>}
-                  <span className="text-gray-500 mr-1">× {item.quantity} {item.unit}</span>
+                <div key={item.id} className="bg-neutral-50 rounded-lg px-2.5 py-1 text-[12px]">
+                  <span className="text-content-body font-medium">{item.product_name}</span>
+                  {item.dn_size && <span className="text-neutral-400 mr-1">({item.dn_size})</span>}
+                  <span className="text-content-muted mr-1">× {item.quantity} {item.unit}</span>
                 </div>
               ))}
             </div>
@@ -253,7 +253,7 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
         )}
 
         {/* Status workflow */}
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t border-line-subtle pt-3">
           <div className="flex flex-wrap gap-2">
             {STEPS.map((step, idx) => {
               const stepIdx = STATUS_ORDER.indexOf(step.status);
@@ -267,11 +267,11 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
                   <button
                     key={step.docType}
                     onClick={() => openDoc(doc)}
-                    className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                    className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-success-soft text-success border border-success hover:bg-success-soft transition-colors"
                   >
                     <span>{step.icon}</span>
                     <span className="font-medium">{step.label}</span>
-                    <span className="text-green-500">✓</span>
+                    <span className="text-success">✓</span>
                   </button>
                 );
               }
@@ -282,13 +282,13 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
                     key={step.docType}
                     className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${
                       isUploading
-                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-wait'
-                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer'
+                        ? 'bg-neutral-100 text-neutral-400 border-line-subtle cursor-wait'
+                        : 'bg-azure-100 text-azure-600 border-azure hover:bg-azure-100 cursor-pointer'
                     }`}
                   >
                     <span>{step.icon}</span>
                     <span className="font-medium">{isUploading ? 'מעלה...' : step.label}</span>
-                    <span className="text-[10px] text-blue-400">({step.docLabel})</span>
+                    <span className="text-[10px] text-azure">({step.docLabel})</span>
                     <input
                       ref={(el) => { fileInputRefs.current[step.docType] = el; }}
                       type="file"
@@ -309,7 +309,7 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
               return (
                 <div
                   key={step.docType}
-                  className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-gray-50 text-gray-400 border border-gray-200"
+                  className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-neutral-50 text-neutral-400 border border-line-subtle"
                 >
                   <span>{step.icon}</span>
                   <span className="font-medium">{step.label}</span>
@@ -320,7 +320,7 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
             {currentIdx > 0 && (
               <button
                 onClick={handleReset}
-                className="flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors mr-auto"
+                className="flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-danger-soft text-danger border border-danger hover:bg-danger-soft transition-colors mr-auto"
               >
                 🔄 איפוס
               </button>

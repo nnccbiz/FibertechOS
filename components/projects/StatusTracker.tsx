@@ -6,11 +6,11 @@ interface StatusTrackerProps {
 }
 
 const STATUSES = [
-  { key: 'תכנון כללי', icon: '📐', color: '#94a3b8' },
-  { key: 'תכנון מפורט', icon: '📋', color: '#3b82f6' },
-  { key: 'טרום מכרז', icon: '📄', color: '#f59e0b' },
-  { key: 'מועד הגשת מכרז', icon: '📅', color: '#f97316' },
-  { key: 'קבלן זוכה', icon: '🏆', color: '#22c55e' },
+  { key: 'תכנון כללי', icon: '📐', color: '#8b9099' },
+  { key: 'תכנון מפורט', icon: '📋', color: '#1a73b8' },
+  { key: 'טרום מכרז', icon: '📄', color: '#c9821a' },
+  { key: 'מועד הגשת מכרז', icon: '📅', color: '#c9821a' },
+  { key: 'קבלן זוכה', icon: '🏆', color: '#1e8a5a' },
 ];
 
 export default function StatusTracker({ currentStatus, onChange }: StatusTrackerProps) {
@@ -31,8 +31,8 @@ export default function StatusTracker({ currentStatus, onChange }: StatusTracker
               isActive
                 ? 'text-white shadow-sm'
                 : isPast
-                ? 'bg-gray-100 text-gray-600'
-                : 'bg-gray-50 text-gray-400'
+                ? 'bg-neutral-100 text-content-body'
+                : 'bg-neutral-50 text-neutral-400'
             }`}
             style={isActive ? { backgroundColor: status.color } : undefined}
           >

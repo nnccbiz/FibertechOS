@@ -1,11 +1,152 @@
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+/* Brand typefaces — Assistant (UI/display, He+Latin) + Roboto Mono (technical figures). */
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * {
-  font-family: 'Heebo', sans-serif;
+  font-family: var(--ft-font-sans);
+}
+
+/* ============================================================
+   Fibertech Design System — token layer (ADDITIVE, non-breaking)
+   Source of truth mirrored from the Claude Design kit
+   (tokens/colors.css, typography.css, spacing.css). Defining
+   these variables changes no rendering on its own; existing
+   hardcoded values keep their look until pages are migrated.
+   ============================================================ */
+:root {
+  /* ---- Brand core — Navy ---- */
+  --ft-navy: #15427e;
+  --ft-navy-700: #0f3463;
+  --ft-navy-800: #0a2849;
+  --ft-navy-500: #2b5896;
+  --ft-navy-300: #6e8fbb;
+  --ft-navy-100: #d8e1ef;
+  --ft-navy-50:  #eef3f9;
+
+  /* ---- Brand core — Steel ---- */
+  --ft-steel: #6d6e71;
+  --ft-steel-700: #54565a;
+  --ft-steel-300: #a7a9ad;
+  --ft-steel-100: #e2e3e6;
+
+  /* ---- Accent — Water azure ---- */
+  --ft-azure: #1a73b8;
+  --ft-azure-600: #135c95;
+  --ft-azure-100: #dcebf6;
+  --ft-aqua: #2aa7c4;
+
+  /* ---- Neutrals ---- */
+  --ft-white: #ffffff;
+  --ft-ink: #1a2230;
+  --ft-gray-900: #232a35;
+  --ft-gray-700: #3a4150;
+  --ft-gray-500: #6d6e71;
+  --ft-gray-400: #8b9099;
+  --ft-gray-300: #c3c9d1;
+  --ft-gray-200: #d9dee5;
+  --ft-gray-100: #eef2f7;
+  --ft-gray-50:  #f4f6f9;
+
+  /* ---- Semantic status ---- */
+  --ft-success: #1e8a5a;
+  --ft-success-100: #dcefe4;
+  --ft-warning: #c9821a;
+  --ft-warning-100: #fbecd2;
+  --ft-danger: #c0392b;
+  --ft-danger-hover: #a5311f;
+  --ft-danger-100: #f8dcd8;
+  --ft-info: var(--ft-azure);
+  --ft-info-100: var(--ft-azure-100);
+
+  /* ---- Semantic aliases (reference these in components) ---- */
+  --text-strong: var(--ft-ink);
+  --text-body: var(--ft-gray-700);
+  --text-muted: var(--ft-gray-500);
+  --text-on-navy: var(--ft-white);
+  --text-brand: var(--ft-navy);
+  --text-link: var(--ft-azure);
+
+  --surface-page: var(--ft-gray-50);
+  --surface-card: var(--ft-white);
+  --surface-sunken: var(--ft-gray-100);
+  --surface-navy: var(--ft-navy);
+  --surface-navy-deep: var(--ft-navy-800);
+  --surface-zebra: var(--ft-navy-50);
+  --surface-selected: var(--ft-navy-100);
+
+  --border-subtle: var(--ft-gray-200);
+  --border-strong: var(--ft-gray-300);
+  --border-navy: var(--ft-navy);
+  --border-focus: var(--ft-azure);
+  --accent-bar: var(--ft-navy);
+
+  /* ---- Typography ---- */
+  --ft-font-sans: 'Assistant', 'Segoe UI', 'Arial', sans-serif;
+  --ft-font-display: 'Assistant', 'Segoe UI', 'Arial', sans-serif;
+  --ft-font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --fs-3xs: 11px;
+  --fs-2xs: 12px;
+  --fs-xs:  13px;
+  --fs-sm:  14px;
+  --fs-base: 16px;
+  --fs-md: 18px;
+  --fs-lg: 21px;
+  --fs-xl: 26px;
+  --fs-2xl: 32px;
+  --fs-3xl: 40px;
+  --fs-4xl: 52px;
+  --fs-5xl: 68px;
+
+  --lh-tight: 1.1;
+  --lh-snug: 1.25;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.7;
+
+  --ls-tight: -0.02em;
+  --ls-normal: 0;
+  --ls-wide: 0.04em;
+  --ls-wider: 0.12em;
+
+  /* ---- Spacing (4px base) ---- */
+  --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px; --sp-20: 80px; --sp-24: 96px; --sp-32: 128px;
+
+  /* ---- Radii ---- */
+  --radius-none: 0;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* ---- Border widths ---- */
+  --bw-hair: 1px;
+  --bw-thick: 2px;
+  --bw-bar: 4px;
+
+  /* ---- Shadows ---- */
+  --shadow-xs: 0 1px 2px rgba(10, 40, 73, 0.06);
+  --shadow-sm: 0 1px 3px rgba(10, 40, 73, 0.09), 0 1px 2px rgba(10, 40, 73, 0.06);
+  --shadow-md: 0 4px 12px rgba(10, 40, 73, 0.11);
+  --shadow-lg: 0 12px 28px rgba(10, 40, 73, 0.15);
+  --shadow-navy: 0 10px 30px rgba(21, 66, 126, 0.30);
+  --focus-ring: 0 0 0 3px rgba(43, 88, 150, 0.38);
+
+  /* ---- Layout & motion ---- */
+  --container-max: 1200px;
+  --container-wide: 1320px;
+  --gutter: var(--sp-6);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
 }
 
 @keyframes fadeInUp {
@@ -53,10 +194,10 @@
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f0f4f8 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, var(--ft-gray-200) 25%, var(--ft-gray-50) 50%, var(--ft-gray-200) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 /* Scrollbar styling */
@@ -70,24 +211,24 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--ft-gray-300);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--ft-gray-400);
 }
 
 /* AI-updated field glow */
 @keyframes aiGlow {
-  0% { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.4); }
-  50% { box-shadow: 0 0 8px 2px rgba(26, 86, 219, 0.2); }
-  100% { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(21, 66, 126, 0.4); }
+  50% { box-shadow: 0 0 8px 2px rgba(21, 66, 126, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 66, 126, 0); }
 }
 
 .ai-updated {
   animation: aiGlow 2s ease-out;
-  border-color: #1a56db !important;
+  border-color: var(--ft-navy) !important;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
@@ -96,6 +237,51 @@
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ---- Brand utilities ---- */
+::selection {
+  background: var(--ft-navy-100);
+  color: var(--ft-navy-800);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+/* The navy section-marker bar used throughout Fibertech docs.
+   In RTL it sits on the right edge of the heading. */
+.ft-section-marker {
+  position: relative;
+  padding-inline-start: var(--sp-4);
+}
+.ft-section-marker::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.1em;
+  bottom: 0.1em;
+  width: var(--bw-bar);
+  border-radius: var(--radius-pill);
+  background: var(--accent-bar);
+}
+
+/* Eyebrow / tracked label like "GRP SOLUTIONS" */
+.ft-eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold, 600);
+  letter-spacing: var(--ls-wider);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Technical figure (DN1900, PN16, prices) */
+.ft-figure {
+  font-family: var(--ft-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--ls-tight);
 }
 
 @media print {

@@ -4,6 +4,9 @@ import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Field } from '@/components/ui/Field';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,69 +52,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f0f4f8]" dir="rtl">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div className="min-h-screen flex items-center justify-center bg-surface-page p-4" dir="rtl">
+      <div className="w-full max-w-md bg-surface-card rounded-xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-14 h-14 rounded-xl bg-[#1a56db] flex items-center justify-center text-white text-2xl font-bold">
+          <div className="w-14 h-14 rounded-lg bg-primary flex items-center justify-center text-white text-2xl font-bold">
             F
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-gray-800">FibertechOS</h1>
-          <p className="text-sm text-gray-500 mt-1">מערכת ניהול תפעולית</p>
+          <h1 className="mt-4 text-2xl font-extrabold text-content-strong">FibertechOS</h1>
+          <p className="text-sm text-content-muted mt-1">מערכת ניהול תפעולית</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              מייל פיברטק
-            </label>
-            <input
+          <Field label="מייל פיברטק">
+            <Input
               type="email"
               required
               autoFocus
               autoComplete="email"
               dir="ltr"
-              className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30 focus:border-[#1a56db]"
+              className="text-right"
               placeholder="you@fibertech.co.il"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              סיסמה
-            </label>
-            <input
+          <Field label="סיסמה">
+            <Input
               type="password"
               required
               autoComplete="current-password"
               dir="ltr"
-              className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30 focus:border-[#1a56db]"
+              className="text-right"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </div>
+          </Field>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+            <div className="bg-danger-soft border border-danger text-danger text-sm rounded-md px-3 py-2">
               {error}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full bg-[#1a56db] text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" fullWidth disabled={pending}>
             {pending ? 'מתחבר...' : 'התחברות'}
-          </button>
+          </Button>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-gray-100 space-y-2 text-sm text-center">
-          <Link href="/forgot-password" className="text-[#1a56db] hover:underline block">
+        <div className="mt-6 pt-6 border-t border-line-subtle space-y-2 text-sm text-center">
+          <Link href="/forgot-password" className="text-azure hover:underline block">
             שכחתי סיסמה
           </Link>
-          <Link href="/request-access" className="text-gray-500 hover:text-gray-800 block">
+          <Link href="/request-access" className="text-content-muted hover:text-content-strong block">
             עובד חדש? בקשת גישה למערכת
           </Link>
         </div>

@@ -51,23 +51,23 @@ export default function FormB165() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-lg font-medium text-gray-700">מספר דו״ח</label>
-          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">מספר דו״ח</label>
+          <input type="text" value={form.report_number} onChange={(e) => set('report_number', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg font-medium text-gray-700">תאריך</label>
-          <input type="date" value={form.report_date} onChange={(e) => set('report_date', e.target.value)} required className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">תאריך</label>
+          <input type="date" value={form.report_date} onChange={(e) => set('report_date', e.target.value)} required className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-lg font-medium text-gray-700">שם קבלן</label>
-          <input type="text" value={form.contractor_name} onChange={(e) => set('contractor_name', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">שם קבלן</label>
+          <input type="text" value={form.contractor_name} onChange={(e) => set('contractor_name', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg font-medium text-gray-700">קוטר (DN)</label>
-          <input type="text" value={form.dn_size} onChange={(e) => set('dn_size', e.target.value)} placeholder="DN900" className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg font-medium text-content-body">קוטר (DN)</label>
+          <input type="text" value={form.dn_size} onChange={(e) => set('dn_size', e.target.value)} placeholder="DN900" className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
       </div>
 
@@ -76,26 +76,26 @@ export default function FormB165() {
         <legend className="text-lg font-semibold px-2">מידות</legend>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-lg text-gray-600">אורך פיילוט (מ׳)</label>
-            <input type="number" step="0.1" value={form.pilot_length_m} onChange={(e) => set('pilot_length_m', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+            <label className="block text-lg text-content-body">אורך פיילוט (מ׳)</label>
+            <input type="number" step="0.1" value={form.pilot_length_m} onChange={(e) => set('pilot_length_m', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
           </div>
           <div>
-            <label className="block text-lg text-gray-600">עומק תעלה (מ׳)</label>
-            <input type="number" step="0.1" value={form.trench_depth_m} onChange={(e) => set('trench_depth_m', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+            <label className="block text-lg text-content-body">עומק תעלה (מ׳)</label>
+            <input type="number" step="0.1" value={form.trench_depth_m} onChange={(e) => set('trench_depth_m', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
           </div>
           <div>
-            <label className="block text-lg text-gray-600">רוחב תעלה (מ׳)</label>
-            <input type="number" step="0.1" value={form.trench_width_m} onChange={(e) => set('trench_width_m', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+            <label className="block text-lg text-content-body">רוחב תעלה (מ׳)</label>
+            <input type="number" step="0.1" value={form.trench_width_m} onChange={(e) => set('trench_width_m', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-lg text-gray-600">חומר מצע</label>
-            <input type="text" value={form.bedding_material} onChange={(e) => set('bedding_material', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+            <label className="block text-lg text-content-body">חומר מצע</label>
+            <input type="text" value={form.bedding_material} onChange={(e) => set('bedding_material', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
           </div>
           <div>
-            <label className="block text-lg text-gray-600">חומר מילוי חוזר</label>
-            <input type="text" value={form.backfill_material} onChange={(e) => set('backfill_material', e.target.value)} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+            <label className="block text-lg text-content-body">חומר מילוי חוזר</label>
+            <input type="text" value={form.backfill_material} onChange={(e) => set('backfill_material', e.target.value)} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
           </div>
         </div>
       </fieldset>
@@ -124,28 +124,28 @@ export default function FormB165() {
         <div className="flex gap-4">
           <label className="flex items-center gap-2">
             <input type="radio" name="pilot_passed" checked={form.pilot_passed === true} onChange={() => set('pilot_passed', true)} />
-            <span className="text-green-700 font-medium">עבר</span>
+            <span className="text-success font-medium">עבר</span>
           </label>
           <label className="flex items-center gap-2">
             <input type="radio" name="pilot_passed" checked={form.pilot_passed === false} onChange={() => set('pilot_passed', false)} />
-            <span className="text-red-700 font-medium">נכשל</span>
+            <span className="text-danger font-medium">נכשל</span>
           </label>
         </div>
         <div>
-          <label className="block text-lg text-gray-600">ליקויים שנמצאו</label>
-          <textarea value={form.defects_found} onChange={(e) => set('defects_found', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg text-content-body">ליקויים שנמצאו</label>
+          <textarea value={form.defects_found} onChange={(e) => set('defects_found', e.target.value)} rows={2} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
         <div>
-          <label className="block text-lg text-gray-600">פעולות מתקנות</label>
-          <textarea value={form.corrective_actions} onChange={(e) => set('corrective_actions', e.target.value)} rows={2} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+          <label className="block text-lg text-content-body">פעולות מתקנות</label>
+          <textarea value={form.corrective_actions} onChange={(e) => set('corrective_actions', e.target.value)} rows={2} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
         </div>
       </fieldset>
 
       <PhotoUpload label="תמונות מהפיילוט" onUpload={setPhotos} />
 
       <div>
-        <label className="block text-lg font-medium text-gray-700">הערות</label>
-        <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="mt-1 block w-full rounded border-gray-300 shadow-sm" />
+        <label className="block text-lg font-medium text-content-body">הערות</label>
+        <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="mt-1 block w-full rounded border-line-strong shadow-sm" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -153,7 +153,7 @@ export default function FormB165() {
         <SignaturePad label="חתימת פיברטק" onSave={setFibertechSig} />
       </div>
 
-      <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg text-2xl font-semibold hover:bg-blue-700">
+      <button type="submit" className="w-full py-3 bg-primary text-white rounded-lg text-2xl font-semibold hover:bg-primary-700">
         שלח דו״ח B-165
       </button>
     </form>

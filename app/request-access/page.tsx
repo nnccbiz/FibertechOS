@@ -72,25 +72,25 @@ export default function RequestAccessPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f0f4f8]" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-surface-page" dir="rtl">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-14 h-14 rounded-xl bg-[#1a56db] flex items-center justify-center text-white text-2xl font-bold">
+          <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center text-white text-2xl font-bold">
             F
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-gray-800">בקשת גישה למערכת</h1>
-          <p className="text-sm text-gray-500 mt-1 text-center">
+          <h1 className="mt-4 text-2xl font-bold text-content-strong">בקשת גישה למערכת</h1>
+          <p className="text-sm text-content-muted mt-1 text-center">
             מלא את הפרטים. המנהל יאשר את הבקשה ותקבל לינק לקביעת סיסמה במייל.
           </p>
         </div>
 
         {outcome?.kind === 'success' ? (
-          <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4 text-sm">
+          <div className="bg-success-soft border border-success text-success rounded-lg p-4 text-sm">
             <p className="font-semibold">✓ הבקשה נשלחה</p>
             <p className="mt-1">{outcome.message}</p>
             <Link
               href="/login"
-              className="mt-3 inline-block text-[#1a56db] hover:underline"
+              className="mt-3 inline-block text-primary hover:underline"
             >
               חזרה לדף התחברות ←
             </Link>
@@ -98,20 +98,20 @@ export default function RequestAccessPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-content-body mb-1">
                 שם מלא
               </label>
               <input
                 type="text"
                 required
-                className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30"
+                className="w-full border border-line-subtle rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-content-body mb-1">
                 מייל ארגוני
               </label>
               <input
@@ -120,24 +120,24 @@ export default function RequestAccessPage() {
                 pattern=".+@(fibertech\.co\.il|maya-group\.co\.il|prizma-ind\.co\.il)"
                 title="חובה להשתמש במייל של פיברטק, מאיה גרופ או פריזמה"
                 dir="ltr"
-                className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30"
+                className="w-full border border-line-subtle rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-primary-100"
                 placeholder="you@fibertech.co.il"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-neutral-400 mt-1">
                 מותר: @fibertech.co.il · @maya-group.co.il · @prizma-ind.co.il
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-content-body mb-1">
                 תפקיד בחברה
               </label>
               <input
                 type="text"
                 required
-                className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30"
+                className="w-full border border-line-subtle rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 placeholder="למשל: ייבוא, שדה, כספים..."
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
@@ -145,20 +145,20 @@ export default function RequestAccessPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-content-body mb-1">
                 טלפון
               </label>
               <input
                 type="tel"
                 dir="ltr"
-                className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-[#1a56db]/30"
+                className="w-full border border-line-subtle rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-primary-100"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
             </div>
 
             {outcome?.kind === 'error' && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+              <div className="bg-danger-soft border border-danger text-danger text-sm rounded-lg px-3 py-2">
                 {outcome.message}
               </div>
             )}
@@ -166,13 +166,13 @@ export default function RequestAccessPage() {
             <button
               type="submit"
               disabled={pending}
-              className="w-full bg-[#1a56db] text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="w-full bg-primary text-white font-medium py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {pending ? 'שולח...' : 'שלח בקשה'}
             </button>
 
-            <div className="text-sm text-center pt-3 border-t border-gray-100">
-              <Link href="/login" className="text-gray-500 hover:text-gray-800">
+            <div className="text-sm text-center pt-3 border-t border-line-subtle">
+              <Link href="/login" className="text-content-muted hover:text-content-strong">
                 יש לי כבר גישה - התחברות
               </Link>
             </div>

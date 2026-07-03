@@ -38,10 +38,10 @@ interface IskoorRow {
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    in_transit: 'bg-yellow-100 text-yellow-800',
-    released: 'bg-green-100 text-green-800',
-    delivered: 'bg-blue-100 text-blue-800',
-    pending: 'bg-gray-100 text-gray-800',
+    in_transit: 'bg-warning-soft text-warning',
+    released: 'bg-success-soft text-success',
+    delivered: 'bg-azure-100 text-azure-600',
+    pending: 'bg-neutral-100 text-content-strong',
   };
   const labels: Record<string, string> = {
     in_transit: 'בדרך',
@@ -79,7 +79,7 @@ export default function IskoorTracker() {
     load();
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">טוען נתוני ISKOOR...</div>;
+  if (loading) return <div className="p-8 text-center text-content-muted">טוען נתוני ISKOOR...</div>;
 
   // Group by lot
   const lots = rows.reduce<Record<string, IskoorRow[]>>((acc, row) => {
@@ -94,14 +94,14 @@ export default function IskoorTracker() {
       {Object.entries(lots).map(([lot, containers]) => (
         <div key={lot} className="border rounded-lg overflow-hidden">
           {/* Lot header */}
-          <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+          <div className="bg-neutral-50 px-4 py-3 flex items-center justify-between">
             <div>
               <span className="font-semibold text-2xl">{lot}</span>
               {containers[0].bl_number && (
-                <span className="text-lg text-gray-500 mr-3">BL: {containers[0].bl_number}</span>
+                <span className="text-lg text-content-muted mr-3">BL: {containers[0].bl_number}</span>
               )}
               {containers[0].project_name && (
-                <span className="text-lg text-gray-500 mr-3">{containers[0].project_name}</span>
+                <span className="text-lg text-content-muted mr-3">{containers[0].project_name}</span>
               )}
             </div>
             <div className="flex gap-4 text-lg">
@@ -115,7 +115,7 @@ export default function IskoorTracker() {
           {/* Container table */}
           <div className="overflow-x-auto">
             <table className="w-full text-lg">
-              <thead className="bg-gray-100 text-gray-600">
+              <thead className="bg-neutral-100 text-content-body">
                 <tr>
                   <th className="px-3 py-2 text-right">מכולה</th>
                   <th className="px-3 py-2">חשבונית</th>
@@ -131,7 +131,7 @@ export default function IskoorTracker() {
               </thead>
               <tbody className="divide-y">
                 {containers.map((c) => (
-                  <tr key={c.container_number} className="hover:bg-blue-50">
+                  <tr key={c.container_number} className="hover:bg-azure-100">
                     <td className="px-3 py-2 font-mono text-sm">{c.container_number}</td>
                     <td className="px-3 py-2 text-center">{c.invoice_number ?? '—'}</td>
                     <td className="px-3 py-2 text-center">{c.invoice_value ? `€${c.invoice_value.toLocaleString()}` : '—'}</td>
@@ -161,7 +161,7 @@ export default function IskoorTracker() {
       ))}
 
       {rows.length === 0 && (
-        <div className="text-center py-12 text-gray-400">אין נתוני מכולות</div>
+        <div className="text-center py-12 text-neutral-400">אין נתוני מכולות</div>
       )}
     </div>
   );

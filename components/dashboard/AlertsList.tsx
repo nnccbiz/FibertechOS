@@ -47,7 +47,7 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+      <div className="bg-white rounded-xl border border-line-subtle p-5">
         <div className="skeleton h-5 w-32 mb-4" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -61,37 +61,37 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
   const unresolvedAlerts = alerts.filter((a) => !a.is_resolved && !resolvedIds.has(a.id));
 
   return (
-    <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+    <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-gray-700">📌 משימות לביצוע</h3>
+        <h3 className="text-lg font-bold text-content-body">📌 משימות לביצוע</h3>
         {unresolvedAlerts.length > 0 && (
-          <span className="text-[12px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
+          <span className="text-[12px] bg-danger-soft text-danger px-2 py-0.5 rounded-full font-bold">
             {unresolvedAlerts.length}
           </span>
         )}
       </div>
       {unresolvedAlerts.length === 0 ? (
-        <p className="text-lg text-gray-400 text-center py-4">אין משימות פתוחות</p>
+        <p className="text-lg text-neutral-400 text-center py-4">אין משימות פתוחות</p>
       ) : (
         <div className="space-y-2">
           {unresolvedAlerts.slice(0, 10).map((alert) => (
             <div
               key={alert.id}
-              className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2"
+              className="bg-warning-soft border border-warning rounded-lg px-3 py-2.5 flex items-start gap-2"
             >
               <button
                 onClick={() => toggleResolved(alert.id)}
-                className="mt-0.5 w-5 h-5 rounded border-2 border-amber-400 flex items-center justify-center hover:bg-amber-100 transition-colors flex-shrink-0"
+                className="mt-0.5 w-5 h-5 rounded border-2 border-warning flex items-center justify-center hover:bg-warning-soft transition-colors flex-shrink-0"
                 title="סמן כבוצע"
               >
               </button>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700">{alert.message}</p>
+                <p className="text-sm text-content-body">{alert.message}</p>
                 {alert.assigned_to && (
-                  <p className="text-[11px] text-gray-400 mt-0.5">{alert.assigned_to}</p>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">{alert.assigned_to}</p>
                 )}
               </div>
-              <span className="text-[11px] text-gray-400 whitespace-nowrap mt-0.5 flex-shrink-0">
+              <span className="text-[11px] text-neutral-400 whitespace-nowrap mt-0.5 flex-shrink-0">
                 {alert.created_at ? timeAgo(alert.created_at) : ''}
               </span>
             </div>

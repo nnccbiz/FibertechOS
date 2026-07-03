@@ -78,12 +78,12 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
       {contacts.length > 0 && (
         <div className="space-y-2 mb-3">
           {contacts.map((contact, i) => (
-            <div key={i} className="border border-[#e2e8f0] rounded-lg p-2 space-y-2">
+            <div key={i} className="border border-line-subtle rounded-lg p-2 space-y-2">
               <div className="flex gap-2 items-center">
                 <SearchableSelect
                   value={contact.role}
                   onChange={(v) => updateContact(i, 'role', v)}
-                  className="w-36 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm"
+                  className="w-36 border border-line-subtle rounded-lg px-2 py-2 text-sm"
                   placeholder="תפקיד"
                   options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]}
                 />
@@ -93,12 +93,12 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
                   onChange={(e) => updateContact(i, 'name', e.target.value)}
                   placeholder="שם איש הקשר"
                   autoComplete="name"
-                  className="flex-1 min-w-0 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  className="flex-1 min-w-0 border border-line-subtle rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                 />
                 <button
                   type="button"
                   onClick={() => removeContact(i)}
-                  className="text-red-400 hover:text-red-600 text-lg text-center flex-shrink-0"
+                  className="text-danger hover:text-danger text-lg text-center flex-shrink-0"
                 >
                   ✕
                 </button>
@@ -108,7 +108,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
                   value={contact.company}
                   onChange={(v) => updateContact(i, 'company', v)}
                   options={customerOptions}
-                  className="w-full border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  className="w-full border border-line-subtle rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                 />
                 <input
                   type="tel"
@@ -116,7 +116,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
                   onChange={(e) => updateContact(i, 'phone', e.target.value)}
                   placeholder="טלפון"
                   autoComplete="tel"
-                  className="w-40 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  className="w-40 border border-line-subtle rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                   dir="ltr"
                 />
                 <input
@@ -125,7 +125,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
                   onChange={(e) => updateContact(i, 'email', e.target.value)}
                   placeholder="מייל"
                   autoComplete="email"
-                  className="flex-1 min-w-0 border border-[#e2e8f0] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                  className="flex-1 min-w-0 border border-line-subtle rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                   dir="ltr"
                 />
               </div>
@@ -137,7 +137,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
         <button
           type="button"
           onClick={addContact}
-          className="text-sm text-[#1a56db] hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           + הוסף איש קשר
         </button>
@@ -145,7 +145,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
           <button
             type="button"
             onClick={pickFromPhone}
-            className="text-sm text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+            className="text-sm text-primary bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
           >
             📱 בחר מאנשי הקשר
           </button>

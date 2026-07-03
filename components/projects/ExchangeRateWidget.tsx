@@ -17,17 +17,17 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
   const currencies = ['USD', 'EUR'];
 
   function getAgeLabel(info: ExchangeRateInfo): { label: string; color: string } {
-    if (info.stale) return { label: 'לא עדכני', color: 'text-red-500' };
+    if (info.stale) return { label: 'לא עדכני', color: 'text-danger' };
     const now = new Date();
     const rateDate = new Date(info.date);
     const diffHours = (now.getTime() - rateDate.getTime()) / (1000 * 60 * 60);
-    if (diffHours < 24) return { label: 'עדכני', color: 'text-green-600' };
-    if (diffHours < 72) return { label: `${Math.floor(diffHours / 24)} ימים`, color: 'text-amber-500' };
-    return { label: 'ישן', color: 'text-red-500' };
+    if (diffHours < 24) return { label: 'עדכני', color: 'text-success' };
+    if (diffHours < 72) return { label: `${Math.floor(diffHours / 24)} ימים`, color: 'text-warning' };
+    return { label: 'ישן', color: 'text-danger' };
   }
 
   return (
-    <div className="flex items-center gap-4 flex-wrap bg-gray-50 rounded-lg px-3 py-2 mb-3 text-sm">
+    <div className="flex items-center gap-4 flex-wrap bg-neutral-50 rounded-lg px-3 py-2 mb-3 text-sm">
       {currencies.map((cur) => {
         const info = rates[cur];
         const age = info ? getAgeLabel(info) : null;
@@ -36,7 +36,7 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
 
         return (
           <div key={cur} className="flex items-center gap-1.5">
-            <span className="text-gray-500 font-medium">{sym}1 =</span>
+            <span className="text-content-muted font-medium">{sym}1 =</span>
             {info ? (
               <>
                 {isEditing ? (
@@ -47,13 +47,13 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
                     onChange={(e) => setManualRate((p) => ({ ...p, [cur]: e.target.value }))}
                     onBlur={() => setEditingCurrency(null)}
                     onKeyDown={(e) => { if (e.key === 'Enter') setEditingCurrency(null); }}
-                    className="w-20 border border-blue-300 rounded px-1.5 py-0.5 text-sm text-center"
+                    className="w-20 border border-azure rounded px-1.5 py-0.5 text-sm text-center"
                     autoFocus
                     dir="ltr"
                   />
                 ) : (
                   <span
-                    className="font-bold text-gray-800 cursor-pointer hover:text-blue-600"
+                    className="font-bold text-content-strong cursor-pointer hover:text-azure-600"
                     onClick={() => { setEditingCurrency(cur); setManualRate((p) => ({ ...p, [cur]: formatRate(info.rate) })); }}
                     title="לחץ לעריכה ידנית"
                   >
@@ -63,7 +63,7 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
                 {age && <span className={`text-[10px] ${age.color}`}>({age.label})</span>}
               </>
             ) : (
-              <span className="text-gray-400">—</span>
+              <span className="text-neutral-400">—</span>
             )}
           </div>
         );
@@ -72,13 +72,13 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
       <button
         onClick={() => { onRefresh('USD'); onRefresh('EUR'); }}
         disabled={loading}
-        className="text-[11px] text-blue-600 hover:text-blue-800 disabled:text-gray-400 mr-auto"
+        className="text-[11px] text-azure-600 hover:text-azure-600 disabled:text-neutral-400 mr-auto"
         title="רענן שערים מבנק ישראל"
       >
         {loading ? '⏳' : '🔄'} רענן
       </button>
 
-      <span className="text-[10px] text-gray-400">בנק ישראל</span>
+      <span className="text-[10px] text-neutral-400">בנק ישראל</span>
     </div>
   );
 }

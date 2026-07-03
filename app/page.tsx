@@ -317,7 +317,7 @@ export default function DashboardPage() {
       title: 'פרויקטים פעילים',
       value: data?.kpi.activeProjects ?? '—',
       icon: '📋',
-      color: '#1a56db',
+      color: '#15427e',
     },
     {
       title: `חשבוניות ${MONTH_NAMES[new Date().getMonth() + 1]}`,
@@ -325,42 +325,42 @@ export default function DashboardPage() {
         ? formatCompact(data.kpi.monthlyRevenue)
         : '—',
       icon: '💰',
-      color: '#059669',
+      color: '#1e8a5a',
     },
     {
       title: 'התראות פתוחות',
       value: data?.kpi.openAlerts ?? '—',
       icon: '⚠️',
-      color: '#dc2626',
+      color: '#c0392b',
     },
     {
       title: 'הצעות מחיר פתוחות',
       value: data?.kpi.openQuotes ?? '—',
       icon: '📝',
-      color: '#7c3aed',
+      color: '#1a73b8',
     },
     {
       title: 'טיוטות יבוא לבדיקה',
       value: data?.kpi.importDrafts ?? '—',
       icon: '🚢',
-      color: '#d97706',
+      color: '#c9821a',
     },
     {
       title: 'משלוחים בדרך',
       value: data?.kpi.shipmentsEnRoute ?? '—',
       icon: '🚢',
-      color: '#0891b2',
+      color: '#2aa7c4',
     },
   ];
 
   return (
     <div className="min-h-screen" dir="rtl">
         {/* Header */}
-        <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
+        <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">לוח בקרה</h1>
-              <p className="text-[13px] text-gray-400">
+              <h1 className="text-2xl font-bold text-content-strong">לוח בקרה</h1>
+              <p className="text-[13px] text-neutral-400">
                 {new Date().toLocaleDateString('he-IL', {
                   weekday: 'long',
                   year: 'numeric',
@@ -370,7 +370,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="md:hidden">
-              <span className="text-2xl font-bold text-[#1a56db]">FibertechOS</span>
+              <span className="text-2xl font-bold text-primary">FibertechOS</span>
             </div>
           </div>
         </header>
@@ -378,15 +378,15 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-6 pt-5">
           {/* Error banner */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-center gap-3">
+            <div className="bg-danger-soft border border-danger rounded-xl p-4 mb-5 flex items-center gap-3">
               <span className="text-2xl">❌</span>
               <div>
-                <p className="text-lg font-semibold text-red-700">שגיאת חיבור</p>
-                <p className="text-sm text-red-500">{error}</p>
+                <p className="text-lg font-semibold text-danger">שגיאת חיבור</p>
+                <p className="text-sm text-danger">{error}</p>
               </div>
               <button
                 onClick={() => window.location.reload()}
-                className="mr-auto text-sm bg-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors"
+                className="mr-auto text-sm bg-danger-soft text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors"
               >
                 נסה שוב
               </button>
@@ -397,21 +397,21 @@ export default function DashboardPage() {
           <div className="flex gap-3 mb-5 animate-fade-in-up">
             <button
               onClick={() => router.push('/projects/new')}
-              className="flex items-center gap-2 bg-[#1a56db] text-white text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-primary text-white text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors"
             >
               <span>➕</span>
               <span>פרויקט חדש</span>
             </button>
             <button
               onClick={openQuickUpdate}
-              className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 bg-white border border-line-subtle text-content-body text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors"
             >
               <span>📝</span>
               <span>עדכון פרויקט</span>
             </button>
             <button
               onClick={openReport}
-              className="flex items-center gap-2 bg-white border border-[#e2e8f0] text-gray-700 text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 bg-white border border-line-subtle text-content-body text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors"
             >
               <span>📈</span>
               <span>יצירת דוחות</span>
@@ -452,8 +452,8 @@ export default function DashboardPage() {
 
               {/* Shipments en route */}
               <div className="animate-fade-in-up-delay-2">
-                <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-                  <h3 className="text-lg font-bold text-gray-700 mb-3">🚢 משלוחים בדרך</h3>
+                <div className="bg-white rounded-xl border border-line-subtle p-5">
+                  <h3 className="text-lg font-bold text-content-body mb-3">🚢 משלוחים בדרך</h3>
                   {loading ? (
                     <div className="space-y-2">
                       {[1, 2].map((i) => (
@@ -466,12 +466,12 @@ export default function DashboardPage() {
                         <a
                           key={s.id}
                           href="/import"
-                          className="block bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2 no-underline hover:bg-cyan-100 transition-colors"
+                          className="block bg-azure-100 border border-azure rounded-lg px-3 py-2 no-underline hover:bg-azure-100 transition-colors"
                         >
-                          <p className="text-sm font-medium text-gray-700" dir="ltr">
+                          <p className="text-sm font-medium text-content-body" dir="ltr">
                             {s.vessel_name || s.bl_number || 'משלוח'}
                           </p>
-                          <p className="text-[12px] text-gray-500">
+                          <p className="text-[12px] text-content-muted">
                             {s.status === 'sailing' ? 'בהפלגה' : 'שוריין'}
                             {s.eta ? ` · ETA ${new Date(s.eta).toLocaleDateString('he-IL')}` : ''}
                           </p>
@@ -479,7 +479,7 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-lg text-gray-400 text-center py-3">אין משלוחים פעילים</p>
+                    <p className="text-lg text-neutral-400 text-center py-3">אין משלוחים פעילים</p>
                   )}
                 </div>
               </div>
@@ -501,9 +501,9 @@ export default function DashboardPage() {
         {showQuickUpdate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuickUpdate(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-gray-700">📝 עדכון מהיר לפרויקט</h3>
-                <button onClick={() => setShowQuickUpdate(false)} className="text-gray-400 hover:text-gray-600">
+              <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-content-body">📝 עדכון מהיר לפרויקט</h3>
+                <button onClick={() => setShowQuickUpdate(false)} className="text-neutral-400 hover:text-content-body">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
@@ -517,7 +517,7 @@ export default function DashboardPage() {
                       placeholder="חפש פרויקט, יזם או מתכנן..."
                       value={projectSearch}
                       onChange={(e) => setProjectSearch(e.target.value)}
-                      className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                      className="w-full border border-line-subtle rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                       autoFocus
                     />
                     <div className="max-h-[300px] overflow-y-auto space-y-1">
@@ -525,35 +525,35 @@ export default function DashboardPage() {
                         <button
                           key={p.id}
                           onClick={() => setSelectedProject(p)}
-                          className="w-full text-right px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-between group"
+                          className="w-full text-right px-3 py-2.5 rounded-lg hover:bg-azure-100 transition-colors flex items-center justify-between group"
                         >
                           <div>
-                            <p className="text-sm font-medium text-gray-800">{p.name}</p>
-                            <p className="text-[12px] text-gray-400">
+                            <p className="text-sm font-medium text-content-strong">{p.name}</p>
+                            <p className="text-[12px] text-neutral-400">
                               {p.developer_name || '—'}{p.planning_office ? ` · ${p.planning_office}` : ''}
                             </p>
                           </div>
                           {p.last_updated_at && (
-                            <span className="text-[11px] text-gray-300 group-hover:text-gray-400">
+                            <span className="text-[11px] text-neutral-300 group-hover:text-neutral-400">
                               {new Date(p.last_updated_at).toLocaleDateString('he-IL')}
                             </span>
                           )}
                         </button>
                       ))}
                       {filteredProjects.length === 0 && (
-                        <p className="text-sm text-gray-400 text-center py-4">לא נמצאו פרויקטים</p>
+                        <p className="text-sm text-neutral-400 text-center py-4">לא נמצאו פרויקטים</p>
                       )}
                     </div>
                   </div>
                 ) : (
                   <>
                     {/* Selected project header */}
-                    <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between bg-azure-100 rounded-lg px-3 py-2">
                       <div>
-                        <p className="text-sm font-bold text-[#1a56db]">{selectedProject.name}</p>
-                        <p className="text-[12px] text-[#1a56db]/60">{selectedProject.developer_name || ''}</p>
+                        <p className="text-sm font-bold text-primary">{selectedProject.name}</p>
+                        <p className="text-[12px] text-navy-500">{selectedProject.developer_name || ''}</p>
                       </div>
-                      <button onClick={() => setSelectedProject(null)} className="text-[12px] text-[#1a56db] hover:underline">
+                      <button onClick={() => setSelectedProject(null)} className="text-[12px] text-primary hover:underline">
                         שנה פרויקט
                       </button>
                     </div>
@@ -561,30 +561,30 @@ export default function DashboardPage() {
                     {/* Update form */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[12px] font-semibold text-gray-500 mb-1">תאריך</label>
-                        <input type="date" value={quickUpdate.update_date} onChange={(e) => setQuickUpdate({ ...quickUpdate, update_date: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                        <label className="block text-[12px] font-semibold text-content-muted mb-1">תאריך</label>
+                        <input type="date" value={quickUpdate.update_date} onChange={(e) => setQuickUpdate({ ...quickUpdate, update_date: e.target.value })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100" />
                       </div>
                       <div>
-                        <label className="block text-[12px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
-                        <input type="text" placeholder="שמות, מופרדים בפסיק" value={quickUpdate.people} onChange={(e) => setQuickUpdate({ ...quickUpdate, people: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                        <label className="block text-[12px] font-semibold text-content-muted mb-1">אנשים נוגעים בעניין</label>
+                        <input type="text" placeholder="שמות, מופרדים בפסיק" value={quickUpdate.people} onChange={(e) => setQuickUpdate({ ...quickUpdate, people: e.target.value })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100" />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">כותרת</label>
-                      <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={quickUpdate.title} onChange={(e) => setQuickUpdate({ ...quickUpdate, title: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20" />
+                      <label className="block text-[12px] font-semibold text-content-muted mb-1">כותרת</label>
+                      <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={quickUpdate.title} onChange={(e) => setQuickUpdate({ ...quickUpdate, title: e.target.value })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
-                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
-                      <textarea placeholder="פירוט הפגישה / העדכון..." value={quickUpdate.description} onChange={(e) => setQuickUpdate({ ...quickUpdate, description: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[80px]" />
+                      <label className="block text-[12px] font-semibold text-content-muted mb-1">תיאור מלא</label>
+                      <textarea placeholder="פירוט הפגישה / העדכון..." value={quickUpdate.description} onChange={(e) => setQuickUpdate({ ...quickUpdate, description: e.target.value })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 min-h-[80px]" />
                     </div>
                     <div>
-                      <label className="block text-[12px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
-                      <textarea placeholder="משימה 1, משימה 2..." value={quickUpdate.tasks} onChange={(e) => setQuickUpdate({ ...quickUpdate, tasks: e.target.value })} className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 min-h-[50px]" />
+                      <label className="block text-[12px] font-semibold text-content-muted mb-1">משימות לביצוע</label>
+                      <textarea placeholder="משימה 1, משימה 2..." value={quickUpdate.tasks} onChange={(e) => setQuickUpdate({ ...quickUpdate, tasks: e.target.value })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 min-h-[50px]" />
                     </div>
                     <button
                       onClick={saveQuickUpdate}
                       disabled={savingUpdate || !quickUpdate.title.trim()}
-                      className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      className="w-full bg-primary text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                     >
                       {savingUpdate ? 'שומר...' : 'שמור עדכון'}
                     </button>
@@ -600,23 +600,23 @@ export default function DashboardPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowReport(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
-              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-gray-700">📊 דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
+              <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-content-body">📊 דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
                 <div className="flex items-center gap-2">
                   {reportData && (
                     <>
-                      <button onClick={copyReport} className="text-sm bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                      <button onClick={copyReport} className="text-sm bg-neutral-100 text-content-body px-3 py-1.5 rounded-lg hover:bg-neutral-200 transition-colors">
                         {reportCopied ? '✓ הועתק' : '📋 העתק'}
                       </button>
-                      <button onClick={emailReport} className="text-sm bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
+                      <button onClick={emailReport} className="text-sm bg-azure-100 text-primary px-3 py-1.5 rounded-lg hover:bg-azure-100 transition-colors">
                         📧 מייל
                       </button>
-                      <button onClick={whatsappReport} className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors">
+                      <button onClick={whatsappReport} className="text-sm bg-success-soft text-success px-3 py-1.5 rounded-lg hover:bg-success-soft transition-colors">
                         💬 WhatsApp
                       </button>
                     </>
                   )}
-                  <button onClick={() => setShowReport(false)} className="text-gray-400 hover:text-gray-600 mr-2">
+                  <button onClick={() => setShowReport(false)} className="text-neutral-400 hover:text-content-body mr-2">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                   </button>
                 </div>
@@ -627,114 +627,114 @@ export default function DashboardPage() {
                 {reportLoading ? (
                   <div className="flex items-center justify-center py-16">
                     <div className="text-center space-y-3">
-                      <div className="w-10 h-10 border-4 border-[#1a56db] border-t-transparent rounded-full animate-spin mx-auto" />
-                      <p className="text-sm text-gray-500">טוען נתונים...</p>
+                      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-sm text-content-muted">טוען נתונים...</p>
                     </div>
                   </div>
                 ) : reportData ? (
                   <>
                     {/* Summary cards */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-green-600 font-semibold">3 חודשים קרובים</p>
-                        <p className="text-lg font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
-                        <p className="text-[11px] text-green-500">הכנסות צפויות</p>
+                      <div className="bg-success-soft border border-success rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-success font-semibold">3 חודשים קרובים</p>
+                        <p className="text-lg font-bold text-success">{formatILS(Math.round(reportData.totalNext3))}</p>
+                        <p className="text-[11px] text-success">הכנסות צפויות</p>
                       </div>
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-blue-600 font-semibold">סה"כ הזמנות (100%)</p>
-                        <p className="text-lg font-bold text-blue-700">{formatILS(reportData.totalCertain)}</p>
-                        <p className="text-[11px] text-blue-500">{reportData.certain.length} פרויקטים</p>
+                      <div className="bg-azure-100 border border-azure rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-azure-600 font-semibold">סה"כ הזמנות (100%)</p>
+                        <p className="text-lg font-bold text-azure-600">{formatILS(reportData.totalCertain)}</p>
+                        <p className="text-[11px] text-azure">{reportData.certain.length} פרויקטים</p>
                       </div>
-                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-purple-600 font-semibold">הסתברות גבוהה {reportData.currentYear}</p>
-                        <p className="text-lg font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
-                        <p className="text-[11px] text-purple-500">{reportData.highProb.length} פרויקטים</p>
+                      <div className="bg-primary-50 border border-primary rounded-xl p-3 text-center">
+                        <p className="text-[12px] text-primary font-semibold">הסתברות גבוהה {reportData.currentYear}</p>
+                        <p className="text-lg font-bold text-primary">{formatILS(reportData.totalHighProb)}</p>
+                        <p className="text-[11px] text-navy-500">{reportData.highProb.length} פרויקטים</p>
                       </div>
                     </div>
 
                     {/* Expected revenue — next 3 months */}
-                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="bg-white border border-line-subtle rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
                         <span>📋</span> הכנסות צפויות לשלושה חודשים הקרובים
                       </h4>
                       {reportData.totalNext3 > 0 ? (
                         <div className="space-y-2">
                           {reportData.next3MonthsData.map((m: any, idx: number) => (
-                            <div key={idx} className="rounded-lg border border-green-100 overflow-hidden">
-                              <div className="flex items-center justify-between bg-green-50 px-3 py-2">
-                                <span className="text-sm font-bold text-green-700">{m.month}</span>
-                                <span className="text-sm font-bold text-green-700">{formatILS(Math.round(m.total))}</span>
+                            <div key={idx} className="rounded-lg border border-success overflow-hidden">
+                              <div className="flex items-center justify-between bg-success-soft px-3 py-2">
+                                <span className="text-sm font-bold text-success">{m.month}</span>
+                                <span className="text-sm font-bold text-success">{formatILS(Math.round(m.total))}</span>
                               </div>
                               {m.projects.length > 0 && (
                                 <div className="px-3 py-1.5 space-y-1">
                                   {m.projects.map((p: any, j: number) => (
                                     <div key={j} className="flex items-center justify-between text-[12px]">
-                                      <span className="text-gray-600">{p.name}</span>
-                                      <span className="text-gray-500">{formatILS(Math.round(p.value))}</span>
+                                      <span className="text-content-body">{p.name}</span>
+                                      <span className="text-content-muted">{formatILS(Math.round(p.value))}</span>
                                     </div>
                                   ))}
                                 </div>
                               )}
                             </div>
                           ))}
-                          <div className="flex items-center justify-between pt-2 border-t border-green-100">
-                            <p className="text-sm font-bold text-gray-700">סה"כ 3 חודשים</p>
-                            <p className="text-sm font-bold text-green-700">{formatILS(Math.round(reportData.totalNext3))}</p>
+                          <div className="flex items-center justify-between pt-2 border-t border-success">
+                            <p className="text-sm font-bold text-content-body">סה"כ 3 חודשים</p>
+                            <p className="text-sm font-bold text-success">{formatILS(Math.round(reportData.totalNext3))}</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-400 text-center py-3">אין אספקות צפויות ב-3 חודשים הקרובים</p>
+                        <p className="text-sm text-neutral-400 text-center py-3">אין אספקות צפויות ב-3 חודשים הקרובים</p>
                       )}
                     </div>
 
                     {/* 100% Certain */}
-                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="bg-white border border-line-subtle rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
                         <span>💯</span> פרויקטים בסטטוס "הזמנה" (100%)
                       </h4>
                       {reportData.certain.length > 0 ? (
                         <div className="space-y-1.5">
                           {reportData.certain.map((p: any) => (
-                            <div key={p.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                              <p className="text-sm font-medium text-gray-700">{p.name}</p>
-                              <p className="text-sm font-bold text-blue-700">{formatILS(p.order_value || 0)}</p>
+                            <div key={p.id} className="flex items-center justify-between bg-azure-100 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-content-body">{p.name}</p>
+                              <p className="text-sm font-bold text-azure-600">{formatILS(p.order_value || 0)}</p>
                             </div>
                           ))}
-                          <div className="flex items-center justify-between pt-2 border-t border-blue-100">
-                            <p className="text-sm font-bold text-gray-700">סה"כ</p>
-                            <p className="text-sm font-bold text-blue-700">{formatILS(reportData.totalCertain)}</p>
+                          <div className="flex items-center justify-between pt-2 border-t border-azure">
+                            <p className="text-sm font-bold text-content-body">סה"כ</p>
+                            <p className="text-sm font-bold text-azure-600">{formatILS(reportData.totalCertain)}</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-400 text-center py-3">אין פרויקטים בסטטוס הזמנה</p>
+                        <p className="text-sm text-neutral-400 text-center py-3">אין פרויקטים בסטטוס הזמנה</p>
                       )}
                     </div>
 
                     {/* High probability */}
-                    <div className="bg-white border border-[#e2e8f0] rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="bg-white border border-line-subtle rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
                         <span>📈</span> פרויקטים בהסתברות גבוהה לביצוע בשנת {reportData.currentYear}
                       </h4>
                       {reportData.highProb.length > 0 ? (
                         <div className="space-y-1.5">
                           {reportData.highProb.map((p: any) => (
-                            <div key={p.id} className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
-                              <p className="text-sm font-medium text-gray-700">{p.name}</p>
-                              <p className="text-sm font-bold text-purple-700">{formatILS(p.order_value || 0)}</p>
+                            <div key={p.id} className="flex items-center justify-between bg-primary-50 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-content-body">{p.name}</p>
+                              <p className="text-sm font-bold text-primary">{formatILS(p.order_value || 0)}</p>
                             </div>
                           ))}
-                          <div className="flex items-center justify-between pt-2 border-t border-purple-100">
-                            <p className="text-sm font-bold text-gray-700">סה"כ צפוי</p>
-                            <p className="text-sm font-bold text-purple-700">{formatILS(reportData.totalHighProb)}</p>
+                          <div className="flex items-center justify-between pt-2 border-t border-primary">
+                            <p className="text-sm font-bold text-content-body">סה"כ צפוי</p>
+                            <p className="text-sm font-bold text-primary">{formatILS(reportData.totalHighProb)}</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-400 text-center py-3">אין פרויקטים בהסתברות גבוהה</p>
+                        <p className="text-sm text-neutral-400 text-center py-3">אין פרויקטים בהסתברות גבוהה</p>
                       )}
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-red-500 text-center py-8">שגיאה בטעינת הדוח</p>
+                  <p className="text-sm text-danger text-center py-8">שגיאה בטעינת הדוח</p>
                 )}
               </div>
             </div>

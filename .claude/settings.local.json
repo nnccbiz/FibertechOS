@@ -17,7 +17,24 @@
       "Bash(cp supabase/schema.sql database/schema.sql)",
       "mcp__dd8f78e4-85db-4c90-8c34-c4cc168640e5__get_runtime_logs",
       "mcp__dd8f78e4-85db-4c90-8c34-c4cc168640e5__get_project",
-      "mcp__Vercel__get_runtime_logs"
+      "mcp__Vercel__get_runtime_logs",
+      "Bash(grep -rhoE \"\\\\b\\(bg|text|border|ring|from|to|via|divide|placeholder|decoration|outline\\)-\\(blue|slate|gray|green|red|amber|yellow|orange|emerald|indigo|sky|zinc|neutral|stone\\)-[0-9]{2,3}\\\\b\" app components --include=\"*.tsx\")",
+      "Bash(sed -E 's/-[0-9]+$//')",
+      "Bash(npx tailwindcss *)",
+      "Skill(artifact-design)",
+      "Bash(npm run *)",
+      "Artifact",
+      "Bash(grep -oE '\\\\b\\(text|bg|border|ring\\)-gray-[0-9]{2,3}\\\\b' app/page.tsx)",
+      "Bash(grep -oE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|purple|cyan\\)-[0-9]{2,3}\\\\b' app/page.tsx)",
+      "Bash(grep -oE '\\\\b\\(text|bg|border|ring\\)-\\(gray|blue|red|green|purple|cyan|amber|orange|yellow|indigo\\)-[0-9]{2,3}\\\\b' app/page.tsx)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"tsc exit code: $?\")",
+      "Bash(grep *)",
+      "Bash(grep -noE '#[0-9a-fA-F]{6}|\\\\b\\(text|bg|border|ring|from|to|via|divide|placeholder\\)-\\(gray|blue|red|green|purple|cyan|amber|orange|yellow|indigo|slate|emerald|sky|teal|violet|pink\\)-[0-9]{2,3}\\\\b' \"/Users/nathanielcooper/Documents/FibertechOS/app/projects/[id]/page.tsx\")",
+      "Bash(sort -t: -k2)",
+      "Bash(uniq -c -f1)",
+      "Bash(git add *)",
+      "Bash(git restore *)"
     ]
   }
 }

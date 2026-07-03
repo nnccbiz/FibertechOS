@@ -94,7 +94,7 @@ export default function UserPermissionsEditor({
   return (
     <div className="space-y-3">
       {status && (
-        <div className="bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg px-3 py-2">
+        <div className="bg-success-soft border border-success text-success text-sm rounded-lg px-3 py-2">
           {status}
         </div>
       )}
@@ -104,44 +104,44 @@ export default function UserPermissionsEditor({
         return (
           <div
             key={m.id}
-            className={`bg-white rounded-xl border ${m.active ? 'border-[#e2e8f0]' : 'border-gray-300 opacity-75'}`}
+            className={`bg-white rounded-xl border ${m.active ? 'border-line-subtle' : 'border-line-strong opacity-75'}`}
           >
             <button
               onClick={() => setOpenId(isOpen ? null : m.id)}
-              className="w-full flex items-center justify-between p-4 text-right hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-between p-4 text-right hover:bg-neutral-50 transition-colors"
             >
               <div>
-                <div className="font-semibold text-gray-800">
+                <div className="font-semibold text-content-strong">
                   {m.name}
                   {!m.active && (
-                    <span className="mr-2 text-[11px] bg-gray-200 text-gray-700 rounded px-1.5 py-0.5">
+                    <span className="mr-2 text-[11px] bg-neutral-200 text-content-body rounded px-1.5 py-0.5">
                       לא פעיל
                     </span>
                   )}
                   <span className={`mr-2 text-[11px] rounded px-1.5 py-0.5 ${
-                    m.access_level === 'admin' ? 'bg-blue-100 text-blue-700' :
-                    m.access_level === 'member' ? 'bg-gray-100 text-gray-700' :
-                    'bg-amber-100 text-amber-700'
+                    m.access_level === 'admin' ? 'bg-azure-100 text-azure-600' :
+                    m.access_level === 'member' ? 'bg-neutral-100 text-content-body' :
+                    'bg-warning-soft text-warning'
                   }`}>
                     {m.access_level}
                   </span>
                 </div>
-                <div className="text-[13px] text-gray-500" dir="ltr">
+                <div className="text-[13px] text-content-muted" dir="ltr">
                   {m.email || 'אין מייל'} · {m.role}
                 </div>
               </div>
-              <span className="text-gray-400">{isOpen ? '▼' : '◀'}</span>
+              <span className="text-neutral-400">{isOpen ? '▼' : '◀'}</span>
             </button>
 
             {isOpen && (
-              <div className="border-t border-[#e2e8f0] bg-gray-50/60 p-4 space-y-4">
+              <div className="border-t border-line-subtle bg-neutral-50 p-4 space-y-4">
                 <div>
-                  <div className="text-sm font-medium text-gray-700 mb-2">
+                  <div className="text-sm font-medium text-content-body mb-2">
                     הרשאה לכל מודול
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {APP_MODULES.map((mod) => (
-                      <div key={mod} className="flex items-center justify-between bg-white rounded-lg border border-[#e2e8f0] px-3 py-2">
+                      <div key={mod} className="flex items-center justify-between bg-white rounded-lg border border-line-subtle px-3 py-2">
                         <div className="text-sm">
                           <span className="ml-2">{MODULE_ICONS[mod]}</span>
                           {MODULE_LABELS_HE[mod]}
@@ -150,7 +150,7 @@ export default function UserPermissionsEditor({
                           value={getPerm(m.id, mod)}
                           onChange={(v) => setPerm(m.id, mod, v as PermissionLevel)}
                           disabled={m.access_level === 'admin'}
-                          className="text-[13px] border border-[#e2e8f0] rounded px-2 py-1 min-w-[110px]"
+                          className="text-[13px] border border-line-subtle rounded px-2 py-1 min-w-[110px]"
                           options={PERMISSION_LEVELS.map((lvl) => ({ value: lvl, label: LEVEL_LABELS_HE[lvl] }))}
                         />
                       </div>
@@ -158,11 +158,11 @@ export default function UserPermissionsEditor({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-[#e2e8f0]">
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-line-subtle">
                   <button
                     onClick={() => saveMember(m)}
                     disabled={saving || m.access_level === 'admin'}
-                    className="bg-[#1a56db] text-white font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="bg-primary text-white font-medium px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                   >
                     {saving ? 'שומר...' : 'שמור'}
                   </button>
@@ -171,8 +171,8 @@ export default function UserPermissionsEditor({
                     disabled={saving}
                     className={`font-medium px-4 py-2 rounded-lg disabled:opacity-50 ${
                       m.active
-                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        ? 'bg-warning-soft text-warning hover:bg-warning-soft'
+                        : 'bg-success-soft text-success hover:bg-success-soft'
                     }`}
                   >
                     {m.active ? '🚫 השבת משתמש' : '✓ הפעל מחדש'}

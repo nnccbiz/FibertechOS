@@ -36,11 +36,11 @@ interface EditableFieldProps {
 }
 
 function EditableField({ label, value, editing, type = 'text', options, onChange }: EditableFieldProps) {
-  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const inputClass = 'w-full border border-line-subtle rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary';
 
   return (
-    <div className="flex items-baseline gap-2 py-1.5 border-b border-gray-50">
-      <span className="text-[13px] text-gray-500 w-40 flex-shrink-0">{label}</span>
+    <div className="flex items-baseline gap-2 py-1.5 border-b border-line-subtle">
+      <span className="text-[13px] text-content-muted w-40 flex-shrink-0">{label}</span>
       {editing ? (
         type === 'textarea' ? (
           <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-[60px]`} />
@@ -51,7 +51,7 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
           <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} dir={type === 'number' ? 'ltr' : 'rtl'} />
         )
       ) : (
-        <span className="text-sm font-medium text-gray-800">{value || '—'}</span>
+        <span className="text-sm font-medium text-content-strong">{value || '—'}</span>
       )}
     </div>
   );
@@ -62,14 +62,14 @@ function SectionHeader({ title, icon, editing, onToggle, onSave, saving }: {
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-lg font-bold text-gray-700">{icon} {title}</h2>
+      <h2 className="text-lg font-bold text-content-body">{icon} {title}</h2>
       <div className="flex gap-2">
         {editing && (
-          <button onClick={onSave} disabled={saving} className="text-[13px] bg-[#1a56db] text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <button onClick={onSave} disabled={saving} className="text-[13px] bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">
             {saving ? 'שומר...' : 'שמור'}
           </button>
         )}
-        <button onClick={onToggle} className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${editing ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+        <button onClick={onToggle} className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${editing ? 'bg-neutral-100 text-content-body hover:bg-neutral-200' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
           {editing ? 'ביטול' : 'עריכה'}
         </button>
       </div>
@@ -677,7 +677,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-surface-page flex items-center justify-center" dir="rtl">
         <div className="text-center">
           <div className="skeleton h-8 w-48 mx-auto mb-3" />
           <div className="skeleton h-4 w-32 mx-auto" />
@@ -688,10 +688,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
   if (!project) {
     return (
-      <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-surface-page flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <p className="text-gray-500">פרויקט לא נמצא</p>
-          <button onClick={() => router.push('/projects/list')} className="text-lg text-[#1a56db] hover:underline mt-2">
+          <p className="text-content-muted">פרויקט לא נמצא</p>
+          <button onClick={() => router.push('/projects/list')} className="text-lg text-primary hover:underline mt-2">
             חזרה לפרויקטים
           </button>
         </div>
@@ -700,26 +700,26 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
   }
 
   const d = detailForm;
-  const inputClass = 'w-full border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
-  const contactInput = 'border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]';
+  const inputClass = 'w-full border border-line-subtle rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary';
+  const contactInput = 'border border-line-subtle rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary';
   const ROLES = ['מזמין', 'מלווה מטעם מזמין', 'קבלן', 'רכש', 'מנהל פרויקט', 'מפקח', 'מתכנן', 'משרד מתכנן'];
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8]" dir="rtl">
-      <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
+    <div className="min-h-screen bg-surface-page" dir="rtl">
+      <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
-            <p className="text-[13px] text-gray-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
+            <h1 className="text-2xl font-bold text-content-strong">{project.name}</h1>
+            <p className="text-[13px] text-neutral-400">כרטיס פרויקט #{d.project_number || project.serial_number || '—'}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setShowProjectExport(true); setProjectExportText(''); setProjectExportCopied(false); }}
-              className="text-sm bg-blue-50 text-[#1a56db] px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+              className="text-sm bg-primary-50 text-primary px-3 py-2 rounded-lg hover:bg-primary-100 transition-colors font-medium"
             >
               📤 ייצוא פרויקט
             </button>
-            <button onClick={() => router.push('/projects/list')} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
+            <button onClick={() => router.push('/projects/list')} className="text-sm text-content-muted hover:text-content-body px-3 py-2">
               ← חזרה לפרויקטים
             </button>
           </div>
@@ -728,8 +728,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
       <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-5">
         {/* Status */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-          <h2 className="text-lg font-bold text-gray-700 mb-3">📌 סטטוס</h2>
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
+          <h2 className="text-lg font-bold text-content-body mb-3">📌 סטטוס</h2>
           <StatusTracker
             currentStatus={d.project_status || 'תכנון כללי'}
             onChange={async (status) => {
@@ -743,11 +743,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             }}
           />
           {d.expected_pipe_order_date && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+            <div className="mt-4 bg-success-soft border border-success rounded-lg p-3 flex items-center gap-2">
               <span className="text-2xl">📦</span>
               <div>
-                <p className="text-sm font-bold text-green-700">צפי מועד להזמנת צנרת</p>
-                <p className="text-lg font-bold text-green-800">{formatDate(d.expected_pipe_order_date)}</p>
+                <p className="text-sm font-bold text-success">צפי מועד להזמנת צנרת</p>
+                <p className="text-lg font-bold text-success">{formatDate(d.expected_pipe_order_date)}</p>
               </div>
             </div>
           )}
@@ -765,7 +765,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         )}
 
         {/* Basic info */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="מידע בסיסי" icon="🏗️" editing={editInfo} onToggle={() => editInfo ? cancelEdit('info') : setEditInfo(true)} onSave={saveInfo} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="שם הפרויקט" value={form.name || ''} editing={editInfo} onChange={(v) => updateForm('name', v)} />
@@ -784,11 +784,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
 
           {/* קבלנים מבצעים */}
-          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
+          <div className="border-t border-line-subtle mt-4 pt-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-gray-500">קבלנים מבצעים</h3>
+              <h3 className="text-sm font-bold text-content-muted">קבלנים מבצעים</h3>
               {editInfo && (
-                <button onClick={() => setContractorsForm((prev) => [...prev, ''])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף קבלן</button>
+                <button onClick={() => setContractorsForm((prev) => [...prev, ''])} className="text-[13px] text-primary hover:underline">+ הוסף קבלן</button>
               )}
             </div>
             {editInfo ? (
@@ -796,22 +796,22 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 {contractorsForm.map((c, i) => (
                   <div key={i} className="flex gap-2 items-center">
                     <input type="text" placeholder="שם קבלן מבצע" value={c} onChange={(e) => { const next = [...contractorsForm]; next[i] = e.target.value; setContractorsForm(next); }} className={`${inputClass} flex-1`} />
-                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
+                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl">✕</button>
                   </div>
                 ))}
-                {contractorsForm.length === 0 && <p className="text-sm text-gray-400">אין קבלנים. לחץ + להוסיף.</p>}
+                {contractorsForm.length === 0 && <p className="text-sm text-neutral-400">אין קבלנים. לחץ + להוסיף.</p>}
               </div>
             ) : (
               <div className="space-y-1">
                 {contractorsForm.filter((c) => c.trim()).length > 0 ? (
                   contractorsForm.filter((c) => c.trim()).map((c, i) => (
-                    <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
-                      <span className="text-[13px] text-gray-500 w-40 flex-shrink-0">קבלן מבצע {contractorsForm.filter((x) => x.trim()).length > 1 ? i + 1 : ''}</span>
-                      <span className="text-sm font-medium text-gray-800">{c}</span>
+                    <div key={i} className="flex items-center gap-2 py-1.5 border-b border-line-subtle">
+                      <span className="text-[13px] text-content-muted w-40 flex-shrink-0">קבלן מבצע {contractorsForm.filter((x) => x.trim()).length > 1 ? i + 1 : ''}</span>
+                      <span className="text-sm font-medium text-content-strong">{c}</span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-400">אין קבלנים מבצעים</p>
+                  <p className="text-sm text-neutral-400">אין קבלנים מבצעים</p>
                 )}
               </div>
             )}
@@ -819,7 +819,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Dates */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="תאריכים" icon="📅" editing={editDates} onToggle={() => editDates ? cancelEdit('dates') : setEditDates(true)} onSave={saveDates} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="תאריך קבלת ההזמנה" value={editDates ? formatDateInput(d.order_received_date) : formatDate(d.order_received_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('order_received_date', v)} />
@@ -831,13 +831,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
 
           {/* Delivery months picker */}
-          <div className="border-t border-[#e2e8f0] mt-4 pt-4">
-            <h3 className="text-sm font-bold text-gray-500 mb-3">חודשי אספקה</h3>
+          <div className="border-t border-line-subtle mt-4 pt-4">
+            <h3 className="text-sm font-bold text-content-muted mb-3">חודשי אספקה</h3>
             {editDates ? (
               <div className="space-y-4">
                 {[new Date().getFullYear(), new Date().getFullYear() + 1].map((year) => (
                   <div key={year}>
-                    <p className="text-[13px] font-bold text-gray-400 mb-1.5">{year}</p>
+                    <p className="text-[13px] font-bold text-neutral-400 mb-1.5">{year}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
                         const key = `${year}-${m}`;
@@ -853,8 +853,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                             }}
                             className={`text-[13px] px-3 py-1.5 rounded-full border transition-colors ${
                               selected
-                                ? 'bg-[#1a56db] text-white border-[#1a56db]'
-                                : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'
                             }`}
                           >
                             {MONTH_NAMES[m]}
@@ -873,10 +873,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   if (yearMonths.length === 0) return null;
                   return (
                     <div key={year}>
-                      <p className="text-[12px] text-gray-400 mb-1">{year}</p>
+                      <p className="text-[12px] text-neutral-400 mb-1">{year}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {yearMonths.map((m: number) => (
-                          <span key={m} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1 rounded-full font-medium">
+                          <span key={m} className="text-[13px] bg-primary-50 text-primary px-3 py-1 rounded-full font-medium">
                             {MONTH_NAMES[m]}
                           </span>
                         ))}
@@ -885,7 +885,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   );
                 })}
                 {!(d.delivery_months_list || '').split(',').filter(Boolean).length && (
-                  <span className="text-sm text-gray-400">לא נבחרו חודשי אספקה</span>
+                  <span className="text-sm text-neutral-400">לא נבחרו חודשי אספקה</span>
                 )}
               </div>
             )}
@@ -893,34 +893,34 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Contacts */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="אנשי קשר" icon="👥" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
 
           {/* Winning customer — known only after the tender is won */}
-          <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-[#e2e8f0] rounded-lg px-3 py-2 mb-3">
-            <span className="text-[13px] font-semibold text-gray-600">🏆 לקוח זוכה:</span>
+          <div className="flex items-center gap-2 flex-wrap bg-neutral-50 border border-line-subtle rounded-lg px-3 py-2 mb-3">
+            <span className="text-[13px] font-semibold text-content-body">🏆 לקוח זוכה:</span>
             <SearchableSelect
               value={project.customer_id || ''}
               onChange={(v) => setProjectCustomer(v)}
-              className="border border-[#e2e8f0] rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
+              className="border border-line-subtle rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
               placeholder="— טרם נקבע —"
               options={[{ value: '', label: '— טרם נקבע —' }, ...customersList.map((c: any) => ({ value: c.id, label: c.name }))]}
             />
-            <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100">+ לקוח חדש</button>
+            <button onClick={() => setShowCustomerForm(true)} className="text-[13px] bg-primary-50 text-primary px-3 py-1.5 rounded-lg hover:bg-primary-100">+ לקוח חדש</button>
             {project.customer_id && (
-              <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 no-underline">פתח כרטיס ←</a>
+              <a href={`/customers/${project.customer_id}`} className="text-[13px] bg-white border border-line-subtle text-content-body px-3 py-1.5 rounded-lg hover:bg-neutral-100 no-underline">פתח כרטיס ←</a>
             )}
           </div>
 
           {editContacts ? (
             <div className="space-y-2">
               {contactsForm.map((c, i) => (
-                <div key={i} className="border border-[#e2e8f0] rounded-lg p-3 space-y-2">
+                <div key={i} className="border border-line-subtle rounded-lg p-3 space-y-2">
                   <div className="flex gap-2 items-center">
                     <SearchableSelect value={c.role || ''} onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], role: v }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} placeholder="תפקיד"
                       options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]} />
                     <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
-                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl shrink-0 leading-none">✕</button>
+                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl shrink-0 leading-none">✕</button>
                   </div>
                   <div className="flex gap-2 items-start">
                     <CompanyAutocomplete
@@ -935,9 +935,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 </div>
               ))}
               <div className="flex items-center gap-3">
-                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', company: '', phone: '', email: '' }])} className="text-[13px] text-[#1a56db] hover:underline">+ הוסף איש קשר</button>
+                <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', company: '', phone: '', email: '' }])} className="text-[13px] text-primary hover:underline">+ הוסף איש קשר</button>
                 {contactPickerSupported && (
-                  <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-[#1a56db] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                  <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-primary bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
                     📱 בחר מאנשי הקשר
                   </button>
                 )}
@@ -947,34 +947,34 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e2e8f0]">
-                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">תפקיד</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">שם</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">חברה</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">טלפון</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">מייל</th>
+                  <tr className="border-b border-line-subtle">
+                    <th className="text-right text-content-muted font-medium pb-2 pr-2">תפקיד</th>
+                    <th className="text-right text-content-muted font-medium pb-2">שם</th>
+                    <th className="text-right text-content-muted font-medium pb-2">חברה</th>
+                    <th className="text-right text-content-muted font-medium pb-2">טלפון</th>
+                    <th className="text-right text-content-muted font-medium pb-2">מייל</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contacts.map((c) => (
-                    <tr key={c.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-2 text-gray-600">{c.role}</td>
-                      <td className="py-2 font-medium text-gray-800">{c.name}</td>
-                      <td className="py-2 text-gray-600">{c.company || '—'}</td>
-                      <td className="py-2 text-gray-600" dir="ltr">{c.phone || '—'}</td>
-                      <td className="py-2 text-gray-600" dir="ltr">{c.email || '—'}</td>
+                    <tr key={c.id} className="border-b border-line-subtle">
+                      <td className="py-2 pr-2 text-content-body">{c.role}</td>
+                      <td className="py-2 font-medium text-content-strong">{c.name}</td>
+                      <td className="py-2 text-content-body">{c.company || '—'}</td>
+                      <td className="py-2 text-content-body" dir="ltr">{c.phone || '—'}</td>
+                      <td className="py-2 text-content-body" dir="ltr">{c.email || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-3">אין אנשי קשר. לחץ עריכה להוסיף.</p>
+            <p className="text-sm text-neutral-400 text-center py-3">אין אנשי קשר. לחץ עריכה להוסיף.</p>
           )}
         </section>
 
         {/* Project type & installation */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="סוג פרויקט והתקנה" icon="⚙️" editing={editType} onToggle={() => editType ? cancelEdit('type') : setEditType(true)} onSave={saveType} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="תיאור הפרויקט" value={d.description || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('description', v)} />
@@ -984,8 +984,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <EditableField label="פיקוח שרות שדה" value={d.field_supervision || ''} editing={editType} type="select" options={['כן', 'לא', 'לא נדרש']} onChange={(v) => updateDetailForm('field_supervision', v)} />
           </div>
           {(editType || d.installation_type === 'דחיקה') && (
-            <div className="border-t border-[#e2e8f0] mt-3 pt-3">
-              <h3 className="text-sm font-bold text-gray-500 mb-2">פרטי דחיקה</h3>
+            <div className="border-t border-line-subtle mt-3 pt-3">
+              <h3 className="text-sm font-bold text-content-muted mb-2">פרטי דחיקה</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                 <EditableField label="סוג הקרקע" value={d.soil_type || ''} editing={editType} onChange={(v) => updateDetailForm('soil_type', v)} />
                 <EditableField label="עומק הדחיקה" value={d.push_depth || ''} editing={editType} onChange={(v) => updateDetailForm('push_depth', v)} />
@@ -997,11 +997,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Pipe specs */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="מפרטים טכניים ושרטוטים" icon="📐" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
-            <div className="divide-y divide-green-300">
+            <div className="divide-y divide-success">
               {specsForm.map((s, i) => (
                 <div key={i} className="flex gap-2 items-center flex-wrap py-3 first:pt-0">
                   <div className="flex gap-1 items-center">
@@ -1013,7 +1013,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     options={[{ value: 'הטמנה', label: 'הטמנה' }, { value: 'דחיקה', label: 'דחיקה (Jacking)' }, { value: 'השחלה', label: 'השחלה (Slip Lining)' }, { value: 'עילי', label: 'עילי' }, { value: 'ביאקסיאלי', label: 'ביאקסיאלי' }]} />
                   <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-gray-400">אורך יחידה (מ׳)</span>
+                    <span className="text-[10px] text-neutral-400">אורך יחידה (מ׳)</span>
                     <div className="flex gap-2 items-center flex-nowrap">
                       <input type="number" step="0.1" placeholder="אחר" value={(() => { const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean); const custom = vals.find((v: number) => ![11.7, 5.7, 3.8, 2.8].includes(v)); return custom ?? ''; })()} onChange={(e) => {
                         const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
@@ -1030,7 +1030,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                               const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
                               const newVals = isChecked ? vals.filter((v: number) => v !== len) : [...vals, len];
                               const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
-                            }} className="accent-[#1a56db]" />
+                            }} className="accent-primary" />
                             {len}
                           </label>
                         );
@@ -1040,66 +1040,66 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
-                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-2xl">✕</button>
+                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl">✕</button>
                 </div>
               ))}
             </div>
-              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-[#1a56db] hover:underline mt-3 block">+ הוסף מפרט צינור</button>
+              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-primary hover:underline mt-3 block">+ הוסף מפרט צינור</button>
             </div>
           ) : pipeSpecs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e2e8f0]">
-                    <th className="text-right text-gray-500 font-medium pb-2 pr-2">DN</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">OD</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">ID</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">סוג צינור</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">אורך קו (מ׳)</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">אורך יחידה (מ׳)</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">קשיחות (פסקל)</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">לחץ (בר)</th>
-                    <th className="text-right text-gray-500 font-medium pb-2">הערות</th>
+                  <tr className="border-b border-line-subtle">
+                    <th className="text-right text-content-muted font-medium pb-2 pr-2">DN</th>
+                    <th className="text-right text-content-muted font-medium pb-2">OD</th>
+                    <th className="text-right text-content-muted font-medium pb-2">ID</th>
+                    <th className="text-right text-content-muted font-medium pb-2">סוג צינור</th>
+                    <th className="text-right text-content-muted font-medium pb-2">אורך קו (מ׳)</th>
+                    <th className="text-right text-content-muted font-medium pb-2">אורך יחידה (מ׳)</th>
+                    <th className="text-right text-content-muted font-medium pb-2">קשיחות (פסקל)</th>
+                    <th className="text-right text-content-muted font-medium pb-2">לחץ (בר)</th>
+                    <th className="text-right text-content-muted font-medium pb-2">הערות</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pipeSpecs.map((spec) => (
-                    <tr key={spec.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-2 font-semibold text-gray-800">{spec.dn_mm || '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.od_mm || '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.id_mm || '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.pipe_type || 'הטמנה'}</td>
-                      <td className="py-2 text-gray-600">{spec.line_length_m ?? '—'}</td>
-                      <td className="py-2 text-gray-600" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.stiffness_pascal ?? '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.pressure_bar ?? '—'}</td>
-                      <td className="py-2 text-gray-600">{spec.notes || '—'}</td>
+                    <tr key={spec.id} className="border-b border-line-subtle">
+                      <td className="py-2 pr-2 font-semibold text-content-strong">{spec.dn_mm || '—'}</td>
+                      <td className="py-2 text-content-body">{spec.od_mm || '—'}</td>
+                      <td className="py-2 text-content-body">{spec.id_mm || '—'}</td>
+                      <td className="py-2 text-content-body">{spec.pipe_type || 'הטמנה'}</td>
+                      <td className="py-2 text-content-body">{spec.line_length_m ?? '—'}</td>
+                      <td className="py-2 text-content-body" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
+                      <td className="py-2 text-content-body">{spec.stiffness_pascal ?? '—'}</td>
+                      <td className="py-2 text-content-body">{spec.pressure_bar ?? '—'}</td>
+                      <td className="py-2 text-content-body">{spec.notes || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
+            <p className="text-sm text-neutral-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
           )}
 
           {/* Attachments */}
           {projectAttachments.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-              <h3 className="text-sm font-bold text-gray-600 mb-2">📎 שרטוטים ומסמכים ({projectAttachments.length})</h3>
+            <div className="mt-4 pt-4 border-t border-line-subtle">
+              <h3 className="text-sm font-bold text-content-body mb-2">📎 שרטוטים ומסמכים ({projectAttachments.length})</h3>
               <div className="space-y-1.5">
                 {projectAttachments.map((att: any) => {
                   const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
                   return (
-                    <div key={att.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                      <span className="text-gray-400 text-xs">{att.file_name.endsWith('.pdf') ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-[#1a56db] hover:underline truncate flex-1">{att.file_name}</a>
+                    <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-2 text-sm">
+                      <span className="text-neutral-400 text-xs">{att.file_name.endsWith('.pdf') ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex-1">{att.file_name}</a>
                       {linkedQuote && (
-                        <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <span className="text-[11px] bg-azure-100 text-azure-600 px-2 py-0.5 rounded-full whitespace-nowrap">
                           הצעה {linkedQuote.quote_number}
                         </span>
                       )}
-                      <span className="text-[10px] text-gray-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
+                      <span className="text-[10px] text-neutral-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
                     </div>
                   );
                 })}
@@ -1110,7 +1110,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Project specs (portrait orientation in the quote PDF) */}
         <section
-          className={`relative bg-white rounded-xl border p-5 transition-colors ${specDragOver ? 'border-amber-400 ring-2 ring-amber-200' : 'border-[#e2e8f0]'}`}
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${specDragOver ? 'border-warning ring-2 ring-warning' : 'border-line-subtle'}`}
           onDragEnter={(e) => {
             if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
             e.preventDefault();
@@ -1137,17 +1137,17 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           }}
         >
           {specDragOver && (
-            <div className="absolute inset-0 z-20 bg-amber-50/90 border-2 border-dashed border-amber-400 rounded-xl flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 z-20 bg-warning-soft border-2 border-dashed border-warning rounded-xl flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <div className="text-3xl mb-1">📋</div>
-                <p className="text-sm font-bold text-amber-700">שחרר כדי להעלות מפרטים</p>
-                <p className="text-[11px] text-amber-600 mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
+                <p className="text-sm font-bold text-warning">שחרר כדי להעלות מפרטים</p>
+                <p className="text-[11px] text-warning mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-gray-700">📋 מפרטים טכניים של הפרויקט</h2>
-            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-gray-100 text-gray-400' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+            <h2 className="text-lg font-bold text-content-body">📋 מפרטים טכניים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-neutral-100 text-neutral-400' : 'bg-warning-soft text-warning hover:bg-warning-soft'}`}>
               {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
               <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
                 onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
@@ -1155,16 +1155,16 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
           {(() => {
             const specs = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type === 'spec');
-            if (specs.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין מפרטים. גרור קבצים פנימה, או לחץ &quot;+ העלה מפרט&quot;. מפרטים יוצגו לאורך בהצעת המחיר.</p>;
+            if (specs.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין מפרטים. גרור קבצים פנימה, או לחץ &quot;+ העלה מפרט&quot;. מפרטים יוצגו לאורך בהצעת המחיר.</p>;
             return (
               <div className="space-y-2">
                 {specs.map((att: any) => (
-                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
-                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                  <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-warning bg-warning-soft px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
                       {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
                     </button>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
                   </div>
                 ))}
               </div>
@@ -1174,7 +1174,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Project drawings (landscape orientation in the quote PDF) */}
         <section
-          className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-[#1a56db] ring-2 ring-blue-200' : 'border-[#e2e8f0]'}`}
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-primary ring-2 ring-primary-100' : 'border-line-subtle'}`}
           onDragEnter={(e) => {
             if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
             e.preventDefault();
@@ -1201,17 +1201,17 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           }}
         >
           {drawingDragOver && (
-            <div className="absolute inset-0 z-20 bg-blue-50/90 border-2 border-dashed border-[#1a56db] rounded-xl flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 z-20 bg-primary-50 border-2 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <div className="text-3xl mb-1">📐</div>
-                <p className="text-sm font-bold text-[#1a56db]">שחרר כדי להעלות שרטוטים</p>
-                <p className="text-[11px] text-blue-600 mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
+                <p className="text-sm font-bold text-primary">שחרר כדי להעלות שרטוטים</p>
+                <p className="text-[11px] text-primary mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-gray-700">📐 שרטוטים של הפרויקט</h2>
-            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-[#1a56db] hover:bg-blue-100'}`}>
+            <h2 className="text-lg font-bold text-content-body">📐 שרטוטים של הפרויקט</h2>
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
               {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
               <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
                 onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
@@ -1219,23 +1219,23 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
           {(() => {
             const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type !== 'spec');
-            if (drawings.length === 0) return <p className="text-sm text-gray-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
+            if (drawings.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
             return (
               <div className="space-y-2">
                 {drawings.map((att: any) => (
-                  <div key={att.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-[#003d77] bg-blue-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
+                  <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-navy-700 bg-primary-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
                       {(details.project_number || '—')}/{att.drawing_number || '?'}
                     </span>
-                    <button onClick={() => openDrawing(att.file_url)} className="text-[#1a56db] hover:underline truncate flex-1 text-right min-w-0">
+                    <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
                       {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
                     </button>
-                    <label className="text-[11px] text-gray-400 flex items-center gap-1">
+                    <label className="text-[11px] text-neutral-400 flex items-center gap-1">
                       מס׳ שרטוט:
                       <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
-                        placeholder="—" className="w-24 border border-[#e2e8f0] rounded px-2 py-1 text-[12px] text-gray-700" dir="ltr" />
+                        placeholder="—" className="w-24 border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="ltr" />
                     </label>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-red-400 hover:text-red-600 text-lg shrink-0">×</button>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
                   </div>
                 ))}
               </div>
@@ -1248,12 +1248,12 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         {/* Import — documents & orders linked to this project */}
         <ImportPanel projectId={params.id as string} />
         {/* Updates / Meeting log */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-700">📝 מעקב עדכונים ופגישות</h2>
+            <h2 className="text-lg font-bold text-content-body">📝 מעקב עדכונים ופגישות</h2>
             <button
               onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
-              className="text-[13px] bg-blue-50 text-[#1a56db] px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+              className="text-[13px] bg-primary-50 text-primary px-3 py-1.5 rounded-lg hover:bg-primary-100 transition-colors"
             >
               {showAddUpdate ? 'ביטול' : '+ עדכון חדש'}
             </button>
@@ -1261,27 +1261,27 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
           {/* Add new update form */}
           {showAddUpdate && (
-            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4 space-y-3">
+            <div className="bg-azure-100 border border-azure rounded-xl p-4 mb-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">תאריך</label>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">תאריך</label>
                   <input type="date" value={newUpdate.update_date} onChange={(e) => setNewUpdate({ ...newUpdate, update_date: e.target.value })} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">אנשים נוגעים בעניין</label>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">אנשים נוגעים בעניין</label>
                   <input type="text" placeholder="שמות, מופרדים בפסיק" value={newUpdate.people} onChange={(e) => setNewUpdate({ ...newUpdate, people: e.target.value })} className={inputClass} />
                 </div>
               </div>
               <div>
-                <label className="block text-[13px] font-semibold text-gray-500 mb-1">כותרת (תיאור קצר)</label>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">כותרת (תיאור קצר)</label>
                 <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={newUpdate.title} onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })} className={inputClass} />
               </div>
               <div>
-                <label className="block text-[13px] font-semibold text-gray-500 mb-1">תיאור מלא</label>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">תיאור מלא</label>
                 <textarea placeholder="פירוט הפגישה / העדכון..." value={newUpdate.description} onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })} className={`${inputClass} min-h-[80px]`} />
               </div>
               <div>
-                <label className="block text-[13px] font-semibold text-gray-500 mb-1">משימות לביצוע</label>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">משימות לביצוע</label>
                 <textarea placeholder="משימה 1, משימה 2..." value={newUpdate.tasks} onChange={(e) => setNewUpdate({ ...newUpdate, tasks: e.target.value })} className={`${inputClass} min-h-[50px]`} />
               </div>
               <button
@@ -1301,7 +1301,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   await load();
                 }}
                 disabled={saving || !newUpdate.title.trim()}
-                className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
                 {saving ? 'שומר...' : 'שמור עדכון'}
               </button>
@@ -1312,28 +1312,28 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {updates.length > 0 ? (
             <div className="space-y-2">
               {updates.map((upd) => (
-                <div key={upd.id} className="border border-[#e2e8f0] rounded-lg overflow-hidden">
+                <div key={upd.id} className="border border-line-subtle rounded-lg overflow-hidden">
                   <button
                     onClick={() => setExpandedUpdate(expandedUpdate === upd.id ? null : upd.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-neutral-50 transition-colors"
                   >
-                    <span className="text-[13px] text-gray-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
-                    <span className="text-[13px] text-[#1a56db] flex-shrink-0 w-32 truncate">{upd.people}</span>
-                    <span className="text-sm font-medium text-gray-800 flex-1 truncate">{upd.title}</span>
-                    <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                    <span className="text-[13px] text-neutral-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
+                    <span className="text-[13px] text-primary flex-shrink-0 w-32 truncate">{upd.people}</span>
+                    <span className="text-sm font-medium text-content-strong flex-1 truncate">{upd.title}</span>
+                    <svg className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                   {expandedUpdate === upd.id && (
-                    <div className="px-4 pb-4 border-t border-[#e2e8f0] bg-gray-50/50">
+                    <div className="px-4 pb-4 border-t border-line-subtle bg-neutral-50">
                       {upd.description && (
                         <div className="mt-3">
-                          <p className="text-[12px] font-bold text-gray-400 mb-1">תיאור</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{upd.description}</p>
+                          <p className="text-[12px] font-bold text-neutral-400 mb-1">תיאור</p>
+                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.description}</p>
                         </div>
                       )}
                       {upd.tasks && (
                         <div className="mt-3">
-                          <p className="text-[12px] font-bold text-gray-400 mb-1">משימות לביצוע</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{upd.tasks}</p>
+                          <p className="text-[12px] font-bold text-neutral-400 mb-1">משימות לביצוע</p>
+                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.tasks}</p>
                         </div>
                       )}
                       <div className="mt-3 flex gap-2">
@@ -1345,7 +1345,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                             setExportEmail('');
                             setExportCopied(false);
                           }}
-                          className="text-[12px] text-[#1a56db] hover:text-blue-700 font-medium"
+                          className="text-[12px] text-primary hover:text-primary-700 font-medium"
                         >
                           📤 ייצא
                         </button>
@@ -1356,7 +1356,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                               await load();
                             }
                           }}
-                          className="text-[12px] text-red-400 hover:text-red-600"
+                          className="text-[12px] text-danger hover:text-danger"
                         >
                           מחק עדכון
                         </button>
@@ -1367,7 +1367,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
+            <p className="text-sm text-neutral-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
           )}
         </section>
 
@@ -1375,21 +1375,21 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         {exportUpdate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-gray-700">📤 ייצוא עדכון כמייל</h3>
-                <button onClick={() => setExportUpdate(null)} className="text-gray-400 hover:text-gray-600">
+              <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-content-body">📤 ייצוא עדכון כמייל</h3>
+                <button onClick={() => setExportUpdate(null)} className="text-neutral-400 hover:text-content-body">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
               <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">נמען</label>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">נמען</label>
                   <input
                     type="text"
                     placeholder="שם או מייל הנמען..."
                     value={exportRecipient}
                     onChange={(e) => setExportRecipient(e.target.value)}
-                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a56db]/20 focus:border-[#1a56db]"
+                    className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
                     list="contact-suggestions"
                   />
                   <datalist id="contact-suggestions">
@@ -1399,17 +1399,17 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   </datalist>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-500 mb-1">שפה</label>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">שפה</label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setExportLang('he')}
-                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'he' ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}
                     >
                       עברית
                     </button>
                     <button
                       onClick={() => setExportLang('en')}
-                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                      className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${exportLang === 'en' ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}
                     >
                       English
                     </button>
@@ -1418,14 +1418,14 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <button
                   onClick={() => generateExportEmail(exportUpdate, exportLang, exportRecipient)}
                   disabled={exportLoading}
-                  className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="w-full bg-primary text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
                   {exportLoading ? 'רקסי מכינה את המייל...' : '✨ הפק מייל'}
                 </button>
                 {exportEmail && (
                   <div className="space-y-2">
-                    <label className="block text-[13px] font-semibold text-gray-500">תוצאה</label>
-                    <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={exportLang === 'he' ? 'rtl' : 'ltr'}>
+                    <label className="block text-[13px] font-semibold text-content-muted">תוצאה</label>
+                    <div className="bg-neutral-50 border border-line-subtle rounded-lg p-3 text-sm text-content-body whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={exportLang === 'he' ? 'rtl' : 'ltr'}>
                       {exportEmail}
                     </div>
                     <div className="flex gap-2">
@@ -1435,7 +1435,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                           setExportCopied(true);
                           setTimeout(() => setExportCopied(false), 2000);
                         }}
-                        className="flex-1 text-sm py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
+                        className="flex-1 text-sm py-2 rounded-lg border border-line-subtle hover:bg-neutral-50 transition-colors font-medium text-content-body"
                       >
                         {exportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
                       </button>
@@ -1445,7 +1445,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                           const body = encodeURIComponent(exportEmail);
                           window.open(`mailto:?subject=${subject}&body=${body}`);
                         }}
-                        className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
+                        className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-primary hover:bg-[#f8bbd0] transition-colors font-medium"
                       >
                         📧 מייל
                       </button>
@@ -1454,7 +1454,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                           const text = encodeURIComponent(exportEmail);
                           window.open(`https://wa.me/?text=${text}`);
                         }}
-                        className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-green-700 hover:bg-[#c5f0a4] transition-colors font-medium"
+                        className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-success hover:bg-[#c5f0a4] transition-colors font-medium"
                       >
                         💬 וואטסאפ
                       </button>
@@ -1467,7 +1467,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         )}
 
         {/* Story & intelligence */}
-        <section className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="סיפור הפרויקט ואינטליגנציה" icon="📖" editing={editStory} onToggle={() => editStory ? cancelEdit('story') : setEditStory(true)} onSave={saveStory} saving={saving} />
           <div className="space-y-4">
             <EditableField label="סיפור הפרויקט" value={d.project_story || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('project_story', v)} />
@@ -1482,25 +1482,25 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
       {showProjectExport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProjectExport(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between flex-shrink-0">
-              <h3 className="text-lg font-bold text-gray-700">📤 ייצוא כרטיס פרויקט</h3>
-              <button onClick={() => setShowProjectExport(false)} className="text-gray-400 hover:text-gray-600">
+            <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
+              <h3 className="text-lg font-bold text-content-body">📤 ייצוא כרטיס פרויקט</h3>
+              <button onClick={() => setShowProjectExport(false)} className="text-neutral-400 hover:text-content-body">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
             <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-[12px] font-semibold text-gray-500 mb-1">שפה</label>
+                <label className="block text-[12px] font-semibold text-content-muted mb-1">שפה</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setProjectExportLang('he')}
-                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'he' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'he' ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}
                   >
                     עברית
                   </button>
                   <button
                     onClick={() => setProjectExportLang('en')}
-                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'en' ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-[#e2e8f0] hover:bg-gray-50'}`}
+                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors ${projectExportLang === 'en' ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}
                   >
                     English
                   </button>
@@ -1509,14 +1509,14 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               <button
                 onClick={() => generateProjectExport(projectExportLang)}
                 disabled={projectExportLoading}
-                className="w-full bg-[#1a56db] text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="w-full bg-primary text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
                 {projectExportLoading ? 'רקסי מכין את הסיכום...' : '✨ הפק סיכום פרויקט'}
               </button>
               {projectExportText && (
                 <div className="space-y-2">
-                  <label className="block text-[12px] font-semibold text-gray-500">תוצאה</label>
-                  <div className="bg-gray-50 border border-[#e2e8f0] rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={projectExportLang === 'he' ? 'rtl' : 'ltr'}>
+                  <label className="block text-[12px] font-semibold text-content-muted">תוצאה</label>
+                  <div className="bg-neutral-50 border border-line-subtle rounded-lg p-3 text-sm text-content-body whitespace-pre-wrap max-h-[250px] overflow-y-auto" dir={projectExportLang === 'he' ? 'rtl' : 'ltr'}>
                     {projectExportText}
                   </div>
                   <div className="flex gap-2">
@@ -1526,7 +1526,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         setProjectExportCopied(true);
                         setTimeout(() => setProjectExportCopied(false), 2000);
                       }}
-                      className="flex-1 text-sm py-2 rounded-lg border border-[#e2e8f0] hover:bg-gray-50 transition-colors font-medium text-gray-600"
+                      className="flex-1 text-sm py-2 rounded-lg border border-line-subtle hover:bg-neutral-50 transition-colors font-medium text-content-body"
                     >
                       {projectExportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
                     </button>
@@ -1536,7 +1536,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         const body = encodeURIComponent(projectExportText);
                         window.open(`mailto:?subject=${subject}&body=${body}`);
                       }}
-                      className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-[#1a56db] hover:bg-[#f8bbd0] transition-colors font-medium"
+                      className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-primary hover:bg-[#f8bbd0] transition-colors font-medium"
                     >
                       📧 מייל
                     </button>
@@ -1545,7 +1545,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         const text = encodeURIComponent(projectExportText);
                         window.open(`https://wa.me/?text=${text}`);
                       }}
-                      className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-green-700 hover:bg-[#c5f0a4] transition-colors font-medium"
+                      className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-success hover:bg-[#c5f0a4] transition-colors font-medium"
                     >
                       💬 וואטסאפ
                     </button>

@@ -14,21 +14,21 @@ interface TeamStatusProps {
 }
 
 const roleColors: Record<string, string> = {
-  admin: '#1a56db',
-  manager: '#7c3aed',
-  field: '#059669',
-  logistics: '#d97706',
-  sales: '#dc2626',
+  admin: '#15427e',
+  manager: '#1a73b8',
+  field: '#1e8a5a',
+  logistics: '#c9821a',
+  sales: '#c0392b',
 };
 
 function getRoleColor(role: string) {
-  return roleColors[role?.toLowerCase()] || '#6b7280';
+  return roleColors[role?.toLowerCase()] || '#6d6e71';
 }
 
 export default function TeamStatus({ members, loading }: TeamStatusProps) {
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
+      <div className="bg-white rounded-xl border border-line-subtle p-5">
         <div className="skeleton h-5 w-28 mb-4" />
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -40,10 +40,10 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#e2e8f0] p-5">
-      <h3 className="text-lg font-bold text-gray-700 mb-3">👥 סטטוס הצוות</h3>
+    <div className="bg-white rounded-xl border border-line-subtle p-5">
+      <h3 className="text-lg font-bold text-content-body mb-3">👥 סטטוס הצוות</h3>
       {members.length === 0 ? (
-        <p className="text-lg text-gray-400 text-center py-3">אין חברי צוות</p>
+        <p className="text-lg text-neutral-400 text-center py-3">אין חברי צוות</p>
       ) : (
         <div className="space-y-2">
           {[...members]
@@ -68,9 +68,9 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">{member.name}</p>
+                  <p className="text-sm font-medium text-content-body truncate">{member.name}</p>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="מחובר" />
+                <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" title="מחובר" />
               </div>
             );
           })}

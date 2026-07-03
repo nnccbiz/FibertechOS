@@ -26,14 +26,14 @@ export default async function UsersPage() {
     .select('user_id, module, level');
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f0f4f8]">
-      <header className="bg-white border-b border-[#e2e8f0] px-5 py-4 sticky top-0 z-30">
+    <div dir="rtl" className="min-h-screen bg-surface-page">
+      <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">👥 ניהול משתמשים</h1>
-            <p className="text-[13px] text-gray-400">{members?.length || 0} משתמשים</p>
+            <h1 className="text-2xl font-bold text-content-strong">👥 ניהול משתמשים</h1>
+            <p className="text-[13px] text-neutral-400">{members?.length || 0} משתמשים</p>
           </div>
-          <Link href="/settings/requests" className="text-sm text-[#1a56db] hover:underline">
+          <Link href="/settings/requests" className="text-sm text-primary hover:underline">
             בקשות ממתינות ←
           </Link>
         </div>

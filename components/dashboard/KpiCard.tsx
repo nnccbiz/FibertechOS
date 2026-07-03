@@ -11,7 +11,7 @@ interface KpiCardProps {
 export default function KpiCard({ title, value, icon, color, loading }: KpiCardProps) {
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+      <div className="bg-white rounded-xl border border-line-subtle p-4">
         <div className="flex items-center justify-between">
           <div className="space-y-2 flex-1">
             <div className="skeleton h-3 w-20" />
@@ -24,11 +24,11 @@ export default function KpiCard({ title, value, icon, color, loading }: KpiCardP
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl border border-line-subtle p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-gray-500 font-medium">{title}</p>
-          <p className="text-xl font-bold text-gray-800 mt-1">{value}</p>
+          <p className="text-sm text-content-muted font-medium">{title}</p>
+          <p className="text-xl font-bold text-content-strong mt-1">{value}</p>
         </div>
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"

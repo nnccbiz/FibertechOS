@@ -64,11 +64,11 @@ function statusStyle(q: QuoteRow): { cls: string; label: string } {
     const vu = new Date(String(q.valid_until).slice(0, 10) + 'T00:00:00');
     return vu < today;
   })();
-  if (q.status === 'signed') return { cls: 'bg-green-50 text-green-700 border-green-200', label: 'אושר' };
-  if (q.status === 'rejected') return { cls: 'bg-red-50 text-red-400 border-red-100', label: 'נדחה' };
-  if (expired) return { cls: 'bg-red-50 text-red-400 border-red-100', label: 'פג תוקף' };
-  if (q.status === 'sent') return { cls: 'bg-orange-50 text-orange-700 border-orange-200', label: 'נשלח · ממתין' };
-  return { cls: 'bg-orange-50 text-orange-700 border-orange-200', label: 'טיוטה' };
+  if (q.status === 'signed') return { cls: 'bg-success-soft text-success border-success', label: 'אושר' };
+  if (q.status === 'rejected') return { cls: 'bg-danger-soft text-danger border-danger', label: 'נדחה' };
+  if (expired) return { cls: 'bg-danger-soft text-danger border-danger', label: 'פג תוקף' };
+  if (q.status === 'sent') return { cls: 'bg-warning-soft text-warning border-warning', label: 'נשלח · ממתין' };
+  return { cls: 'bg-warning-soft text-warning border-warning', label: 'טיוטה' };
 }
 
 export default function CustomerDetailPage() {
@@ -190,27 +190,27 @@ export default function CustomerDetailPage() {
     load();
   }, [customerId, reloadKey]);
 
-  if (loading) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-gray-400" dir="rtl">טוען…</div>;
-  if (!customer) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-red-500" dir="rtl">לקוח לא נמצא.</div>;
+  if (loading) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-neutral-400" dir="rtl">טוען…</div>;
+  if (!customer) return <div className="max-w-5xl mx-auto px-4 py-10 text-center text-danger" dir="rtl">לקוח לא נמצא.</div>;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <button onClick={() => router.push('/customers')} className="text-sm text-gray-500 hover:text-gray-700">← חזרה ללקוחות</button>
+        <button onClick={() => router.push('/customers')} className="text-sm text-content-muted hover:text-content-body">← חזרה ללקוחות</button>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowMerge((s) => !s)} className="text-sm bg-amber-50 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-100">🔀 מזג כפילות</button>
-          <button onClick={() => setShowEdit(true)} className="text-sm bg-blue-50 text-[#1a56db] px-4 py-2 rounded-lg hover:bg-blue-100">✏️ ערוך כרטיס</button>
+          <button onClick={() => setShowMerge((s) => !s)} className="text-sm bg-warning-soft text-warning px-4 py-2 rounded-lg hover:bg-warning-soft">🔀 מזג כפילות</button>
+          <button onClick={() => setShowEdit(true)} className="text-sm bg-primary-50 text-primary px-4 py-2 rounded-lg hover:bg-primary-100">✏️ ערוך כרטיס</button>
         </div>
       </div>
 
       {showMerge && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center gap-2 flex-wrap" dir="rtl">
-          <span className="text-sm text-amber-800">מזג לתוך לקוח זה את:</span>
-          <SearchableSelect value={mergeTarget} onChange={(v) => setMergeTarget(v)} className="border border-amber-300 rounded-lg px-3 py-1.5 text-sm min-w-[200px]" placeholder="— בחר לקוח לאיחוד —"
+        <div className="bg-warning-soft border border-warning rounded-xl p-4 mb-4 flex items-center gap-2 flex-wrap" dir="rtl">
+          <span className="text-sm text-warning">מזג לתוך לקוח זה את:</span>
+          <SearchableSelect value={mergeTarget} onChange={(v) => setMergeTarget(v)} className="border border-warning rounded-lg px-3 py-1.5 text-sm min-w-[200px]" placeholder="— בחר לקוח לאיחוד —"
             options={[{ value: '', label: '— בחר לקוח לאיחוד —' }, ...allCustomers.map((c: any) => ({ value: c.id, label: c.name }))]} />
-          <button onClick={mergeCustomer} disabled={!mergeTarget || merging} className="text-sm bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50">{merging ? 'ממזג…' : 'מזג'}</button>
-          <button onClick={() => { setShowMerge(false); setMergeTarget(''); }} className="text-sm text-gray-500 px-3 py-1.5">ביטול</button>
-          <span className="text-[12px] text-amber-700 w-full">כל ההצעות, הפרויקטים ואנשי הקשר של הלקוח שתבחר יועברו לכרטיס זה, והוא יימחק.</span>
+          <button onClick={mergeCustomer} disabled={!mergeTarget || merging} className="text-sm bg-warning text-white px-4 py-1.5 rounded-lg hover:bg-warning disabled:opacity-50">{merging ? 'ממזג…' : 'מזג'}</button>
+          <button onClick={() => { setShowMerge(false); setMergeTarget(''); }} className="text-sm text-content-muted px-3 py-1.5">ביטול</button>
+          <span className="text-[12px] text-warning w-full">כל ההצעות, הפרויקטים ואנשי הקשר של הלקוח שתבחר יועברו לכרטיס זה, והוא יימחק.</span>
         </div>
       )}
 
@@ -223,29 +223,29 @@ export default function CustomerDetailPage() {
       )}
 
       {/* Customer header */}
-      <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 mb-5">
+      <div className="bg-white border border-line-subtle rounded-xl p-5 mb-5">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-            {customer.tax_id && <p className="text-sm text-gray-500 mt-1" style={{ unicodeBidi: 'plaintext' }}>ח.פ. {customer.tax_id}</p>}
-            {(customer.address || customer.city) && <p className="text-sm text-gray-500 mt-1">📍 {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
+            <h1 className="text-2xl font-bold text-content-strong">{customer.name}</h1>
+            {customer.tax_id && <p className="text-sm text-content-muted mt-1" style={{ unicodeBidi: 'plaintext' }}>ח.פ. {customer.tax_id}</p>}
+            {(customer.address || customer.city) && <p className="text-sm text-content-muted mt-1">📍 {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
           </div>
-          <div className="text-sm text-gray-600 text-left">
+          <div className="text-sm text-content-body text-left">
             {customer.phone && <p>📞 <span dir="ltr">{customer.phone}</span></p>}
             {customer.email && <p style={{ unicodeBidi: 'plaintext' }}>✉️ {customer.email}</p>}
           </div>
         </div>
-        {customer.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-line">{customer.notes}</p>}
+        {customer.notes && <p className="text-sm text-content-muted mt-3 whitespace-pre-line">{customer.notes}</p>}
 
         {contacts.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-gray-100">
-            <h3 className="text-[12px] font-semibold text-gray-400 mb-2">אנשי קשר</h3>
+          <div className="mt-4 pt-3 border-t border-line-subtle">
+            <h3 className="text-[12px] font-semibold text-neutral-400 mb-2">אנשי קשר</h3>
             <div className="flex flex-wrap gap-3">
               {contacts.map((ct) => (
-                <div key={ct.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="font-medium text-gray-700">{ct.name}</span>
-                  {ct.role && <span className="text-gray-400"> · {ct.role}</span>}
-                  {ct.phone && <span className="text-gray-500 block text-[12px]" dir="ltr">{ct.phone}</span>}
+                <div key={ct.id} className="text-sm bg-neutral-50 rounded-lg px-3 py-2">
+                  <span className="font-medium text-content-body">{ct.name}</span>
+                  {ct.role && <span className="text-neutral-400"> · {ct.role}</span>}
+                  {ct.phone && <span className="text-content-muted block text-[12px]" dir="ltr">{ct.phone}</span>}
                 </div>
               ))}
             </div>
@@ -255,12 +255,12 @@ export default function CustomerDetailPage() {
 
       {/* Contacts from linked projects (read-only) */}
       {projectContacts.length > 0 && (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-bold text-gray-500 mb-3">אנשי קשר מהפרויקטים</h2>
+        <div className="bg-white border border-line-subtle rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-bold text-content-muted mb-3">אנשי קשר מהפרויקטים</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e2e8f0] text-[12px] text-gray-500">
+                <tr className="border-b border-line-subtle text-[12px] text-content-muted">
                   <th className="text-right font-medium pb-2 pr-1">שם</th>
                   <th className="text-right font-medium pb-2">תפקיד</th>
                   <th className="text-right font-medium pb-2">חברה</th>
@@ -271,13 +271,13 @@ export default function CustomerDetailPage() {
               </thead>
               <tbody>
                 {projectContacts.map((pc) => (
-                  <tr key={pc.id} className="border-b border-gray-50">
-                    <td className="py-2 pr-1 font-medium text-gray-800">{pc.name}</td>
-                    <td className="py-2 text-gray-600">{pc.role || '—'}</td>
-                    <td className="py-2 text-gray-600">{pc.company || '—'}</td>
-                    <td className="py-2 text-gray-500" dir="ltr">{pc.phone || '—'}</td>
-                    <td className="py-2 text-gray-500" dir="ltr">{pc.email || '—'}</td>
-                    <td className="py-2 text-gray-400">{pc.project || '—'}</td>
+                  <tr key={pc.id} className="border-b border-line-subtle">
+                    <td className="py-2 pr-1 font-medium text-content-strong">{pc.name}</td>
+                    <td className="py-2 text-content-body">{pc.role || '—'}</td>
+                    <td className="py-2 text-content-body">{pc.company || '—'}</td>
+                    <td className="py-2 text-content-muted" dir="ltr">{pc.phone || '—'}</td>
+                    <td className="py-2 text-content-muted" dir="ltr">{pc.email || '—'}</td>
+                    <td className="py-2 text-neutral-400">{pc.project || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -287,20 +287,20 @@ export default function CustomerDetailPage() {
       )}
 
       {/* Quote history */}
-      <h2 className="text-lg font-bold text-gray-800 mb-2">היסטוריית הצעות מחיר</h2>
-      <div className="flex items-center gap-3 text-[12px] text-gray-500 mb-3">
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-200" /> אושר</span>
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200" /> ממתין</span>
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100" /> ישן / נדחה</span>
+      <h2 className="text-lg font-bold text-content-strong mb-2">היסטוריית הצעות מחיר</h2>
+      <div className="flex items-center gap-3 text-[12px] text-content-muted mb-3">
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-success" /> אושר</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-warning" /> ממתין</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-danger" /> ישן / נדחה</span>
       </div>
 
       {quotes.length === 0 ? (
-        <p className="text-gray-400 text-sm bg-white border border-[#e2e8f0] rounded-xl p-5 mb-6">אין הצעות מחיר ללקוח זה עדיין.</p>
+        <p className="text-neutral-400 text-sm bg-white border border-line-subtle rounded-xl p-5 mb-6">אין הצעות מחיר ללקוח זה עדיין.</p>
       ) : (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden mb-6">
+        <div className="bg-white border border-line-subtle rounded-xl overflow-hidden mb-6">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-[#e2e8f0] text-[12px] text-gray-500">
+              <tr className="bg-neutral-50 border-b border-line-subtle text-[12px] text-content-muted">
                 <th className="text-right font-semibold px-4 py-2.5">פרויקט</th>
                 <th className="text-right font-semibold px-4 py-2.5">איש קשר</th>
                 <th className="text-right font-semibold px-4 py-2.5">רקע</th>
@@ -318,17 +318,17 @@ export default function CustomerDetailPage() {
                   <tr
                     key={q.id}
                     onClick={() => q.project_id && router.push(`/projects/${q.project_id}/quote/${q.id}`)}
-                    className={`border-b border-gray-50 cursor-pointer transition-colors ${st.cls.split(' ')[0]} hover:brightness-95`}
+                    className={`border-b border-line-subtle cursor-pointer transition-colors ${st.cls.split(' ')[0]} hover:brightness-95`}
                   >
-                    <td className="px-4 py-3 font-medium text-gray-800">
+                    <td className="px-4 py-3 font-medium text-content-strong">
                       {projName}
-                      <span className="block text-[11px] text-gray-400 font-normal">
+                      <span className="block text-[11px] text-neutral-400 font-normal">
                         {q.quote_number} · {new Date(q.created_at).toLocaleDateString('he-IL')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{contactName}</td>
-                    <td className="px-4 py-3 text-gray-600">{bg}</td>
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatILS(q.total_amount || 0)}</td>
+                    <td className="px-4 py-3 text-content-body">{contactName}</td>
+                    <td className="px-4 py-3 text-content-body">{bg}</td>
+                    <td className="px-4 py-3 text-content-body whitespace-nowrap">{formatILS(q.total_amount || 0)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-[11px] px-2 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
                     </td>
@@ -341,19 +341,19 @@ export default function CustomerDetailPage() {
       )}
 
       {/* Projects */}
-      <h2 className="text-lg font-bold text-gray-800 mb-2">פרויקטים</h2>
+      <h2 className="text-lg font-bold text-content-strong mb-2">פרויקטים</h2>
       {projects.length === 0 ? (
-        <p className="text-gray-400 text-sm bg-white border border-[#e2e8f0] rounded-xl p-5">אין פרויקטים מקושרים ללקוח זה.</p>
+        <p className="text-neutral-400 text-sm bg-white border border-line-subtle rounded-xl p-5">אין פרויקטים מקושרים ללקוח זה.</p>
       ) : (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+        <div className="bg-white border border-line-subtle rounded-xl overflow-hidden">
           {projects.map((p) => (
             <div
               key={p.id}
               onClick={() => router.push(`/projects/${p.id}`)}
-              className="flex items-center justify-between px-4 py-3 border-b border-gray-50 hover:bg-blue-50/40 cursor-pointer transition-colors"
+              className="flex items-center justify-between px-4 py-3 border-b border-line-subtle hover:bg-azure-100 cursor-pointer transition-colors"
             >
-              <span className="font-medium text-gray-800">{p.name}</span>
-              {p.status && <span className="text-[12px] text-gray-400">{p.status}</span>}
+              <span className="font-medium text-content-strong">{p.name}</span>
+              {p.status && <span className="text-[12px] text-neutral-400">{p.status}</span>}
             </div>
           ))}
         </div>

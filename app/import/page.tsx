@@ -20,24 +20,24 @@ function fmtDate(d: string | null) {
 function num(v: any) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  draft: { label: 'טיוטה (מהצעה)', color: 'bg-purple-50 text-purple-700' },
-  planned: { label: 'מתוכננת (תפ"י)', color: 'bg-teal-50 text-teal-700' },
-  open: { label: 'פתוחה', color: 'bg-gray-100 text-gray-600' },
-  confirmed: { label: 'אושרה', color: 'bg-blue-50 text-blue-700' },
-  in_transit: { label: 'בשילוח', color: 'bg-indigo-50 text-indigo-700' },
-  partially_received: { label: 'התקבלה חלקית', color: 'bg-amber-50 text-amber-700' },
-  received: { label: 'התקבלה', color: 'bg-green-50 text-green-700' },
-  closed: { label: 'נסגרה', color: 'bg-gray-100 text-gray-500' },
+  draft: { label: 'טיוטה (מהצעה)', color: 'bg-primary-50 text-primary' },
+  planned: { label: 'מתוכננת (תפ"י)', color: 'bg-azure-100 text-azure-600' },
+  open: { label: 'פתוחה', color: 'bg-neutral-100 text-content-body' },
+  confirmed: { label: 'אושרה', color: 'bg-azure-100 text-azure-600' },
+  in_transit: { label: 'בשילוח', color: 'bg-primary-50 text-primary' },
+  partially_received: { label: 'התקבלה חלקית', color: 'bg-warning-soft text-warning' },
+  received: { label: 'התקבלה', color: 'bg-success-soft text-success' },
+  closed: { label: 'נסגרה', color: 'bg-neutral-100 text-content-muted' },
 };
 const ORDER_STATUS_KEYS = Object.keys(ORDER_STATUS);
 
 const SHIPMENT_STATUS: Record<string, { label: string; color: string }> = {
-  booked: { label: 'הוזמן', color: 'bg-gray-100 text-gray-600' },
-  sailing: { label: 'בהפלגה', color: 'bg-blue-50 text-blue-700' },
-  arrived: { label: 'הגיע לנמל', color: 'bg-indigo-50 text-indigo-700' },
-  customs: { label: 'במכס', color: 'bg-amber-50 text-amber-700' },
-  delivered: { label: 'שוחרר', color: 'bg-green-50 text-green-700' },
-  closed: { label: 'נסגר', color: 'bg-gray-100 text-gray-500' },
+  booked: { label: 'הוזמן', color: 'bg-neutral-100 text-content-body' },
+  sailing: { label: 'בהפלגה', color: 'bg-azure-100 text-azure-600' },
+  arrived: { label: 'הגיע לנמל', color: 'bg-primary-50 text-primary' },
+  customs: { label: 'במכס', color: 'bg-warning-soft text-warning' },
+  delivered: { label: 'שוחרר', color: 'bg-success-soft text-success' },
+  closed: { label: 'נסגר', color: 'bg-neutral-100 text-content-muted' },
 };
 const SHIPMENT_STATUS_KEYS = Object.keys(SHIPMENT_STATUS);
 
@@ -102,30 +102,30 @@ export default function ImportPage() {
   useEffect(() => { load(); }, []);
 
   if (loading) {
-    return <div className="p-6" dir="rtl"><p className="text-gray-400 text-center py-12">טוען יבוא...</p></div>;
+    return <div className="p-6" dir="rtl"><p className="text-neutral-400 text-center py-12">טוען יבוא...</p></div>;
   }
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">🚢 יבוא</h1>
-          <p className="text-sm text-gray-500 mt-1">הזמנות רכש, משלוחים ומכולות, מסמכים ואספקה</p>
+          <h1 className="text-2xl font-bold text-content-strong">🚢 יבוא</h1>
+          <p className="text-sm text-content-muted mt-1">הזמנות רכש, משלוחים ומכולות, מסמכים ואספקה</p>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
-            <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-[#1a56db] to-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90">⚡ העלאה חכמה</button>
+            <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-primary to-navy-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90">⚡ העלאה חכמה</button>
           )}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setView('quotes')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'quotes' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הצעות מאושרות</button>
-            <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>הזמנות</button>
-            <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-gray-800' : 'text-gray-500'}`}>משלוחים</button>
+          <div className="flex bg-neutral-100 rounded-lg p-0.5">
+            <button onClick={() => setView('quotes')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'quotes' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הצעות מאושרות</button>
+            <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הזמנות</button>
+            <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>משלוחים</button>
           </div>
           {canEdit && view === 'orders' && (
-            <button onClick={() => setShowNewOrder(true)} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">+ הזמנה</button>
+            <button onClick={() => setShowNewOrder(true)} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700">+ הזמנה</button>
           )}
           {canEdit && view === 'shipments' && (
-            <button onClick={() => setShowNewShipment(true)} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">+ משלוח</button>
+            <button onClick={() => setShowNewShipment(true)} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700">+ משלוח</button>
           )}
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function ImportPage() {
 }
 
 function Info({ label, value }: { label: string; value?: any }) {
-  return (<div><p className="text-[11px] text-gray-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-gray-700">{value || '—'}</p></div>);
+  return (<div><p className="text-[11px] text-neutral-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-content-body">{value || '—'}</p></div>);
 }
 
 // ============================================================
@@ -169,10 +169,10 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
       </div>
 
       {shown.length === 0 ? <Empty text="אין הצעות מאושרות להצגה" /> : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-line-subtle overflow-hidden">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-400 text-[11px] text-right">
+              <tr className="bg-neutral-50 text-neutral-400 text-[11px] text-right">
                 <th className="font-medium py-2 px-3">הצעה</th>
                 <th className="font-medium py-2 px-3">לקוח</th>
                 <th className="font-medium py-2 px-3">סכום</th>
@@ -185,20 +185,20 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
               {shown.map(({ q, order }: any) => {
                 const st = order ? (ORDER_STATUS[order.status] || ORDER_STATUS.open) : null;
                 return (
-                  <tr key={q.id} className="border-t border-gray-100 hover:bg-gray-50/50">
-                    <td className="py-2 px-3 font-mono text-gray-500" dir="ltr">{q.quote_number || '—'}</td>
-                    <td className="py-2 px-3 text-gray-700">{q.client_name || '—'}</td>
-                    <td className="py-2 px-3 text-gray-600">{money(q.total_amount, q.currency || 'ILS')}</td>
-                    <td className="py-2 px-3 text-gray-500">{fmtDate(q.sent_at || q.updated_at)}</td>
+                  <tr key={q.id} className="border-t border-line-subtle hover:bg-neutral-50">
+                    <td className="py-2 px-3 font-mono text-content-muted" dir="ltr">{q.quote_number || '—'}</td>
+                    <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
+                    <td className="py-2 px-3 text-content-body">{money(q.total_amount, q.currency || 'ILS')}</td>
+                    <td className="py-2 px-3 text-content-muted">{fmtDate(q.sent_at || q.updated_at)}</td>
                     <td className="py-2 px-3">
                       {order && st
                         ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-                        : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-600">🔴 טרם הזמנת יבוא</span>}
+                        : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">🔴 טרם הזמנת יבוא</span>}
                     </td>
                     <td className="py-2 px-3 text-left">
                       {!order
-                        ? <button onClick={onSmartUpload} className="text-[12px] text-[#1a56db] hover:underline">פתח הזמנה ⚡</button>
-                        : <span className="text-[11px] text-gray-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>}
+                        ? <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה ⚡</button>
+                        : <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>}
                     </td>
                   </tr>
                 );
@@ -261,15 +261,15 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-line-subtle overflow-hidden">
       <div className="px-5 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-mono text-gray-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
+            <span className="text-sm font-mono text-neutral-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-            {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700">מלאי</span>}
+            {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">מלאי</span>}
           </div>
-          <span className="text-sm font-bold text-gray-700">{money(order.total_amount, order.currency)}</span>
+          <span className="text-sm font-bold text-content-body">{money(order.total_amount, order.currency)}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <Info label="ספק" value={order.suppliers?.name} />
@@ -278,31 +278,31 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <Info label="Incoterms" value={order.incoterms} />
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setOpen(!open)} className="text-[12px] text-[#1a56db] font-medium hover:underline">
+          <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">
             {open ? 'הסתר ▲' : 'פריטים, חשבוניות, COA ומסמכים ▼'}
           </button>
           {canEdit && (
-            <select value={order.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 text-gray-600">
+            <select value={order.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1 text-content-body">
               {ORDER_STATUS_KEYS.map((k) => <option key={k} value={k}>{ORDER_STATUS[k].label}</option>)}
             </select>
           )}
-          {canDelete && <button onClick={del} className="text-[12px] text-red-500 hover:underline mr-auto">מחיקה</button>}
+          {canDelete && <button onClick={del} className="text-[12px] text-danger hover:underline mr-auto">מחיקה</button>}
         </div>
       </div>
 
       {open && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4">
-          <div className="flex gap-2 mb-3 border-b border-gray-200">
+        <div className="border-t border-line-subtle bg-neutral-50 px-5 py-4">
+          <div className="flex gap-2 mb-3 border-b border-line-subtle">
             {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['map', '🗺️ מפת קשרים']] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-[#1a56db] text-[#1a56db] font-semibold' : 'border-transparent text-gray-500'}`}>{l}</button>
+              <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-primary text-primary font-semibold' : 'border-transparent text-content-muted'}`}>{l}</button>
             ))}
           </div>
 
           {tab === 'items' && (
             <div className="overflow-x-auto">
-              {items.length === 0 ? <p className="text-[13px] text-gray-400 py-2">אין פריטים</p> : (
+              {items.length === 0 ? <p className="text-[13px] text-neutral-400 py-2">אין פריטים</p> : (
                 <table className="w-full text-[13px]">
-                  <thead><tr className="text-gray-400 text-[11px] text-right">
+                  <thead><tr className="text-neutral-400 text-[11px] text-right">
                     <th className="font-medium py-1">חומר</th><th className="font-medium py-1">תיאור</th>
                     <th className="font-medium py-1">DN</th><th className="font-medium py-1">PN</th><th className="font-medium py-1">SN</th>
                     <th className="font-medium py-1">הוזמן</th><th className="font-medium py-1">התקבל</th><th className="font-medium py-1">נותר</th><th className="font-medium py-1">מחיר</th>
@@ -312,19 +312,19 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
                       const rec = receivedFor(it); const rem = num(it.ordered_qty) - rec;
                       const pct = it.ordered_qty ? Math.min(100, Math.round((rec / it.ordered_qty) * 100)) : 0;
                       return (
-                        <tr key={it.id} className="border-t border-gray-100">
-                          <td className="py-1.5 text-gray-500 font-mono" dir="ltr">{it.material_no || '—'}</td>
-                          <td className="py-1.5 text-gray-700" dir="rtl">{it.description}</td>
-                          <td className="py-1.5 text-gray-500" dir="ltr">{it.dn || '—'}</td>
-                          <td className="py-1.5 text-gray-500" dir="ltr">{it.pn || '—'}</td>
-                          <td className="py-1.5 text-gray-500" dir="ltr">{it.sn || '—'}</td>
-                          <td className="py-1.5 text-gray-500">{it.ordered_qty} {it.unit}</td>
-                          <td className="py-1.5 text-gray-700">{rec} {it.unit}</td>
+                        <tr key={it.id} className="border-t border-line-subtle">
+                          <td className="py-1.5 text-content-muted font-mono" dir="ltr">{it.material_no || '—'}</td>
+                          <td className="py-1.5 text-content-body" dir="rtl">{it.description}</td>
+                          <td className="py-1.5 text-content-muted" dir="ltr">{it.dn || '—'}</td>
+                          <td className="py-1.5 text-content-muted" dir="ltr">{it.pn || '—'}</td>
+                          <td className="py-1.5 text-content-muted" dir="ltr">{it.sn || '—'}</td>
+                          <td className="py-1.5 text-content-muted">{it.ordered_qty} {it.unit}</td>
+                          <td className="py-1.5 text-content-body">{rec} {it.unit}</td>
                           <td className="py-1.5">
-                            <span className={rem > 0 ? 'text-amber-600' : 'text-green-600'}>{Math.round(rem * 100) / 100}</span>
-                            <div className="w-14 h-1 bg-gray-100 rounded-full mt-0.5 overflow-hidden"><div className={`h-full ${pct >= 100 ? 'bg-green-500' : 'bg-[#1a56db]'}`} style={{ width: `${pct}%` }} /></div>
+                            <span className={rem > 0 ? 'text-warning' : 'text-success'}>{Math.round(rem * 100) / 100}</span>
+                            <div className="w-14 h-1 bg-neutral-100 rounded-full mt-0.5 overflow-hidden"><div className={`h-full ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} /></div>
                           </td>
-                          <td className="py-1.5 text-gray-500">{money(it.unit_price, order.currency)}</td>
+                          <td className="py-1.5 text-content-muted">{money(it.unit_price, order.currency)}</td>
                         </tr>
                       );
                     })}
@@ -333,11 +333,11 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
               )}
               {packing.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[11px] text-gray-400 mb-1">משלוחים שהתקבלו (לפי מכולה)</p>
+                  <p className="text-[11px] text-neutral-400 mb-1">משלוחים שהתקבלו (לפי מכולה)</p>
                   <div className="flex flex-wrap gap-2">
                     {packing.map((p: any) => {
                       const cont = data.containers.find((c: any) => c.id === p.container_id);
-                      return <span key={p.id} className="text-[11px] bg-white border border-gray-200 rounded px-2 py-1" dir="ltr">{cont?.container_number || '—'}: {p.dn} × {p.shipped_qty}{p.unit} (DN {p.delivery_note_no})</span>;
+                      return <span key={p.id} className="text-[11px] bg-white border border-line-subtle rounded px-2 py-1" dir="ltr">{cont?.container_number || '—'}: {p.dn} × {p.shipped_qty}{p.unit} (DN {p.delivery_note_no})</span>;
                     })}
                   </div>
                 </div>
@@ -384,26 +384,26 @@ function RelationshipMap({ order, data }: any) {
 
   return (
     <div className="text-[13px]">
-      <p className="text-[11px] text-gray-400 mb-2">לחיצה על מסמך (📎) פותחת את המקור. הפרויקט מקשר חזרה לעמוד הפרויקט.</p>
+      <p className="text-[11px] text-neutral-400 mb-2">לחיצה על מסמך (📎) פותחת את המקור. הפרויקט מקשר חזרה לעמוד הפרויקט.</p>
       <div className="space-y-1">
-        <Node icon="📁" color="bg-emerald-50 border-emerald-200 text-emerald-800" depth={0}>
-          פרויקט: {projectHref ? <a href={projectHref} className="font-semibold underline hover:text-emerald-900">{projectLabel} ↗</a> : <span className="font-semibold">{projectLabel}</span>}
+        <Node icon="📁" color="bg-success-soft border-success text-success" depth={0}>
+          פרויקט: {projectHref ? <a href={projectHref} className="font-semibold underline hover:text-success">{projectLabel} ↗</a> : <span className="font-semibold">{projectLabel}</span>}
         </Node>
-        <Node icon="📋" color="bg-blue-50 border-blue-200 text-blue-800" depth={1}>
+        <Node icon="📋" color="bg-azure-100 border-azure text-azure-600" depth={1}>
           הזמנה: <span className="font-mono" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
-          {order.supplier_order_no && <span className="text-blue-500 mr-2" dir="ltr">Sales Order {order.supplier_order_no}</span>}
+          {order.supplier_order_no && <span className="text-azure mr-2" dir="ltr">Sales Order {order.supplier_order_no}</span>}
         </Node>
 
         {invoices.map((iv: any) => {
           const d = docFor((x: any) => x.doc_type?.includes('invoice') && (x.doc_number === iv.invoice_no || x.file_name?.includes(iv.invoice_no)));
-          return <Node key={iv.id} icon="🧾" color="bg-gray-50 border-gray-200 text-gray-700" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
-            חשבונית <span dir="ltr">{iv.invoice_no}</span>{iv.delivery_notes ? <span className="text-gray-400 mr-2" dir="ltr">→ ת.משלוח {iv.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          return <Node key={iv.id} icon="🧾" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            חשבונית <span dir="ltr">{iv.invoice_no}</span>{iv.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ ת.משלוח {iv.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
           </Node>;
         })}
         {coa.map((c: any) => {
           const d = docFor((x: any) => x.doc_type === 'coa' && (x.doc_number === c.coa_no || x.file_name?.includes((c.coa_no || '').replace('/', '_'))));
-          return <Node key={c.id} icon="🔬" color="bg-gray-50 border-gray-200 text-gray-700" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
-            COA <span dir="ltr">{c.coa_no}</span> <span className="text-gray-400" dir="ltr">DN{c.dn}</span>{c.delivery_notes ? <span className="text-gray-400 mr-2" dir="ltr">→ {c.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          return <Node key={c.id} icon="🔬" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            COA <span dir="ltr">{c.coa_no}</span> <span className="text-neutral-400" dir="ltr">DN{c.dn}</span>{c.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ {c.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
           </Node>;
         })}
 
@@ -411,20 +411,20 @@ function RelationshipMap({ order, data }: any) {
           const bl = data.docs.find((d: any) => d.shipment_id === s.id && d.doc_type === 'bl');
           return (
             <div key={s.id}>
-              <Node icon="🚢" color="bg-indigo-50 border-indigo-200 text-indigo-800" depth={2} onClick={bl ? () => openPath(bl.file_path) : undefined}>
-                משלוח BL <span dir="ltr">{s.bl_number || '—'}</span> <span className="text-indigo-400" dir="ltr">{s.vessel_name || ''}</span>{bl ? ' 📎' : ''}
+              <Node icon="🚢" color="bg-primary-50 border-primary text-primary" depth={2} onClick={bl ? () => openPath(bl.file_path) : undefined}>
+                משלוח BL <span dir="ltr">{s.bl_number || '—'}</span> <span className="text-navy-500" dir="ltr">{s.vessel_name || ''}</span>{bl ? ' 📎' : ''}
               </Node>
               {containers.filter((c: any) => c.shipment_id === s.id).map((c: any) => {
                 const lines = packing.filter((p: any) => p.container_id === c.id);
                 return (
                   <div key={c.id}>
-                    <Node icon="📦" color="bg-amber-50 border-amber-200 text-amber-800" depth={3}>
-                      מכולה <span dir="ltr">{c.container_number}</span>{c.pieces ? <span className="text-amber-500 mr-1">· {c.pieces} צינ'</span> : ''}
+                    <Node icon="📦" color="bg-warning-soft border-warning text-warning" depth={3}>
+                      מכולה <span dir="ltr">{c.container_number}</span>{c.pieces ? <span className="text-warning mr-1">· {c.pieces} צינ'</span> : ''}
                     </Node>
                     {lines.map((pl: any) => {
                       const d = pl.delivery_note_no ? docFor((x: any) => x.doc_type === 'packing_list' && x.file_name?.includes(pl.delivery_note_no)) : null;
-                      return <Node key={pl.id} icon="📦" color="bg-white border-gray-200 text-gray-600" depth={4} onClick={d ? () => openPath(d.file_path) : undefined}>
-                        <span dir="ltr">{pl.dn} × {pl.shipped_qty}{pl.unit}</span>{pl.delivery_note_no ? <span className="text-gray-400 mr-2" dir="ltr">ת.משלוח {pl.delivery_note_no}</span> : ''}{d ? ' 📎' : ''}
+                      return <Node key={pl.id} icon="📦" color="bg-white border-line-subtle text-content-body" depth={4} onClick={d ? () => openPath(d.file_path) : undefined}>
+                        <span dir="ltr">{pl.dn} × {pl.shipped_qty}{pl.unit}</span>{pl.delivery_note_no ? <span className="text-neutral-400 mr-2" dir="ltr">ת.משלוח {pl.delivery_note_no}</span> : ''}{d ? ' 📎' : ''}
                       </Node>;
                     })}
                   </div>
@@ -435,7 +435,7 @@ function RelationshipMap({ order, data }: any) {
         })}
 
         {orderDocs.filter((d: any) => !d.doc_type?.includes('invoice') && d.doc_type !== 'coa' && d.doc_type !== 'bl' && d.doc_type !== 'packing_list').map((d: any) => (
-          <Node key={d.id} icon="📄" color="bg-gray-50 border-gray-200 text-gray-600" depth={2} onClick={() => openPath(d.file_path)}>
+          <Node key={d.id} icon="📄" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={() => openPath(d.file_path)}>
             <span dir="ltr">{d.file_name}</span> 📎
           </Node>
         ))}
@@ -447,7 +447,7 @@ function RelationshipMap({ order, data }: any) {
 function Node({ icon, color, depth, children, onClick }: any) {
   return (
     <div style={{ marginRight: `${depth * 18}px` }} className="flex items-center">
-      {depth > 0 && <span className="text-gray-300 ml-1">└</span>}
+      {depth > 0 && <span className="text-neutral-300 ml-1">└</span>}
       <span onClick={onClick} className={`inline-flex items-center gap-1.5 border rounded-lg px-2.5 py-1 ${color} ${onClick ? 'cursor-pointer hover:brightness-95' : ''}`}>
         <span>{icon}</span><span>{children}</span>
       </span>
@@ -475,27 +475,27 @@ function InvoicesSection({ order, data, canEdit, canDelete, onUpdate }: any) {
   async function del(id: string) { if (!confirm('למחוק חשבונית?')) return; await supabase.from('import_invoices').delete().eq('id', id); onUpdate(); }
   return (
     <div>
-      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין חשבוניות</p>}
+      {rows.length === 0 && <p className="text-[13px] text-neutral-400 py-1">אין חשבוניות</p>}
       <div className="space-y-2">
         {rows.map((iv: any) => (
-          <div key={iv.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-[13px]">
-            <div><span className="font-semibold text-gray-700" dir="ltr">🧾 {iv.invoice_no}</span><span className="text-gray-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-gray-500 mr-2">{fmtDate(iv.invoice_date)}</span></div>
-            <div className="flex items-center gap-3"><span className="text-gray-700 font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-red-400 hover:text-red-600">✕</button>}</div>
+          <div key={iv.id} className="flex items-center justify-between bg-white border border-line-subtle rounded-lg px-3 py-2 text-[13px]">
+            <div><span className="font-semibold text-content-body" dir="ltr">🧾 {iv.invoice_no}</span><span className="text-neutral-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-content-muted mr-2">{fmtDate(iv.invoice_date)}</span></div>
+            <div className="flex items-center gap-3"><span className="text-content-body font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-danger hover:text-danger">✕</button>}</div>
           </div>
         ))}
       </div>
       {canEdit && (adding ? (
-        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="מס' חשבונית" value={f.invoice_no} onChange={(e) => setF({ ...f, invoice_no: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-36" dir="ltr" />
-          <select value={f.invoice_type} onChange={(e) => setF({ ...f, invoice_type: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1"><option value="commercial">CI</option><option value="proforma">PI</option><option value="advance">מקדמה</option></select>
-          <input type="date" value={f.invoice_date} onChange={(e) => setF({ ...f, invoice_date: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1" />
-          <input placeholder="ערך נטו" type="number" value={f.net_value} onChange={(e) => setF({ ...f, net_value: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
-          <input placeholder="freight" type="number" value={f.freight} onChange={(e) => setF({ ...f, freight: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-20" />
-          <input placeholder="סופי" type="number" value={f.final_amount} onChange={(e) => setF({ ...f, final_amount: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
-          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
-          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
+        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-line-subtle">
+          <input placeholder="מס' חשבונית" value={f.invoice_no} onChange={(e) => setF({ ...f, invoice_no: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-36" dir="ltr" />
+          <select value={f.invoice_type} onChange={(e) => setF({ ...f, invoice_type: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1"><option value="commercial">CI</option><option value="proforma">PI</option><option value="advance">מקדמה</option></select>
+          <input type="date" value={f.invoice_date} onChange={(e) => setF({ ...f, invoice_date: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1" />
+          <input placeholder="ערך נטו" type="number" value={f.net_value} onChange={(e) => setF({ ...f, net_value: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-24" />
+          <input placeholder="freight" type="number" value={f.freight} onChange={(e) => setF({ ...f, freight: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-20" />
+          <input placeholder="סופי" type="number" value={f.final_amount} onChange={(e) => setF({ ...f, final_amount: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-24" />
+          <button onClick={add} className="bg-primary text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-content-muted px-2">ביטול</button>
         </div>
-      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף חשבונית</button>)}
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-primary hover:underline mt-3">+ הוסף חשבונית</button>)}
     </div>
   );
 }
@@ -514,27 +514,27 @@ function CoaSection({ order, data, canEdit, canDelete, onUpdate }: any) {
   async function del(id: string) { if (!confirm('למחוק COA?')) return; await supabase.from('import_coa').delete().eq('id', id); onUpdate(); }
   return (
     <div>
-      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין תעודות אנליזה</p>}
+      {rows.length === 0 && <p className="text-[13px] text-neutral-400 py-1">אין תעודות אנליזה</p>}
       <div className="space-y-2">
         {rows.map((c: any) => (
-          <div key={c.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-[13px]">
-            <div><span className="font-semibold text-gray-700" dir="ltr">🔬 {c.coa_no}</span><span className="text-gray-500 mr-2" dir="ltr">DN{c.dn} PN{c.pn} SN{c.sn}</span>{c.passed != null && <span className={c.passed ? 'text-green-600' : 'text-red-600'}>{c.passed ? '✓ עבר' : '✗ נכשל'}</span>}</div>
-            {canDelete && <button onClick={() => del(c.id)} className="text-red-400 hover:text-red-600">✕</button>}
+          <div key={c.id} className="flex items-center justify-between bg-white border border-line-subtle rounded-lg px-3 py-2 text-[13px]">
+            <div><span className="font-semibold text-content-body" dir="ltr">🔬 {c.coa_no}</span><span className="text-content-muted mr-2" dir="ltr">DN{c.dn} PN{c.pn} SN{c.sn}</span>{c.passed != null && <span className={c.passed ? 'text-success' : 'text-danger'}>{c.passed ? '✓ עבר' : '✗ נכשל'}</span>}</div>
+            {canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger">✕</button>}
           </div>
         ))}
       </div>
       {canEdit && (adding ? (
-        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="מס' COA" value={f.coa_no} onChange={(e) => setF({ ...f, coa_no: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-28" dir="ltr" />
-          <input type="date" value={f.coa_date} onChange={(e) => setF({ ...f, coa_date: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1" />
-          <input placeholder="DN" value={f.dn} onChange={(e) => setF({ ...f, dn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-16" dir="ltr" />
-          <input placeholder="PN" value={f.pn} onChange={(e) => setF({ ...f, pn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-14" dir="ltr" />
-          <input placeholder="SN" value={f.sn} onChange={(e) => setF({ ...f, sn: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-16" dir="ltr" />
-          <input placeholder="תעודות משלוח" value={f.delivery_notes} onChange={(e) => setF({ ...f, delivery_notes: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-40" dir="ltr" />
-          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
-          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
+        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-line-subtle">
+          <input placeholder="מס' COA" value={f.coa_no} onChange={(e) => setF({ ...f, coa_no: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-28" dir="ltr" />
+          <input type="date" value={f.coa_date} onChange={(e) => setF({ ...f, coa_date: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1" />
+          <input placeholder="DN" value={f.dn} onChange={(e) => setF({ ...f, dn: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-16" dir="ltr" />
+          <input placeholder="PN" value={f.pn} onChange={(e) => setF({ ...f, pn: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-14" dir="ltr" />
+          <input placeholder="SN" value={f.sn} onChange={(e) => setF({ ...f, sn: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-16" dir="ltr" />
+          <input placeholder="תעודות משלוח" value={f.delivery_notes} onChange={(e) => setF({ ...f, delivery_notes: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-40" dir="ltr" />
+          <button onClick={add} className="bg-primary text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-content-muted px-2">ביטול</button>
         </div>
-      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף COA</button>)}
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-primary hover:underline mt-3">+ הוסף COA</button>)}
     </div>
   );
 }
@@ -561,19 +561,19 @@ function DocsSection({ order, shipment, data, canEdit, canDelete, onUpdate }: an
   async function del(d: any) { if (!confirm('למחוק מסמך?')) return; await supabase.storage.from('project-files').remove([d.file_path]); await supabase.from('import_documents').delete().eq('id', d.id); onUpdate(); }
   return (
     <div>
-      {rows.length === 0 && <p className="text-[13px] text-gray-400 py-1">לא הועלו מסמכים</p>}
+      {rows.length === 0 && <p className="text-[13px] text-neutral-400 py-1">לא הועלו מסמכים</p>}
       <div className="flex flex-wrap gap-2">
         {rows.map((d: any) => (
-          <div key={d.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
-            <button onClick={() => openDoc(d)} className="text-[12px] text-gray-700 hover:text-[#1a56db]">📄 <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span> <span className="text-gray-400 mr-1" dir="ltr">{d.file_name}</span></button>
-            {canDelete && <button onClick={() => del(d)} className="text-red-400 hover:text-red-600 text-[12px]">✕</button>}
+          <div key={d.id} className="flex items-center gap-1.5 bg-white border border-line-subtle rounded-lg px-2.5 py-1.5">
+            <button onClick={() => openDoc(d)} className="text-[12px] text-content-body hover:text-primary">📄 <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span> <span className="text-neutral-400 mr-1" dir="ltr">{d.file_name}</span></button>
+            {canDelete && <button onClick={() => del(d)} className="text-danger hover:text-danger text-[12px]">✕</button>}
           </div>
         ))}
       </div>
       {canEdit && (
-        <div className="flex items-center gap-2 mt-3 bg-white p-2.5 rounded-lg border border-gray-200 w-fit">
-          <select value={docType} onChange={(e) => setDocType(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1">{DOC_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
-          <label className={`text-[12px] px-3 py-1.5 rounded cursor-pointer ${uploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+        <div className="flex items-center gap-2 mt-3 bg-white p-2.5 rounded-lg border border-line-subtle w-fit">
+          <select value={docType} onChange={(e) => setDocType(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1">{DOC_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+          <label className={`text-[12px] px-3 py-1.5 rounded cursor-pointer ${uploading ? 'bg-neutral-100 text-neutral-400' : 'bg-azure-100 text-azure-600 hover:bg-azure-100'}`}>
             {uploading ? 'מעלה...' : '⬆ העלאה'}
             <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" disabled={uploading} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await upload(f); e.target.value = ''; }} />
           </label>
@@ -616,18 +616,18 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-line-subtle overflow-hidden">
       <div className="px-5 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-mono text-gray-400" dir="ltr">BL {shipment.bl_number || '—'}</span>
+            <span className="text-sm font-mono text-neutral-400" dir="ltr">BL {shipment.bl_number || '—'}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-            <span className="text-[12px] text-gray-500">{containers.length} מכולות</span>
+            <span className="text-[12px] text-content-muted">{containers.length} מכולות</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600" dir="ltr">{shipment.vessel_name}</span>
+            <span className="text-sm text-content-body" dir="ltr">{shipment.vessel_name}</span>
             {shipment.vessel_name && (
-              <button onClick={() => setTracking(!tracking)} className={`text-[12px] px-2 py-0.5 rounded-full border ${tracking ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'}`}>
+              <button onClick={() => setTracking(!tracking)} className={`text-[12px] px-2 py-0.5 rounded-full border ${tracking ? 'bg-azure-600 text-white border-azure-600' : 'bg-azure-100 text-azure-600 border-azure hover:bg-azure-100'}`}>
                 🛰️ אתר ספינה
               </button>
             )}
@@ -641,17 +641,17 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
         </div>
         {tracking && <VesselTracker vesselName={shipment.vessel_name} />}
         <div className="flex items-center gap-3">
-          <button onClick={() => setOpen(!open)} className="text-[12px] text-[#1a56db] font-medium hover:underline">{open ? 'הסתר ▲' : 'מכולות, תכולה ומסמכים ▼'}</button>
-          {canEdit && <select value={shipment.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 text-gray-600">{SHIPMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{SHIPMENT_STATUS[k].label}</option>)}</select>}
-          {canDelete && <button onClick={del} className="text-[12px] text-red-500 hover:underline mr-auto">מחיקה</button>}
+          <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">{open ? 'הסתר ▲' : 'מכולות, תכולה ומסמכים ▼'}</button>
+          {canEdit && <select value={shipment.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1 text-content-body">{SHIPMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{SHIPMENT_STATUS[k].label}</option>)}</select>}
+          {canDelete && <button onClick={del} className="text-[12px] text-danger hover:underline mr-auto">מחיקה</button>}
         </div>
       </div>
 
       {open && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4 space-y-4">
+        <div className="border-t border-line-subtle bg-neutral-50 px-5 py-4 space-y-4">
           <ContainersSection shipment={shipment} containers={containers} data={data} orderName={orderName} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />
           <div>
-            <p className="text-[12px] font-semibold text-gray-600 mb-2">מסמכי משלוח</p>
+            <p className="text-[12px] font-semibold text-content-body mb-2">מסמכי משלוח</p>
             <DocsSection shipment={shipment} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />
           </div>
         </div>
@@ -672,22 +672,22 @@ function ContainersSection({ shipment, containers, data, orderName, canEdit, can
   async function del(id: string) { if (!confirm('למחוק מכולה?')) return; await supabase.from('import_containers').delete().eq('id', id); onUpdate(); }
   return (
     <div>
-      <p className="text-[12px] font-semibold text-gray-600 mb-2">מכולות ותכולה</p>
-      {containers.length === 0 && <p className="text-[13px] text-gray-400 py-1">אין מכולות</p>}
+      <p className="text-[12px] font-semibold text-content-body mb-2">מכולות ותכולה</p>
+      {containers.length === 0 && <p className="text-[13px] text-neutral-400 py-1">אין מכולות</p>}
       <div className="space-y-2">
         {containers.map((c: any) => {
           const lines = data.packing.filter((p: any) => p.container_id === c.id);
           return (
-            <div key={c.id} className="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
+            <div key={c.id} className="bg-white border border-line-subtle rounded-lg px-3 py-2.5">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[13px] font-semibold text-gray-700" dir="ltr">📦 {c.container_number}{c.seal_number ? ` · חותם ${c.seal_number}` : ''}</span>
-                <span className="text-[12px] text-gray-400">{c.pieces ? `${c.pieces} צינורות` : ''} {c.gross_weight ? `· ${c.gross_weight} ק"ג` : ''}{canDelete && <button onClick={() => del(c.id)} className="text-red-400 hover:text-red-600 mr-2">✕</button>}</span>
+                <span className="text-[13px] font-semibold text-content-body" dir="ltr">📦 {c.container_number}{c.seal_number ? ` · חותם ${c.seal_number}` : ''}</span>
+                <span className="text-[12px] text-neutral-400">{c.pieces ? `${c.pieces} צינורות` : ''} {c.gross_weight ? `· ${c.gross_weight} ק"ג` : ''}{canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger mr-2">✕</button>}</span>
               </div>
               {lines.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {lines.map((p: any) => (
-                    <span key={p.id} className="text-[11px] bg-gray-50 border border-gray-200 rounded px-2 py-0.5" dir="rtl">
-                      <span className="text-gray-500">{orderName(p.import_order_id)}:</span> <span dir="ltr">{p.dn} × {p.shipped_qty}{p.unit}</span>
+                    <span key={p.id} className="text-[11px] bg-neutral-50 border border-line-subtle rounded px-2 py-0.5" dir="rtl">
+                      <span className="text-content-muted">{orderName(p.import_order_id)}:</span> <span dir="ltr">{p.dn} × {p.shipped_qty}{p.unit}</span>
                     </span>
                   ))}
                 </div>
@@ -697,15 +697,15 @@ function ContainersSection({ shipment, containers, data, orderName, canEdit, can
         })}
       </div>
       {canEdit && (adding ? (
-        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-gray-200">
-          <input placeholder="מס' מכולה" value={f.container_number} onChange={(e) => setF({ ...f, container_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-40" dir="ltr" />
-          <input placeholder="חותם" value={f.seal_number} onChange={(e) => setF({ ...f, seal_number: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-28" dir="ltr" />
-          <input placeholder="צינורות" type="number" value={f.pieces} onChange={(e) => setF({ ...f, pieces: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-20" />
-          <input placeholder='משקל ק"ג' type="number" value={f.gross_weight} onChange={(e) => setF({ ...f, gross_weight: e.target.value })} className="text-[13px] border border-gray-200 rounded px-2 py-1 w-24" />
-          <button onClick={add} className="bg-[#1a56db] text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
-          <button onClick={() => setAdding(false)} className="text-[12px] text-gray-500 px-2">ביטול</button>
+        <div className="flex flex-wrap items-end gap-2 mt-3 bg-white p-3 rounded-lg border border-line-subtle">
+          <input placeholder="מס' מכולה" value={f.container_number} onChange={(e) => setF({ ...f, container_number: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-40" dir="ltr" />
+          <input placeholder="חותם" value={f.seal_number} onChange={(e) => setF({ ...f, seal_number: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-28" dir="ltr" />
+          <input placeholder="צינורות" type="number" value={f.pieces} onChange={(e) => setF({ ...f, pieces: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-20" />
+          <input placeholder='משקל ק"ג' type="number" value={f.gross_weight} onChange={(e) => setF({ ...f, gross_weight: e.target.value })} className="text-[13px] border border-line-subtle rounded px-2 py-1 w-24" />
+          <button onClick={add} className="bg-primary text-white text-[12px] px-3 py-1.5 rounded">הוסף</button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-content-muted px-2">ביטול</button>
         </div>
-      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-[#1a56db] hover:underline mt-3">+ הוסף מכולה</button>)}
+      ) : <button onClick={() => setAdding(true)} className="text-[12px] text-primary hover:underline mt-3">+ הוסף מכולה</button>)}
     </div>
   );
 }
@@ -736,45 +736,45 @@ function VesselTracker({ vesselName }: { vesselName: string }) {
   const fmtWhen = (iso: string | null) => iso ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
 
   return (
-    <div className="bg-cyan-50/60 border border-cyan-100 rounded-lg px-4 py-3 mb-3 text-[13px]">
+    <div className="bg-azure-100 border border-azure rounded-lg px-4 py-3 mb-3 text-[13px]">
       {state.loading ? (
-        <p className="text-cyan-700">🛰️ מאתר את {vesselName}...</p>
+        <p className="text-azure-600">🛰️ מאתר את {vesselName}...</p>
       ) : v ? (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="font-semibold text-cyan-900" dir="ltr">🚢 {v.name}</span>
+            <span className="font-semibold text-azure-600" dir="ltr">🚢 {v.name}</span>
             {v.lat != null && (
-              <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer" className="text-cyan-700 underline" dir="ltr">
+              <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer" className="text-azure-600 underline" dir="ltr">
                 {v.lat.toFixed(2)}°, {v.lon.toFixed(2)}°
               </a>
             )}
-            {v.speed_kn > 0 && <span className="text-gray-600" dir="ltr">{v.speed_kn} kn</span>}
-            {v.destination && <span className="text-gray-600">יעד מדווח: <b dir="ltr">{v.destination}</b></span>}
-            {v.reported_eta && <span className="text-gray-600">ETA מדווח: {fmtWhen(v.reported_eta)}</span>}
+            {v.speed_kn > 0 && <span className="text-content-body" dir="ltr">{v.speed_kn} kn</span>}
+            {v.destination && <span className="text-content-body">יעד מדווח: <b dir="ltr">{v.destination}</b></span>}
+            {v.reported_eta && <span className="text-content-body">ETA מדווח: {fmtWhen(v.reported_eta)}</span>}
           </div>
           {state.ports?.length > 0 && (
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               {state.ports.map((p: any) => (
-                <span key={p.key} className="text-gray-700">
+                <span key={p.key} className="text-content-body">
                   ⚓ {p.name}: <b>{p.distance_nm.toLocaleString()}</b> מייל ימי
                   {p.eta_date ? <> · הגעה משוערת <b>{fmtWhen(p.eta_date)}</b></> : ' (הספינה עוגנת/איטית)'}
                 </span>
               ))}
             </div>
           )}
-          {v.last_position_at && <p className="text-[11px] text-gray-400">עדכון מיקום אחרון: {fmtWhen(v.last_position_at)}</p>}
+          {v.last_position_at && <p className="text-[11px] text-neutral-400">עדכון מיקום אחרון: {fmtWhen(v.last_position_at)}</p>}
         </div>
       ) : (
         <div className="space-y-1">
-          <p className="text-gray-600">
+          <p className="text-content-body">
             {state.configured === false
               ? 'מעקב חי לא מוגדר (חסר DATALASTIC_API_KEY) — אפשר לפתוח במפה חיצונית:'
               : `לא נמצא מידע חי על ${vesselName} — נסו במפה חיצונית:`}
           </p>
           {state.links && (
             <p className="flex gap-3">
-              <a href={state.links.vesselfinder} target="_blank" rel="noreferrer" className="text-cyan-700 underline">VesselFinder ↗</a>
-              <a href={state.links.marinetraffic} target="_blank" rel="noreferrer" className="text-cyan-700 underline">MarineTraffic ↗</a>
+              <a href={state.links.vesselfinder} target="_blank" rel="noreferrer" className="text-azure-600 underline">VesselFinder ↗</a>
+              <a href={state.links.marinetraffic} target="_blank" rel="noreferrer" className="text-azure-600 underline">MarineTraffic ↗</a>
             </p>
           )}
         </div>
@@ -785,10 +785,10 @@ function VesselTracker({ vesselName }: { vesselName: string }) {
 
 // ---------- shared bits ----------
 function Chip({ label, active, onClick }: any) {
-  return <button onClick={onClick} className={`text-[12px] px-3 py-1.5 rounded-full border ${active ? 'bg-[#1a56db] text-white border-[#1a56db]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{label}</button>;
+  return <button onClick={onClick} className={`text-[12px] px-3 py-1.5 rounded-full border ${active ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}>{label}</button>;
 }
 function Empty({ text }: { text: string }) {
-  return <div className="bg-white rounded-xl border border-gray-200 p-12 text-center"><p className="text-4xl mb-3">📦</p><p className="text-gray-500">{text}</p></div>;
+  return <div className="bg-white rounded-xl border border-line-subtle p-12 text-center"><p className="text-4xl mb-3">📦</p><p className="text-content-muted">{text}</p></div>;
 }
 
 // ============================================================
@@ -816,7 +816,7 @@ function NewOrderModal({ data, onClose, onCreated }: any) {
       <Field label="מספר הזמנת רכש (שלנו)"><input value={f.po_number} onChange={(e) => setF({ ...f, po_number: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="הזמנת ספק (Sales Order)"><input value={f.supplier_order_no} onChange={(e) => setF({ ...f, supplier_order_no: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-      <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-gray-600">יבוא למלאי (ללא פרויקט)</span></label>
+      <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-content-body">יבוא למלאי (ללא פרויקט)</span></label>
       {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name || p.client_name}</option>)}</select></Field>}
       <Field label="שם פרויקט אצל הספק" full><input value={f.project_name} onChange={(e) => setF({ ...f, project_name: e.target.value })} className={inp} placeholder="IL - Electra - Matash Stage 4" /></Field>
       <Field label="מטבע"><select value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })} className={inp}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
@@ -859,19 +859,19 @@ function NewShipmentModal({ data, onClose, onCreated }: any) {
   );
 }
 
-const inp = 'w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 mt-0.5';
+const inp = 'w-full text-sm border border-line-subtle rounded-md px-2 py-1.5 mt-0.5';
 function Field({ label, children, full }: any) {
-  return <label className={`block ${full ? 'col-span-2' : ''}`}><span className="text-[11px] text-gray-400">{label}</span>{children}</label>;
+  return <label className={`block ${full ? 'col-span-2' : ''}`}><span className="text-[11px] text-neutral-400">{label}</span>{children}</label>;
 }
 function Modal({ title, children, onClose, onSave, saving }: any) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-800 mb-4">{title}</h2>
+        <h2 className="text-lg font-bold text-content-strong mb-4">{title}</h2>
         <div className="grid grid-cols-2 gap-3">{children}</div>
         <div className="flex gap-2 mt-5">
-          <button onClick={onSave} disabled={saving} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? 'שומר...' : 'שמירה'}</button>
-          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600">ביטול</button>
+          <button onClick={onSave} disabled={saving} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50">{saving ? 'שומר...' : 'שמירה'}</button>
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-line-subtle text-content-body">ביטול</button>
         </div>
       </div>
     </div>

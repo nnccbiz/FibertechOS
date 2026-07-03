@@ -58,19 +58,19 @@ export default function Sidebar() {
     <aside
       onMouseEnter={() => canHover && setExpanded(true)}
       onMouseLeave={() => canHover && setExpanded(false)}
-      className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-[#e2e8f0] flex-col z-40 transition-all duration-300 ${
+      className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-line-subtle flex-col z-40 transition-all duration-300 ${
         expanded ? 'w-[200px] shadow-lg' : 'w-[60px]'
       }`}
     >
       {/* Logo */}
-      <div className={`border-b border-[#e2e8f0] flex items-center ${expanded ? 'px-4 py-4' : 'px-0 py-4 justify-center'}`}>
+      <div className={`border-b border-line-subtle flex items-center ${expanded ? 'px-4 py-4' : 'px-0 py-4 justify-center'}`}>
         {expanded ? (
           <div>
-            <h1 className="text-2xl font-bold text-[#1a56db]">FibertechOS</h1>
-            <p className="text-[12px] text-gray-400">פיברטק תשתיות</p>
+            <h1 className="text-2xl font-bold text-primary">FibertechOS</h1>
+            <p className="text-[12px] text-neutral-400">פיברטק תשתיות</p>
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-[#1a56db] flex items-center justify-center text-white text-sm font-bold">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white text-sm font-bold">
             F
           </div>
         )}
@@ -86,8 +86,8 @@ export default function Sidebar() {
               expanded ? 'px-4' : 'px-0 justify-center'
             } ${
               activeHref === item.href
-                ? 'bg-blue-50 text-[#1a56db] border-l-[3px] border-[#1a56db]'
-                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                ? 'bg-primary-50 text-primary border-l-[3px] border-primary'
+                : 'text-content-muted hover:bg-neutral-50 hover:text-content-strong'
             }`}
             title={!expanded ? item.label : undefined}
           >
@@ -102,7 +102,7 @@ export default function Sidebar() {
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className={`border-t border-[#e2e8f0] flex items-center gap-3 py-3 text-lg font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 ${
+        className={`border-t border-line-subtle flex items-center gap-3 py-3 text-lg font-medium text-content-muted hover:bg-danger-soft hover:text-danger transition-all duration-200 ${
           expanded ? 'px-4' : 'px-0 justify-center'
         }`}
         title={!expanded ? 'התנתק' : undefined}
@@ -112,14 +112,14 @@ export default function Sidebar() {
       </button>
 
       {/* Footer */}
-      <div className={`border-t border-[#e2e8f0] flex items-center ${expanded ? 'p-3 gap-2' : 'p-2 justify-center'}`}>
-        <div className="w-8 h-8 rounded-full bg-[#1a56db] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+      <div className={`border-t border-line-subtle flex items-center ${expanded ? 'p-3 gap-2' : 'p-2 justify-center'}`}>
+        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
           פ
         </div>
         {expanded && (
           <div>
-            <p className="text-sm font-medium text-gray-700">פיברטק</p>
-            <p className="text-[12px] text-gray-400">v0.1.0</p>
+            <p className="text-sm font-medium text-content-body">פיברטק</p>
+            <p className="text-[12px] text-neutral-400">v0.1.0</p>
           </div>
         )}
       </div>

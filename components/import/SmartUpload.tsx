@@ -22,7 +22,7 @@ function fileToBase64(file: File): Promise<string> {
 
 // compact input
 function I({ value, onChange, w = '', ltr = false, type = 'text', ph = '' }: any) {
-  return <input type={type} value={value ?? ''} placeholder={ph} dir={ltr ? 'ltr' : 'rtl'} onChange={(e) => onChange(e.target.value)} className={`border border-gray-200 rounded px-1.5 py-1 text-[12px] ${w}`} />;
+  return <input type={type} value={value ?? ''} placeholder={ph} dir={ltr ? 'ltr' : 'rtl'} onChange={(e) => onChange(e.target.value)} className={`border border-line-subtle rounded px-1.5 py-1 text-[12px] ${w}`} />;
 }
 
 export default function SmartUpload({ data, onClose, onSaved }: any) {
@@ -174,40 +174,40 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">⚡ העלאה חכמה — מסמכי לוט</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <h2 className="text-lg font-bold text-content-strong">⚡ העלאה חכמה — מסמכי לוט</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-content-body text-xl">✕</button>
         </div>
-        {err && <div className="bg-red-50 text-red-700 text-[13px] rounded-lg px-3 py-2 mb-3">{err}</div>}
+        {err && <div className="bg-danger-soft text-danger text-[13px] rounded-lg px-3 py-2 mb-3">{err}</div>}
 
         {phase === 'pick' && (
           <div>
-            <p className="text-[13px] text-gray-500 mb-3">גררי או בחרי את כל מסמכי הלוט (חשבונית, BL, תעודות משלוח, COA). רקסי תזהה ותתאים — ותוכלי לערוך הכל לפני שמירה.</p>
-            <label className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#1a56db] hover:bg-blue-50/30">
-              <p className="text-3xl mb-2">📥</p><p className="text-[13px] text-gray-600">בחרי קבצים (PDF / תמונה)</p>
+            <p className="text-[13px] text-content-muted mb-3">גררי או בחרי את כל מסמכי הלוט (חשבונית, BL, תעודות משלוח, COA). רקסי תזהה ותתאים — ותוכלי לערוך הכל לפני שמירה.</p>
+            <label className="block border-2 border-dashed border-line-strong rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-50">
+              <p className="text-3xl mb-2">📥</p><p className="text-[13px] text-content-body">בחרי קבצים (PDF / תמונה)</p>
               <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
             </label>
             {files.length > 0 && <div className="mt-3 space-y-1">{files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between text-[12px] bg-gray-50 rounded px-2 py-1"><span dir="ltr" className="truncate">{f.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">✕</button></div>
+              <div key={i} className="flex items-center justify-between text-[12px] bg-neutral-50 rounded px-2 py-1"><span dir="ltr" className="truncate">{f.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-danger hover:text-danger">✕</button></div>
             ))}</div>}
             <div className="flex gap-2 mt-4">
-              <button onClick={extract} disabled={!files.length} className="bg-[#1a56db] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-40">⚡ חלץ והתאם ({files.length})</button>
-              <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600">ביטול</button>
+              <button onClick={extract} disabled={!files.length} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-40">⚡ חלץ והתאם ({files.length})</button>
+              <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-line-subtle text-content-body">ביטול</button>
             </div>
           </div>
         )}
 
-        {phase === 'extracting' && <p className="text-center text-gray-500 py-12">רקסי מחלצת ומתאימה... ⏳</p>}
-        {phase === 'saving' && <p className="text-center text-gray-500 py-12">שומר... ⏳</p>}
+        {phase === 'extracting' && <p className="text-center text-content-muted py-12">רקסי מחלצת ומתאימה... ⏳</p>}
+        {phase === 'saving' && <p className="text-center text-content-muted py-12">שומר... ⏳</p>}
 
         {phase === 'review' && p && (
           <div className="space-y-4">
-            <p className="text-[12px] text-gray-500">בדקי וערכי לפי הצורך — אפשר לשנות כל שדה, להוסיף ולמחוק שורות. השמירה רק אחרי אישורך.</p>
-            {p.warnings.length > 0 && <div className="bg-amber-50 text-amber-800 text-[12px] rounded-lg px-3 py-2">{p.warnings.map((w, i) => <div key={i}>⚠️ {w}</div>)}</div>}
+            <p className="text-[12px] text-content-muted">בדקי וערכי לפי הצורך — אפשר לשנות כל שדה, להוסיף ולמחוק שורות. השמירה רק אחרי אישורך.</p>
+            {p.warnings.length > 0 && <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">{p.warnings.map((w, i) => <div key={i}>⚠️ {w}</div>)}</div>}
 
             <Section title="מסמכים שזוהו">
               <div className="flex flex-wrap gap-2">
-                {p.docs.map((d, i) => <span key={i} className="text-[11px] bg-blue-50 text-blue-700 rounded px-2 py-1">{DOC_LABEL[d.doc_type] || d.doc_type}: <span dir="ltr">{d.name}</span></span>)}
-                {rawResults.filter((r) => r.error).map((r, i) => <span key={i} className="text-[11px] bg-red-50 text-red-600 rounded px-2 py-1" dir="ltr">{r.name} ✕</span>)}
+                {p.docs.map((d, i) => <span key={i} className="text-[11px] bg-azure-100 text-azure-600 rounded px-2 py-1">{DOC_LABEL[d.doc_type] || d.doc_type}: <span dir="ltr">{d.name}</span></span>)}
+                {rawResults.filter((r) => r.error).map((r, i) => <span key={i} className="text-[11px] bg-danger-soft text-danger rounded px-2 py-1" dir="ltr">{r.name} ✕</span>)}
               </div>
             </Section>
 
@@ -221,12 +221,12 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <L l="שייך לפרויקט במערכת">
-                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full text-[12px] border border-gray-200 rounded px-1.5 py-1">
+                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1">
                     <option value="">— מלאי / ללא פרויקט —</option>{data.projects.map((pr: any) => <option key={pr.id} value={pr.id}>{pr.name || pr.client_name}</option>)}
                   </select>
                 </L>
                 <L l="ספק">
-                  <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full text-[12px] border border-gray-200 rounded px-1.5 py-1">
+                  <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1">
                     <option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </L>
@@ -235,9 +235,9 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
             <Section title="פריטים" onAdd={() => addRow('items', { material_no: '', description: '', dn: '', pn: '', sn: '', ordered_qty: '', unit: 'M', unit_price: '' })}>
               <table className="w-full text-[12px]">
-                <thead><tr className="text-gray-400 text-[10px] text-right"><th>חומר</th><th>תיאור</th><th>DN</th><th>PN</th><th>SN</th><th>כמות</th><th>יח'</th><th>מחיר</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>חומר</th><th>תיאור</th><th>DN</th><th>PN</th><th>SN</th><th>כמות</th><th>יח'</th><th>מחיר</th><th></th></tr></thead>
                 <tbody>{p.items.map((it, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr key={i} className="border-t border-line-subtle">
                     <td><I value={it.material_no} onChange={(v: any) => setRow('items', i, 'material_no', v)} w="w-16" ltr /></td>
                     <td><I value={it.description} onChange={(v: any) => setRow('items', i, 'description', v)} w="w-full" /></td>
                     <td><I value={it.dn} onChange={(v: any) => setRow('items', i, 'dn', v)} w="w-12" ltr /></td>
@@ -246,7 +246,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={it.ordered_qty} onChange={(v: any) => setRow('items', i, 'ordered_qty', v)} w="w-16" type="number" /></td>
                     <td><I value={it.unit} onChange={(v: any) => setRow('items', i, 'unit', v)} w="w-10" ltr /></td>
                     <td><I value={it.unit_price} onChange={(v: any) => setRow('items', i, 'unit_price', v)} w="w-16" type="number" /></td>
-                    <td><button onClick={() => delRow('items', i)} className="text-red-400 hover:text-red-600">✕</button></td>
+                    <td><button onClick={() => delRow('items', i)} className="text-danger hover:text-danger">✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -267,15 +267,15 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
             <Section title="מכולות" onAdd={() => addRow('containers', { container_number: '', seal_number: '', container_type: '', gross_weight: '', pieces: '' })}>
               <table className="w-full text-[12px]">
-                <thead><tr className="text-gray-400 text-[10px] text-right"><th>מספר מכולה</th><th>חותם</th><th>סוג</th><th>משקל</th><th>צינורות</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>מספר מכולה</th><th>חותם</th><th>סוג</th><th>משקל</th><th>צינורות</th><th></th></tr></thead>
                 <tbody>{p.containers.map((c, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr key={i} className="border-t border-line-subtle">
                     <td><I value={c.container_number} onChange={(v: any) => setRow('containers', i, 'container_number', v)} w="w-32" ltr /></td>
                     <td><I value={c.seal_number} onChange={(v: any) => setRow('containers', i, 'seal_number', v)} w="w-24" ltr /></td>
                     <td><I value={c.container_type} onChange={(v: any) => setRow('containers', i, 'container_type', v)} w="w-20" ltr /></td>
                     <td><I value={c.gross_weight} onChange={(v: any) => setRow('containers', i, 'gross_weight', v)} w="w-20" type="number" /></td>
                     <td><I value={c.pieces} onChange={(v: any) => setRow('containers', i, 'pieces', v)} w="w-14" type="number" /></td>
-                    <td><button onClick={() => delRow('containers', i)} className="text-red-400 hover:text-red-600">✕</button></td>
+                    <td><button onClick={() => delRow('containers', i)} className="text-danger hover:text-danger">✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -283,16 +283,16 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
             <Section title="תכולה לפי מכולה (תעודות משלוח)" onAdd={() => addRow('packingLines', { delivery_note_no: '', container_number: '', material_no: '', dn: '', shipped_qty: '', unit: 'M', pieces: '' })}>
               <table className="w-full text-[12px]">
-                <thead><tr className="text-gray-400 text-[10px] text-right"><th>ת. משלוח</th><th>מכולה</th><th>חומר</th><th>DN</th><th>כמות</th><th>יח'</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>ת. משלוח</th><th>מכולה</th><th>חומר</th><th>DN</th><th>כמות</th><th>יח'</th><th></th></tr></thead>
                 <tbody>{p.packingLines.map((pl, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr key={i} className="border-t border-line-subtle">
                     <td><I value={pl.delivery_note_no} onChange={(v: any) => setRow('packingLines', i, 'delivery_note_no', v)} w="w-24" ltr /></td>
                     <td><I value={pl.container_number} onChange={(v: any) => setRow('packingLines', i, 'container_number', v)} w="w-28" ltr /></td>
                     <td><I value={pl.material_no} onChange={(v: any) => setRow('packingLines', i, 'material_no', v)} w="w-16" ltr /></td>
                     <td><I value={pl.dn} onChange={(v: any) => setRow('packingLines', i, 'dn', v)} w="w-12" ltr /></td>
                     <td><I value={pl.shipped_qty} onChange={(v: any) => setRow('packingLines', i, 'shipped_qty', v)} w="w-16" type="number" /></td>
                     <td><I value={pl.unit} onChange={(v: any) => setRow('packingLines', i, 'unit', v)} w="w-10" ltr /></td>
-                    <td><button onClick={() => delRow('packingLines', i)} className="text-red-400 hover:text-red-600">✕</button></td>
+                    <td><button onClick={() => delRow('packingLines', i)} className="text-danger hover:text-danger">✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -300,16 +300,16 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
             <Section title="חשבוניות" onAdd={() => addRow('invoices', { invoice_no: '', invoice_type: 'commercial', invoice_date: '', net_value: '', freight: '', final_amount: '', currency: p.order.currency || 'USD' })}>
               <table className="w-full text-[12px]">
-                <thead><tr className="text-gray-400 text-[10px] text-right"><th>מספר</th><th>סוג</th><th>תאריך</th><th>נטו</th><th>freight</th><th>סופי</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>מספר</th><th>סוג</th><th>תאריך</th><th>נטו</th><th>freight</th><th>סופי</th><th></th></tr></thead>
                 <tbody>{p.invoices.map((iv, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr key={i} className="border-t border-line-subtle">
                     <td><I value={iv.invoice_no} onChange={(v: any) => setRow('invoices', i, 'invoice_no', v)} w="w-28" ltr /></td>
-                    <td><select value={iv.invoice_type} onChange={(e) => setRow('invoices', i, 'invoice_type', e.target.value)} className="border border-gray-200 rounded px-1 py-1 text-[12px]"><option value="commercial">CI</option><option value="proforma">PI</option><option value="advance">מקדמה</option></select></td>
+                    <td><select value={iv.invoice_type} onChange={(e) => setRow('invoices', i, 'invoice_type', e.target.value)} className="border border-line-subtle rounded px-1 py-1 text-[12px]"><option value="commercial">CI</option><option value="proforma">PI</option><option value="advance">מקדמה</option></select></td>
                     <td><I value={iv.invoice_date} onChange={(v: any) => setRow('invoices', i, 'invoice_date', v)} w="w-28" type="date" /></td>
                     <td><I value={iv.net_value} onChange={(v: any) => setRow('invoices', i, 'net_value', v)} w="w-20" type="number" /></td>
                     <td><I value={iv.freight} onChange={(v: any) => setRow('invoices', i, 'freight', v)} w="w-16" type="number" /></td>
                     <td><I value={iv.final_amount} onChange={(v: any) => setRow('invoices', i, 'final_amount', v)} w="w-20" type="number" /></td>
-                    <td><button onClick={() => delRow('invoices', i)} className="text-red-400 hover:text-red-600">✕</button></td>
+                    <td><button onClick={() => delRow('invoices', i)} className="text-danger hover:text-danger">✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -317,25 +317,25 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
             <Section title="תעודות אנליזה (COA)" onAdd={() => addRow('coa', { coa_no: '', coa_date: '', dn: '', pn: '', sn: '', delivery_notes: '', passed: true })}>
               <table className="w-full text-[12px]">
-                <thead><tr className="text-gray-400 text-[10px] text-right"><th>מספר</th><th>תאריך</th><th>DN</th><th>PN</th><th>SN</th><th>ת. משלוח</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>מספר</th><th>תאריך</th><th>DN</th><th>PN</th><th>SN</th><th>ת. משלוח</th><th></th></tr></thead>
                 <tbody>{p.coa.map((c, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr key={i} className="border-t border-line-subtle">
                     <td><I value={c.coa_no} onChange={(v: any) => setRow('coa', i, 'coa_no', v)} w="w-20" ltr /></td>
                     <td><I value={c.coa_date} onChange={(v: any) => setRow('coa', i, 'coa_date', v)} w="w-28" type="date" /></td>
                     <td><I value={c.dn} onChange={(v: any) => setRow('coa', i, 'dn', v)} w="w-12" ltr /></td>
                     <td><I value={c.pn} onChange={(v: any) => setRow('coa', i, 'pn', v)} w="w-10" ltr /></td>
                     <td><I value={c.sn} onChange={(v: any) => setRow('coa', i, 'sn', v)} w="w-14" ltr /></td>
                     <td><I value={c.delivery_notes} onChange={(v: any) => setRow('coa', i, 'delivery_notes', v)} w="w-32" ltr /></td>
-                    <td><button onClick={() => delRow('coa', i)} className="text-red-400 hover:text-red-600">✕</button></td>
+                    <td><button onClick={() => delRow('coa', i)} className="text-danger hover:text-danger">✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
             </Section>
 
-            <div className="flex gap-2 pt-2 border-t border-gray-100 sticky bottom-0 bg-white">
-              <button onClick={save} className="bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-700">✓ אשר ושמור</button>
-              <button onClick={() => setPhase('pick')} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600">חזרה</button>
-              <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg text-gray-500 mr-auto">ביטול</button>
+            <div className="flex gap-2 pt-2 border-t border-line-subtle sticky bottom-0 bg-white">
+              <button onClick={save} className="bg-success text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-success">✓ אשר ושמור</button>
+              <button onClick={() => setPhase('pick')} className="text-sm px-4 py-2 rounded-lg border border-line-subtle text-content-body">חזרה</button>
+              <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg text-content-muted mr-auto">ביטול</button>
             </div>
           </div>
         )}
@@ -346,15 +346,15 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
 function Section({ title, children, onAdd }: any) {
   return (
-    <div className="border border-gray-200 rounded-xl p-3">
+    <div className="border border-line-subtle rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[12px] font-semibold text-gray-600">{title}</p>
-        {onAdd && <button onClick={onAdd} className="text-[11px] text-[#1a56db] hover:underline">+ הוסף שורה</button>}
+        <p className="text-[12px] font-semibold text-content-body">{title}</p>
+        {onAdd && <button onClick={onAdd} className="text-[11px] text-primary hover:underline">+ הוסף שורה</button>}
       </div>
       <div className="overflow-x-auto">{children}</div>
     </div>
   );
 }
 function L({ l, children }: any) {
-  return <label className="block"><span className="text-[11px] text-gray-400">{l}</span><div className="mt-0.5">{children}</div></label>;
+  return <label className="block"><span className="text-[11px] text-neutral-400">{l}</span><div className="mt-0.5">{children}</div></label>;
 }
