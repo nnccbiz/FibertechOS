@@ -14,15 +14,21 @@
  *   the Roxy write-allowlist does not apply (and no import_* table is on it).
  *
  * The import order is a PURCHASE order to the supplier, so its lines are seeded
- * from the supplier-cost side (cost_input_items), not from the customer selling
- * prices (quote_items). quote_items is only a fallback when the quote has no
- * linked cost input.
+ * from the supplier-cost side (cost_input_items) at their original foreign price.
+ *
+ * CONDITIONAL: a draft is created ONLY when the pricing basis is an external
+ * supplier in a FOREIGN currency (effectiveCurrency !== 'ILS' and source_type is
+ * not 'internal'). Internal / ILS (domestic) pricing, or a quote with no supplier
+ * cost input, imports nothing — the route returns { created: false, reason } so
+ * the caller knows WHY no draft was made. The currency is resolved with
+ * effectiveCurrency() (not cost_inputs.currency alone — see CLAUDE.md #11).
  *
  * Idempotent: if an import order already exists for this quote_id, it is returned
  * unchanged (re-signing a quote must not duplicate the draft).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { effectiveCurrency } from '@/lib/pricing';
 
 export const runtime = 'nodejs';
 
@@ -80,66 +86,69 @@ export async function POST(req: NextRequest) {
     projectName = proj?.name || proj?.client_name || null;
   }
 
-  // 5. Gather the order lines + header context from the cost input (supplier
-  //    side). Fall back to the quote's selling lines only if there is none.
-  let currency = 'USD';
-  let paymentTerms: string | null = null;
-  let supplierName: string | null = quote.supplier_name || null;
-  let lines: any[] = [];
-
-  if (quote.cost_input_id) {
-    const { data: ci } = await admin
-      .from('cost_inputs')
-      .select('currency, payment_terms, source_name')
-      .eq('id', quote.cost_input_id)
-      .maybeSingle();
-    if (ci) {
-      currency = ci.currency || 'USD';
-      paymentTerms = ci.payment_terms || null;
-      supplierName = supplierName || ci.source_name || null;
-    }
-    const { data: items } = await admin
-      .from('cost_input_items')
-      .select('*')
-      .eq('cost_input_id', quote.cost_input_id)
-      .order('sort_order');
-    const isForex = currency !== 'ILS';
-    lines = (items || [])
-      .filter((it: any) => (it.product_name || '').trim())
-      .map((it: any, idx: number) => ({
-        description: it.product_name,
-        dn: it.dn_size || null,
-        pn: it.pn != null ? String(it.pn) : null,
-        sn: it.sn != null ? String(it.sn) : null,
-        unit: it.unit || 'M',
-        ordered_qty: Number(it.quantity) || 0,
-        unit_price: isForex ? (Number(it.original_price) || 0) : (Number(it.cost_price) || 0),
-        sort_order: idx,
-      }));
+  // 5. GATE — an import draft is seeded ONLY when the quote's pricing basis is an
+  //    EXTERNAL supplier priced in a FOREIGN currency. Internal / ILS (domestic)
+  //    pricing, or a quote with no supplier cost input, imports nothing — skip and
+  //    return a clear reason instead of silently doing nothing.
+  //
+  //    The currency test uses effectiveCurrency(), NOT cost_inputs.currency alone:
+  //    a known bug (CLAUDE.md #11) leaves the header at 'ILS' after a duplicate/edit
+  //    while the items are still EUR/USD, so the header on its own would wrongly
+  //    route a foreign order to the "domestic" skip path.
+  if (!quote.cost_input_id) {
+    return NextResponse.json({
+      created: false,
+      reason: 'no_cost_input',
+      message: 'ההצעה אינה מבוססת על תמחור ספק — לא נוצרה טיוטת הזמנת יבוא.',
+    });
   }
 
-  if (lines.length === 0) {
-    // Fallback: no cost input (or it was empty) — seed from the quote items at
-    // their cost price, in the quote's currency.
-    currency = quote.currency || 'ILS';
-    const { data: qItems } = await admin
-      .from('quote_items')
-      .select('*')
-      .eq('quote_id', quoteId)
-      .order('sort_order');
-    lines = (qItems || [])
-      .filter((it: any) => (it.product_name || '').trim())
-      .map((it: any, idx: number) => ({
-        description: it.product_name,
-        dn: it.dn_size || null,
-        pn: it.pn != null ? String(it.pn) : null,
-        sn: it.sn != null ? String(it.sn) : null,
-        unit: it.unit || 'M',
-        ordered_qty: Number(it.quantity) || 0,
-        unit_price: Number(it.cost_price) || 0,
-        sort_order: idx,
-      }));
+  const { data: ci } = await admin
+    .from('cost_inputs')
+    .select('currency, source_type, payment_terms, source_name')
+    .eq('id', quote.cost_input_id)
+    .maybeSingle();
+
+  const { data: items } = await admin
+    .from('cost_input_items')
+    .select('*')
+    .eq('cost_input_id', quote.cost_input_id)
+    .order('sort_order');
+
+  const currency = effectiveCurrency(ci, items || []);
+  const isForex = currency !== 'ILS';
+
+  if (ci?.source_type === 'internal') {
+    return NextResponse.json({
+      created: false,
+      reason: 'internal_pricing',
+      message: 'ההצעה מבוססת תמחור פנימי — לא נוצרה טיוטת הזמנת יבוא.',
+    });
   }
+  if (!isForex) {
+    return NextResponse.json({
+      created: false,
+      reason: 'domestic_ils_pricing',
+      message: 'ההצעה מבוססת תמחור בשקלים (ספק מקומי) — לא נוצרה טיוטת הזמנת יבוא.',
+    });
+  }
+
+  // Passed the gate: external supplier in a foreign currency. Seed the lines from
+  // the supplier-cost side (cost_input_items) at their ORIGINAL foreign unit price.
+  const paymentTerms: string | null = ci?.payment_terms || null;
+  const supplierName: string | null = quote.supplier_name || ci?.source_name || null;
+  const lines = (items || [])
+    .filter((it: any) => (it.product_name || '').trim())
+    .map((it: any, idx: number) => ({
+      description: it.product_name,
+      dn: it.dn_size || null,
+      pn: it.pn != null ? String(it.pn) : null,
+      sn: it.sn != null ? String(it.sn) : null,
+      unit: it.unit || 'M',
+      ordered_qty: Number(it.quantity) || 0,
+      unit_price: Number(it.original_price) || 0,
+      sort_order: idx,
+    }));
 
   // 6. Best-effort supplier match by name (Nitzan fills it in review otherwise).
   let supplierId: string | null = null;

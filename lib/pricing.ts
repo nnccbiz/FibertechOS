@@ -445,3 +445,28 @@ export function validateQuoteMargins(
   }
   return warnings;
 }
+
+/**
+ * Resolve the TRUE currency of a cost input.
+ *
+ * `cost_inputs.currency` alone is unreliable: a known bug (CLAUDE.md Issues #11)
+ * leaves the header at 'ILS' after a duplicate/edit while the actual items
+ * (`cost_input_items`) still carry EUR/USD in `original_currency`. Every place
+ * that needs the real currency repeats the same "header if foreign, else look at
+ * the items' original_currency" dance — this is the single source of truth for it.
+ *
+ * Rule: if the header currency is a foreign one, trust it; otherwise fall back to
+ * the `original_currency` of the first item that is genuinely priced in a foreign
+ * currency (non-ILS with a positive original_price). Defaults to 'ILS'.
+ */
+export function effectiveCurrency(
+  header: { currency?: string | null } | null | undefined,
+  items: Array<{ original_currency?: string | null; original_price?: number | string | null }> | null | undefined,
+): string {
+  const headerCurrency = header?.currency || null;
+  if (headerCurrency && headerCurrency !== 'ILS') return headerCurrency;
+  const foreignItem = (items || []).find(
+    (i) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(String(i.original_price ?? 0)) > 0,
+  );
+  return foreignItem?.original_currency || headerCurrency || 'ILS';
+}

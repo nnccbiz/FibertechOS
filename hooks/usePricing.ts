@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
-import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice } from '@/lib/pricing';
+import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency } from '@/lib/pricing';
 import { parseExcelBOQ } from '@/lib/boq-parser';
 
 // Categorize a quote line by its Hebrew product name for bulk profit operations.
@@ -338,11 +338,11 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function refreshCostInputRate(ciId: string) {
     const ci = costInputs.find((c) => c.id === ciId);
     if (!ci) return;
-    // Prefer the cost input's stored currency, but fall back to items' original_currency
-    // (covers the case where a duplicate was saved with currency=ILS by mistake).
+    // Effective currency: header if foreign, else the items' original_currency
+    // (covers a duplicate saved with currency=ILS by mistake). Single source of
+    // truth in lib/pricing.
     const items = costInputItems[ciId] || [];
-    const itemForex = items.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
-    const currency = (ci.currency && ci.currency !== 'ILS') ? ci.currency : (itemForex?.original_currency || ci.currency);
+    const currency = effectiveCurrency(ci, items);
     if (!currency || currency === 'ILS') { alert('שער מטבע זמין רק לתמחור במטבע זר (USD / EUR / GBP).'); return; }
 
     setRateLoading(true);
@@ -476,12 +476,10 @@ export function usePricing(projectId: string): UsePricingReturn {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
       const ci = costInputs.find((c) => c.id === editingCostInput);
-      // Effective currency: the cost input's currency if foreign, else any
-      // foreign currency already present on items (handles ci.currency=ILS
-      // mistagged after a duplicate where items are actually EUR/USD).
-      const headerForeign = ci?.currency && ci.currency !== 'ILS';
-      const itemForeign = next.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
-      const currency = headerForeign ? ci!.currency : (itemForeign?.original_currency || ci?.currency || 'ILS');
+      // Effective currency (single source of truth) — header if foreign, else the
+      // items' original_currency (handles ci.currency=ILS mistagged after a
+      // duplicate where items are actually EUR/USD).
+      const currency = effectiveCurrency(ci, next);
       const rate = ci?.exchange_rate || exchangeRates[currency]?.rate || 1;
       const isILS = currency === 'ILS';
       // Sync this row's stamp so saved items reflect the effective currency.
@@ -1223,16 +1221,22 @@ export function usePricing(projectId: string): UsePricingReturn {
       const totalValue = signedQuotes.reduce((s, x) => s + (x.total_amount || 0), 0);
       await supabase.from('projects').update({ order_value: totalValue, last_updated_at: new Date().toISOString() }).eq('id', projectId);
 
-      // Hand off to the import module: seed a DRAFT import order from this signed
-      // quote (server-side — the signer usually lacks import.edit, so RLS would
-      // block a direct insert). Best-effort: if it fails, the /import approved-
-      // quotes worklist still flags this quote as "no import order yet".
+      // Hand off to the import module (server-side — the signer usually lacks
+      // import.edit, so RLS would block a direct insert). The route decides
+      // CONDITIONALLY whether to seed a draft: only for an external supplier in a
+      // foreign currency. ILS/internal pricing returns { created:false, reason }
+      // and no draft/alert is made. The production order above is created either
+      // way. Best-effort: on failure the /import worklist still flags the quote.
       try {
-        await fetch('/api/import/from-quote', {
+        const res = await fetch('/api/import/from-quote', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ quoteId }),
         });
+        const out = await res.json().catch(() => null);
+        if (out && out.created === false) {
+          console.info('[from-quote] no import draft:', out.reason, '—', out.message);
+        }
       } catch { /* non-fatal */ }
     }
   }
@@ -1297,11 +1301,9 @@ export function usePricing(projectId: string): UsePricingReturn {
   function addCostItem() {
     const ci = editingCostInput ? costInputs.find((c) => c.id === editingCostInput) : null;
     setEditingCostItems((prev) => {
-      // Pick up the effective currency from existing rows if the header is
-      // mistagged as ILS — same logic the editor uses to decide isForex.
-      const headerForeign = ci?.currency && ci.currency !== 'ILS';
-      const itemForeign = prev.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
-      const currency = headerForeign ? ci!.currency : (itemForeign?.original_currency || ci?.currency || 'ILS');
+      // Effective currency (single source of truth) — picks up a foreign currency
+      // from existing rows when the header is mistagged as ILS.
+      const currency = effectiveCurrency(ci, prev);
       return [...prev, {
         product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0,
         original_price: 0, original_currency: currency, item_type: '',

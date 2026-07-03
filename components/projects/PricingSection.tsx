@@ -14,6 +14,7 @@ import {
   calcQuoteSummary,
   validateQuoteMargins,
   parsePipeSpec,
+  effectiveCurrency,
   type QuoteLineItem,
   type QuoteLineItemPriced,
 } from '@/lib/pricing';
@@ -309,13 +310,11 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
   const citems = p.costInputItems[ci.id] || [];
   const ciTotal = citems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0);
 
-  // Treat the cost input as "forex" if either the header currency is foreign or
-  // any item carries a foreign original_price (e.g. after Roxy parsed a EUR
-  // sheet into a cost input the user originally created as ILS).
-  const headerForex = ci.currency && ci.currency !== 'ILS';
-  const itemsForexItem = citems.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
-  const isForex = !!(headerForex || itemsForexItem);
-  const displayCurrency = headerForex ? ci.currency : (itemsForexItem?.original_currency || ci.currency || 'ILS');
+  // Effective currency (single source of truth in lib/pricing): header if
+  // foreign, else any item's foreign original_currency (e.g. after Roxy parsed a
+  // EUR sheet into a cost input the user originally created as ILS).
+  const displayCurrency = effectiveCurrency(ci, citems);
+  const isForex = displayCurrency !== 'ILS';
   const sym = CURRENCY_SYMBOLS[displayCurrency] || (isForex ? '$' : '₪');
 
   const archived = ci.is_archived;
@@ -374,7 +373,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
             <span className={`mr-1.5 text-[11px] font-normal ${archived ? 'text-neutral-400' : 'text-content-muted'}`}>· {formatDate(ci.created_at)}</span>
           </span>
           {isForex && (() => {
-            const rate = ci.exchange_rate || (headerForex ? p.exchangeRates[ci.currency]?.rate : p.exchangeRates[displayCurrency]?.rate) || 0;
+            const rate = ci.exchange_rate || p.exchangeRates[displayCurrency]?.rate || 0;
             const rateDate = ci.exchange_rate_date ? formatDate(ci.exchange_rate_date) : '';
             return (
               <span className="flex items-center gap-1">
@@ -470,12 +469,10 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
 }
 
 function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> }) {
-  // Mirror CostInputCard's "either the header or the items" rule so the editor
-  // shows a foreign-price column whenever there's a real foreign price to edit.
-  const headerForex = ci.currency && ci.currency !== 'ILS';
-  const itemsForexItem = p.editingCostItems.find((i: any) => i.original_currency && i.original_currency !== 'ILS' && parseFloat(i.original_price) > 0);
-  const isForex = !!(headerForex || itemsForexItem);
-  const displayCurrency = headerForex ? ci.currency : (itemsForexItem?.original_currency || ci.currency || 'ILS');
+  // Effective currency (single source of truth) — shows a foreign-price column
+  // whenever there's a real foreign price to edit, even if the header says ILS.
+  const displayCurrency = effectiveCurrency(ci, p.editingCostItems);
+  const isForex = displayCurrency !== 'ILS';
   const sym = CURRENCY_SYMBOLS[displayCurrency] || (isForex ? '$' : '$');
 
   return (
