@@ -281,8 +281,9 @@ Verified findings from a high-effort multi-angle review of the branch. Ranked by
 16. **`supabase/migrations/20260528_002_security_advisor_hardening.sql:13`** — `auth_insert_attachments` tightened from `WITH CHECK (true)` to `has_module_permission('projects','edit')`. `uploadCostInputAttachment` only console.errors RLS denial and `parseCostFile` catches it silently. Marketing-only users uploading supplier PDFs see "items extracted" but the source file is silently lost (orphan in storage). Same on `order_documents` for production-only users.
 
 ### Urgent
-- `main` branch (production) is broken — still uses old Supabase client without auth. All prod queries fail 403. Need `dev -> main` merge.
-- Some team members still missing email addresses and auth accounts (7 out of 9).
+- Some team members still missing email addresses and auth accounts (a few of 9 — Nurit onboarded 2026-07-02).
+
+> **Resolved 2026-07-02 (PR #9):** production `main` is no longer broken — it now runs full auth + the import module + all features (previously used the old pre-auth Supabase client and 403'd). The rebrand (§5 Design System) also merged to `main` on 2026-07-03.
 
 ### Important
 - **System-wide process review (2026-07-02):** see `SYSTEM_REVIEW_2026-07-02.md` — full flow map + prioritized backlog (automation / control / connectivity / visibility). Phase A (broken-stuff fixes: nav, valid_until, signed-quote alert, dead code removal, real KPIs) done 2026-07-02; phases B–D open.
