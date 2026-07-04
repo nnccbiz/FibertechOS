@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { Badge } from '@/components/ui/Badge';
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -328,6 +329,189 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
           </div>
         </div>
       </div>
+
+      {/* Full production hand-off — live drawings/specs/details from the project */}
+      <ProductionHandoff orderId={order.id} projectId={order.project_id} />
     </div>
+  );
+}
+
+const DETAIL_FIELDS: { key: string; label: string; date?: boolean }[] = [
+  { key: 'location', label: 'מיקום' },
+  { key: 'project_type', label: 'סוג פרויקט' },
+  { key: 'installation_type', label: 'סוג התקנה' },
+  { key: 'special_requirements', label: 'דרישות מיוחדות' },
+  { key: 'field_supervision', label: 'פיקוח שדה' },
+  { key: 'soil_type', label: 'סוג קרקע' },
+  { key: 'push_depth', label: 'עומק דחיקה' },
+  { key: 'manhole_type', label: 'סוג שוחות' },
+  { key: 'connection_method', label: 'אופן התחברות' },
+  { key: 'winning_contractor', label: 'קבלן זוכה' },
+  { key: 'order_received_date', label: 'קבלת הזמנה', date: true },
+  { key: 'approved_order_date', label: 'הזמנה מאושרת', date: true },
+  { key: 'pipe_installation_start', label: 'תחילת הנחת צנרת', date: true },
+  { key: 'tender_submission_date', label: 'הגשת מכרז', date: true },
+];
+
+function ProductionHandoff({ orderId, projectId }: { orderId: string; projectId: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !data && !loading) {
+      setLoading(true);
+      setErr(null);
+      try {
+        const res = await fetch(`/api/production/order-context?orderId=${orderId}`);
+        const j = await res.json();
+        if (!res.ok) setErr(j.error || 'שגיאה בטעינת נתוני הפרויקט');
+        else setData(j);
+      } catch {
+        setErr('שגיאת רשת');
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  function openFile(url: string | null) {
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+
+  if (!projectId) return null;
+
+  return (
+    <div className="border-t border-line-subtle">
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-5 py-2.5 text-sm font-semibold text-content-body hover:bg-neutral-50 transition-colors"
+      >
+        <span>📋 מסירה לייצור — שרטוטים, מפרטים ופרטי פרויקט</span>
+        <span className={`text-content-muted transition-transform duration-fast ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="px-5 pb-4 pt-1 space-y-4">
+          {loading && <p className="text-sm text-content-muted py-3">טוען נתוני פרויקט...</p>}
+          {err && <p className="text-sm text-danger py-3">{err}</p>}
+          {data && !loading && !err && <HandoffBody data={data} openFile={openFile} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandoffBody({ data, openFile }: { data: any; openFile: (u: string | null) => void }) {
+  const drawings: any[] = data.drawings || [];
+  const specs: any[] = data.specs || [];
+  const pipeSpecs: any[] = data.pipeSpecs || [];
+  const details: any = data.details;
+  const contacts: any[] = data.contacts || [];
+  const pn = details?.project_number;
+
+  if (!drawings.length && !specs.length && !pipeSpecs.length && !details && !contacts.length) {
+    return <p className="text-sm text-content-muted py-2">אין נתוני פרויקט מקושרים להזמנה זו.</p>;
+  }
+
+  return (
+    <>
+      {(drawings.length > 0 || specs.length > 0) && (
+        <div>
+          <p className="text-[11px] text-neutral-400 mb-1.5">שרטוטים ומפרטים</p>
+          <div className="flex flex-wrap gap-2">
+            {drawings.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => openFile(d.signedUrl)}
+                disabled={!d.signedUrl}
+                className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg bg-azure-100 text-azure-600 border border-azure hover:bg-azure-100 transition-colors disabled:opacity-50"
+              >
+                <span>📐</span>
+                <span dir="ltr">{pn && d.drawing_number ? `${pn}/${d.drawing_number}` : d.file_name}</span>
+              </button>
+            ))}
+            {specs.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => openFile(s.signedUrl)}
+                disabled={!s.signedUrl}
+                className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg bg-warning-soft text-warning border border-warning hover:bg-warning-soft transition-colors disabled:opacity-50"
+              >
+                <span>📋</span>
+                <span>{s.file_name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pipeSpecs.length > 0 && (
+        <div>
+          <p className="text-[11px] text-neutral-400 mb-1.5">מפרט צינורות</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px] text-right">
+              <thead>
+                <tr className="text-neutral-400">
+                  <th className="font-medium pb-1 pl-3">קוטר (מ״מ)</th>
+                  <th className="font-medium pb-1 pl-3">אורך קו (מ׳)</th>
+                  <th className="font-medium pb-1 pl-3">אורך יחידה (מ׳)</th>
+                  <th className="font-medium pb-1 pl-3">קשיחות (Pa)</th>
+                  <th className="font-medium pb-1">לחץ (בר)</th>
+                </tr>
+              </thead>
+              <tbody className="text-content-body">
+                {pipeSpecs.map((ps) => (
+                  <tr key={ps.id} className="border-t border-line-subtle">
+                    <td className="py-1 pl-3" dir="ltr">{ps.diameter_mm ?? '—'}</td>
+                    <td className="py-1 pl-3" dir="ltr">{ps.line_length_m ?? '—'}</td>
+                    <td className="py-1 pl-3" dir="ltr">{ps.unit_length_m ?? '—'}</td>
+                    <td className="py-1 pl-3" dir="ltr">{ps.stiffness_pascal ?? '—'}</td>
+                    <td className="py-1" dir="ltr">{ps.pressure_bar ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {details && (
+        <div>
+          <p className="text-[11px] text-neutral-400 mb-1.5">פרטי פרויקט לייצור</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+            {DETAIL_FIELDS.filter((f) => details[f.key]).map((f) => (
+              <div key={f.key}>
+                <p className="text-[11px] text-neutral-400">{f.label}</p>
+                <p className="text-[12px] text-content-body">{f.date ? formatDate(details[f.key]) : details[f.key]}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {contacts.length > 0 && (
+        <div>
+          <p className="text-[11px] text-neutral-400 mb-1.5">אנשי קשר</p>
+          <div className="flex flex-wrap gap-2">
+            {contacts.map((c) => (
+              <div key={c.id} className="bg-neutral-50 rounded-lg px-2.5 py-1.5 text-[12px]">
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="steel" size="sm">{c.role || '—'}</Badge>
+                  <span className="font-semibold text-content-body">{c.name}</span>
+                </div>
+                {(c.phone || c.email) && (
+                  <div className="text-content-muted mt-0.5" dir="ltr">
+                    {c.phone || ''}{c.phone && c.email ? ' · ' : ''}{c.email || ''}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
