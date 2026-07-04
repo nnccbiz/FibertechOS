@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
+import { Button } from '@/components/ui/Button';
 
 export const dynamic = 'force-dynamic';
 
@@ -235,6 +236,7 @@ function OrdersView({ data, canEdit, canDelete, onUpdate }: any) {
 function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
+  const [releasing, setReleasing] = useState(false);
   const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'map'>('items');
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
   const items = data.items.filter((i: any) => i.import_order_id === order.id);
@@ -253,6 +255,22 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
     await supabase.from('import_orders').update({ status: s, updated_at: new Date().toISOString() }).eq('id', order.id);
     onUpdate();
   }
+  // תפ"י release: Nitzan reviewed the auto-seeded draft and hands it to planning.
+  // Stamps reviewed_at/reviewed_by (the audit trail + basis for the future
+  // learning-suggestion engine) and advances draft → planned in one action.
+  async function release() {
+    setReleasing(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('import_orders').update({
+      status: 'planned',
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user?.id || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', order.id);
+    setReleasing(false);
+    if (error) { alert('שגיאה בשחרור: ' + error.message); return; }
+    onUpdate();
+  }
   async function del() {
     if (!confirm('למחוק את ההזמנה? פעולה זו תמחק גם פריטים, חשבוניות ומסמכים מקושרים.')) return;
     if (!confirm('בטוח? לא ניתן לשחזר.')) return;
@@ -268,6 +286,12 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
             <span className="text-sm font-mono text-neutral-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
             {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">מלאי</span>}
+            {order.origin === 'auto_from_quote' && order.status === 'draft' && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">ממתין לשחרור תפ"י</span>
+            )}
+            {order.reviewed_at && order.status !== 'draft' && (
+              <span className="text-[11px] text-success font-medium" title={`שוחרר ${fmtDate(order.reviewed_at)}`}>✔️ שוחרר · {fmtDate(order.reviewed_at)}</span>
+            )}
           </div>
           <span className="text-sm font-bold text-content-body">{money(order.total_amount, order.currency)}</span>
         </div>
@@ -281,6 +305,11 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">
             {open ? 'הסתר ▲' : 'פריטים, חשבוניות, COA ומסמכים ▼'}
           </button>
+          {canEdit && order.status === 'draft' && (
+            <Button size="sm" onClick={release} disabled={releasing} iconLeft={<span>✔️</span>}>
+              {releasing ? 'משחרר…' : 'שחרר לתפ"י'}
+            </Button>
+          )}
           {canEdit && (
             <select value={order.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1 text-content-body">
               {ORDER_STATUS_KEYS.map((k) => <option key={k} value={k}>{ORDER_STATUS[k].label}</option>)}
