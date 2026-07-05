@@ -43,6 +43,36 @@ function getContext(pathname: string): string {
   return match?.[1] || 'כללי';
 }
 
+// Renders Roxy's text with clickable [label](path) links — internal paths stay
+// in-app, external URLs open a new tab.
+function MessageText({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]+\]\([^)\s]+\))/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+        if (!m) return <span key={i}>{part}</span>;
+        const [, label, href] = m;
+        if (href.startsWith('/')) {
+          return (
+            <a key={i} href={href} className="underline font-semibold text-azure-600 hover:text-azure">
+              {label}
+            </a>
+          );
+        }
+        if (/^https?:\/\//.test(href)) {
+          return (
+            <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-azure-600 hover:text-azure">
+              {label}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 export default function FloatingChat() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -678,7 +708,7 @@ export default function FloatingChat() {
                       : 'bg-neutral-100 text-content-body rounded-tl-none'
                   }`}
                 >
-                  {msg.text}
+                  {msg.role === 'ai' ? <MessageText text={msg.text} /> : msg.text}
                   {msg.pending && !msg.pendingResolved && (
                     <div className="flex gap-2 mt-2 pt-2 border-t border-line-subtle">
                       <button
