@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reconcileDocuments, Proposal, ExtractResult } from '@/lib/import-reconcile';
+import { deriveReceivedStatus } from '@/lib/import-status';
 
 const DOC_LABEL: Record<string, string> = {
   email: '📧 אימייל', order_confirmation: 'אישור הזמנה', proforma_invoice: 'פרופורמה (PI)',
@@ -135,6 +136,23 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
             loading_date: pl.loading_date || null, discharge_date: pl.discharge_date || null,
           };
         }));
+      }
+
+      // Derive receipt status from packing coverage (all items covered → received,
+      // some → partially_received). Manual 'closed' is a terminal override and is
+      // never auto-changed; a fully-received order is never downgraded.
+      {
+        const curStatus = existingOrder?.status || 'in_transit';
+        if (curStatus !== 'closed') {
+          const { data: allPacking } = await supabase.from('import_packing_lines').select('*').eq('import_order_id', orderId);
+          const derived = deriveReceivedStatus(orderItems || [], allPacking || []);
+          const next = derived === 'received' ? 'received'
+            : (derived === 'partially_received' && curStatus !== 'received') ? 'partially_received'
+            : null;
+          if (next && next !== curStatus) {
+            await supabase.from('import_orders').update({ status: next, updated_at: new Date().toISOString() }).eq('id', orderId);
+          }
+        }
       }
 
       const { data: exInv } = await supabase.from('import_invoices').select('invoice_no').eq('import_order_id', orderId);
