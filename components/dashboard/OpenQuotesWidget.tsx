@@ -27,10 +27,23 @@ function shortQuoteNumber(n: string | null): string {
   return short || n;
 }
 
+// Quote aging — days since it was sent (only meaningful once 'sent'). Colour
+// escalates so a stale, unanswered quote jumps out in the list.
+function agingDays(q: any): number | null {
+  if (q.status !== 'sent' || !q.sent_at) return null;
+  return Math.floor((Date.now() - new Date(q.sent_at).getTime()) / 86_400_000);
+}
+function agingStyle(days: number): string {
+  if (days <= 3) return 'bg-neutral-100 text-content-muted';
+  if (days <= 7) return 'bg-warning-soft text-warning';
+  return 'bg-danger-soft text-danger';
+}
+
 export default function OpenQuotesWidget() {
   const supabase = createClient();
   const router = useRouter();
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [views, setViews] = useState<Record<string, { count: number; last: string }>>({});
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -41,7 +54,23 @@ export default function OpenQuotesWidget() {
       .select('id, project_id, quote_number, client_name, total_amount, currency, status, updated_at, sent_at, created_at, projects(name)')
       .in('status', ['draft', 'sent'])
       .order('updated_at', { ascending: false });
-    setQuotes(data || []);
+    const rows = data || [];
+    setQuotes(rows);
+
+    // Customer view tracking (quote_views is collected automatically on the public
+    // share page). Aggregate count + last-viewed per quote for the 👁️ indicator.
+    const ids = rows.map((q: any) => q.id);
+    const vmap: Record<string, { count: number; last: string }> = {};
+    if (ids.length) {
+      const { data: vs } = await supabase.from('quote_views').select('quote_id, viewed_at').in('quote_id', ids);
+      (vs || []).forEach((v: any) => {
+        const cur = vmap[v.quote_id] || { count: 0, last: '' };
+        cur.count += 1;
+        if (v.viewed_at && (!cur.last || v.viewed_at > cur.last)) cur.last = v.viewed_at;
+        vmap[v.quote_id] = cur;
+      });
+    }
+    setViews(vmap);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -105,16 +134,34 @@ export default function OpenQuotesWidget() {
             <tbody>
               {sorted.map((q) => {
                 const st = STATUS[q.status] || STATUS.draft;
+                const v = views[q.id];
+                const days = agingDays(q);
                 return (
                   <tr key={q.id} className="border-b border-line-subtle hover:bg-neutral-50">
-                    <td className="py-2 font-mono text-content-muted whitespace-nowrap" dir="ltr" title={q.quote_number || ''}>{shortQuoteNumber(q.quote_number)}</td>
+                    <td className="py-2 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-content-muted" dir="ltr" title={q.quote_number || ''}>{shortQuoteNumber(q.quote_number)}</span>
+                        {v && (
+                          <span className="text-success" title={`הלקוח צפה ${v.count}× · אחרונה ${fmtDate(v.last)}`}>👁️</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 text-content-body">
                       <button onClick={() => router.push(`/projects/${q.project_id}`)} className="hover:text-primary hover:underline text-right">
                         {q.projects?.name || '—'}
                       </button>
                     </td>
                     <td className="py-2 text-content-body">{q.client_name || '—'}</td>
-                    <td className="py-2 text-content-muted whitespace-nowrap">{fmtDate(q.created_at)}</td>
+                    <td className="py-2 text-content-muted whitespace-nowrap">
+                      <div className="flex flex-col gap-0.5">
+                        <span>{fmtDate(q.status === 'sent' && q.sent_at ? q.sent_at : q.created_at)}</span>
+                        {days != null && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold w-fit ${agingStyle(days)}`}>
+                            {days === 0 ? 'היום' : `לפני ${days}י׳`}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 text-content-body whitespace-nowrap">{formatILS(q.total_amount || 0)}</td>
                     <td className="py-2">
                       <select
