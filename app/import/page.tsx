@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
 import { Button } from '@/components/ui/Button';
+import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -241,14 +242,11 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
   const items = data.items.filter((i: any) => i.import_order_id === order.id);
   const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
+  const coverage = packing.length ? orderCoveragePct(items, packing) : null;
 
-  // received qty per item = sum of packing lines matched to that item (or by material/dn)
+  // received qty per item — shared helper (same rule the derived status uses).
   function receivedFor(item: any) {
-    return packing.filter((p: any) =>
-      p.import_order_item_id === item.id ||
-      (p.material_no && item.material_no && p.material_no === item.material_no) ||
-      (!p.import_order_item_id && !p.material_no && p.dn && item.dn && p.dn === item.dn)
-    ).reduce((s: number, p: any) => s + num(p.shipped_qty), 0);
+    return receivedForItem(item, packing);
   }
 
   async function setStatus(s: string) {
@@ -291,6 +289,14 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
             )}
             {order.reviewed_at && order.status !== 'draft' && (
               <span className="text-[11px] text-success font-medium" title={`שוחרר ${fmtDate(order.reviewed_at)}`}>✔️ שוחרר · {fmtDate(order.reviewed_at)}</span>
+            )}
+            {coverage != null && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${coverage >= 100 ? 'bg-success-soft text-success' : coverage > 0 ? 'bg-warning-soft text-warning' : 'bg-neutral-100 text-content-muted'}`}
+                title="כיסוי קבלה מול הוזמן (לפי תעודות המשלוח)"
+              >
+                📦 התקבל {coverage}%
+              </span>
             )}
           </div>
           <span className="text-sm font-bold text-content-body">{money(order.total_amount, order.currency)}</span>
