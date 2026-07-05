@@ -38,10 +38,23 @@ const STEPS = [
 
 const STATUS_ORDER = ['pending', 'confirmed', 'in_production', 'delivered', 'completed'];
 
+// Labels for the opposite-side (import) status chip. Mirrors ORDER_STATUS on /import.
+const IMPORT_STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  draft: { label: 'טיוטה', color: 'bg-primary-50 text-primary' },
+  planned: { label: 'מתוכננת', color: 'bg-azure-100 text-azure-600' },
+  open: { label: 'פתוחה', color: 'bg-neutral-100 text-content-body' },
+  confirmed: { label: 'אושרה', color: 'bg-azure-100 text-azure-600' },
+  in_transit: { label: 'בשילוח', color: 'bg-primary-50 text-primary' },
+  partially_received: { label: 'התקבלה חלקית', color: 'bg-warning-soft text-warning' },
+  received: { label: 'התקבלה', color: 'bg-success-soft text-success' },
+  closed: { label: 'נסגרה', color: 'bg-neutral-100 text-content-muted' },
+};
+
 export default function ProductionPage() {
   const supabase = createClient();
   const [orders, setOrders] = useState<any[]>([]);
   const [docsByOrder, setDocsByOrder] = useState<Record<string, any[]>>({});
+  const [cross, setCross] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   async function loadData() {
@@ -90,6 +103,15 @@ export default function ProductionPage() {
         deadline: calcDeadline(o.created_at, o.quotes?.delivery_time),
       }));
       setOrders(enriched);
+
+      // Cross-module link: pull the import side for these quotes (RLS-siloed, so
+      // via a server route). Non-fatal — chips just won't show if it fails.
+      if (quoteIds.length > 0) {
+        try {
+          const res = await fetch(`/api/deal/cross-status?quoteIds=${quoteIds.join(',')}`);
+          if (res.ok) setCross((await res.json()).statuses || {});
+        } catch { /* ignore */ }
+      }
     }
     setLoading(false);
   }
@@ -130,7 +152,7 @@ export default function ProductionPage() {
       {activeOrders.length > 0 && (
         <div className="space-y-4 mb-8">
           {activeOrders.map((order) => (
-            <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} onUpdate={loadData} />
+            <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} cross={cross[order.quote_id]} onUpdate={loadData} />
           ))}
         </div>
       )}
@@ -140,7 +162,7 @@ export default function ProductionPage() {
           <h2 className="text-lg font-bold text-content-body mb-3">הזמנות שהושלמו ({completedOrders.length})</h2>
           <div className="space-y-3 opacity-60">
             {completedOrders.map((order) => (
-              <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} onUpdate={loadData} />
+              <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} cross={cross[order.quote_id]} onUpdate={loadData} />
             ))}
           </div>
         </div>
@@ -149,9 +171,11 @@ export default function ProductionPage() {
   );
 }
 
-function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdate: () => void }) {
+function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; cross?: any; onUpdate: () => void }) {
   const supabase = createClient();
   const st = STATUS_MAP[order.status] || STATUS_MAP.pending;
+  const imp = cross?.import;
+  const impSt = imp ? (IMPORT_STATUS_LABEL[imp.status] || { label: imp.status, color: 'bg-neutral-100 text-content-body' }) : null;
   const project = order.projects;
   const quote = order.quotes;
   const isOverdue = order.deadline && new Date(order.deadline) < new Date() && order.status !== 'completed' && order.status !== 'delivered';
@@ -213,6 +237,13 @@ function OrderCard({ order, docs, onUpdate }: { order: any; docs: any[]; onUpdat
             <span className="text-sm font-mono text-neutral-400">{order.order_number}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
             {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">⚠️ באיחור</span>}
+            {impSt && (
+              <a href="/import" className="no-underline" title="הזמנת היבוא המקושרת (לפי הצעה)">
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${impSt.color}`}>
+                  🚢 יבוא: {impSt.label}{imp.eta ? ` · ETA ${formatDate(imp.eta)}` : ''}
+                </span>
+              </a>
+            )}
           </div>
           <span className="text-sm font-bold text-content-body">{formatCurrency(order.total_amount || 0)}</span>
         </div>
