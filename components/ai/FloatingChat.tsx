@@ -5,12 +5,25 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
 import { logAiAction } from '@/lib/ai/activity-log';
+import { executePendingAction } from '@/lib/ai/execute-action';
+import type { PendingAction } from '@/lib/ai/roxy-tools';
 import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface AiMessage {
   role: 'user' | 'ai';
   text: string;
+  /** Write proposal awaiting the user's explicit approval */
+  pending?: PendingAction;
+  /** The user command that produced the proposal (for the audit log) */
+  pendingCommand?: string;
+  /** 'approved' | 'cancelled' once the user decided */
+  pendingResolved?: string;
 }
+
+const GREETING: AiMessage = {
+  role: 'ai',
+  text: 'היי! אני רקסי 👋\nאפשר לשאול אותי על פרויקטים, הצעות מחיר, משימות, מלאי ולקוחות — או לגרור אליי קובץ קוטציה של ספק. במה לעזור?',
+};
 
 const CONTEXT_MAP: Record<string, string> = {
   '/': 'לוח בקרה',
@@ -39,6 +52,8 @@ export default function FloatingChat() {
   const [isRecording, setIsRecording] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<any>(null);
   const [pendingImport, setPendingImport] = useState<{ step: 'ask_project' | 'confirm'; quote_info: any; items: any[]; projectName?: string } | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [executingAction, setExecutingAction] = useState(false);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,9 +62,41 @@ export default function FloatingChat() {
   const router = useRouter();
   const context = getContext(pathname);
 
+  // Resume the latest conversation from the DB (full history is persisted).
   useEffect(() => {
-    setMessages([{ role: 'ai', text: `היי! אני רקסי. איך אפשר לעזור?` }]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: conv } = await supabase.from('roxy_conversations')
+          .select('id').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (cancelled || !conv) { if (!cancelled) setMessages([GREETING]); return; }
+        const { data: rows } = await supabase.from('roxy_messages')
+          .select('role, content')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true })
+          .limit(60);
+        if (cancelled) return;
+        const restored: AiMessage[] = (rows || [])
+          .filter((m: any) => (m.content || '').trim())
+          .map((m: any) => ({ role: m.role === 'user' ? 'user' : 'ai', text: m.content }));
+        setConversationId(conv.id);
+        setMessages(restored.length ? restored : [GREETING]);
+      } catch {
+        if (!cancelled) setMessages([GREETING]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  function startNewConversation() {
+    setConversationId(null);
+    setMessages([GREETING]);
+    setPendingQuote(null);
+    setPendingImport(null);
+    setInput('');
+    inputRef.current?.focus();
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -344,6 +391,35 @@ export default function FloatingChat() {
       }
     }
 
+    // Text-only messages go to the conversational engine (tool-loop, history,
+    // permissions-aware). File uploads keep the dedicated extraction path below.
+    if (filesToUse.length === 0) {
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: conversationId, message: userMsg, context }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setMessages((prev) => [...prev, { role: 'ai', text: data.error || 'משהו השתבש אצלי. נסה שוב בעוד רגע.' }]);
+        } else {
+          if (data.conversation_id) setConversationId(data.conversation_id);
+          setMessages((prev) => [...prev, {
+            role: 'ai',
+            text: data.reply,
+            pending: data.pending_action || undefined,
+            pendingCommand: userMsg,
+          }]);
+        }
+      } catch {
+        setMessages((prev) => [...prev, { role: 'ai', text: 'הייתה בעיית תקשורת. בדוק את החיבור ונסה שוב.' }]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',
@@ -504,6 +580,31 @@ export default function FloatingChat() {
     }
   }
 
+  // The user clicked אשר/בטל on a Roxy write proposal.
+  async function resolvePending(index: number, approve: boolean) {
+    const msg = messages[index];
+    if (!msg?.pending || msg.pendingResolved || executingAction) return;
+    const supabase = createClient();
+    setExecutingAction(true);
+    try {
+      let outcome: string;
+      if (approve) {
+        const result = await executePendingAction(supabase, msg.pending, msg.pendingCommand || '');
+        outcome = result.ok ? `✅ ${result.message}` : `⚠️ ${result.message}`;
+      } else {
+        outcome = 'בסדר, ביטלתי — שום דבר לא השתנה.';
+      }
+      setMessages((prev) => prev
+        .map((m, i) => (i === index ? { ...m, pendingResolved: approve ? 'approved' : 'cancelled' } : m))
+        .concat([{ role: 'ai', text: outcome }]));
+      if (conversationId) {
+        await supabase.from('roxy_messages').insert({ conversation_id: conversationId, role: 'assistant', content: outcome });
+      }
+    } finally {
+      setExecutingAction(false);
+    }
+  }
+
   const isMac = typeof navigator !== 'undefined' && navigator.platform?.includes('Mac');
   const shortcutLabel = isMac ? '⌘K' : 'Ctrl+K';
 
@@ -546,15 +647,24 @@ export default function FloatingChat() {
                 <p className="text-[12px] text-navy-500">{context}</p>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-navy-300 hover:text-azure-600 transition-colors"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={startNewConversation}
+                title="שיחה חדשה"
+                className="text-navy-300 hover:text-azure-600 transition-colors p-1"
+              >
+                <Icon name="add" size={18} />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-navy-300 hover:text-azure-600 transition-colors p-1"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -569,6 +679,30 @@ export default function FloatingChat() {
                   }`}
                 >
                   {msg.text}
+                  {msg.pending && !msg.pendingResolved && (
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-line-subtle">
+                      <button
+                        onClick={() => resolvePending(i, true)}
+                        disabled={executingAction}
+                        className="text-[12px] bg-success text-white px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <Icon name="confirm" size={14} /> אשר
+                      </button>
+                      <button
+                        onClick={() => resolvePending(i, false)}
+                        disabled={executingAction}
+                        className="text-[12px] bg-neutral-200 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-300 disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <Icon name="close" size={14} /> בטל
+                      </button>
+                    </div>
+                  )}
+                  {msg.pendingResolved === 'approved' && (
+                    <div className="mt-1.5 text-[11px] text-success inline-flex items-center gap-1"><Icon name="success" size={12} /> אושר</div>
+                  )}
+                  {msg.pendingResolved === 'cancelled' && (
+                    <div className="mt-1.5 text-[11px] text-content-muted">בוטל</div>
+                  )}
                 </div>
               </div>
             ))}
