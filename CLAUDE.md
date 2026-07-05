@@ -245,6 +245,31 @@ DATALASTIC_API_KEY=<optional — live vessel tracking on /import; without it the
 
 ## 7. Known Issues / TODO
 
+### 📍 Status — 2026-07-05
+
+Production (`main` → https://fibertech-os.vercel.app) is live with full auth + branding + import module. Sessions **2026-07-03 → 05** shipped 8 features across the `SYSTEM_REVIEW_2026-07-02.md` phases — **no migrations / RLS / schema changes in any of them**. Recap of what merged and what's still open:
+
+**✅ Done & live (2026-07-03 → 05)**
+- **Full rebrand / Design System** — `tailwind.config.ts` token layer + primitives (`Button`/`Input`/`Card`/`Modal`/`Badge`/`Toast`/`StatusPill`/`Field`), core pages migrated.
+- **שלב ב' (control) — COMPLETE (4/4):**
+  - **תפ"י release screen** — `✔️ שחרר` on an auto-seeded import draft writes `reviewed_at`/`reviewed_by` and moves `draft→planned` (`app/import/page.tsx`).
+  - **Scheduled alert engine** — Vercel Cron (`vercel.json`, daily `0 4 * * *` UTC = 07:00 IL) → `/api/cron/alerts`, service-role, writes to the existing `alerts` table. Rules: stale sent quote (>7d), `valid_until` ≤3d/past, shipment ETA ≤7d/past, import draft waiting >2d. Dedup via `type='cron:<rule>:<entityId>'` (no schema change). **Guarded by `CRON_SECRET`** (Vercel env — set 2026-07-05; route returns 401 without it).
+  - **Derived import status** — `lib/import-status.ts`: packing coverage ≥100% → `received`, >0% → `partially_received` (app-side, on SmartUpload write; manual/terminal status preserved). Coverage chip `📦 התקבל X%` on the order card.
+  - **Quote aging + viewed indicator** — `OpenQuotesWidget`: aging pill (days since `sent_at`, colour-escalating) + `👁️` from `quote_views`.
+- **שלב ג' (connectivity) — STARTED:**
+  - **Production↔import cross-status chips** (`🏭 ייצור:` on the import card; the two share `quote_id`).
+  - **Conditional import routing on sign** — `/api/import/from-quote` now seeds a draft **only** for an external supplier in a **foreign** currency (`effectiveCurrency() !== 'ILS'` AND `source_type != 'internal'`); internal / ILS / no-cost-input returns `{created:false, reason}` instead of silence. `effectiveCurrency()` centralised in `lib/pricing.ts` (fixes review #11 duplication — 5 inline copies replaced). The production order is still always created on sign.
+  - **Full hand-off to production** — `GET /api/production/order-context` (admin client, pre-signed URLs) surfaces drawings/specs/details/pipe-specs/contacts to production users who lack `projects` permission; collapsible section on the `/production` OrderCard.
+
+**🎯 Next up / open**
+- **🎨 Emoji → Phosphor Icons (duotone) — NOT STARTED.** Replace every emoji used as a *functional* icon (nav, action buttons, headings, statuses, toasts) with a single `components/ui/Icon.tsx` (`@phosphor-icons/react`, weight `duotone`, `currentColor`) so weight/style is swappable from one place. Sits on top of the new primitives. RTL: `margin-inline`/`border-inline-start` (never left/right). Colours: idle `#15427E`; active nav `#135C95` on bg `#DCEBF6` + `border-inline-start: 3px solid #15427E`. Sizes: 22px nav · 20px buttons/tables. Don't touch logic/routing/text/layout — icon layer only. End with a list of replacements + any ambiguous emoji for approval.
+- **שלב ג' remaining:** deal life-cycle timeline (quote→production→PO→shipment→receipt→delivery→invoice); UI for `import_customer_deliveries` (table exists, no writer yet — closes the goods→delivered→invoiced loop); field forms → DB (`field_reports` table + Storage; today submit = `console.log`, review #5).
+- **שלב ד' (depth):** server-side signing + audit trail (one atomic `/api/quotes/sign`); split the 1,561-line project page into tabs; unify quote-status sources (3 lists diverge); migrate Iskoor off the non-existent `shipments`/`containers` to `import_*`.
+- **Import module (`IMPORT_MODULE.md` §7):** suggestion engine learning from Nitzan's edits (base — `reviewed_by` — now collected); shipment-consolidation alert; `.msg` attachment extraction; inventory link.
+- **Cosmetic:** close the now-empty `signed-quote-routing` PR on GitHub (its code is already in `main`).
+
+(Full flow map + backlog: `SYSTEM_REVIEW_2026-07-02.md`. Session detail: `SESSION_HANDOFF_2026-07-05.md`.)
+
 ### Issues from Code Review (Fri 2026-06-12, branch `claude/read-claude-md-TBUdH`)
 
 Verified findings from a high-effort multi-angle review of the branch. Ranked by severity — fix top-to-bottom.
@@ -286,8 +311,8 @@ Verified findings from a high-effort multi-angle review of the branch. Ranked by
 > **Resolved 2026-07-02 (PR #9):** production `main` is no longer broken — it now runs full auth + the import module + all features (previously used the old pre-auth Supabase client and 403'd). The rebrand (§5 Design System) also merged to `main` on 2026-07-03.
 
 ### Important
-- **System-wide process review (2026-07-02):** see `SYSTEM_REVIEW_2026-07-02.md` — full flow map + prioritized backlog (automation / control / connectivity / visibility). Phase A (broken-stuff fixes: nav, valid_until, signed-quote alert, dead code removal, real KPIs) done 2026-07-02; phases B–D open.
-- `/import` module is built (see `IMPORT_MODULE.md`). A signed quote auto-seeds a draft import order (`/api/import/from-quote`) + writes an in-app signature alert. Live vessel tracking on shipment cards via `/api/import/vessel-track` (needs `DATALASTIC_API_KEY`; degrades to VesselFinder/MarineTraffic links without it).
+- **System-wide process review (2026-07-02):** see `SYSTEM_REVIEW_2026-07-02.md` — full flow map + prioritized backlog (automation / control / connectivity / visibility). Phase A done 2026-07-02; **Phase B (control) done 2026-07-05; Phase C (connectivity) started** — see the "📍 Status — 2026-07-05" block above for detail; phases C-remaining / D open.
+- `/import` module is built (see `IMPORT_MODULE.md`). A signed quote **conditionally** auto-seeds a draft import order (`/api/import/from-quote` — only for an external supplier in a foreign currency; internal/ILS pricing seeds nothing) + writes an in-app signature alert. Live vessel tracking on shipment cards via `/api/import/vessel-track` (needs `DATALASTIC_API_KEY`; degrades to VesselFinder/MarineTraffic links without it).
 - `/marketing`, `/field`, `/inventory`, `/reports` — modules not built; their dead nav links were removed 2026-07-02 (re-add per module when built). `/settings` nav now points at `/settings/users`. `/forms` got an index page, and forms + Iskoor logistics were added to the nav — but form submissions still don't persist (submit = console.log, see review #5).
 - Password rotation (90-day) not enforced in middleware — only defined as policy.
 - Password history check (last 3 passwords) not implemented at application level.
