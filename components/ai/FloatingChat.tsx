@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
+import { logAiAction } from '@/lib/ai/activity-log';
 import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface AiMessage {
@@ -14,11 +15,12 @@ interface AiMessage {
 const CONTEXT_MAP: Record<string, string> = {
   '/': 'לוח בקרה',
   '/projects': 'פרויקטים',
-  '/marketing': 'שיווק',
-  '/import': 'ייבוא',
-  '/field': 'שירות שדה',
-  '/inventory': 'מלאי',
-  '/reports': 'דוחות',
+  '/drawings': 'שרטוטים',
+  '/customers': 'לקוחות',
+  '/import': 'יבוא',
+  '/logistics': 'לוגיסטיקה',
+  '/production': 'ייצור',
+  '/forms': 'טפסים',
   '/settings': 'הגדרות',
 };
 
@@ -218,6 +220,12 @@ export default function FloatingChat() {
             }
             await supabase.from('supplier_quote_items').insert(rows);
           }
+          await logAiAction(supabase, {
+            command: userMsg, actionType: 'import', targetTable: 'supplier_quotes',
+            targetId: sq?.id, targetLabel: qi.supplier_name || 'ספק',
+            summary: `נשמרה קוטציית ספק מ-${qi.supplier_name || 'ספק'} (${items.length} פריטים)`,
+            changes: { quote_ref: qi.quote_ref, items: items.length }, fieldsCount: items.length,
+          });
           setMessages((prev) => [...prev, { role: 'ai', text: `✅ נשמר בהצלחה — ${items.length} פריטים מ-${qi.supplier_name || 'ספק'} (Ref: ${qi.quote_ref || '—'})` }]);
         } catch (err: any) {
           setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה בשמירה: ${err.message}` }]);
@@ -308,6 +316,12 @@ export default function FloatingChat() {
             }));
             await supabase.from('cost_input_items').insert(rows);
 
+            await logAiAction(supabase, {
+              command: userMsg, actionType: 'import', targetTable: 'cost_inputs',
+              targetId: ci.id, targetLabel: pendingImport.projectName,
+              summary: `יובאו ${rows.length} פריטי תמחור מ-${qi.supplier_name || 'ספק'} לפרויקט "${pendingImport.projectName}"`,
+              changes: { supplier: qi.supplier_name, items: rows.length, currency }, fieldsCount: rows.length,
+            });
             setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${rows.length} פריטים מ-${qi.supplier_name || 'ספק'}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} נשמרו לתמחור של פרויקט "${pendingImport.projectName}".\n⚠️ עדכן את שער החליפין בלשונית תמחור בדף הפרויקט.` }]);
           } catch (err: any) {
             setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${err.message}` }]);

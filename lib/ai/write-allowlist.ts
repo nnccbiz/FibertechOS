@@ -18,13 +18,15 @@
 const ALWAYS_ALLOWED = new Set(['id']);
 
 export const WRITE_ALLOWLIST: Record<string, Set<string>> = {
+  // Columns verified against the LIVE database schema (2026-07-05). The
+  // previous lists for projects/alerts/leads had drifted from reality and
+  // rejected (or silently failed) every write.
   projects: new Set([
-    'project_number', 'project_name', 'description', 'current_stage',
-    'stage_progress_pct', 'urgency_level', 'order_value', 'estimated_cost',
-    'overheads_pct', 'profit_pct', 'start_date', 'expected_end_date',
-    'actual_end_date', 'site_address', 'is_active', 'serial_number',
-    'developer_name', 'planning_office', 'probability_percent',
-    'realization_status', 'delivery_months', 'order_execution_date',
+    'name', 'description', 'current_stage', 'stage_label', 'progress_percent',
+    'priority', 'order_value', 'status', 'city', 'supplier', 'notes',
+    'serial_number', 'developer_name', 'planning_office',
+    'probability_percent', 'realization_status', 'delivery_months',
+    'order_execution_date',
   ]),
   project_details: new Set([
     'project_id', 'form_number', 'project_number', 'location', 'description',
@@ -44,12 +46,12 @@ export const WRITE_ALLOWLIST: Record<string, Set<string>> = {
     'stiffness_pascal', 'pressure_bar', 'notes',
   ]),
   alerts: new Set([
-    'project_id', 'user_id', 'severity', 'title', 'message', 'category',
-    'is_read', 'link_to',
+    'project_id', 'type', 'message', 'is_resolved', 'assigned_to',
   ]),
   leads: new Set([
-    'company_name', 'contact_name', 'phone', 'email', 'source', 'status',
-    'project_id', 'estimated_value', 'notes', 'assigned_to',
+    'project_name', 'developer_name', 'planner_name', 'stage',
+    'estimated_value', 'assigned_to', 'next_action', 'next_action_date',
+    'notes',
   ]),
   inventory: new Set([
     'manufacturer', 'pipe_type', 'diameter_mm', 'pressure_bar',
@@ -156,7 +158,13 @@ export async function logRejection(
     ? action
     : 'create';
   try {
+    // RLS requires owner-stamped rows (migration 20260705_001) — and we want
+    // rejected attempts attributed to the user who triggered them.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     await supabase.from('ai_activity_log').insert({
+      user_id: user.id,
+      user_name: user.user_metadata?.full_name || user.email || '',
       command_text: command || '(ריק)',
       action_type: actionType,
       target_table: validation.table,

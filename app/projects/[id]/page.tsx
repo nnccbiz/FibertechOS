@@ -356,10 +356,10 @@ Do NOT return JSON — return plain text only.`;
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ mode: 'text', message: prompt }),
       });
       const data = await res.json();
-      const emailText = data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
+      const emailText = data.text || data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
       setExportEmail(emailText);
     } catch {
       setExportEmail(lang === 'he' ? 'שגיאה ביצירת המייל. נסה שוב.' : 'Error generating email. Please try again.');
@@ -432,10 +432,10 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ mode: 'text', message: prompt }),
       });
       const data = await res.json();
-      setProjectExportText(data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data)));
+      setProjectExportText(data.text || data.summary || data.message || (typeof data === 'string' ? data : JSON.stringify(data)));
     } catch {
       setProjectExportText(lang === 'he' ? 'שגיאה ביצירת הסיכום. נסה שוב.' : 'Error generating summary. Please try again.');
     } finally {
