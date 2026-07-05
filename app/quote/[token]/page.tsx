@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parsePipeSpec } from '@/lib/pricing';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
+import Icon from '@/components/ui/Icon';
 
 function fmtSn(sn: string) {
   if (!sn) return '';
@@ -170,7 +171,7 @@ export default function PublicQuotePage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-neutral-50" dir="rtl">
         <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-md">
-          <div className="text-5xl mb-4">⏰</div>
+          <div className="mb-4 text-warning"><Icon name="expired" size={48} /></div>
           <h1 className="text-xl font-bold text-content-strong mb-2">קישור להצעת מחיר פג תוקף</h1>
           <p className="text-content-muted">הקישור אינו זמין יותר. לקבלת הצעה מעודכנת, אנא פנו לפיברטק.</p>
           <div className="mt-6 pt-6 border-t border-line-subtle">
@@ -209,14 +210,14 @@ export default function PublicQuotePage() {
       {/* Top bar */}
       <div className="print:hidden sticky top-0 z-50 bg-white border-b border-line-subtle px-6 py-3 flex items-center gap-3 justify-center">
         <button onClick={() => window.print()} className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">
-          🖨️ הדפס
+          <Icon name="print" size={16} /> הדפס
         </button>
         <button
           onClick={handleDownloadPdf}
           disabled={generatingPdf}
           className="bg-azure-100 text-azure-600 text-sm px-4 py-2 rounded-lg hover:bg-azure-100 transition-colors disabled:opacity-50"
         >
-          {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
+          {generatingPdf ? <><Icon name="loading" size={16} /> מייצר...</> : <><Icon name="download" size={16} /> הורד PDF</>}
         </button>
       </div>
 

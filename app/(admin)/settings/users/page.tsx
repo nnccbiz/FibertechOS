@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import UserPermissionsEditor from '@/components/admin/UserPermissionsEditor';
+import Icon from '@/components/ui/Icon';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export default async function UsersPage() {
       <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-content-strong">👥 ניהול משתמשים</h1>
+            <h1 className="text-2xl font-bold text-content-strong"><Icon name="team" size={24} /> ניהול משתמשים</h1>
             <p className="text-[13px] text-neutral-400">{members?.length || 0} משתמשים</p>
           </div>
           <Link href="/settings/requests" className="text-sm text-primary hover:underline">

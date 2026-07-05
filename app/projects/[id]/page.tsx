@@ -11,6 +11,7 @@ import ImportPanel from '@/components/projects/ImportPanel';
 import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -58,11 +59,11 @@ function EditableField({ label, value, editing, type = 'text', options, onChange
 }
 
 function SectionHeader({ title, icon, editing, onToggle, onSave, saving }: {
-  title: string; icon: string; editing: boolean; onToggle: () => void; onSave: () => void; saving: boolean;
+  title: string; icon: IconName; editing: boolean; onToggle: () => void; onSave: () => void; saving: boolean;
 }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-lg font-bold text-content-body">{icon} {title}</h2>
+      <h2 className="text-lg font-bold text-content-body"><Icon name={icon} size={20} /> {title}</h2>
       <div className="flex gap-2">
         {editing && (
           <button onClick={onSave} disabled={saving} className="text-[13px] bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">
@@ -717,7 +718,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               onClick={() => { setShowProjectExport(true); setProjectExportText(''); setProjectExportCopied(false); }}
               className="text-sm bg-primary-50 text-primary px-3 py-2 rounded-lg hover:bg-primary-100 transition-colors font-medium"
             >
-              📤 ייצוא פרויקט
+              <Icon name="send" size={16} /> ייצוא פרויקט
             </button>
             <button onClick={() => router.push('/projects/list')} className="text-sm text-content-muted hover:text-content-body px-3 py-2">
               ← חזרה לפרויקטים
@@ -729,7 +730,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
       <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-5">
         {/* Status */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <h2 className="text-lg font-bold text-content-body mb-3">📌 סטטוס</h2>
+          <h2 className="text-lg font-bold text-content-body mb-3"><Icon name="pin" size={20} /> סטטוס</h2>
           <StatusTracker
             currentStatus={d.project_status || 'תכנון כללי'}
             onChange={async (status) => {
@@ -744,7 +745,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           />
           {d.expected_pipe_order_date && (
             <div className="mt-4 bg-success-soft border border-success rounded-lg p-3 flex items-center gap-2">
-              <span className="text-2xl">📦</span>
+              <span className="text-success"><Icon name="package" size={24} /></span>
               <div>
                 <p className="text-sm font-bold text-success">צפי מועד להזמנת צנרת</p>
                 <p className="text-lg font-bold text-success">{formatDate(d.expected_pipe_order_date)}</p>
@@ -766,7 +767,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Basic info */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="מידע בסיסי" icon="🏗️" editing={editInfo} onToggle={() => editInfo ? cancelEdit('info') : setEditInfo(true)} onSave={saveInfo} saving={saving} />
+          <SectionHeader title="מידע בסיסי" icon="construction" editing={editInfo} onToggle={() => editInfo ? cancelEdit('info') : setEditInfo(true)} onSave={saveInfo} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="שם הפרויקט" value={form.name || ''} editing={editInfo} onChange={(v) => updateForm('name', v)} />
             <EditableField label="יזם" value={form.developer_name || ''} editing={editInfo} onChange={(v) => updateForm('developer_name', v)} />
@@ -796,7 +797,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 {contractorsForm.map((c, i) => (
                   <div key={i} className="flex gap-2 items-center">
                     <input type="text" placeholder="שם קבלן מבצע" value={c} onChange={(e) => { const next = [...contractorsForm]; next[i] = e.target.value; setContractorsForm(next); }} className={`${inputClass} flex-1`} />
-                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl">✕</button>
+                    <button onClick={() => setContractorsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger"><Icon name="close" size={20} /></button>
                   </div>
                 ))}
                 {contractorsForm.length === 0 && <p className="text-sm text-neutral-400">אין קבלנים. לחץ + להוסיף.</p>}
@@ -820,7 +821,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Dates */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="תאריכים" icon="📅" editing={editDates} onToggle={() => editDates ? cancelEdit('dates') : setEditDates(true)} onSave={saveDates} saving={saving} />
+          <SectionHeader title="תאריכים" icon="calendar" editing={editDates} onToggle={() => editDates ? cancelEdit('dates') : setEditDates(true)} onSave={saveDates} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="תאריך קבלת ההזמנה" value={editDates ? formatDateInput(d.order_received_date) : formatDate(d.order_received_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('order_received_date', v)} />
             <EditableField label="תאריך ההזמנה המאושרת" value={editDates ? formatDateInput(d.approved_order_date) : formatDate(d.approved_order_date)} editing={editDates} type="date" onChange={(v) => updateDetailForm('approved_order_date', v)} />
@@ -894,11 +895,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Contacts */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="אנשי קשר" icon="👥" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
+          <SectionHeader title="אנשי קשר" icon="team" editing={editContacts} onToggle={() => editContacts ? cancelEdit('contacts') : setEditContacts(true)} onSave={saveContacts} saving={saving} />
 
           {/* Winning customer — known only after the tender is won */}
           <div className="flex items-center gap-2 flex-wrap bg-neutral-50 border border-line-subtle rounded-lg px-3 py-2 mb-3">
-            <span className="text-[13px] font-semibold text-content-body">🏆 לקוח זוכה:</span>
+            <span className="text-[13px] font-semibold text-content-body"><Icon name="trophy" size={16} /> לקוח זוכה:</span>
             <SearchableSelect
               value={project.customer_id || ''}
               onChange={(v) => setProjectCustomer(v)}
@@ -920,7 +921,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <SearchableSelect value={c.role || ''} onChange={(v) => { const next = [...contactsForm]; next[i] = { ...next[i], role: v }; setContactsForm(next); }} className={`${contactInput} w-36 shrink-0`} placeholder="תפקיד"
                       options={[{ value: '', label: 'תפקיד' }, ...ROLES.map((r) => ({ value: r, label: r }))]} />
                     <input type="text" placeholder="שם איש הקשר" value={c.name || ''} onChange={(e) => { const next = [...contactsForm]; next[i] = { ...next[i], name: e.target.value }; setContactsForm(next); }} className={`${contactInput} flex-1 min-w-0`} />
-                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl shrink-0 leading-none">✕</button>
+                    <button onClick={() => setContactsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger shrink-0 leading-none"><Icon name="close" size={20} /></button>
                   </div>
                   <div className="flex gap-2 items-start">
                     <CompanyAutocomplete
@@ -938,7 +939,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 <button onClick={() => setContactsForm((prev) => [...prev, { role: '', name: '', company: '', phone: '', email: '' }])} className="text-[13px] text-primary hover:underline">+ הוסף איש קשר</button>
                 {contactPickerSupported && (
                   <button type="button" onClick={pickContactFromPhone} className="text-[13px] text-primary bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
-                    📱 בחר מאנשי הקשר
+                    <Icon name="mobile" size={16} /> בחר מאנשי הקשר
                   </button>
                 )}
               </div>
@@ -975,7 +976,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Project type & installation */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="סוג פרויקט והתקנה" icon="⚙️" editing={editType} onToggle={() => editType ? cancelEdit('type') : setEditType(true)} onSave={saveType} saving={saving} />
+          <SectionHeader title="סוג פרויקט והתקנה" icon="gear" editing={editType} onToggle={() => editType ? cancelEdit('type') : setEditType(true)} onSave={saveType} saving={saving} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             <EditableField label="תיאור הפרויקט" value={d.description || ''} editing={editType} type="textarea" onChange={(v) => updateDetailForm('description', v)} />
             <EditableField label="סוג פרויקט" value={d.project_type || ''} editing={editType} type="select" options={['ביוב', 'מים', 'תשתית', 'ניקוז', 'קולחין', 'בוצה', 'אחר']} onChange={(v) => updateDetailForm('project_type', v)} />
@@ -998,7 +999,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Pipe specs */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="📐" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
+          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="drawings" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
             <div className="divide-y divide-success">
@@ -1040,7 +1041,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
                   <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
-                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-2xl">✕</button>
+                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger"><Icon name="close" size={20} /></button>
                 </div>
               ))}
             </div>
@@ -1086,13 +1087,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {/* Attachments */}
           {projectAttachments.length > 0 && (
             <div className="mt-4 pt-4 border-t border-line-subtle">
-              <h3 className="text-sm font-bold text-content-body mb-2">📎 שרטוטים ומסמכים ({projectAttachments.length})</h3>
+              <h3 className="text-sm font-bold text-content-body mb-2"><Icon name="attach" size={16} /> שרטוטים ומסמכים ({projectAttachments.length})</h3>
               <div className="space-y-1.5">
                 {projectAttachments.map((att: any) => {
                   const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
                   return (
                     <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-2 text-sm">
-                      <span className="text-neutral-400 text-xs">{att.file_name.endsWith('.pdf') ? '📄' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎'}</span>
+                      <span className="text-neutral-400"><Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? 'image' : 'attach'} size={14} /></span>
                       <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex-1">{att.file_name}</a>
                       {linkedQuote && (
                         <span className="text-[11px] bg-azure-100 text-azure-600 px-2 py-0.5 rounded-full whitespace-nowrap">
@@ -1139,16 +1140,16 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {specDragOver && (
             <div className="absolute inset-0 z-20 bg-warning-soft border-2 border-dashed border-warning rounded-xl flex items-center justify-center pointer-events-none">
               <div className="text-center">
-                <div className="text-3xl mb-1">📋</div>
+                <div className="mb-1 text-warning"><Icon name="spec" size={32} /></div>
                 <p className="text-sm font-bold text-warning">שחרר כדי להעלות מפרטים</p>
                 <p className="text-[11px] text-warning mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-content-body">📋 מפרטים טכניים של הפרויקט</h2>
+            <h2 className="text-lg font-bold text-content-body"><Icon name="spec" size={20} /> מפרטים טכניים של הפרויקט</h2>
             <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-neutral-100 text-neutral-400' : 'bg-warning-soft text-warning hover:bg-warning-soft'}`}>
-              {uploadingSpec ? '⏳ מעלה…' : '+ העלה מפרט'}
+              {uploadingSpec ? <><Icon name="loading" size={14} /> מעלה…</> : '+ העלה מפרט'}
               <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
                 onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
             </label>
@@ -1160,9 +1161,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
               <div className="space-y-2">
                 {specs.map((att: any) => (
                   <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-warning bg-warning-soft px-2 py-1 rounded whitespace-nowrap">📋 מפרט</span>
+                    <span className="text-[12px] font-bold text-warning bg-warning-soft px-2 py-1 rounded whitespace-nowrap"><Icon name="spec" size={14} /> מפרט</span>
                     <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /> {att.file_name}
                     </button>
                     <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
                   </div>
@@ -1203,16 +1204,16 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           {drawingDragOver && (
             <div className="absolute inset-0 z-20 bg-primary-50 border-2 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none">
               <div className="text-center">
-                <div className="text-3xl mb-1">📐</div>
+                <div className="mb-1 text-azure-600"><Icon name="drawings" size={32} /></div>
                 <p className="text-sm font-bold text-primary">שחרר כדי להעלות שרטוטים</p>
                 <p className="text-[11px] text-primary mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-content-body">📐 שרטוטים של הפרויקט</h2>
+            <h2 className="text-lg font-bold text-content-body"><Icon name="drawings" size={20} /> שרטוטים של הפרויקט</h2>
             <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
-              {uploadingDrawing ? '⏳ מעלה ומזהה…' : '+ העלה שרטוט'}
+              {uploadingDrawing ? <><Icon name="loading" size={14} /> מעלה ומזהה…</> : '+ העלה שרטוט'}
               <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
                 onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
             </label>
@@ -1228,7 +1229,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       {(details.project_number || '—')}/{att.drawing_number || '?'}
                     </span>
                     <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                      {att.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {att.file_name}
+                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /> {att.file_name}
                     </button>
                     <label className="text-[11px] text-neutral-400 flex items-center gap-1">
                       מס׳ שרטוט:
@@ -1250,7 +1251,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         {/* Updates / Meeting log */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-content-body">📝 מעקב עדכונים ופגישות</h2>
+            <h2 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> מעקב עדכונים ופגישות</h2>
             <button
               onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
               className="text-[13px] bg-primary-50 text-primary px-3 py-1.5 rounded-lg hover:bg-primary-100 transition-colors"
@@ -1347,7 +1348,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                           }}
                           className="text-[12px] text-primary hover:text-primary-700 font-medium"
                         >
-                          📤 ייצא
+                          <Icon name="send" size={14} /> ייצא
                         </button>
                         <button
                           onClick={async () => {
@@ -1376,7 +1377,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-content-body">📤 ייצוא עדכון כמייל</h3>
+                <h3 className="text-lg font-bold text-content-body"><Icon name="send" size={18} /> ייצוא עדכון כמייל</h3>
                 <button onClick={() => setExportUpdate(null)} className="text-neutral-400 hover:text-content-body">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
@@ -1420,7 +1421,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                   disabled={exportLoading}
                   className="w-full bg-primary text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
-                  {exportLoading ? 'רקסי מכינה את המייל...' : '✨ הפק מייל'}
+                  {exportLoading ? 'רקסי מכינה את המייל...' : <><Icon name="ai" size={16} /> הפק מייל</>}
                 </button>
                 {exportEmail && (
                   <div className="space-y-2">
@@ -1437,7 +1438,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         }}
                         className="flex-1 text-sm py-2 rounded-lg border border-line-subtle hover:bg-neutral-50 transition-colors font-medium text-content-body"
                       >
-                        {exportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
+                        {exportCopied ? <><Icon name="success" size={14} /> הועתק!</> : <><Icon name="copy" size={14} /> העתק ללוח</>}
                       </button>
                       <button
                         onClick={() => {
@@ -1447,7 +1448,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         }}
                         className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-primary hover:bg-[#f8bbd0] transition-colors font-medium"
                       >
-                        📧 מייל
+                        <Icon name="email" size={14} /> מייל
                       </button>
                       <button
                         onClick={() => {
@@ -1456,7 +1457,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                         }}
                         className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-success hover:bg-[#c5f0a4] transition-colors font-medium"
                       >
-                        💬 וואטסאפ
+                        <Icon name="whatsapp" size={14} /> וואטסאפ
                       </button>
                     </div>
                   </div>
@@ -1468,7 +1469,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Story & intelligence */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="סיפור הפרויקט ואינטליגנציה" icon="📖" editing={editStory} onToggle={() => editStory ? cancelEdit('story') : setEditStory(true)} onSave={saveStory} saving={saving} />
+          <SectionHeader title="סיפור הפרויקט ואינטליגנציה" icon="book" editing={editStory} onToggle={() => editStory ? cancelEdit('story') : setEditStory(true)} onSave={saveStory} saving={saving} />
           <div className="space-y-4">
             <EditableField label="סיפור הפרויקט" value={d.project_story || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('project_story', v)} />
             <EditableField label="מתחרים" value={d.competitors || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('competitors', v)} />
@@ -1483,7 +1484,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProjectExport(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-              <h3 className="text-lg font-bold text-content-body">📤 ייצוא כרטיס פרויקט</h3>
+              <h3 className="text-lg font-bold text-content-body"><Icon name="send" size={18} /> ייצוא כרטיס פרויקט</h3>
               <button onClick={() => setShowProjectExport(false)} className="text-neutral-400 hover:text-content-body">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
@@ -1511,7 +1512,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                 disabled={projectExportLoading}
                 className="w-full bg-primary text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
-                {projectExportLoading ? 'רקסי מכין את הסיכום...' : '✨ הפק סיכום פרויקט'}
+                {projectExportLoading ? 'רקסי מכין את הסיכום...' : <><Icon name="ai" size={16} /> הפק סיכום פרויקט</>}
               </button>
               {projectExportText && (
                 <div className="space-y-2">
@@ -1528,7 +1529,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       }}
                       className="flex-1 text-sm py-2 rounded-lg border border-line-subtle hover:bg-neutral-50 transition-colors font-medium text-content-body"
                     >
-                      {projectExportCopied ? '✅ הועתק!' : '📋 העתק ללוח'}
+                      {projectExportCopied ? <><Icon name="success" size={14} /> הועתק!</> : <><Icon name="copy" size={14} /> העתק ללוח</>}
                     </button>
                     <button
                       onClick={() => {
@@ -1538,7 +1539,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       }}
                       className="flex-1 text-sm py-2 rounded-lg bg-[#fce4ec] text-primary hover:bg-[#f8bbd0] transition-colors font-medium"
                     >
-                      📧 מייל
+                      <Icon name="email" size={14} /> מייל
                     </button>
                     <button
                       onClick={() => {
@@ -1547,7 +1548,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       }}
                       className="flex-1 text-sm py-2 rounded-lg bg-[#dcf8c6] text-success hover:bg-[#c5f0a4] transition-colors font-medium"
                     >
-                      💬 וואטסאפ
+                      <Icon name="whatsapp" size={14} /> וואטסאפ
                     </button>
                   </div>
                 </div>

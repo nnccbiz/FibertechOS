@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import { AppModule } from '@/lib/auth/permissions';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface NavItem {
-  icon: string;
+  icon: IconName;
   label: string;
   key: AppModule;
   href: string;
@@ -16,15 +17,15 @@ interface NavItem {
 // Only routes that actually exist. /marketing, /field, /inventory, /reports
 // were dead 404 links — re-add each when its module is built.
 const navItems: NavItem[] = [
-  { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
-  { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
-  { icon: '📐', label: 'שרטוטים', key: 'projects', href: '/drawings' },
-  { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
-  { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
-  { icon: '🚛', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
-  { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
-  { icon: '📄', label: 'טפסים', key: 'field', href: '/forms' },
-  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings/users' },
+  { icon: 'dashboard', label: 'בקרה', key: 'dashboard', href: '/' },
+  { icon: 'projects', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
+  { icon: 'drawings', label: 'שרטוטים', key: 'projects', href: '/drawings' },
+  { icon: 'customers', label: 'לקוחות', key: 'marketing', href: '/customers' },
+  { icon: 'import', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: 'logistics', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
+  { icon: 'production', label: 'ייצור', key: 'production', href: '/production' },
+  { icon: 'forms', label: 'טפסים', key: 'field', href: '/forms' },
+  { icon: 'settings', label: 'הגדרות', key: 'settings', href: '/settings/users' },
 ];
 
 export default function Sidebar() {
@@ -86,12 +87,14 @@ export default function Sidebar() {
               expanded ? 'px-4' : 'px-0 justify-center'
             } ${
               activeHref === item.href
-                ? 'bg-primary-50 text-primary border-l-[3px] border-primary'
+                ? 'bg-azure-100 text-azure-600 border-s-[3px] border-primary'
                 : 'text-content-muted hover:bg-neutral-50 hover:text-content-strong'
             }`}
             title={!expanded ? item.label : undefined}
           >
-            <span className="text-2xl flex-shrink-0">{item.icon}</span>
+            <span className={`flex-shrink-0 ${activeHref === item.href ? 'text-azure-600' : 'text-primary'}`}>
+              <Icon name={item.icon} size={22} />
+            </span>
             {expanded && (
               <span className="whitespace-nowrap overflow-hidden">{item.label}</span>
             )}
@@ -107,7 +110,9 @@ export default function Sidebar() {
         }`}
         title={!expanded ? 'התנתק' : undefined}
       >
-        <span className="text-2xl flex-shrink-0">🚪</span>
+        <span className="flex-shrink-0 text-primary">
+          <Icon name="logout" size={22} />
+        </span>
         {expanded && <span className="whitespace-nowrap">התנתק</span>}
       </button>
 

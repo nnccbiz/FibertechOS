@@ -1,5 +1,7 @@
 'use client';
 
+import Icon from '@/components/ui/Icon';
+
 // Index page for the Israeli standard field forms — the nav's טפסים entry
 // pointed at /forms which had no page (each form lives in its own sub-route).
 const FORMS = [
@@ -14,7 +16,7 @@ export default function FormsIndexPage() {
     <div className="min-h-screen" dir="rtl">
       <header className="bg-white border-b border-line-subtle px-5 py-4">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-content-strong">📄 טפסי שטח</h1>
+          <h1 className="text-2xl font-bold text-content-strong"><Icon name="forms" size={24} /> טפסי שטח</h1>
           <p className="text-[13px] text-neutral-400">טפסים תקניים ישראליים למילוי באתר</p>
         </div>
       </header>

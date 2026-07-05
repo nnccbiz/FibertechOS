@@ -3,9 +3,10 @@
 import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import { AppModule } from '@/lib/auth/permissions';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface NavItem {
-  icon: string;
+  icon: IconName;
   label: string;
   key: AppModule;
   href: string;
@@ -13,15 +14,15 @@ interface NavItem {
 
 // Only routes that actually exist — keep in sync with Sidebar.tsx.
 const navItems: NavItem[] = [
-  { icon: '🏠', label: 'בקרה', key: 'dashboard', href: '/' },
-  { icon: '📋', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
-  { icon: '📐', label: 'שרטוטים', key: 'projects', href: '/drawings' },
-  { icon: '👥', label: 'לקוחות', key: 'marketing', href: '/customers' },
-  { icon: '🚢', label: 'יבוא', key: 'import', href: '/import' },
-  { icon: '🚛', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
-  { icon: '🏭', label: 'ייצור', key: 'production', href: '/production' },
-  { icon: '📄', label: 'טפסים', key: 'field', href: '/forms' },
-  { icon: '⚙️', label: 'הגדרות', key: 'settings', href: '/settings/users' },
+  { icon: 'dashboard', label: 'בקרה', key: 'dashboard', href: '/' },
+  { icon: 'projects', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
+  { icon: 'drawings', label: 'שרטוטים', key: 'projects', href: '/drawings' },
+  { icon: 'customers', label: 'לקוחות', key: 'marketing', href: '/customers' },
+  { icon: 'import', label: 'יבוא', key: 'import', href: '/import' },
+  { icon: 'logistics', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
+  { icon: 'production', label: 'ייצור', key: 'production', href: '/production' },
+  { icon: 'forms', label: 'טפסים', key: 'field', href: '/forms' },
+  { icon: 'settings', label: 'הגדרות', key: 'settings', href: '/settings/users' },
 ];
 
 export default function BottomNav() {
@@ -46,11 +47,13 @@ export default function BottomNav() {
             href={item.href}
             className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[12px] font-medium transition-colors no-underline ${
               activeHref === item.href
-                ? 'bg-primary-50 text-primary'
+                ? 'bg-azure-100 text-azure-600'
                 : 'text-content-muted'
             }`}
           >
-            <span className="text-lg mb-0.5">{item.icon}</span>
+            <span className={`mb-0.5 ${activeHref === item.href ? 'text-azure-600' : 'text-primary'}`}>
+              <Icon name={item.icon} size={22} />
+            </span>
             <span>{item.label}</span>
           </a>
         ))}

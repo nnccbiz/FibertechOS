@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/Badge';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -31,9 +32,9 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 const STEPS = [
-  { status: 'confirmed', label: 'הזמנה אושרה', docType: 'signed_order', docLabel: 'הזמנה חתומה', icon: '📝' },
-  { status: 'in_production', label: 'בייצור', docType: 'signed_drawing', docLabel: 'שרטוט חתום', icon: '📐' },
-  { status: 'delivered', label: 'סופק', docType: 'delivery_certificate', docLabel: 'תעודת משלוח', icon: '🚚' },
+  { status: 'confirmed', label: 'הזמנה אושרה', docType: 'signed_order', docLabel: 'הזמנה חתומה', icon: 'note' as IconName },
+  { status: 'in_production', label: 'בייצור', docType: 'signed_drawing', docLabel: 'שרטוט חתום', icon: 'drawings' as IconName },
+  { status: 'delivered', label: 'סופק', docType: 'delivery_certificate', docLabel: 'תעודת משלוח', icon: 'truck' as IconName },
 ];
 
 const STATUS_ORDER = ['pending', 'confirmed', 'in_production', 'delivered', 'completed'];
@@ -133,7 +134,7 @@ export default function ProductionPage() {
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-content-strong">🏭 ייצור</h1>
+          <h1 className="text-2xl font-bold text-content-strong"><Icon name="production" size={24} /> ייצור</h1>
           <p className="text-sm text-content-muted mt-1">הזמנות שאושרו לייצור מכל הפרויקטים</p>
         </div>
         <div className="flex items-center gap-3">
@@ -143,7 +144,7 @@ export default function ProductionPage() {
 
       {activeOrders.length === 0 && (
         <div className="bg-white rounded-xl border border-line-subtle p-12 text-center">
-          <p className="text-4xl mb-3">📭</p>
+          <p className="mb-3 text-neutral-300"><Icon name="empty" size={40} /></p>
           <p className="text-content-muted">אין הזמנות פעילות כרגע</p>
           <p className="text-sm text-neutral-400 mt-1">הזמנות חדשות יופיעו כאן כאשר הצעת מחיר תסומן כנחתמה</p>
         </div>
@@ -236,11 +237,11 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
           <div className="flex items-center gap-3">
             <span className="text-sm font-mono text-neutral-400">{order.order_number}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-            {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">⚠️ באיחור</span>}
+            {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger"><Icon name="warning" size={14} /> באיחור</span>}
             {impSt && (
               <a href="/import" className="no-underline" title="הזמנת היבוא המקושרת (לפי הצעה)">
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${impSt.color}`}>
-                  🚢 יבוא: {impSt.label}{imp.eta ? ` · ETA ${formatDate(imp.eta)}` : ''}
+                  <Icon name="ship" size={14} /> יבוא: {impSt.label}{imp.eta ? ` · ETA ${formatDate(imp.eta)}` : ''}
                 </span>
               </a>
             )}
@@ -301,9 +302,9 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
                     onClick={() => openDoc(doc)}
                     className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-success-soft text-success border border-success hover:bg-success-soft transition-colors"
                   >
-                    <span>{step.icon}</span>
+                    <span><Icon name={step.icon} size={16} /></span>
                     <span className="font-medium">{step.label}</span>
-                    <span className="text-success">✓</span>
+                    <span className="text-success"><Icon name="confirm" size={14} /></span>
                   </button>
                 );
               }
@@ -318,7 +319,7 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
                         : 'bg-azure-100 text-azure-600 border-azure hover:bg-azure-100 cursor-pointer'
                     }`}
                   >
-                    <span>{step.icon}</span>
+                    <span><Icon name={step.icon} size={16} /></span>
                     <span className="font-medium">{isUploading ? 'מעלה...' : step.label}</span>
                     <span className="text-[10px] text-azure">({step.docLabel})</span>
                     <input
@@ -343,7 +344,7 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
                   key={step.docType}
                   className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg bg-neutral-50 text-neutral-400 border border-line-subtle"
                 >
-                  <span>{step.icon}</span>
+                  <span><Icon name={step.icon} size={16} /></span>
                   <span className="font-medium">{step.label}</span>
                   <span className="text-[10px]">({step.docLabel})</span>
                 </div>
@@ -354,7 +355,7 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
                 onClick={handleReset}
                 className="flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-danger-soft text-danger border border-danger hover:bg-danger-soft transition-colors mr-auto"
               >
-                🔄 איפוס
+                <Icon name="refresh" size={14} /> איפוס
               </button>
             )}
           </div>
@@ -421,8 +422,8 @@ function ProductionHandoff({ orderId, projectId }: { orderId: string; projectId:
         onClick={toggle}
         className="w-full flex items-center justify-between px-5 py-2.5 text-sm font-semibold text-content-body hover:bg-neutral-50 transition-colors"
       >
-        <span>📋 מסירה לייצור — שרטוטים, מפרטים ופרטי פרויקט</span>
-        <span className={`text-content-muted transition-transform duration-fast ${open ? 'rotate-180' : ''}`}>▾</span>
+        <span><Icon name="clipboard" size={16} /> מסירה לייצור — שרטוטים, מפרטים ופרטי פרויקט</span>
+        <span className={`text-content-muted transition-transform duration-fast ${open ? 'rotate-180' : ''}`}><Icon name="caretDown" size={14} /></span>
       </button>
       {open && (
         <div className="px-5 pb-4 pt-1 space-y-4">
@@ -460,7 +461,7 @@ function HandoffBody({ data, openFile }: { data: any; openFile: (u: string | nul
                 disabled={!d.signedUrl}
                 className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg bg-azure-100 text-azure-600 border border-azure hover:bg-azure-100 transition-colors disabled:opacity-50"
               >
-                <span>📐</span>
+                <span><Icon name="drawings" size={14} /></span>
                 <span dir="ltr">{pn && d.drawing_number ? `${pn}/${d.drawing_number}` : d.file_name}</span>
               </button>
             ))}
@@ -471,7 +472,7 @@ function HandoffBody({ data, openFile }: { data: any; openFile: (u: string | nul
                 disabled={!s.signedUrl}
                 className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg bg-warning-soft text-warning border border-warning hover:bg-warning-soft transition-colors disabled:opacity-50"
               >
-                <span>📋</span>
+                <span><Icon name="spec" size={14} /></span>
                 <span>{s.file_name}</span>
               </button>
             ))}

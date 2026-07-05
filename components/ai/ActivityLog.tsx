@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface LogEntry {
   id: string;
@@ -38,12 +39,12 @@ function timeAgo(dateStr: string) {
   return 'עכשיו';
 }
 
-const actionIcons: Record<string, string> = {
-  create: '➕',
-  update: '✏️',
-  delete: '🗑️',
-  import: '📄',
-  generate: '📝',
+const actionIcons: Record<string, IconName> = {
+  create: 'add',
+  update: 'edit',
+  delete: 'delete',
+  import: 'file',
+  generate: 'note',
 };
 
 const sourceLabels: Record<string, string> = {
@@ -120,7 +121,7 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-content-body">✨ פעולות AI אחרונות</h3>
+        <h3 className="text-lg font-bold text-content-body"><Icon name="ai" size={20} /> פעולות AI אחרונות</h3>
         {entries.length > 0 && (
           <span className="text-[12px] text-neutral-400">{entries.length} פעולות</span>
         )}
@@ -143,8 +144,8 @@ export default function ActivityLog({ refreshTrigger }: ActivityLogProps) {
               }`}
             >
               <div className="flex items-start gap-2">
-                <span className="text-lg mt-0.5">
-                  {actionIcons[entry.action_type] || '⚡'}
+                <span className="mt-0.5 text-primary">
+                  <Icon name={actionIcons[entry.action_type] || 'zap'} size={18} />
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-content-body">{entry.summary}</p>

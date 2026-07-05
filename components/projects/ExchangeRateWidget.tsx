@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { ExchangeRateInfo } from '@/lib/exchange-rate';
 import { formatRate, CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
+import Icon from '@/components/ui/Icon';
 
 interface ExchangeRateWidgetProps {
   rates: Record<string, ExchangeRateInfo>;
@@ -75,7 +76,7 @@ export default function ExchangeRateWidget({ rates, loading, onRefresh }: Exchan
         className="text-[11px] text-azure-600 hover:text-azure-600 disabled:text-neutral-400 mr-auto"
         title="רענן שערים מבנק ישראל"
       >
-        {loading ? '⏳' : '🔄'} רענן
+        <Icon name={loading ? 'loading' : 'refresh'} size={16} /> רענן
       </button>
 
       <span className="text-[10px] text-neutral-400">בנק ישראל</span>

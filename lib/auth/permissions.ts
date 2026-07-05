@@ -2,6 +2,8 @@
  * Permission model - shared between server and client.
  * Must match the SQL enums in migration 002.
  */
+import type { IconName } from '@/components/ui/Icon';
+
 export const APP_MODULES = [
   'dashboard',
   'projects',
@@ -28,16 +30,16 @@ export const MODULE_LABELS_HE: Record<AppModule, string> = {
   settings: 'הגדרות',
 };
 
-export const MODULE_ICONS: Record<AppModule, string> = {
-  dashboard: '🏠',
-  projects: '📋',
-  marketing: '📊',
-  import: '🚢',
-  production: '🏭',
-  field: '👷',
-  inventory: '📦',
-  reports: '📈',
-  settings: '⚙️',
+export const MODULE_ICONS: Record<AppModule, IconName> = {
+  dashboard: 'dashboard',
+  projects: 'projects',
+  marketing: 'marketing',
+  import: 'import',
+  production: 'production',
+  field: 'field',
+  inventory: 'inventory',
+  reports: 'reports',
+  settings: 'settings',
 };
 
 export const PERMISSION_LEVELS = ['none', 'view', 'edit', 'full'] as const;

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { APP_MODULES, MODULE_LABELS_HE, MODULE_ICONS, PERMISSION_LEVELS, LEVEL_LABELS_HE, type AppModule, type PermissionLevel } from '@/lib/auth/permissions';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import Icon from '@/components/ui/Icon';
 
 type Request = {
   id: string;
@@ -101,8 +102,8 @@ export default function PendingRequestsList({ initial }: { initial: Request[] })
                 <div className="font-semibold text-content-strong">
                   {r.full_name}
                   {r.email_already_on_team && (
-                    <span className="mr-2 text-[11px] text-warning bg-warning-soft border border-warning rounded px-1.5 py-0.5">
-                      ⚠️ המייל כבר קיים בצוות
+                    <span className="mr-2 text-[11px] text-warning bg-warning-soft border border-warning rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                      <Icon name="warning" size={14} /> המייל כבר קיים בצוות
                     </span>
                   )}
                 </div>
@@ -113,7 +114,7 @@ export default function PendingRequestsList({ initial }: { initial: Request[] })
                   {new Date(r.created_at).toLocaleString('he-IL')} · IP: {r.ip_address || '—'}
                 </div>
               </div>
-              <span className="text-neutral-400">{isOpen ? '▼' : '◀'}</span>
+              <span className="text-neutral-400"><Icon name={isOpen ? 'caretDown' : 'caretLeft'} size={20} /></span>
             </button>
 
             {isOpen && (
@@ -173,8 +174,8 @@ function ApprovalForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {APP_MODULES.map((m) => (
             <div key={m} className="flex items-center justify-between bg-white rounded-lg border border-line-subtle px-3 py-2">
-              <div className="text-sm">
-                <span className="ml-2">{MODULE_ICONS[m]}</span>
+              <div className="text-sm flex items-center gap-2">
+                <span className="text-primary"><Icon name={MODULE_ICONS[m]} size={20} /></span>
                 {MODULE_LABELS_HE[m]}
               </div>
               <SearchableSelect
@@ -204,7 +205,7 @@ function ApprovalForm({
           disabled={pending}
           className="bg-success text-white font-medium px-4 py-2 rounded-lg hover:bg-success disabled:opacity-50"
         >
-          ✓ אשר ושלח לינק לקביעת סיסמה
+          <span className="inline-flex items-center gap-1.5"><Icon name="confirm" size={20} /> אשר ושלח לינק לקביעת סיסמה</span>
         </button>
         <button
           onClick={() => onDecline(request, 'decline_suspicious', notes)}

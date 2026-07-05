@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Icon from '@/components/ui/Icon';
 
 interface DrawingRow {
   id: string;
@@ -65,7 +66,7 @@ export default function DrawingsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-content-strong">📐 שרטוטים</h1>
+        <h1 className="text-2xl font-bold text-content-strong"><Icon name="drawings" size={24} /> שרטוטים</h1>
         <span className="text-sm text-neutral-400">{filtered.length} שרטוטים</span>
       </div>
 
@@ -102,7 +103,7 @@ export default function DrawingsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <button onClick={() => openDrawing(r.file_url)} className="text-primary hover:underline">
-                      {r.file_name.endsWith('.pdf') ? '📄' : '🖼️'} {r.file_name}
+                      <Icon name={r.file_name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /> {r.file_name}
                     </button>
                   </td>
                   <td className="px-4 py-3">

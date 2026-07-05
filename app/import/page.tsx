@@ -6,6 +6,7 @@ import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
 import { Button } from '@/components/ui/Button';
 import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,7 @@ const PROD_STATUS_LABEL: Record<string, { label: string; color: string }> = {
 };
 
 const DOC_TYPES = [
-  { key: 'email', label: '📧 אימייל' },
+  { key: 'email', label: 'אימייל' },
   { key: 'order_confirmation', label: 'אישור הזמנה (OC)' },
   { key: 'proforma_invoice', label: 'חשבונית פרופורמה (PI)' },
   { key: 'commercial_invoice', label: 'חשבונית מסחרית (CI)' },
@@ -132,12 +133,12 @@ export default function ImportPage() {
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-content-strong">🚢 יבוא</h1>
+          <h1 className="text-2xl font-bold text-content-strong"><Icon name="import" size={24} /> יבוא</h1>
           <p className="text-sm text-content-muted mt-1">הזמנות רכש, משלוחים ומכולות, מסמכים ואספקה</p>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
-            <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-primary to-navy-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90">⚡ העלאה חכמה</button>
+            <button onClick={() => setShowSmart(true)} className="bg-gradient-to-l from-primary to-navy-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90"><Icon name="zap" size={16} /> העלאה חכמה</button>
           )}
           <div className="flex bg-neutral-100 rounded-lg p-0.5">
             <button onClick={() => setView('quotes')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'quotes' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הצעות מאושרות</button>
@@ -220,7 +221,7 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
                     </td>
                     <td className="py-2 px-3 text-left">
                       {!order
-                        ? <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה ⚡</button>
+                        ? <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה <Icon name="zap" size={14} /></button>
                         : <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>}
                     </td>
                   </tr>
@@ -311,19 +312,19 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
               <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">ממתין לשחרור תפ"י</span>
             )}
             {order.reviewed_at && order.status !== 'draft' && (
-              <span className="text-[11px] text-success font-medium" title={`שוחרר ${fmtDate(order.reviewed_at)}`}>✔️ שוחרר · {fmtDate(order.reviewed_at)}</span>
+              <span className="text-[11px] text-success font-medium" title={`שוחרר ${fmtDate(order.reviewed_at)}`}><Icon name="confirm" size={14} /> שוחרר · {fmtDate(order.reviewed_at)}</span>
             )}
             {coverage != null && (
               <span
                 className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${coverage >= 100 ? 'bg-success-soft text-success' : coverage > 0 ? 'bg-warning-soft text-warning' : 'bg-neutral-100 text-content-muted'}`}
                 title="כיסוי קבלה מול הוזמן (לפי תעודות המשלוח)"
               >
-                📦 התקבל {coverage}%
+                <Icon name="package" size={14} /> התקבל {coverage}%
               </span>
             )}
             {prodSt && (
               <a href="/production" className="no-underline" title="הזמנת הייצור המקושרת (לפי הצעה)">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prodSt.color}`}>🏭 ייצור: {prodSt.label}</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prodSt.color}`}><Icon name="production" size={14} /> ייצור: {prodSt.label}</span>
               </a>
             )}
           </div>
@@ -337,10 +338,10 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">
-            {open ? 'הסתר ▲' : 'פריטים, חשבוניות, COA ומסמכים ▼'}
+            {open ? <>הסתר <Icon name="caretUp" size={12} /></> : <>פריטים, חשבוניות, COA ומסמכים <Icon name="caretDown" size={12} /></>}
           </button>
           {canEdit && order.status === 'draft' && (
-            <Button size="sm" onClick={release} disabled={releasing} iconLeft={<span>✔️</span>}>
+            <Button size="sm" onClick={release} disabled={releasing} iconLeft={<Icon name="confirm" size={20} />}>
               {releasing ? 'משחרר…' : 'שחרר לתפ"י'}
             </Button>
           )}
@@ -356,7 +357,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
       {open && (
         <div className="border-t border-line-subtle bg-neutral-50 px-5 py-4">
           <div className="flex gap-2 mb-3 border-b border-line-subtle">
-            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['map', '🗺️ מפת קשרים']] as const).map(([k, l]) => (
+            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['map', 'מפת קשרים']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-primary text-primary font-semibold' : 'border-transparent text-content-muted'}`}>{l}</button>
             ))}
           </div>
@@ -447,26 +448,26 @@ function RelationshipMap({ order, data }: any) {
 
   return (
     <div className="text-[13px]">
-      <p className="text-[11px] text-neutral-400 mb-2">לחיצה על מסמך (📎) פותחת את המקור. הפרויקט מקשר חזרה לעמוד הפרויקט.</p>
+      <p className="text-[11px] text-neutral-400 mb-2">לחיצה על מסמך (<Icon name="attach" size={12} />) פותחת את המקור. הפרויקט מקשר חזרה לעמוד הפרויקט.</p>
       <div className="space-y-1">
-        <Node icon="📁" color="bg-success-soft border-success text-success" depth={0}>
+        <Node icon="folder" color="bg-success-soft border-success text-success" depth={0}>
           פרויקט: {projectHref ? <a href={projectHref} className="font-semibold underline hover:text-success">{projectLabel} ↗</a> : <span className="font-semibold">{projectLabel}</span>}
         </Node>
-        <Node icon="📋" color="bg-azure-100 border-azure text-azure-600" depth={1}>
+        <Node icon="clipboard" color="bg-azure-100 border-azure text-azure-600" depth={1}>
           הזמנה: <span className="font-mono" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
           {order.supplier_order_no && <span className="text-azure mr-2" dir="ltr">Sales Order {order.supplier_order_no}</span>}
         </Node>
 
         {invoices.map((iv: any) => {
           const d = docFor((x: any) => x.doc_type?.includes('invoice') && (x.doc_number === iv.invoice_no || x.file_name?.includes(iv.invoice_no)));
-          return <Node key={iv.id} icon="🧾" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
-            חשבונית <span dir="ltr">{iv.invoice_no}</span>{iv.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ ת.משלוח {iv.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          return <Node key={iv.id} icon="invoice" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            חשבונית <span dir="ltr">{iv.invoice_no}</span>{iv.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ ת.משלוח {iv.delivery_notes}</span> : ''}{d ? <> <Icon name="attach" size={12} /></> : ''}
           </Node>;
         })}
         {coa.map((c: any) => {
           const d = docFor((x: any) => x.doc_type === 'coa' && (x.doc_number === c.coa_no || x.file_name?.includes((c.coa_no || '').replace('/', '_'))));
-          return <Node key={c.id} icon="🔬" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
-            COA <span dir="ltr">{c.coa_no}</span> <span className="text-neutral-400" dir="ltr">DN{c.dn}</span>{c.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ {c.delivery_notes}</span> : ''}{d ? ' 📎' : ''}
+          return <Node key={c.id} icon="lab" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={d ? () => openPath(d.file_path) : undefined}>
+            COA <span dir="ltr">{c.coa_no}</span> <span className="text-neutral-400" dir="ltr">DN{c.dn}</span>{c.delivery_notes ? <span className="text-neutral-400 mr-2" dir="ltr">→ {c.delivery_notes}</span> : ''}{d ? <> <Icon name="attach" size={12} /></> : ''}
           </Node>;
         })}
 
@@ -474,20 +475,20 @@ function RelationshipMap({ order, data }: any) {
           const bl = data.docs.find((d: any) => d.shipment_id === s.id && d.doc_type === 'bl');
           return (
             <div key={s.id}>
-              <Node icon="🚢" color="bg-primary-50 border-primary text-primary" depth={2} onClick={bl ? () => openPath(bl.file_path) : undefined}>
-                משלוח BL <span dir="ltr">{s.bl_number || '—'}</span> <span className="text-navy-500" dir="ltr">{s.vessel_name || ''}</span>{bl ? ' 📎' : ''}
+              <Node icon="ship" color="bg-primary-50 border-primary text-primary" depth={2} onClick={bl ? () => openPath(bl.file_path) : undefined}>
+                משלוח BL <span dir="ltr">{s.bl_number || '—'}</span> <span className="text-navy-500" dir="ltr">{s.vessel_name || ''}</span>{bl ? <> <Icon name="attach" size={12} /></> : ''}
               </Node>
               {containers.filter((c: any) => c.shipment_id === s.id).map((c: any) => {
                 const lines = packing.filter((p: any) => p.container_id === c.id);
                 return (
                   <div key={c.id}>
-                    <Node icon="📦" color="bg-warning-soft border-warning text-warning" depth={3}>
+                    <Node icon="package" color="bg-warning-soft border-warning text-warning" depth={3}>
                       מכולה <span dir="ltr">{c.container_number}</span>{c.pieces ? <span className="text-warning mr-1">· {c.pieces} צינ'</span> : ''}
                     </Node>
                     {lines.map((pl: any) => {
                       const d = pl.delivery_note_no ? docFor((x: any) => x.doc_type === 'packing_list' && x.file_name?.includes(pl.delivery_note_no)) : null;
-                      return <Node key={pl.id} icon="📦" color="bg-white border-line-subtle text-content-body" depth={4} onClick={d ? () => openPath(d.file_path) : undefined}>
-                        <span dir="ltr">{pl.dn} × {pl.shipped_qty}{pl.unit}</span>{pl.delivery_note_no ? <span className="text-neutral-400 mr-2" dir="ltr">ת.משלוח {pl.delivery_note_no}</span> : ''}{d ? ' 📎' : ''}
+                      return <Node key={pl.id} icon="package" color="bg-white border-line-subtle text-content-body" depth={4} onClick={d ? () => openPath(d.file_path) : undefined}>
+                        <span dir="ltr">{pl.dn} × {pl.shipped_qty}{pl.unit}</span>{pl.delivery_note_no ? <span className="text-neutral-400 mr-2" dir="ltr">ת.משלוח {pl.delivery_note_no}</span> : ''}{d ? <> <Icon name="attach" size={12} /></> : ''}
                       </Node>;
                     })}
                   </div>
@@ -498,8 +499,8 @@ function RelationshipMap({ order, data }: any) {
         })}
 
         {orderDocs.filter((d: any) => !d.doc_type?.includes('invoice') && d.doc_type !== 'coa' && d.doc_type !== 'bl' && d.doc_type !== 'packing_list').map((d: any) => (
-          <Node key={d.id} icon="📄" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={() => openPath(d.file_path)}>
-            <span dir="ltr">{d.file_name}</span> 📎
+          <Node key={d.id} icon="file" color="bg-neutral-50 border-line-subtle text-content-body" depth={2} onClick={() => openPath(d.file_path)}>
+            <span dir="ltr">{d.file_name}</span> <Icon name="attach" size={12} />
           </Node>
         ))}
       </div>
@@ -507,12 +508,12 @@ function RelationshipMap({ order, data }: any) {
   );
 }
 
-function Node({ icon, color, depth, children, onClick }: any) {
+function Node({ icon, color, depth, children, onClick }: { icon: IconName; color: string; depth: number; children: React.ReactNode; onClick?: () => void }) {
   return (
     <div style={{ marginRight: `${depth * 18}px` }} className="flex items-center">
       {depth > 0 && <span className="text-neutral-300 ml-1">└</span>}
       <span onClick={onClick} className={`inline-flex items-center gap-1.5 border rounded-lg px-2.5 py-1 ${color} ${onClick ? 'cursor-pointer hover:brightness-95' : ''}`}>
-        <span>{icon}</span><span>{children}</span>
+        <span><Icon name={icon} size={16} /></span><span>{children}</span>
       </span>
     </div>
   );
@@ -542,8 +543,8 @@ function InvoicesSection({ order, data, canEdit, canDelete, onUpdate }: any) {
       <div className="space-y-2">
         {rows.map((iv: any) => (
           <div key={iv.id} className="flex items-center justify-between bg-white border border-line-subtle rounded-lg px-3 py-2 text-[13px]">
-            <div><span className="font-semibold text-content-body" dir="ltr">🧾 {iv.invoice_no}</span><span className="text-neutral-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-content-muted mr-2">{fmtDate(iv.invoice_date)}</span></div>
-            <div className="flex items-center gap-3"><span className="text-content-body font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-danger hover:text-danger">✕</button>}</div>
+            <div><span className="font-semibold text-content-body" dir="ltr"><Icon name="invoice" size={14} /> {iv.invoice_no}</span><span className="text-neutral-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-content-muted mr-2">{fmtDate(iv.invoice_date)}</span></div>
+            <div className="flex items-center gap-3"><span className="text-content-body font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button>}</div>
           </div>
         ))}
       </div>
@@ -581,8 +582,8 @@ function CoaSection({ order, data, canEdit, canDelete, onUpdate }: any) {
       <div className="space-y-2">
         {rows.map((c: any) => (
           <div key={c.id} className="flex items-center justify-between bg-white border border-line-subtle rounded-lg px-3 py-2 text-[13px]">
-            <div><span className="font-semibold text-content-body" dir="ltr">🔬 {c.coa_no}</span><span className="text-content-muted mr-2" dir="ltr">DN{c.dn} PN{c.pn} SN{c.sn}</span>{c.passed != null && <span className={c.passed ? 'text-success' : 'text-danger'}>{c.passed ? '✓ עבר' : '✗ נכשל'}</span>}</div>
-            {canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger">✕</button>}
+            <div><span className="font-semibold text-content-body" dir="ltr"><Icon name="lab" size={14} /> {c.coa_no}</span><span className="text-content-muted mr-2" dir="ltr">DN{c.dn} PN{c.pn} SN{c.sn}</span>{c.passed != null && <span className={c.passed ? 'text-success' : 'text-danger'}>{c.passed ? <><Icon name="confirm" size={14} /> עבר</> : <><Icon name="close" size={14} /> נכשל</>}</span>}</div>
+            {canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button>}
           </div>
         ))}
       </div>
@@ -628,8 +629,8 @@ function DocsSection({ order, shipment, data, canEdit, canDelete, onUpdate }: an
       <div className="flex flex-wrap gap-2">
         {rows.map((d: any) => (
           <div key={d.id} className="flex items-center gap-1.5 bg-white border border-line-subtle rounded-lg px-2.5 py-1.5">
-            <button onClick={() => openDoc(d)} className="text-[12px] text-content-body hover:text-primary">📄 <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span> <span className="text-neutral-400 mr-1" dir="ltr">{d.file_name}</span></button>
-            {canDelete && <button onClick={() => del(d)} className="text-danger hover:text-danger text-[12px]">✕</button>}
+            <button onClick={() => openDoc(d)} className="text-[12px] text-content-body hover:text-primary"><Icon name="file" size={14} /> <span className="font-medium">{DOC_LABEL[d.doc_type] || d.doc_type}</span> <span className="text-neutral-400 mr-1" dir="ltr">{d.file_name}</span></button>
+            {canDelete && <button onClick={() => del(d)} className="text-danger hover:text-danger"><Icon name="close" size={14} /></button>}
           </div>
         ))}
       </div>
@@ -637,7 +638,7 @@ function DocsSection({ order, shipment, data, canEdit, canDelete, onUpdate }: an
         <div className="flex items-center gap-2 mt-3 bg-white p-2.5 rounded-lg border border-line-subtle w-fit">
           <select value={docType} onChange={(e) => setDocType(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1">{DOC_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
           <label className={`text-[12px] px-3 py-1.5 rounded cursor-pointer ${uploading ? 'bg-neutral-100 text-neutral-400' : 'bg-azure-100 text-azure-600 hover:bg-azure-100'}`}>
-            {uploading ? 'מעלה...' : '⬆ העלאה'}
+            {uploading ? 'מעלה...' : <><Icon name="upload" size={14} /> העלאה</>}
             <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" disabled={uploading} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await upload(f); e.target.value = ''; }} />
           </label>
         </div>
@@ -691,7 +692,7 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
             <span className="text-sm text-content-body" dir="ltr">{shipment.vessel_name}</span>
             {shipment.vessel_name && (
               <button onClick={() => setTracking(!tracking)} className={`text-[12px] px-2 py-0.5 rounded-full border ${tracking ? 'bg-azure-600 text-white border-azure-600' : 'bg-azure-100 text-azure-600 border-azure hover:bg-azure-100'}`}>
-                🛰️ אתר ספינה
+                <Icon name="satellite" size={14} /> אתר ספינה
               </button>
             )}
           </div>
@@ -704,7 +705,7 @@ function ShipmentCard({ shipment, data, canEdit, canDelete, onUpdate }: any) {
         </div>
         {tracking && <VesselTracker vesselName={shipment.vessel_name} />}
         <div className="flex items-center gap-3">
-          <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">{open ? 'הסתר ▲' : 'מכולות, תכולה ומסמכים ▼'}</button>
+          <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">{open ? <>הסתר <Icon name="caretUp" size={12} /></> : <>מכולות, תכולה ומסמכים <Icon name="caretDown" size={12} /></>}</button>
           {canEdit && <select value={shipment.status} onChange={(e) => setStatus(e.target.value)} className="text-[12px] border border-line-subtle rounded px-2 py-1 text-content-body">{SHIPMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{SHIPMENT_STATUS[k].label}</option>)}</select>}
           {canDelete && <button onClick={del} className="text-[12px] text-danger hover:underline mr-auto">מחיקה</button>}
         </div>
@@ -743,8 +744,8 @@ function ContainersSection({ shipment, containers, data, orderName, canEdit, can
           return (
             <div key={c.id} className="bg-white border border-line-subtle rounded-lg px-3 py-2.5">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[13px] font-semibold text-content-body" dir="ltr">📦 {c.container_number}{c.seal_number ? ` · חותם ${c.seal_number}` : ''}</span>
-                <span className="text-[12px] text-neutral-400">{c.pieces ? `${c.pieces} צינורות` : ''} {c.gross_weight ? `· ${c.gross_weight} ק"ג` : ''}{canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger mr-2">✕</button>}</span>
+                <span className="text-[13px] font-semibold text-content-body" dir="ltr"><Icon name="package" size={14} /> {c.container_number}{c.seal_number ? ` · חותם ${c.seal_number}` : ''}</span>
+                <span className="text-[12px] text-neutral-400">{c.pieces ? `${c.pieces} צינורות` : ''} {c.gross_weight ? `· ${c.gross_weight} ק"ג` : ''}{canDelete && <button onClick={() => del(c.id)} className="text-danger hover:text-danger mr-2"><Icon name="close" size={14} /></button>}</span>
               </div>
               {lines.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
@@ -801,11 +802,11 @@ function VesselTracker({ vesselName }: { vesselName: string }) {
   return (
     <div className="bg-azure-100 border border-azure rounded-lg px-4 py-3 mb-3 text-[13px]">
       {state.loading ? (
-        <p className="text-azure-600">🛰️ מאתר את {vesselName}...</p>
+        <p className="text-azure-600"><Icon name="satellite" size={14} /> מאתר את {vesselName}...</p>
       ) : v ? (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="font-semibold text-azure-600" dir="ltr">🚢 {v.name}</span>
+            <span className="font-semibold text-azure-600" dir="ltr"><Icon name="ship" size={14} /> {v.name}</span>
             {v.lat != null && (
               <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer" className="text-azure-600 underline" dir="ltr">
                 {v.lat.toFixed(2)}°, {v.lon.toFixed(2)}°
@@ -819,7 +820,7 @@ function VesselTracker({ vesselName }: { vesselName: string }) {
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               {state.ports.map((p: any) => (
                 <span key={p.key} className="text-content-body">
-                  ⚓ {p.name}: <b>{p.distance_nm.toLocaleString()}</b> מייל ימי
+                  <Icon name="anchor" size={14} /> {p.name}: <b>{p.distance_nm.toLocaleString()}</b> מייל ימי
                   {p.eta_date ? <> · הגעה משוערת <b>{fmtWhen(p.eta_date)}</b></> : ' (הספינה עוגנת/איטית)'}
                 </span>
               ))}
@@ -851,7 +852,7 @@ function Chip({ label, active, onClick }: any) {
   return <button onClick={onClick} className={`text-[12px] px-3 py-1.5 rounded-full border ${active ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}>{label}</button>;
 }
 function Empty({ text }: { text: string }) {
-  return <div className="bg-white rounded-xl border border-line-subtle p-12 text-center"><p className="text-4xl mb-3">📦</p><p className="text-content-muted">{text}</p></div>;
+  return <div className="bg-white rounded-xl border border-line-subtle p-12 text-center"><p className="mb-3 text-neutral-300"><Icon name="package" size={40} /></p><p className="text-content-muted">{text}</p></div>;
 }
 
 // ============================================================

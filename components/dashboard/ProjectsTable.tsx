@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Icon from '@/components/ui/Icon';
 
 interface Project {
   id: string;
@@ -55,7 +56,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-content-body">📋 פרויקטים פעילים</h3>
+        <h3 className="text-lg font-bold text-content-body"><Icon name="projects" size={20} /> פרויקטים פעילים</h3>
         <span className="text-[12px] bg-azure-100 text-primary px-2 py-0.5 rounded-full font-bold">
           {activeProjects.length}
         </span>

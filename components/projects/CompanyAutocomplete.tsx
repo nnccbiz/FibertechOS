@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Icon from '@/components/ui/Icon';
 
 function norm(s: string): string {
   return (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -78,7 +79,7 @@ export default function CompanyAutocomplete({ value, onChange, options, classNam
       )}
       {similar.length > 0 && (
         <p className="text-[11px] text-warning mt-1">
-          ⚠️ קיים לקוח דומה: <span className="font-semibold">{similar[0]}</span>
+          <Icon name="warning" size={14} /> קיים לקוח דומה: <span className="font-semibold">{similar[0]}</span>
           <button type="button" onClick={() => onChange(similar[0])} className="text-primary hover:underline mr-1">השתמש בו</button>
         </p>
       )}

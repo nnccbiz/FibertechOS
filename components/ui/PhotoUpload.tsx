@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Icon from '@/components/ui/Icon';
 
 interface PhotoUploadProps {
   label: string;
@@ -42,7 +43,7 @@ export default function PhotoUpload({ label, maxFiles = 5, onUpload }: PhotoUplo
         onClick={() => inputRef.current?.click()}
         className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-line-strong rounded-lg text-content-body hover:border-azure hover:text-azure-600 w-full justify-center text-2xl"
       >
-        📷 צלם / העלה תמונה
+        <Icon name="camera" size={22} /> צלם / העלה תמונה
       </button>
       {previews.length > 0 && (
         <div className="flex gap-2 flex-wrap">

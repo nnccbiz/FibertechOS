@@ -1,9 +1,11 @@
 'use client';
 
+import Icon, { type IconName } from '@/components/ui/Icon';
+
 interface KpiCardProps {
   title: string;
   value: string | number;
-  icon: string;
+  icon: IconName;
   color: string;
   loading?: boolean;
 }
@@ -34,7 +36,7 @@ export default function KpiCard({ title, value, icon, color, loading }: KpiCardP
           className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
           style={{ backgroundColor: `${color}15`, color }}
         >
-          {icon}
+          <Icon name={icon} size={22} />
         </div>
       </div>
     </div>

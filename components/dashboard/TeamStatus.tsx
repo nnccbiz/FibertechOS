@@ -1,5 +1,7 @@
 'use client';
 
+import Icon from '@/components/ui/Icon';
+
 interface TeamMember {
   id: string;
   name: string;
@@ -41,7 +43,7 @@ export default function TeamStatus({ members, loading }: TeamStatusProps) {
 
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
-      <h3 className="text-lg font-bold text-content-body mb-3">👥 סטטוס הצוות</h3>
+      <h3 className="text-lg font-bold text-content-body mb-3"><Icon name="team" size={20} /> סטטוס הצוות</h3>
       {members.length === 0 ? (
         <p className="text-lg text-neutral-400 text-center py-3">אין חברי צוות</p>
       ) : (

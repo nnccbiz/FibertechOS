@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Icon from '@/components/ui/Icon';
 
 interface AiChatMessage {
   role: 'user' | 'ai';
@@ -85,7 +86,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
         className="fixed bottom-24 md:bottom-6 left-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-primary-700 transition-all hover:scale-105 z-50"
         title="שיחה עם רקסי AI"
       >
-        ✨
+        <Icon name="ai" size={28} />
       </button>
     );
   }
@@ -95,7 +96,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle bg-primary rounded-t-2xl">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">✨</span>
+          <Icon name="ai" size={24} />
           <div>
             <p className="text-lg font-bold text-white">רקסי AI</p>
             <p className="text-[12px] text-primary-100">עוזרת FibertechOS</p>
@@ -105,7 +106,7 @@ export default function AiChat({ onDataExtracted, currentData }: AiChatProps) {
           onClick={() => setIsOpen(false)}
           className="text-white/70 hover:text-white text-2xl"
         >
-          ✕
+          <Icon name="close" size={22} />
         </button>
       </div>
 

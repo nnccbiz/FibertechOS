@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { formatILS, MONTH_NAMES } from '@/lib/revenue';
+import Icon from '@/components/ui/Icon';
 
 interface ProjectDetail {
   project_id: string;
@@ -212,7 +213,7 @@ export default function ProjectsListPage() {
         <header className="bg-white border-b border-line-subtle px-5 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-content-strong">📋 פרויקטים</h1>
+              <h1 className="text-2xl font-bold text-content-strong"><Icon name="projects" size={24} /> פרויקטים</h1>
               <p className="text-[13px] text-neutral-400">{filtered.length} פרויקטים | סה"כ {formatILS(totalValue)}</p>
             </div>
             <div className="flex items-center gap-3">
@@ -313,7 +314,7 @@ export default function ProjectsListPage() {
                           onClick={() => col.key && toggleSort(col.key)}
                           className={`text-${col.align} text-[12px] text-content-muted font-medium py-2.5 px-2 whitespace-nowrap ${col.sticky ? 'sticky right-0 bg-neutral-50 z-10' : ''} ${col.minW ? 'min-w-[140px]' : ''} ${col.key ? 'cursor-pointer hover:text-primary select-none' : ''}`}
                         >
-                          {col.label}{sortField === col.key ? (sortAsc ? ' ▲' : ' ▼') : ''}
+                          {col.label}{sortField === col.key ? <> <Icon name={sortAsc ? 'caretUp' : 'caretDown'} size={12} /></> : ''}
                         </th>
                       ))}
                     </tr>

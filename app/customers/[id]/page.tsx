@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { formatILS } from '@/lib/revenue';
 import CustomerForm from '@/components/customers/CustomerForm';
+import Icon from '@/components/ui/Icon';
 
 interface Customer {
   id: string; name: string; type: string | null; company: string | null;
@@ -198,8 +199,8 @@ export default function CustomerDetailPage() {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <button onClick={() => router.push('/customers')} className="text-sm text-content-muted hover:text-content-body">← חזרה ללקוחות</button>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowMerge((s) => !s)} className="text-sm bg-warning-soft text-warning px-4 py-2 rounded-lg hover:bg-warning-soft">🔀 מזג כפילות</button>
-          <button onClick={() => setShowEdit(true)} className="text-sm bg-primary-50 text-primary px-4 py-2 rounded-lg hover:bg-primary-100">✏️ ערוך כרטיס</button>
+          <button onClick={() => setShowMerge((s) => !s)} className="text-sm bg-warning-soft text-warning px-4 py-2 rounded-lg hover:bg-warning-soft"><Icon name="merge" size={16} /> מזג כפילות</button>
+          <button onClick={() => setShowEdit(true)} className="text-sm bg-primary-50 text-primary px-4 py-2 rounded-lg hover:bg-primary-100"><Icon name="edit" size={16} /> ערוך כרטיס</button>
         </div>
       </div>
 
@@ -228,11 +229,11 @@ export default function CustomerDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-content-strong">{customer.name}</h1>
             {customer.tax_id && <p className="text-sm text-content-muted mt-1" style={{ unicodeBidi: 'plaintext' }}>ח.פ. {customer.tax_id}</p>}
-            {(customer.address || customer.city) && <p className="text-sm text-content-muted mt-1">📍 {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
+            {(customer.address || customer.city) && <p className="text-sm text-content-muted mt-1"><Icon name="location" size={14} /> {[customer.address, customer.city].filter(Boolean).join(', ')}</p>}
           </div>
           <div className="text-sm text-content-body text-left">
-            {customer.phone && <p>📞 <span dir="ltr">{customer.phone}</span></p>}
-            {customer.email && <p style={{ unicodeBidi: 'plaintext' }}>✉️ {customer.email}</p>}
+            {customer.phone && <p><Icon name="phone" size={14} /> <span dir="ltr">{customer.phone}</span></p>}
+            {customer.email && <p style={{ unicodeBidi: 'plaintext' }}><Icon name="email" size={14} /> {customer.email}</p>}
           </div>
         </div>
         {customer.notes && <p className="text-sm text-content-muted mt-3 whitespace-pre-line">{customer.notes}</p>}

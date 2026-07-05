@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import Icon from '@/components/ui/Icon';
 import {
   APP_MODULES,
   MODULE_LABELS_HE,
@@ -130,7 +131,7 @@ export default function UserPermissionsEditor({
                   {m.email || 'אין מייל'} · {m.role}
                 </div>
               </div>
-              <span className="text-neutral-400">{isOpen ? '▼' : '◀'}</span>
+              <span className="text-neutral-400"><Icon name={isOpen ? 'caretDown' : 'caretLeft'} size={20} /></span>
             </button>
 
             {isOpen && (
@@ -142,8 +143,8 @@ export default function UserPermissionsEditor({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {APP_MODULES.map((mod) => (
                       <div key={mod} className="flex items-center justify-between bg-white rounded-lg border border-line-subtle px-3 py-2">
-                        <div className="text-sm">
-                          <span className="ml-2">{MODULE_ICONS[mod]}</span>
+                        <div className="text-sm flex items-center gap-2">
+                          <span className="text-primary"><Icon name={MODULE_ICONS[mod]} size={20} /></span>
                           {MODULE_LABELS_HE[mod]}
                         </div>
                         <SearchableSelect
@@ -175,7 +176,10 @@ export default function UserPermissionsEditor({
                         : 'bg-success-soft text-success hover:bg-success-soft'
                     }`}
                   >
-                    {m.active ? '🚫 השבת משתמש' : '✓ הפעל מחדש'}
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name={m.active ? 'blocked' : 'confirm'} size={20} />
+                      {m.active ? 'השבת משתמש' : 'הפעל מחדש'}
+                    </span>
                   </button>
                 </div>
               </div>

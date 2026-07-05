@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface AiMessage {
   role: 'user' | 'ai';
@@ -508,7 +509,7 @@ export default function FloatingChat() {
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         ) : (
-          <span className="text-3xl">✨</span>
+          <Icon name="ai" size={28} />
         )}
       </button>
 
@@ -525,7 +526,7 @@ export default function FloatingChat() {
           {/* Header */}
           <div className="px-4 py-3 bg-azure-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">✨</span>
+              <Icon name="ai" size={24} className="text-azure-600" />
               <div>
                 <p className="text-lg font-bold text-azure-600">רקסי AI</p>
                 <p className="text-[12px] text-navy-500">{context}</p>
@@ -576,20 +577,20 @@ export default function FloatingChat() {
             <div className="px-3 py-2 border-t border-line-subtle space-y-1.5 flex-shrink-0 max-h-[120px] overflow-y-auto">
               {uploadedFiles.map((file, i) => {
                 const ext = file.name.split('.').pop()?.toLowerCase() || '';
-                const icon = file.mimeType.startsWith('image/') ? '🖼️'
-                  : ext === 'pdf' ? '📕'
-                  : ['xls', 'xlsx', 'csv'].includes(ext) ? '📊'
-                  : ['doc', 'docx'].includes(ext) ? '📝'
-                  : '📄';
+                const icon: IconName = file.mimeType.startsWith('image/') ? 'image'
+                  : ext === 'pdf' ? 'pdf'
+                  : ['xls', 'xlsx', 'csv'].includes(ext) ? 'excel'
+                  : ['doc', 'docx'].includes(ext) ? 'doc'
+                  : 'file';
                 return (
                   <div key={i} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-2.5 py-1.5 group">
-                    <span className="text-lg flex-shrink-0">{icon}</span>
+                    <span className="flex-shrink-0 text-primary"><Icon name={icon} size={18} /></span>
                     <span className="text-[12px] text-content-body truncate flex-1" dir="ltr">{file.name}</span>
                     <button
                       onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
                       className="text-neutral-300 hover:text-danger text-sm flex-shrink-0 transition-colors"
                     >
-                      ✕
+                      <Icon name="close" size={16} />
                     </button>
                   </div>
                 );

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import ContractTemplatesEditor from '@/components/admin/ContractTemplatesEditor';
+import Icon from '@/components/ui/Icon';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export default async function ContractTemplatesPage() {
       <header className="bg-white border-b border-line-subtle px-6 py-4 sticky top-0 z-10">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-content-strong">📜 תבניות תנאי הסכם</h1>
+            <h1 className="text-xl font-bold text-content-strong"><Icon name="contract" size={24} /> תבניות תנאי הסכם</h1>
             <p className="text-[12px] text-content-muted">מאגר תבניות לבחירה בהצעות מחיר</p>
           </div>
           <Link href="/" className="text-sm text-primary hover:underline">← חזרה</Link>

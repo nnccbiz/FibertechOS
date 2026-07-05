@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import Icon from '@/components/ui/Icon';
 
 export interface ProjectContact {
   role: string;
@@ -100,7 +101,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
                   onClick={() => removeContact(i)}
                   className="text-danger hover:text-danger text-lg text-center flex-shrink-0"
                 >
-                  ✕
+                  <Icon name="close" size={18} />
                 </button>
               </div>
               <div className="flex gap-2 items-start">
@@ -147,7 +148,7 @@ export default function ContactsInput({ contacts, onChange, customerOptions = []
             onClick={pickFromPhone}
             className="text-sm text-primary bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
           >
-            📱 בחר מאנשי הקשר
+            <Icon name="mobile" size={16} /> בחר מאנשי הקשר
           </button>
         )}
       </div>

@@ -25,6 +25,7 @@ function fmtSn(sn: string) {
   return isNaN(n) ? sn : n.toLocaleString('en-US');
 }
 import ExchangeRateWidget from './ExchangeRateWidget';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -151,7 +152,7 @@ function CostAttachmentLink({ att }: { att: any }) {
   }
   return (
     <button onClick={open} className="text-primary hover:underline truncate flex-1 text-right min-w-0" dir="ltr" title={att.file_name}>
-      📄 {att.file_name}
+      <Icon name="file" size={14} /> {att.file_name}
     </button>
   );
 }
@@ -197,7 +198,7 @@ export default function PricingSection({ projectId, attachmentVersion = 0 }: { p
   return (
     <section className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-content-body">💰 תמחור והצעות מחיר</h2>
+        <h2 className="text-lg font-bold text-content-body"><Icon name="money" size={20} /> תמחור והצעות מחיר</h2>
       </div>
 
       <ExchangeRateWidget rates={p.exchangeRates} loading={p.rateLoading} onRefresh={p.refreshRate} />
@@ -359,7 +360,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
       {dragOver && (
         <div className="absolute inset-0 z-20 bg-primary-50 border-2 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <div className="text-3xl mb-1">📥</div>
+            <div className="mb-1 text-primary"><Icon name="inbox" size={32} /></div>
             <p className="text-sm font-bold text-primary">שחרר כדי לשלוח ל-Roxy</p>
             <p className="text-[11px] text-primary mt-0.5">PDF, Excel, CSV, תמונות</p>
           </div>
@@ -389,7 +390,7 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                     title="עדכן שער ליום של היום וחשב מחדש"
                     className="text-[11px] bg-warning-soft text-warning px-1.5 py-0.5 rounded hover:bg-warning-soft disabled:opacity-50"
                   >
-                    {p.rateLoading ? '⏳' : '🔄'}
+                    <Icon name={p.rateLoading ? 'loading' : 'refresh'} size={14} />
                   </button>
                 )}
               </span>
@@ -406,16 +407,16 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
         <div className="px-4 py-3 border-t border-line-subtle">
           {!isEdit && (
             <div className="flex items-center gap-2 mb-3">
-              {!archived && <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-warning-soft text-warning px-3 py-1 rounded-lg hover:bg-warning-soft transition-colors">✏️ ערוך פריטים</button>}
+              {!archived && <button onClick={() => p.startEditCostInput(ci.id)} className="text-[12px] bg-warning-soft text-warning px-3 py-1 rounded-lg hover:bg-warning-soft transition-colors"><Icon name="edit" size={16} /> ערוך פריטים</button>}
               {!archived && (
                 <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-primary-50 text-navy-500' : 'bg-primary-50 text-primary hover:bg-primary-50'}`}>
-                  {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה קובץ ל-Roxy'}
+                  {p.parsingCostFile ? <><Icon name="refresh" size={16} /> Roxy מעבדת...</> : <><Icon name="attach" size={16} /> העלה קובץ ל-Roxy</>}
                   <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
                 </label>
               )}
               {!archived && (
                 <label className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors cursor-pointer">
-                  📁 צרף קובץ
+                  <Icon name="folder" size={16} /> צרף קובץ
                   <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple onChange={async (e) => {
                     const files = Array.from(e.target.files || []);
                     e.target.value = '';
@@ -423,24 +424,24 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
                   }} />
                 </label>
               )}
-              <button onClick={(e) => { e.stopPropagation(); p.duplicateCostInput(ci.id); }} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors">📋 שכפל</button>
-              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-success-soft text-success hover:bg-success-soft' : 'bg-neutral-100 text-content-muted hover:bg-neutral-200'}`}>{archived ? '↩ שחזר' : '🗁 סיים תמחור'}</button>
+              <button onClick={(e) => { e.stopPropagation(); p.duplicateCostInput(ci.id); }} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors"><Icon name="copy" size={16} /> שכפל</button>
+              <button onClick={(e) => { e.stopPropagation(); p.toggleArchiveCostInput(ci.id); }} className={`text-[12px] px-3 py-1 rounded-lg transition-colors ${archived ? 'bg-success-soft text-success hover:bg-success-soft' : 'bg-neutral-100 text-content-muted hover:bg-neutral-200'}`}>{archived ? <><Icon name="restore" size={16} /> שחזר</> : <><Icon name="archive" size={16} /> סיים תמחור</>}</button>
               <button onClick={(e) => {
                 e.stopPropagation();
                 if (!confirm(`למחוק את התמחור "${ci.source_name}" וכל הפריטים והקבצים שלו? פעולה זו אינה הפיכה.`)) return;
                 if (!confirm('בטוח? למחוק לצמיתות?')) return;
                 p.deleteCostInput(ci.id);
-              }} className="text-[12px] text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors mr-auto">🗑️ מחק</button>
+              }} className="text-[12px] text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors mr-auto"><Icon name="delete" size={16} /> מחק</button>
             </div>
           )}
-          {ci.payment_terms && <p className="text-[12px] text-content-muted mb-2 whitespace-pre-line">💳 תנאי תשלום לספק: {ci.payment_terms}</p>}
-          {ci.notes && <p className="text-[12px] text-content-muted mb-3">📌 {ci.notes}</p>}
+          {ci.payment_terms && <p className="text-[12px] text-content-muted mb-2 whitespace-pre-line"><Icon name="payment" size={14} /> תנאי תשלום לספק: {ci.payment_terms}</p>}
+          {ci.notes && <p className="text-[12px] text-content-muted mb-3"><Icon name="pin" size={14} /> {ci.notes}</p>}
           {(() => {
             const ciAtts = p.attachments.filter((a: any) => a.entity_type === 'cost_input' && a.entity_id === ci.id);
             if (ciAtts.length === 0) return null;
             return (
               <div className="mb-3 p-2 bg-primary-50 border border-primary rounded-lg">
-                <p className="text-[11px] font-semibold text-primary mb-1.5">📎 קבצים מצורפים ({ciAtts.length})</p>
+                <p className="text-[11px] font-semibold text-primary mb-1.5"><Icon name="attach" size={14} /> קבצים מצורפים ({ciAtts.length})</p>
                 <div className="space-y-1">
                   {ciAtts.map((a: any) => (
                     <div key={a.id} className="flex items-center gap-2 text-[12px]">
@@ -521,7 +522,7 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
         <div className="flex items-center gap-3">
           <button onClick={p.addCostItem} className="text-[12px] text-warning hover:underline">+ הוסף שורה</button>
           <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-primary-50 text-navy-500' : 'bg-primary-50 text-primary hover:bg-primary-50'}`}>
-            {p.parsingCostFile ? '🔄 Roxy מעבדת...' : '📎 העלה עוד קובץ ל-Roxy'}
+            {p.parsingCostFile ? <><Icon name="refresh" size={16} /> Roxy מעבדת...</> : <><Icon name="attach" size={16} /> העלה עוד קובץ ל-Roxy</>}
             <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
           </label>
         </div>
@@ -595,7 +596,7 @@ function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: 
 
   return (
     <div className="mt-3 bg-azure-100 border border-azure rounded-lg p-3">
-      <p className="text-[12px] font-bold text-azure-600 mb-2">📐 חישוב עלות למדלק (צינור + מחבר)</p>
+      <p className="text-[12px] font-bold text-azure-600 mb-2"><Icon name="drawings" size={14} /> חישוב עלות למדלק (צינור + מחבר)</p>
       <div className="space-y-2">
         {pairs.map(({ dn, barePrice, couplingPrice, length }) => {
           const costPerMeter = calcCostPerMeter(barePrice, couplingPrice, length);
@@ -730,7 +731,7 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                     return { value: ci.id, label: `${ci.source_name} (${ci.source_type === 'supplier' ? 'ספק' : 'פנימי'})${cur} · ${formatDate(ci.created_at)} · ${items}` };
                   })]} />
                 {p.newQuote.cost_input_id && (p.costInputItems[p.newQuote.cost_input_id] || []).length === 0 && (
-                  <p className="mt-1 text-[11px] text-warning">⚠️ התמחור הנבחר ריק — ההצעה תיווצר ללא פריטים.</p>
+                  <p className="mt-1 text-[11px] text-warning"><Icon name="warning" size={14} /> התמחור הנבחר ריק — ההצעה תיווצר ללא פריטים.</p>
                 )}
               </div>
             )}
@@ -806,7 +807,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {!isEditing && (
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="flex items-center gap-1 text-[12px] text-content-muted">
-                👤 איש קשר:
+                <Icon name="user" size={16} /> איש קשר:
                 <SearchableSelect value={q.contact_id ? `pc:${q.contact_id}` : ''} onChange={(v) => p.assignQuoteContact(q.id, v)} className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
                   placeholder="— ראשון בפרויקט —"
                   options={(() => {
@@ -821,14 +822,14 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                   })()} />
               </span>
               <span className="flex items-center gap-1 text-[12px] text-content-muted">
-                🏢 לקוח:
+                <Icon name="company" size={16} /> לקוח:
                 <SearchableSelect value={q.customer_id || ''} onChange={(v) => p.setQuoteCustomer(q.id, v)} className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] min-w-[150px]"
                   placeholder="— ללא —"
                   options={[{ value: '', label: '— ללא —' }, ...p.customers.map((c: any) => ({ value: c.id, label: c.name }))]} />
               </span>
               {q.status === 'draft' && p.costInputs.length > 0 && (
                 <span className="flex items-center gap-1 text-[12px] text-content-muted">
-                  💰 קישור לתמחור:
+                  <Icon name="money" size={16} /> קישור לתמחור:
                   <SearchableSelect value={q.cost_input_id || ''} onChange={(v) => p.setQuoteCostInput(q.id, v)} className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] min-w-[180px]"
                     placeholder="ללא קישור"
                     options={[{ value: '', label: 'ללא קישור' }, ...p.costInputs.map((ci: any) => {
@@ -841,13 +842,13 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
               )}
               {q.status === 'draft' && p.contractTemplates.length > 0 && (
                 <span className="flex items-center gap-1 text-[12px] text-content-muted">
-                  📜 תנאי הסכם:
+                  <Icon name="contract" size={16} /> תנאי הסכם:
                   <SearchableSelect value={q.contract_template_id || ''} onChange={(v) => p.setQuoteContractTemplate(q.id, v)} className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] min-w-[170px]"
                     placeholder="תבנית"
                     options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
-                  <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-primary-50 text-primary px-2 py-0.5 rounded-lg hover:bg-primary-100">✏️ ערוך להצעה זו</button>
+                  <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-primary-50 text-primary px-2 py-0.5 rounded-lg hover:bg-primary-100"><Icon name="edit" size={14} /> ערוך להצעה זו</button>
                   {q.contract_overrides && (
-                    <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-warning-soft text-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft">🔄 שחזר מהתבנית</button>
+                    <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-warning-soft text-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft"><Icon name="refresh" size={14} /> שחזר מהתבנית</button>
                   )}
                 </span>
               )}
@@ -858,19 +859,19 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {!isEditing && (
               <>
-                <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-100 transition-colors">✏️ ערוך פריטים</button>
+                <button onClick={() => p.startEditQuote(q.id)} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-100 transition-colors"><Icon name="edit" size={16} /> ערוך פריטים</button>
                 {items.length > 0 && (
-                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft transition-colors">📄 תצוגה מקדימה</a>
+                  <a href={`/projects/${q.project_id}/quote/${q.id}`} target="_blank" rel="noopener noreferrer" className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft transition-colors"><Icon name="file" size={16} /> תצוגה מקדימה</a>
                 )}
                 <span className="w-px h-5 bg-neutral-200 mx-1" />
               </>
             )}
             {q.status === 'draft' && (
-              <button onClick={() => p.updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-azure-100 text-azure-600 px-3 py-1 rounded-lg hover:bg-azure-100 transition-colors">📤 סמן כנשלח</button>
+              <button onClick={() => p.updateQuoteStatus(q.id, 'sent')} className="text-[12px] bg-azure-100 text-azure-600 px-3 py-1 rounded-lg hover:bg-azure-100 transition-colors"><Icon name="send" size={16} /> סמן כנשלח</button>
             )}
             {(q.status === 'sent' || q.status === 'draft') && (
               <label className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft transition-colors cursor-pointer">
-                ✅ נחתם
+                <Icon name="success" size={16} /> נחתם
                 <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -882,7 +883,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
               </label>
             )}
             {q.status !== 'rejected' && q.status !== 'signed' && (
-              <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-danger-soft text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors">❌ נדחה</button>
+              <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-danger-soft text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors"><Icon name="error" size={16} /> נדחה</button>
             )}
 
             <div className="grow" />
@@ -903,13 +904,13 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 <div className="bg-white border border-line-subtle rounded-lg shadow-lg py-1 min-w-[180px]">
                   {!isEditing && (
                     <label className={`block px-3 py-1.5 text-[12px] cursor-pointer ${p.uploadingFile ? 'text-neutral-400' : 'text-primary hover:bg-primary-50'}`}>
-                      {p.uploadingFile ? '⏳ מעלה...' : '📎 צרף שרטוט'}
+                      {p.uploadingFile ? <><Icon name="loading" size={14} /> מעלה...</> : <><Icon name="attach" size={14} /> צרף שרטוט</>}
                       <input type="file" className="hidden" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx" disabled={p.uploadingFile} onChange={(e) => { if (e.target.files?.[0]) { p.uploadAttachment(q.id, e.target.files[0]); e.target.value = ''; } }} />
                     </label>
                   )}
-                  <button onClick={() => p.duplicateQuote(q.id)} className="block w-full text-right px-3 py-1.5 text-[12px] text-primary hover:bg-primary-50">📋 שכפל</button>
+                  <button onClick={() => p.duplicateQuote(q.id)} className="block w-full text-right px-3 py-1.5 text-[12px] text-primary hover:bg-primary-50"><Icon name="copy" size={16} /> שכפל</button>
                   {q.status === 'draft' && (
-                    <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="block w-full text-right px-3 py-1.5 text-[12px] text-danger hover:bg-danger-soft">🗑️ מחק</button>
+                    <button onClick={() => { if (confirm('למחוק הצעה זו?')) p.deleteQuote(q.id); }} className="block w-full text-right px-3 py-1.5 text-[12px] text-danger hover:bg-danger-soft"><Icon name="delete" size={16} /> מחק</button>
                   )}
                 </div>
               </div>
@@ -918,7 +919,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
           {!isEditing && p.projectDrawings.length > 0 && (
             <div className="mb-3 bg-neutral-50 border border-line-subtle rounded-lg px-3 py-2">
-              <p className="text-[12px] font-semibold text-content-body mb-1.5">📐 שרטוטים ומפרטים לצירוף להצעה זו</p>
+              <p className="text-[12px] font-semibold text-content-body mb-1.5"><Icon name="drawings" size={14} /> שרטוטים ומפרטים לצירוף להצעה זו</p>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {p.projectDrawings.map((d: any) => {
                   const on = (p.quoteDrawings[q.id] || []).includes(d.id);
@@ -927,8 +928,8 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     <label key={d.id} className="flex items-center gap-1.5 text-[12px] text-content-body cursor-pointer">
                       <input type="checkbox" checked={on} onChange={() => p.toggleQuoteDrawing(q.id, d.id)} />
                       {isSpec
-                        ? <span className="font-medium text-warning">📋 מפרט</span>
-                        : <span dir="ltr" className="font-medium">📐 {d.drawing_number || '?'}</span>}
+                        ? <span className="font-medium text-warning"><Icon name="spec" size={14} /> מפרט</span>
+                        : <span dir="ltr" className="font-medium"><Icon name="drawings" size={14} /> {d.drawing_number || '?'}</span>}
                       <span className="text-neutral-400 truncate max-w-[160px]">{d.file_name}</span>
                     </label>
                   );
@@ -941,17 +942,17 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {!isEditing && q.status !== 'draft' && <QuoteViewsPanel quoteId={q.id} />}
           {q.notes ? (
             <div className="flex items-start gap-2 mb-3">
-              <p className="text-[12px] text-content-muted flex-1">📌 {q.notes}</p>
+              <p className="text-[12px] text-content-muted flex-1"><Icon name="pin" size={14} /> {q.notes}</p>
               <button
                 onClick={async () => { const v = prompt('ערוך הערה (השאר ריק כדי למחוק):', q.notes || ''); if (v !== null) await p.setQuoteNotes(q.id, v); }}
                 className="text-[11px] text-neutral-400 hover:text-content-body px-1"
                 title="ערוך"
-              >✏️</button>
+              ><Icon name="edit" size={16} /></button>
               <button
                 onClick={async () => { if (confirm('למחוק את ההערה?')) await p.setQuoteNotes(q.id, ''); }}
                 className="text-[11px] text-danger hover:text-danger px-1"
                 title="מחק"
-              >🗑️</button>
+              ><Icon name="delete" size={16} /></button>
             </div>
           ) : q.status === 'draft' && (
             <button
@@ -1039,7 +1040,7 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
       <div className="bg-white rounded-2xl shadow-2xl w-[95vw] max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-5 py-3 border-b border-line-subtle flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-content-strong">📜 עריכת תנאי הסכם להצעה {q.quote_number}</h3>
+            <h3 className="text-base font-bold text-content-strong"><Icon name="contract" size={18} /> עריכת תנאי הסכם להצעה {q.quote_number}</h3>
             <p className="text-[11px] text-content-muted">השינויים נשמרים רק על הצעה זו (לא משנים את התבנית).</p>
           </div>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body text-2xl leading-none">×</button>
@@ -1053,7 +1054,7 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
                 <input value={s.title} onChange={(e) => updateTitle(si, e.target.value)} className="flex-1 border border-line-subtle rounded-lg px-3 py-1.5 text-sm font-semibold bg-white" />
                 <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-white border border-line-subtle px-2 py-1 rounded hover:bg-neutral-50 disabled:opacity-30">↑</button>
                 <button onClick={() => moveSection(si, 1)} disabled={si === (sections?.length || 0) - 1} className="text-[11px] bg-white border border-line-subtle px-2 py-1 rounded hover:bg-neutral-50 disabled:opacity-30">↓</button>
-                <button onClick={() => deleteSection(si)} className="text-[11px] text-danger hover:text-danger px-2">🗑️</button>
+                <button onClick={() => deleteSection(si)} className="text-[11px] text-danger hover:text-danger px-2"><Icon name="delete" size={16} /></button>
               </div>
               <div className="space-y-2">
                 {s.clauses.map((c, ci) => (
@@ -1252,7 +1253,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                 {hasAnyDiscount && <td className="py-2 px-1 text-warning text-[12px] font-medium text-center border-r border-line-subtle whitespace-nowrap">{disc > 0 ? `${disc}%` : '—'}</td>}
                 <td className="py-2 px-1 font-semibold text-content-strong text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(tot)}</td>
                 <td className="py-2 text-center">
-                  <span title={tooltip} className="cursor-help text-neutral-300 hover:text-primary text-[13px]">ⓘ</span>
+                  <span title={tooltip} className="cursor-help text-neutral-300 hover:text-primary text-[13px]"><Icon name="info" size={14} /></span>
                 </td>
               </tr>
             );
@@ -1298,7 +1299,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
       <div className="mt-3">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-semibold text-content-body">הערות משפטיות:</span>
-          <button onClick={() => { if (confirm('לרענן מתבנית ברירת המחדל?')) p.refreshDisclaimer(q.id); }} className="text-[10px] text-azure hover:text-azure-600 hover:underline">🔄 רענן מתבנית</button>
+          <button onClick={() => { if (confirm('לרענן מתבנית ברירת המחדל?')) p.refreshDisclaimer(q.id); }} className="text-[10px] text-azure hover:text-azure-600 hover:underline"><Icon name="refresh" size={12} /> רענן מתבנית</button>
         </div>
         <textarea
           value={q.disclaimer_text || ''}
@@ -1330,14 +1331,14 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
         />
       </div>
       {q.cost_input_id && (
-        <p className="mt-1 text-[11px] text-azure cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}>🔗 מקושר לתמחור</p>
+        <p className="mt-1 text-[11px] text-azure cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); p.setPricingTab('costs'); p.setExpandedCostInput(q.cost_input_id); }}><Icon name="link" size={14} /> מקושר לתמחור</p>
       )}
       {(() => {
         const qAtts = p.attachments.filter((a) => a.entity_type === 'quote' && a.entity_id === q.id);
         if (qAtts.length === 0) return null;
         return (
           <div className="mt-3 border-t border-line-subtle pt-2">
-            <span className="text-[11px] font-semibold text-content-body">📎 שרטוטים ומסמכים ({qAtts.length}):</span>
+            <span className="text-[11px] font-semibold text-content-body"><Icon name="attach" size={14} /> שרטוטים ומסמכים ({qAtts.length}):</span>
             <div className="flex flex-wrap gap-2 mt-1">
               {qAtts.map((a: any) => (
                 <div key={a.id} className="flex items-center gap-1 bg-primary-50 rounded px-2 py-1 text-[11px] text-primary">
@@ -1445,7 +1446,7 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             const { bg, icon, msg } = WARNING_STYLE[w.issue];
             return (
               <span key={i} className={`text-[11px] rounded px-2 py-0.5 ${bg}`}>
-                {icon} <strong>{w.product_name || `שורה ${w.index + 1}`}</strong>
+                <Icon name={icon} size={14} /> <strong>{w.product_name || `שורה ${w.index + 1}`}</strong>
                 <span className="mx-1">—</span>
                 <span>{msg}{w.issue !== 'zero_cost' ? ` (${w.margin_pct.toFixed(1)}%)` : ''}</span>
               </span>
@@ -1457,10 +1458,10 @@ function QuoteSummaryPanel({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   );
 }
 
-const WARNING_STYLE: Record<'low_margin' | 'high_margin' | 'zero_cost', { bg: string; icon: string; msg: string }> = {
-  low_margin:  { bg: 'bg-danger-soft text-danger border border-danger',     icon: '⚠️', msg: 'מרווח נמוך מ-10%' },
-  high_margin: { bg: 'bg-warning-soft text-warning border border-warning', icon: '⚡', msg: 'מרווח גבוה מ-60%' },
-  zero_cost:   { bg: 'bg-primary-50 text-primary border border-primary', icon: '🔍', msg: 'עלות אפס' },
+const WARNING_STYLE: Record<'low_margin' | 'high_margin' | 'zero_cost', { bg: string; icon: IconName; msg: string }> = {
+  low_margin:  { bg: 'bg-danger-soft text-danger border border-danger',     icon: 'warning' as IconName, msg: 'מרווח נמוך מ-10%' },
+  high_margin: { bg: 'bg-warning-soft text-warning border border-warning', icon: 'zap' as IconName, msg: 'מרווח גבוה מ-60%' },
+  zero_cost:   { bg: 'bg-primary-50 text-primary border border-primary', icon: 'search' as IconName, msg: 'עלות אפס' },
 };
 
 function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
@@ -1484,29 +1485,29 @@ function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
             </div>
             {linkedQuote && (
               <p className="text-[12px] text-azure mb-2 cursor-pointer hover:underline" onClick={() => { p.setPricingTab('quotes'); p.setExpandedQuote(linkedQuote.id); }}>
-                🔗 הצעה: {linkedQuote.quote_number} — {linkedQuote.client_name}
+                <Icon name="link" size={14} /> הצעה: {linkedQuote.quote_number} — {linkedQuote.client_name}
               </p>
             )}
             <div className="flex items-center gap-2 text-[12px] text-content-muted mb-3">
-              <span>מקדמה {ord.advance_percent}%: {ord.advance_paid ? '✅ שולם' : '⏳ טרם שולם'}</span>
+              <span>מקדמה {ord.advance_percent}%: {ord.advance_paid ? <><Icon name="success" size={14} /> שולם</> : <><Icon name="pending" size={14} /> טרם שולם</>}</span>
               <span className="text-neutral-300">|</span>
-              <span>יתרה: {ord.balance_paid ? '✅ שולם' : '⏳ טרם שולם'}</span>
+              <span>יתרה: {ord.balance_paid ? <><Icon name="success" size={14} /> שולם</> : <><Icon name="pending" size={14} /> טרם שולם</>}</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {ord.status === 'pending' && (
-                <button onClick={() => p.updateOrderStatus(ord.id, 'confirmed')} className="text-[12px] bg-azure-100 text-azure-600 px-3 py-1 rounded-lg hover:bg-azure-100 transition-colors">✅ אשר הזמנה</button>
+                <button onClick={() => p.updateOrderStatus(ord.id, 'confirmed')} className="text-[12px] bg-azure-100 text-azure-600 px-3 py-1 rounded-lg hover:bg-azure-100 transition-colors"><Icon name="success" size={16} /> אשר הזמנה</button>
               )}
               {ord.status === 'confirmed' && (
-                <button onClick={() => p.updateOrderStatus(ord.id, 'in_production')} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors">🏭 בייצור</button>
+                <button onClick={() => p.updateOrderStatus(ord.id, 'in_production')} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors"><Icon name="production" size={16} /> בייצור</button>
               )}
               {ord.status === 'in_production' && (
-                <button onClick={() => p.updateOrderStatus(ord.id, 'delivered')} className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft transition-colors">🚚 סופק</button>
+                <button onClick={() => p.updateOrderStatus(ord.id, 'delivered')} className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft transition-colors"><Icon name="truck" size={16} /> סופק</button>
               )}
               {ord.status === 'delivered' && (
-                <button onClick={() => p.updateOrderStatus(ord.id, 'completed')} className="text-[12px] bg-neutral-100 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-200 transition-colors">✔️ הושלם</button>
+                <button onClick={() => p.updateOrderStatus(ord.id, 'completed')} className="text-[12px] bg-neutral-100 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-200 transition-colors"><Icon name="confirm" size={16} /> הושלם</button>
               )}
             </div>
-            {ord.notes && <p className="text-[12px] text-content-muted mt-2">📌 {ord.notes}</p>}
+            {ord.notes && <p className="text-[12px] text-content-muted mt-2"><Icon name="pin" size={14} /> {ord.notes}</p>}
           </div>
         );
       })}
@@ -1543,19 +1544,19 @@ function QuoteViewsPanel({ quoteId }: { quoteId: string }) {
   return (
     <div className="mb-3 p-3 bg-primary-50 rounded-lg border border-primary">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-[12px] font-semibold text-primary">🔗 קישור שיתוף</h4>
+        <h4 className="text-[12px] font-semibold text-primary"><Icon name="link" size={14} /> קישור שיתוף</h4>
         <span className={`text-[11px] px-2 py-0.5 rounded-full ${isExpired ? 'bg-danger-soft text-danger' : 'bg-success-soft text-success'}`}>
           {isExpired ? 'פג תוקף' : `בתוקף עד ${expiresAt}`}
         </span>
       </div>
       {views.length > 0 ? (
         <div className="space-y-1 max-h-28 overflow-y-auto">
-          <p className="text-[11px] font-semibold text-success mb-1">👁 {views.length} צפייות</p>
+          <p className="text-[11px] font-semibold text-success mb-1"><Icon name="eye" size={14} /> {views.length} צפייות</p>
           {views.map((v: any) => (
             <div key={v.id} className="flex items-center gap-3 text-[11px] text-content-body">
               <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
               {v.ip_address && <span className="text-neutral-400 font-mono text-[10px]">{v.ip_address}</span>}
-              <span className="text-neutral-400">{v.user_agent?.includes('Mobile') ? '📱 נייד' : '💻 מחשב'}</span>
+              <span className="text-neutral-400">{v.user_agent?.includes('Mobile') ? <><Icon name="mobile" size={14} /> נייד</> : <><Icon name="desktop" size={14} /> מחשב</>}</span>
             </div>
           ))}
         </div>

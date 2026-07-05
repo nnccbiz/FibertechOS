@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import Icon from '@/components/ui/Icon';
 
 type Outcome =
   | { kind: 'success'; message: string }
@@ -86,7 +87,7 @@ export default function RequestAccessPage() {
 
         {outcome?.kind === 'success' ? (
           <div className="bg-success-soft border border-success text-success rounded-lg p-4 text-sm">
-            <p className="font-semibold">✓ הבקשה נשלחה</p>
+            <p className="font-semibold"><Icon name="confirm" size={16} /> הבקשה נשלחה</p>
             <p className="mt-1">{outcome.message}</p>
             <Link
               href="/login"
