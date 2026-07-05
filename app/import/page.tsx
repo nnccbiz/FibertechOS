@@ -42,6 +42,15 @@ const SHIPMENT_STATUS: Record<string, { label: string; color: string }> = {
 };
 const SHIPMENT_STATUS_KEYS = Object.keys(SHIPMENT_STATUS);
 
+// Labels for the opposite-side (production) status chip. Mirrors STATUS_MAP on /production.
+const PROD_STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  pending: { label: 'ממתין', color: 'bg-warning-soft text-warning' },
+  confirmed: { label: 'הזמנה אושרה', color: 'bg-azure-100 text-azure-600' },
+  in_production: { label: 'בייצור', color: 'bg-primary-50 text-primary' },
+  delivered: { label: 'סופק', color: 'bg-success-soft text-success' },
+  completed: { label: 'הושלם', color: 'bg-neutral-100 text-content-body' },
+};
+
 const DOC_TYPES = [
   { key: 'email', label: '📧 אימייל' },
   { key: 'order_confirmation', label: 'אישור הזמנה (OC)' },
@@ -93,10 +102,22 @@ export default function ImportPage() {
       .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
       .eq('status', 'signed')
       .order('updated_at', { ascending: false });
+
+    // Cross-module link: the production side for these import orders' quotes
+    // (RLS-siloed → via a server route). Non-fatal.
+    let cross: Record<string, any> = {};
+    const orderQuoteIds = Array.from(new Set(((o.data || []).map((x: any) => x.quote_id).filter(Boolean)))) as string[];
+    if (orderQuoteIds.length) {
+      try {
+        const res = await fetch(`/api/deal/cross-status?quoteIds=${orderQuoteIds.join(',')}`);
+        if (res.ok) cross = (await res.json()).statuses || {};
+      } catch { /* ignore */ }
+    }
+
     setData({
       orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
-      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [],
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], cross,
     });
     setLoading(false);
   }
@@ -239,6 +260,8 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const [releasing, setReleasing] = useState(false);
   const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'map'>('items');
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
+  const prod = order.quote_id ? data.cross?.[order.quote_id]?.production : null;
+  const prodSt = prod ? (PROD_STATUS_LABEL[prod.status] || { label: prod.status, color: 'bg-neutral-100 text-content-body' }) : null;
   const items = data.items.filter((i: any) => i.import_order_id === order.id);
   const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
 
@@ -291,6 +314,11 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
             )}
             {order.reviewed_at && order.status !== 'draft' && (
               <span className="text-[11px] text-success font-medium" title={`שוחרר ${fmtDate(order.reviewed_at)}`}>✔️ שוחרר · {fmtDate(order.reviewed_at)}</span>
+            )}
+            {prodSt && (
+              <a href="/production" className="no-underline" title="הזמנת הייצור המקושרת (לפי הצעה)">
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prodSt.color}`}>🏭 ייצור: {prodSt.label}</span>
+              </a>
             )}
           </div>
           <span className="text-sm font-bold text-content-body">{money(order.total_amount, order.currency)}</span>
