@@ -1133,6 +1133,9 @@ export function usePricing(projectId: string): UsePricingReturn {
             sn: hasSn ? parseInt(i.sn) : spec.sn,
             length_m: i.length_m != null && i.length_m !== '' ? parseFloat(i.length_m) : null,
             sort_order: idx,
+            requires_production: !!i.requires_production,
+            production_input: i.requires_production ? (i.production_input || i.product_name || null) : null,
+            production_notes: i.requires_production ? (i.production_notes || null) : null,
           };
         }));
       }
@@ -1214,7 +1217,27 @@ export function usePricing(projectId: string): UsePricingReturn {
             project_id: projectId, quote_id: quoteId, order_number: orderNum,
             status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
           }).select().single();
-          if (ord) setOrders((prev) => [ord, ...prev]);
+          if (ord) {
+            setOrders((prev) => [ord, ...prev]);
+            // Lines marked "ייצור בישראל" become factory work items:
+            // input (purchased material) → output (what the customer bought).
+            const { data: prodLines } = await supabase.from('quote_items')
+              .select('id, product_name, production_input, production_notes, quantity, unit, dn_size')
+              .eq('quote_id', quoteId).eq('requires_production', true);
+            if (prodLines && prodLines.length) {
+              const { error: wiErr } = await supabase.from('production_work_items').insert(prodLines.map((li: any) => ({
+                order_id: ord.id,
+                quote_item_id: li.id,
+                input_desc: li.production_input || li.product_name || '',
+                output_desc: li.product_name || '',
+                quantity: li.quantity ?? null,
+                unit: li.unit || null,
+                dn: parseInt(String(li.dn_size || '').replace(/\D/g, ''), 10) || null,
+                notes: li.production_notes || null,
+              })));
+              if (wiErr) console.error('[sign] production_work_items insert failed:', wiErr.message);
+            }
+          }
         }
       }
       const signedQuotes = quotes.map((x) => x.id === quoteId ? { ...x, status: 'signed' } : x).filter((x) => x.status === 'signed');

@@ -1180,13 +1180,14 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1">
-          <span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span></span>
+        <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1">
+          <span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
           return (
-          <div key={idx} className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_24px] gap-1">
+          <div key={idx}>
+          <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1">
             <AutoTextarea value={item.product_name} onChange={(v) => p.updateItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 w-full" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
@@ -1199,7 +1200,37 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100" />
             <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 bg-warning-soft" />
             <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+            <button
+              onClick={() => {
+                const turningOn = !item.requires_production;
+                p.updateItem(idx, 'requires_production', turningOn);
+                if (turningOn && !item.production_input) p.updateItem(idx, 'production_input', item.product_name || '');
+              }}
+              title={item.requires_production ? 'מסומן: ייצור בישראל — לחץ לביטול' : 'סמן: שורה זו דורשת ייצור בישראל'}
+              className={`rounded flex items-center justify-center ${item.requires_production ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-400 hover:text-primary'}`}
+            >
+              <Icon name="production" size={14} />
+            </button>
             <button onClick={() => p.removeEditingItem(idx)} className="text-danger hover:text-danger text-lg">×</button>
+          </div>
+          {item.requires_production && (
+            <div className="flex flex-wrap items-center gap-1.5 bg-primary-50 border border-primary rounded-lg px-2 py-1.5 mb-1">
+              <span className="text-primary"><Icon name="production" size={14} /></span>
+              <span className="text-[11px] font-semibold text-primary whitespace-nowrap">ייצור בישראל:</span>
+              <input
+                value={item.production_input || ''}
+                onChange={(e) => p.updateItem(idx, 'production_input', e.target.value)}
+                placeholder="חומר גלם שנרכש (למשל: מחבר REKA DN800 רגיל)"
+                className="flex-1 min-w-[180px] border border-line-subtle rounded px-1.5 py-1 text-[12px] bg-white"
+              />
+              <input
+                value={item.production_notes || ''}
+                onChange={(e) => p.updateItem(idx, 'production_notes', e.target.value)}
+                placeholder="הערות עבודה למפעל (מה לעשות)"
+                className="flex-1 min-w-[180px] border border-line-subtle rounded px-1.5 py-1 text-[12px] bg-white"
+              />
+            </div>
+          )}
           </div>
           );
         })}
@@ -1298,7 +1329,10 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             return (
               <tr key={item.id} className="border-b border-line-subtle hover:bg-azure-100 transition-colors">
                 <td className="py-2 px-2 text-content-body text-[12px]">
-                  <span title={item.product_name} className="block break-words text-right" dir="rtl">{item.product_name}</span>
+                  <span title={item.product_name} className="block break-words text-right" dir="rtl">
+                    {item.requires_production && <span className="text-primary" title={`ייצור בישראל${item.production_input ? ` — מתוך: ${item.production_input}` : ''}`}><Icon name="production" size={12} /> </span>}
+                    {item.product_name}
+                  </span>
                 </td>
                 <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.dn_size || '—'}</td>
                 {(() => { const spec = parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }); return (<>

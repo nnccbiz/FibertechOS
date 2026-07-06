@@ -8,6 +8,8 @@
  *   3. shipment ETA within 7d / already passed      (import readiness)
  *   4. auto-seeded import draft pending תפ"י review > 2d
  *   5. delivery sent to accounting > 7d, invoice not issued
+ *   6. factory work line's material arrived from import (stamps + notifies)
+ *   7. factory work line stuck in progress > 14d
  *
  * Runs with the service-role admin client (it writes alerts across modules and
  * is not a model-driven write). Protected by CRON_SECRET: Vercel automatically
@@ -130,6 +132,63 @@ export async function GET(req: NextRequest) {
       type: `cron:invoice_pending:${d.id}`,
       project_id: d.project_id || null,
       message: `🧾 תעודת משלוח ${d.delivery_note_number || ''} נשלחה להנה"ח לפני ${daysSince(d.sent_to_accounting_at)} ימים וטרם הופקה חשבונית — לבדוק במסך תעודות משלוח (/deliveries).`,
+    });
+  }
+
+  // Rule 6 — factory work lines waiting for material: when the linked import
+  // order has received goods covering the line's DN, stamp material_arrived
+  // and tell the factory it can start.
+  const { data: waitingWork } = await admin
+    .from('production_work_items')
+    .select('id, order_id, output_desc, dn')
+    .eq('status', 'awaiting_material')
+    .eq('material_arrived', false);
+  if (waitingWork && waitingWork.length) {
+    const orderIds = Array.from(new Set(waitingWork.map((w: any) => w.order_id)));
+    const { data: prodOrders } = await admin.from('orders').select('id, quote_id, project_id, order_number').in('id', orderIds);
+    const quoteIds = Array.from(new Set((prodOrders || []).map((o: any) => o.quote_id).filter(Boolean)));
+    const { data: impOrders } = quoteIds.length
+      ? await admin.from('import_orders').select('id, quote_id, status').in('quote_id', quoteIds)
+      : { data: [] as any[] };
+    const receivedImp = (impOrders || []).filter((o: any) => ['received', 'partially_received', 'closed'].includes(o.status));
+    const impIds = receivedImp.map((o: any) => o.id);
+    const { data: packLines } = impIds.length
+      ? await admin.from('import_packing_lines').select('import_order_id, dn').in('import_order_id', impIds)
+      : { data: [] as any[] };
+    const dnsByImp: Record<string, Set<string>> = {};
+    (packLines || []).forEach((pl: any) => {
+      if (!dnsByImp[pl.import_order_id]) dnsByImp[pl.import_order_id] = new Set();
+      if (pl.dn != null) dnsByImp[pl.import_order_id].add(String(pl.dn));
+    });
+    for (const w of waitingWork) {
+      const po = (prodOrders || []).find((o: any) => o.id === w.order_id);
+      if (!po?.quote_id) continue;
+      const imp = receivedImp.find((o: any) => o.quote_id === po.quote_id);
+      if (!imp) continue;
+      const dnOk = w.dn == null || (dnsByImp[imp.id]?.has(String(w.dn)) ?? false);
+      if (!dnOk) continue;
+      await admin.from('production_work_items')
+        .update({ material_arrived: true, material_arrived_at: now.toISOString() })
+        .eq('id', w.id);
+      candidates.push({
+        type: `cron:material_arrived:${w.id}`,
+        project_id: po.project_id || null,
+        message: `🏭 החומר עבור "${w.output_desc}" (הזמנה ${po.order_number || ''}) הגיע מהיבוא — המפעל יכול להתחיל לעבוד.`,
+      });
+    }
+  }
+
+  // Rule 7 — a work line stuck in progress for more than 14 days.
+  const { data: stuckWork } = await admin
+    .from('production_work_items')
+    .select('id, order_id, output_desc, started_at')
+    .eq('status', 'in_progress')
+    .lt('started_at', shift(-14).toISOString());
+  for (const w of stuckWork || []) {
+    candidates.push({
+      type: `cron:work_stuck:${w.id}`,
+      project_id: null,
+      message: `🏭 שורת הייצור "${w.output_desc}" בעבודה כבר ${daysSince(w.started_at)} ימים בלי עדכון — לבדוק עם המפעל.`,
     });
   }
 

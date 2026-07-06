@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/Badge';
 import Icon, { type IconName } from '@/components/ui/Icon';
+import { usePermissions } from '@/lib/auth/permissions-context';
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
@@ -372,6 +373,8 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
       </div>
 
       {/* Full production hand-off — live drawings/specs/details from the project */}
+      <WorkItemsSection order={order} />
+
       <ProductionHandoff orderId={order.id} projectId={order.project_id} />
     </div>
   );
@@ -393,6 +396,218 @@ const DETAIL_FIELDS: { key: string; label: string; date?: boolean }[] = [
   { key: 'pipe_installation_start', label: 'תחילת הנחת צנרת', date: true },
   { key: 'tender_submission_date', label: 'הגשת מכרז', date: true },
 ];
+
+// ============================================================
+// Factory work lines — local manufacturing per quote line
+// ============================================================
+const WORK_STATUS: Record<string, { label: string; color: string }> = {
+  awaiting_material: { label: 'ממתין לחומר', color: 'bg-warning-soft text-warning' },
+  in_progress: { label: 'בעבודה', color: 'bg-primary-50 text-primary' },
+  qc: { label: 'בדיקת איכות', color: 'bg-azure-100 text-azure-600' },
+  ready: { label: 'מוכן', color: 'bg-success-soft text-success' },
+};
+
+function WorkItemsSection({ order }: { order: any }) {
+  const supabase = createClient();
+  const { canAccess } = usePermissions();
+  const canWork = canAccess('production', 'edit') || canAccess('projects', 'edit');
+  const canDeliver = canAccess('import', 'edit');
+  const [items, setItems] = useState<any[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState({ output: '', input: '', qty: '', unit: "יח'", dn: '', notes: '' });
+  const qcInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  async function load() {
+    const { data } = await supabase.from('production_work_items')
+      .select('*').eq('order_id', order.id).order('created_at');
+    setItems(data || []);
+    setLoaded(true);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [order.id]);
+
+  async function setStatus(item: any, status: string, extra: Record<string, any> = {}) {
+    setBusy(item.id);
+    try {
+      const patch: any = { status, updated_at: new Date().toISOString(), ...extra };
+      if (status === 'in_progress' && !item.started_at) patch.started_at = new Date().toISOString();
+      if (status === 'ready') patch.ready_at = new Date().toISOString();
+      const { error } = await supabase.from('production_work_items').update(patch).eq('id', item.id);
+      if (error) { alert(`שגיאה: ${error.message}`); return; }
+      const next = items.map((i) => (i.id === item.id ? { ...i, ...patch } : i));
+      setItems(next);
+      // All lines done → task for the office to schedule delivery.
+      if (status === 'ready' && next.length > 0 && next.every((i) => i.status === 'ready')) {
+        await supabase.from('alerts').insert({
+          project_id: order.project_id || null,
+          type: 'task',
+          message: `כל שורות הייצור בהזמנה ${order.order_number || ''} מוכנות — לתאם אספקה ללקוח וליצור תעודת משלוח.`,
+          is_resolved: false,
+        });
+      }
+    } finally { setBusy(null); }
+  }
+
+  // QC pass requires evidence: the file upload IS the approval action.
+  async function qcApprove(item: any, file: File) {
+    setBusy(item.id);
+    try {
+      const path = `production/${order.id}/qc_${item.id}_${Date.now()}_${file.name}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאה בהעלאה: ${upErr.message}`); return; }
+      await setStatus(item, 'ready', { qc_file_path: path });
+    } finally { setBusy(null); }
+  }
+
+  async function openQcFile(path: string) {
+    const w = window.open('about:blank', '_blank');
+    const { data: sgn } = await supabase.storage.from('project-files').createSignedUrl(path, 300);
+    if (sgn?.signedUrl) { if (w) w.location.href = sgn.signedUrl; else window.location.href = sgn.signedUrl; }
+    else w?.close();
+  }
+
+  async function addItem() {
+    if (!addForm.output.trim()) return;
+    const { error } = await supabase.from('production_work_items').insert({
+      order_id: order.id,
+      input_desc: addForm.input.trim(),
+      output_desc: addForm.output.trim(),
+      quantity: parseFloat(addForm.qty) || null,
+      unit: addForm.unit || null,
+      dn: parseInt(addForm.dn, 10) || null,
+      notes: addForm.notes.trim() || null,
+    });
+    if (error) { alert(`שגיאה: ${error.message}`); return; }
+    setAddForm({ output: '', input: '', qty: '', unit: "יח'", dn: '', notes: '' });
+    setShowAdd(false);
+    load();
+  }
+
+  async function createDelivery() {
+    const ready = items.filter((i) => i.status === 'ready');
+    if (!ready.length) return;
+    const { error } = await supabase.from('import_customer_deliveries').insert({
+      production_order_id: order.id,
+      project_id: order.project_id || null,
+      delivery_date: new Date().toISOString().slice(0, 10),
+      customer_name: order.projects?.name || null,
+      items: ready.map((i) => ({ description: i.output_desc, dn: i.dn, qty: i.quantity, unit: i.unit })),
+      quantity_summary: `מהמפעל · ${ready.length} שורות`,
+      signed: false, sent_to_accounting: false, invoice_issued: false,
+    });
+    if (error) { alert(`שגיאה: ${error.message}`); return; }
+    alert('תעודת משלוח נוצרה — להחתמה ושליחה להנה"ח במסך תעודות משלוח.');
+  }
+
+  if (!loaded || items.length === 0) {
+    // No factory work on this order — stay out of the way (manual add still
+    // possible for editors via the small link).
+    return canWork && loaded ? (
+      <div className="mb-3">
+        {showAdd ? (
+          <AddWorkItemForm form={addForm} setForm={setAddForm} onSave={addItem} onCancel={() => setShowAdd(false)} />
+        ) : (
+          <button onClick={() => setShowAdd(true)} className="text-[12px] text-neutral-400 hover:text-primary hover:underline">
+            <Icon name="add" size={12} /> הוסף שורת עבודת מפעל
+          </button>
+        )}
+      </div>
+    ) : null;
+  }
+
+  const readyCount = items.filter((i) => i.status === 'ready').length;
+
+  return (
+    <div className="bg-neutral-50 border border-line-subtle rounded-lg p-3 mb-3">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[13px] font-bold text-content-body">
+          <Icon name="production" size={16} /> עבודות מפעל ({readyCount}/{items.length} מוכן)
+        </h4>
+        <div className="flex items-center gap-2">
+          {canDeliver && readyCount > 0 && (
+            <button onClick={createDelivery} className="text-[12px] text-primary font-semibold hover:underline">
+              <Icon name="invoice" size={12} /> צור תעודת משלוח
+            </button>
+          )}
+          {canWork && (
+            <button onClick={() => setShowAdd(!showAdd)} className="text-[12px] text-neutral-400 hover:text-primary hover:underline">
+              <Icon name="add" size={12} /> שורה
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showAdd && <AddWorkItemForm form={addForm} setForm={setAddForm} onSave={addItem} onCancel={() => setShowAdd(false)} />}
+
+      <div className="space-y-1.5">
+        {items.map((item) => {
+          const ws = WORK_STATUS[item.status] || WORK_STATUS.awaiting_material;
+          return (
+            <div key={item.id} className="bg-white border border-line-subtle rounded-lg px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[13px] min-w-0">
+                  <span className="font-semibold text-content-body">{item.output_desc}</span>
+                  {item.quantity != null && <span className="text-content-muted" dir="ltr"> × {item.quantity}{item.unit ? ` ${item.unit}` : ''}</span>}
+                  {item.input_desc && <div className="text-[11px] text-content-muted">מתוך: {item.input_desc}</div>}
+                  {item.notes && <div className="text-[11px] text-neutral-400">{item.notes}</div>}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ws.color}`}>{ws.label}</span>
+                  {item.status === 'awaiting_material' && item.material_arrived && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success"><Icon name="confirm" size={11} /> חומר הגיע</span>
+                  )}
+                  {item.qc_file_path && (
+                    <button onClick={() => openQcFile(item.qc_file_path)} className="text-[11px] text-primary hover:underline"><Icon name="attach" size={11} /> תיעוד QC</button>
+                  )}
+                </div>
+              </div>
+              {canWork && item.status !== 'ready' && (
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  {item.status === 'awaiting_material' && (
+                    <button disabled={busy === item.id} onClick={() => setStatus(item, 'in_progress')} className="text-[12px] bg-primary text-white px-3 py-1 rounded-lg hover:bg-primary-700 disabled:opacity-50">התחל עבודה</button>
+                  )}
+                  {item.status === 'in_progress' && (
+                    <button disabled={busy === item.id} onClick={() => setStatus(item, 'qc')} className="text-[12px] bg-azure-600 text-white px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-50">העבר לבדיקת איכות</button>
+                  )}
+                  {item.status === 'qc' && (
+                    <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer ${busy === item.id ? 'bg-neutral-100 text-neutral-400' : 'bg-success text-white hover:opacity-90'}`}>
+                      <Icon name="camera" size={12} /> העלה תיעוד בדיקה ואשר (חובה)
+                      <input
+                        ref={(el) => { qcInputRefs.current[item.id] = el; }}
+                        type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" disabled={busy === item.id}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) qcApprove(item, f); e.target.value = ''; }}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AddWorkItemForm({ form, setForm, onSave, onCancel }: any) {
+  return (
+    <div className="bg-white border border-line-subtle rounded-lg p-2.5 mb-2 space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        <input value={form.output} onChange={(e) => setForm({ ...form, output: e.target.value })} placeholder="מה מייצרים (פלט) *" className="flex-1 min-w-[160px] border border-line-subtle rounded px-2 py-1 text-[12px]" />
+        <input value={form.input} onChange={(e) => setForm({ ...form, input: e.target.value })} placeholder="חומר גלם (קלט)" className="flex-1 min-w-[160px] border border-line-subtle rounded px-2 py-1 text-[12px]" />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <input value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} placeholder="כמות" type="number" className="w-20 border border-line-subtle rounded px-2 py-1 text-[12px]" />
+        <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="יחידה" className="w-20 border border-line-subtle rounded px-2 py-1 text-[12px]" />
+        <input value={form.dn} onChange={(e) => setForm({ ...form, dn: e.target.value })} placeholder="DN" type="number" dir="ltr" className="w-20 border border-line-subtle rounded px-2 py-1 text-[12px]" />
+        <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="הערות למפעל" className="flex-1 min-w-[140px] border border-line-subtle rounded px-2 py-1 text-[12px]" />
+        <button onClick={onSave} className="text-[12px] bg-primary text-white px-3 py-1 rounded-lg hover:bg-primary-700">שמור</button>
+        <button onClick={onCancel} className="text-[12px] text-content-muted px-2 py-1 hover:text-content-body">ביטול</button>
+      </div>
+    </div>
+  );
+}
 
 function ProductionHandoff({ orderId, projectId }: { orderId: string; projectId: string | null }) {
   const [open, setOpen] = useState(false);
