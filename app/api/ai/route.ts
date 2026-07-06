@@ -256,6 +256,26 @@ async function processFiles(files: { base64: string; mimeType: string; name: str
   return { text: textParts.join('\n\n---\n\n'), imageFiles, pdfFiles };
 }
 
+// Fitting-drawing geometry extraction — feeds the deterministic cost
+// estimator (lib/fitting-estimator.ts). The model reads geometry; it never
+// computes prices.
+const FITTING_ANALYSIS_PROMPT = `אתה מהנדס GRP שקורא שרטוט אביזר (fitting) לצנרת. חלץ את הגיאומטריה מהשרטוט. החזר JSON בלבד, ללא markdown:
+{
+  "fitting_type": "elbow|tee|reducer|flange|manhole_coupling|nozzle|liner|other",
+  "dn_mm": <קוטר נומינלי ראשי במ"מ או null>,
+  "secondary_dn_mm": <קוטר משני (בהסתעפות/רדוסר) או null>,
+  "angle_deg": <זווית (בברך) או null>,
+  "pn_bar": <לחץ עבודה בבר או null>,
+  "length_mm": <אורך כולל במ"מ או null>,
+  "wall_thickness_mm": <עובי דופן במ"מ אם מסומן או null>,
+  "flange_count": <מספר אוגנים או null>,
+  "flange_standard": "<תקן אוגן אם מצוין (ASA150/PN10/PN16...) או null>",
+  "description": "<תיאור קצר של האביזר בעברית>",
+  "notes": "<הערות רלוונטיות מהשרטוט: חומר, תקן, דרישות מיוחדות>",
+  "confidence": "high|medium|low"
+}
+חוקים: קרא רק מה שמופיע בשרטוט — אסור להמציא מידות. מידה לא ברורה → null + הורד confidence. מחבר שוחה = manhole_coupling. חבישה/חיוץ פנימי = liner.`;
+
 const DRAWING_META_PROMPT = `אתה מחלץ מטא-דאטה משרטוט הנדסי (engineering drawing). החזר JSON בלבד: {"drawing_number":"","project_name":""}.
 - drawing_number: מספר השרטוט מתוך ה-title block (השדה "מספר השרטוט" / "מס' שרטוט" / "Drawing No"). לדוגמה: 7156-40. החזר רק את המספר עצמו כפי שמופיע.
 - project_name: שם הפרויקט מה-title block (השדה "שם הפרויקט" / "נושא הפרויקט" / "Project").
@@ -293,6 +313,43 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { message, context, document_text, files, mode } = body;
+
+    // Fitting-drawing geometry analysis (Hillel's pricing flow) — Gemini Pro
+    // reads the drawing, the deterministic estimator does the math client-side.
+    if (mode === 'fitting_analysis' && Array.isArray(files) && files.length > 0) {
+      const f = files[0];
+      const mime = f.mimeType || '';
+      const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+      const isImg = mime.startsWith('image/');
+      if (!f.base64 || (!isPdf && !isImg)) {
+        return NextResponse.json({ error: 'יש להעלות שרטוט כ-PDF או תמונה.' }, { status: 400 });
+      }
+      try {
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({
+          model: GEMINI_EXTRACTION_MODEL,
+          systemInstruction: FITTING_ANALYSIS_PROMPT,
+          generationConfig: {
+            responseMimeType: 'application/json', temperature: 0, topK: 1, topP: 0.1,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingBudget: 8192, includeThoughts: false },
+          } as any,
+        });
+        const result = await generateWithRetry(model, [
+          { inlineData: { data: f.base64, mimeType: isPdf ? 'application/pdf' : mime } },
+          { text: 'חלץ את גיאומטריית האביזר מהשרטוט.' },
+        ]);
+        const raw = result.response.text().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        let parsed: any = {};
+        try { parsed = JSON.parse(raw); } catch {
+          return NextResponse.json({ error: 'לא הצלחתי לקרוא את השרטוט. נסה קובץ ברור יותר.' }, { status: 200 });
+        }
+        return NextResponse.json({ analysis: parsed });
+      } catch (e: any) {
+        console.error('[AI route] fitting_analysis error:', e?.message);
+        return NextResponse.json({ error: e?.message || 'שגיאה בניתוח השרטוט' }, { status: 500 });
+      }
+    }
 
     // Drawing metadata extraction — read drawing number + project name from the title block.
     if (mode === 'drawing_meta' && Array.isArray(files) && files.length > 0) {

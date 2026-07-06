@@ -139,6 +139,9 @@ export default function ProductionPage() {
           <h1 className="text-2xl font-bold text-content-strong"><Icon name="production" size={24} /> ייצור</h1>
           <p className="text-sm text-content-muted mt-1">הזמנות שאושרו לייצור מכל הפרויקטים</p>
         </div>
+        <a href="/production/fittings" className="text-sm bg-primary-50 text-primary px-4 py-2 rounded-lg hover:bg-primary-100 font-medium no-underline">
+          <Icon name="drawings" size={16} /> תמחור אביזרים
+        </a>
         <div className="flex items-center gap-3">
           <span className="text-sm text-content-muted">{activeOrders.length} הזמנות פעילות</span>
         </div>
