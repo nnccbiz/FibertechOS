@@ -90,7 +90,7 @@ export interface UsePricingReturn {
   resolvePnSn: (dnSize: string | null | undefined) => { pn: number | null; sn: number | null };
   quoteDrawings: Record<string, string[]>;
   cancelEditQuote: () => void;
-  updateQuoteStatus: (quoteId: string, status: string) => Promise<void>;
+  updateQuoteStatus: (quoteId: string, status: string, extra?: Record<string, any>) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
   updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
   refreshDisclaimer: (quoteId: string) => Promise<void>;
@@ -1149,10 +1149,10 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
   }
 
-  async function updateQuoteStatus(quoteId: string, status: string) {
+  async function updateQuoteStatus(quoteId: string, status: string, extra?: Record<string, any>) {
     const q = quotes.find((x) => x.id === quoteId);
     const now = new Date().toISOString();
-    const patch: any = { status, updated_at: now };
+    const patch: any = { status, updated_at: now, ...(extra || {}) };
     // Freeze the printed quote date the first time it's issued — updated_at keeps
     // moving on later back-office edits, sent_at must not.
     if ((status === 'sent' || status === 'signed') && q && !q.sent_at) {

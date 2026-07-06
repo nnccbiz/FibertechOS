@@ -42,6 +42,16 @@ export async function GET(req: NextRequest) {
 
   const candidates: Candidate[] = [];
 
+  // Rule 0 — finality: a sent quote past its price validity becomes 'expired'
+  // (previously computed ad-hoc per screen; never stamped).
+  const { data: expiredNow } = await admin
+    .from('quotes')
+    .update({ status: 'expired' })
+    .eq('status', 'sent')
+    .lt('valid_until', ymd(now))
+    .select('id');
+  const expiredCount = (expiredNow || []).length;
+
   // Rule 1 — quote sent > 7 days ago, still awaiting an answer.
   const { data: stale } = await admin
     .from('quotes')
@@ -143,5 +153,5 @@ export async function GET(req: NextRequest) {
     return acc;
   }, {});
 
-  return NextResponse.json({ ok: true, scanned: candidates.length, created, byRule });
+  return NextResponse.json({ ok: true, expired: expiredCount, scanned: candidates.length, created, byRule });
 }

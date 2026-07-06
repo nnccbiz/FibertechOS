@@ -783,6 +783,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const isEditing = p.editingQuote === q.id;
   const items = p.quoteItems[q.id] || [];
   const [editTermsQuoteId, setEditTermsQuoteId] = useState<string | null>(null);
+  const [showReject, setShowReject] = useState(false);
 
   return (
     <div className="border border-line-subtle rounded-xl overflow-hidden">
@@ -793,6 +794,9 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
             ? <span className="text-sm font-bold text-content-body">{q.client_name}</span>
             : <span className="text-sm font-semibold text-warning">לקוח חסר</span>}
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${tier.color}`}>{tier.label}</span>
+          {q.status === 'rejected' && q.lost_reason && (
+            <span className="text-[11px] text-danger" title={q.lost_reason}>סיבת הפסד: {q.lost_reason.length > 40 ? q.lost_reason.slice(0, 40) + '…' : q.lost_reason}</span>
+          )}
           <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -883,7 +887,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
               </label>
             )}
             {q.status !== 'rejected' && q.status !== 'signed' && (
-              <button onClick={() => p.updateQuoteStatus(q.id, 'rejected')} className="text-[12px] bg-danger-soft text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors"><Icon name="error" size={16} /> נדחה</button>
+              <button onClick={() => setShowReject(true)} className="text-[12px] bg-danger-soft text-danger px-3 py-1 rounded-lg hover:bg-danger-soft transition-colors"><Icon name="error" size={16} /> נדחה</button>
             )}
 
             <div className="grow" />
@@ -973,6 +977,62 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
       {editTermsQuoteId === q.id && (
         <ContractTermsModal q={q} p={p} onClose={() => setEditTermsQuoteId(null)} />
       )}
+      {showReject && (
+        <RejectQuoteModal q={q} p={p} onClose={() => setShowReject(false)} />
+      )}
+    </div>
+  );
+}
+
+// Captures WHY a quote was lost — feeds win-rate analysis later.
+const LOST_REASONS = ['מחיר גבוה', 'מתחרה זכה', 'המכרז בוטל', 'הפרויקט נדחה/הוקפא', 'אחר'];
+
+function RejectQuoteModal({ q, p, onClose }: { q: any; p: ReturnType<typeof usePricing>; onClose: () => void }) {
+  const [reason, setReason] = useState(LOST_REASONS[0]);
+  const [competitor, setCompetitor] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const parts = [reason];
+      if (competitor.trim()) parts.push(`מתחרה: ${competitor.trim()}`);
+      if (note.trim()) parts.push(note.trim());
+      await p.updateQuoteStatus(q.id, 'rejected', { lost_reason: parts.join(' · ') });
+      onClose();
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[400px]" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="px-4 py-3 border-b border-line-subtle flex items-center justify-between">
+          <h3 className="text-base font-bold text-content-strong">סימון הצעה כנדחתה — {q.quote_number}</h3>
+          <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={18} /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-[12px] font-medium text-content-body mb-1">למה הפסדנו?</label>
+            <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full text-[13px] border border-line-subtle rounded-lg px-2 py-1.5">
+              {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          {reason === 'מתחרה זכה' && (
+            <div>
+              <label className="block text-[12px] font-medium text-content-body mb-1">שם המתחרה (אם ידוע)</label>
+              <input value={competitor} onChange={(e) => setCompetitor(e.target.value)} className="w-full text-[13px] border border-line-subtle rounded-lg px-2 py-1.5" />
+            </div>
+          )}
+          <div>
+            <label className="block text-[12px] font-medium text-content-body mb-1">הערה (אופציונלי)</label>
+            <input value={note} onChange={(e) => setNote(e.target.value)} className="w-full text-[13px] border border-line-subtle rounded-lg px-2 py-1.5" placeholder="למשל: פער של 12% מהזוכה" />
+          </div>
+          <button onClick={save} disabled={saving} className="w-full bg-danger text-white text-sm font-semibold py-2 rounded-lg hover:opacity-90 disabled:opacity-50">
+            {saving ? 'שומר…' : 'סמן כנדחתה'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

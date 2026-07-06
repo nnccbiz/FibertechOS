@@ -129,6 +129,7 @@ export default function ProductionPage() {
 
   const activeOrders = orders.filter((o) => o.status !== 'completed');
   const completedOrders = orders.filter((o) => o.status === 'completed');
+  const [showCompleted, setShowCompleted] = useState(false);
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
@@ -160,12 +161,20 @@ export default function ProductionPage() {
 
       {completedOrders.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold text-content-body mb-3">הזמנות שהושלמו ({completedOrders.length})</h2>
-          <div className="space-y-3 opacity-60">
-            {completedOrders.map((order) => (
-              <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} cross={cross[order.quote_id]} onUpdate={loadData} />
-            ))}
-          </div>
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="text-lg font-bold text-content-body mb-3 flex items-center gap-2 hover:text-primary"
+          >
+            הזמנות שהושלמו ({completedOrders.length})
+            <Icon name={showCompleted ? 'caretUp' : 'caretDown'} size={16} />
+          </button>
+          {showCompleted && (
+            <div className="space-y-3 opacity-60">
+              {completedOrders.map((order) => (
+                <OrderCard key={order.id} order={order} docs={docsByOrder[order.id] || []} cross={cross[order.quote_id]} onUpdate={loadData} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -210,7 +210,7 @@ export async function executeRoxyTool(
 
       case 'list_quotes': {
         let q = sb.from('quotes')
-          .select('id, project_id, quote_number, client_name, status, total_amount, currency, sent_at, valid_until, created_at')
+          .select('id, project_id, quote_number, client_name, status, total_amount, currency, sent_at, valid_until, created_at, lost_reason')
           .order('created_at', { ascending: false }).limit(30);
         if (args.status) q = q.eq('status', args.status);
         const { data, error } = await q;
@@ -301,7 +301,7 @@ export async function executeRoxyTool(
 
       case 'dashboard_snapshot': {
         const [projects, quotes, tasks, leads] = await Promise.all([
-          sb.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+          sb.from('projects').select('id', { count: 'exact', head: true }).not('realization_status', 'in', '("הסתיים","בוטל")'),
           sb.from('quotes').select('total_amount').eq('status', 'sent'),
           sb.from('alerts').select('id', { count: 'exact', head: true }).eq('is_resolved', false),
           sb.from('leads').select('id', { count: 'exact', head: true }),

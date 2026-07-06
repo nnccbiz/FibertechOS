@@ -33,9 +33,12 @@ const STATUS_COLORS: Record<string, string> = {
   'גבוהה': 'bg-azure-100 text-azure-600',
   'בינוני': 'bg-warning-soft text-warning',
   'נמוך': 'bg-danger-soft text-danger',
+  // Terminal states — a project's actual end.
+  'הסתיים': 'bg-neutral-200 text-content-body',
+  'בוטל': 'bg-neutral-100 text-neutral-400 line-through',
 };
 
-const STATUS_OPTIONS = ['הזמנה', 'גבוהה', 'בינוני', 'נמוך'];
+const STATUS_OPTIONS = ['הזמנה', 'גבוהה', 'בינוני', 'נמוך', 'הסתיים', 'בוטל'];
 
 export default function ProjectsListPage() {
   const router = useRouter();
