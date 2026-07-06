@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
+import DeliveriesPanel from '@/components/import/DeliveriesPanel';
 import { Button } from '@/components/ui/Button';
 import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
 import Icon, { type IconName } from '@/components/ui/Icon';
@@ -260,7 +261,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [releasing, setReleasing] = useState(false);
-  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'map'>('items');
+  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'deliveries' | 'map'>('items');
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
   const prod = order.quote_id ? data.cross?.[order.quote_id]?.production : null;
   const prodSt = prod ? (PROD_STATUS_LABEL[prod.status] || { label: prod.status, color: 'bg-neutral-100 text-content-body' }) : null;
@@ -357,7 +358,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
       {open && (
         <div className="border-t border-line-subtle bg-neutral-50 px-5 py-4">
           <div className="flex gap-2 mb-3 border-b border-line-subtle">
-            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['map', 'מפת קשרים']] as const).map(([k, l]) => (
+            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['deliveries', 'תעודות משלוח'], ['map', 'מפת קשרים']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-primary text-primary font-semibold' : 'border-transparent text-content-muted'}`}>{l}</button>
             ))}
           </div>
@@ -412,6 +413,8 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           {tab === 'invoices' && <InvoicesSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'coa' && <CoaSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'docs' && <DocsSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
+          {tab === 'deliveries' && <DeliveriesPanel order={order} data={data} canEdit={canEdit} onUpdate={onUpdate} />}
+
           {tab === 'map' && <RelationshipMap order={order} data={data} />}
         </div>
       )}

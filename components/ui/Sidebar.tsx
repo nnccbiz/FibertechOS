@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { icon: 'customers', label: 'לקוחות', key: 'marketing', href: '/customers' },
   { icon: 'import', label: 'יבוא', key: 'import', href: '/import' },
   { icon: 'logistics', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
+  { icon: 'invoice', label: 'תעודות משלוח', key: 'import', href: '/deliveries' },
   { icon: 'production', label: 'ייצור', key: 'production', href: '/production' },
   { icon: 'forms', label: 'טפסים', key: 'field', href: '/forms' },
   { icon: 'settings', label: 'הגדרות', key: 'settings', href: '/settings/users' },

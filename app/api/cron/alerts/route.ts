@@ -7,6 +7,7 @@
  *   2. quote price validity within 3d / already passed (re-quote before signing)
  *   3. shipment ETA within 7d / already passed      (import readiness)
  *   4. auto-seeded import draft pending תפ"י review > 2d
+ *   5. delivery sent to accounting > 7d, invoice not issued
  *
  * Runs with the service-role admin client (it writes alerts across modules and
  * is not a model-driven write). Protected by CRON_SECRET: Vercel automatically
@@ -104,6 +105,21 @@ export async function GET(req: NextRequest) {
       type: `cron:import_draft_pending:${o.id}`,
       project_id: o.project_id || null,
       message: `📋 טיוטת הזמנת יבוא${projName(o) ? ` (${projName(o)})` : ''} ממתינה לשחרור תפ"י כבר ${daysSince(o.created_at)} ימים.`,
+    });
+  }
+
+  // Rule 5 — delivery sent to accounting > 7 days ago, invoice still not issued.
+  const { data: pendingInv } = await admin
+    .from('import_customer_deliveries')
+    .select('id, project_id, delivery_note_number, sent_to_accounting_at')
+    .eq('sent_to_accounting', true)
+    .eq('invoice_issued', false)
+    .lt('sent_to_accounting_at', shift(-7).toISOString());
+  for (const d of pendingInv || []) {
+    candidates.push({
+      type: `cron:invoice_pending:${d.id}`,
+      project_id: d.project_id || null,
+      message: `🧾 תעודת משלוח ${d.delivery_note_number || ''} נשלחה להנה"ח לפני ${daysSince(d.sent_to_accounting_at)} ימים וטרם הופקה חשבונית — לבדוק במסך תעודות משלוח (/deliveries).`,
     });
   }
 
