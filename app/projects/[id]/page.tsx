@@ -12,6 +12,7 @@ import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import Icon, { type IconName } from '@/components/ui/Icon';
+import DealTimeline from '@/components/projects/DealTimeline';
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -764,6 +765,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </div>
           </div>
         )}
+
+        {/* Deal lifecycle strip */}
+        <DealTimeline projectId={params.id as string} />
 
         {/* Basic info */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
