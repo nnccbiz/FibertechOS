@@ -100,6 +100,7 @@ export default function ImportPage() {
       supabase.from('suppliers').select('id, name').order('name'),
       supabase.from('projects').select('id, name, client_name').order('name'),
     ]);
+    const { data: exemptions } = await supabase.from('import_quote_exemptions').select('quote_id, reason');
     const { data: sq } = await supabase
       .from('quotes')
       .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
@@ -120,7 +121,7 @@ export default function ImportPage() {
     setData({
       orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
-      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], cross,
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], exemptions: exemptions || [], cross,
     });
     setLoading(false);
   }
@@ -155,7 +156,7 @@ export default function ImportPage() {
         </div>
       </div>
 
-      {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} />}
+      {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} canEdit={canEdit} onUpdate={load} />}
       {view === 'orders' && <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
       {view === 'shipments' && <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
 
@@ -173,7 +174,8 @@ function Info({ label, value }: { label: string; value?: any }) {
 // ============================================================
 // Approved-quotes view — every signed quote + its import status
 // ============================================================
-function ApprovedQuotesView({ data, onSmartUpload }: any) {
+function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
+  const supabase = createClient();
   const [filter, setFilter] = useState<'all' | 'pending' | 'ordered'>('all');
 
   function orderFor(q: any) {
@@ -181,9 +183,25 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
       || (q.project_id ? data.orders.find((o: any) => o.project_id && o.project_id === q.project_id) : null)
       || null;
   }
-  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q) }));
-  const pendingCount = rows.filter((r: any) => !r.order).length;
-  const shown = rows.filter((r: any) => filter === 'all' ? true : filter === 'pending' ? !r.order : !!r.order);
+  const exemptByQuote: Record<string, string> = {};
+  (data.exemptions || []).forEach((e: any) => { exemptByQuote[e.quote_id] = e.reason || ''; });
+  const projNameById: Record<string, string> = {};
+  (data.projects || []).forEach((p: any) => { projNameById[p.id] = p.name; });
+  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q), exempt: exemptByQuote[q.id] !== undefined }));
+  // Exempt quotes (internal / ILS / marked manually) are not "pending import".
+  const pendingCount = rows.filter((r: any) => !r.order && !r.exempt).length;
+  const shown = rows.filter((r: any) =>
+    filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.exempt) : !!r.order);
+
+  async function toggleExempt(q: any, exempt: boolean) {
+    if (exempt) {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('import_quote_exemptions').insert({ quote_id: q.id, reason: 'סומן ידנית כלא רלוונטי ליבוא', created_by: user?.id || null });
+    } else {
+      await supabase.from('import_quote_exemptions').delete().eq('quote_id', q.id);
+    }
+    onUpdate();
+  }
 
   return (
     <div>
@@ -199,6 +217,7 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
             <thead>
               <tr className="bg-neutral-50 text-neutral-400 text-[11px] text-right">
                 <th className="font-medium py-2 px-3">הצעה</th>
+                <th className="font-medium py-2 px-3">פרויקט</th>
                 <th className="font-medium py-2 px-3">לקוח</th>
                 <th className="font-medium py-2 px-3">סכום</th>
                 <th className="font-medium py-2 px-3">אושרה</th>
@@ -207,23 +226,37 @@ function ApprovedQuotesView({ data, onSmartUpload }: any) {
               </tr>
             </thead>
             <tbody>
-              {shown.map(({ q, order }: any) => {
+              {shown.map(({ q, order, exempt }: any) => {
                 const st = order ? (ORDER_STATUS[order.status] || ORDER_STATUS.open) : null;
                 return (
                   <tr key={q.id} className="border-t border-line-subtle hover:bg-neutral-50">
                     <td className="py-2 px-3 font-mono text-content-muted" dir="ltr">{q.quote_number || '—'}</td>
+                    <td className="py-2 px-3 text-content-body">
+                      {q.project_id
+                        ? <a href={`/projects/${q.project_id}`} className="text-primary hover:underline">{projNameById[q.project_id] || '—'}</a>
+                        : '—'}
+                    </td>
                     <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
                     <td className="py-2 px-3 text-content-body">{money(q.total_amount, q.currency || 'ILS')}</td>
                     <td className="py-2 px-3 text-content-muted">{fmtDate(q.sent_at || q.updated_at)}</td>
                     <td className="py-2 px-3">
                       {order && st
                         ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-                        : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">🔴 טרם הזמנת יבוא</span>}
+                        : exempt
+                          ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">לא רלוונטי ליבוא</span>
+                          : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">🔴 טרם הזמנת יבוא</span>}
                     </td>
                     <td className="py-2 px-3 text-left">
-                      {!order
-                        ? <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה <Icon name="zap" size={14} /></button>
-                        : <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>}
+                      {order
+                        ? <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>
+                        : exempt
+                          ? (canEdit && <button onClick={() => toggleExempt(q, false)} className="text-[11px] text-neutral-400 hover:text-primary hover:underline">החזר לרשימה</button>)
+                          : (
+                            <span className="inline-flex items-center gap-2">
+                              <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה <Icon name="zap" size={14} /></button>
+                              {canEdit && <button onClick={() => toggleExempt(q, true)} className="text-[11px] text-neutral-400 hover:text-content-body hover:underline">לא רלוונטי ליבוא</button>}
+                            </span>
+                          )}
                     </td>
                   </tr>
                 );

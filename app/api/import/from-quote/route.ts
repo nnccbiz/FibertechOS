@@ -95,7 +95,15 @@ export async function POST(req: NextRequest) {
   //    a known bug (CLAUDE.md #11) leaves the header at 'ILS' after a duplicate/edit
   //    while the items are still EUR/USD, so the header on its own would wrongly
   //    route a foreign order to the "domestic" skip path.
+  // A quote that needs no import order is recorded as exempt, so the
+  // "טרם הזמנת יבוא" list never nags about it (reversible from the UI).
+  const exempt = async (reason: string) => {
+    await admin.from('import_quote_exemptions')
+      .upsert({ quote_id: quoteId, reason }, { onConflict: 'quote_id' });
+  };
+
   if (!quote.cost_input_id) {
+    await exempt('ללא תמחור ספק — לא דורש יבוא');
     return NextResponse.json({
       created: false,
       reason: 'no_cost_input',
@@ -119,6 +127,7 @@ export async function POST(req: NextRequest) {
   const isForex = currency !== 'ILS';
 
   if (ci?.source_type === 'internal') {
+    await exempt('תמחור פנימי — לא דורש יבוא');
     return NextResponse.json({
       created: false,
       reason: 'internal_pricing',
@@ -126,6 +135,7 @@ export async function POST(req: NextRequest) {
     });
   }
   if (!isForex) {
+    await exempt('תמחור בש"ח (ספק מקומי) — לא דורש יבוא');
     return NextResponse.json({
       created: false,
       reason: 'domestic_ils_pricing',
