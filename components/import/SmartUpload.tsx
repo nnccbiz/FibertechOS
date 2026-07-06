@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reconcileDocuments, Proposal, ExtractResult } from '@/lib/import-reconcile';
 import { deriveReceivedStatus } from '@/lib/import-status';
+import Icon from '@/components/ui/Icon';
 
 const DOC_LABEL: Record<string, string> = {
-  email: '📧 אימייל', order_confirmation: 'אישור הזמנה', proforma_invoice: 'פרופורמה (PI)',
+  email: 'אימייל', order_confirmation: 'אישור הזמנה', proforma_invoice: 'פרופורמה (PI)',
   commercial_invoice: 'חשבונית (CI)', packing_list: 'תעודת משלוח', bl: 'שטר מטען (BL)',
   coa: 'תעודת אנליזה', other: 'אחר',
 };
@@ -192,8 +193,8 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-content-strong">⚡ העלאה חכמה — מסמכי לוט</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-content-body text-xl">✕</button>
+          <h2 className="text-lg font-bold text-content-strong"><Icon name="zap" size={20} /> העלאה חכמה — מסמכי לוט</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={20} /></button>
         </div>
         {err && <div className="bg-danger-soft text-danger text-[13px] rounded-lg px-3 py-2 mb-3">{err}</div>}
 
@@ -201,31 +202,31 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
           <div>
             <p className="text-[13px] text-content-muted mb-3">גררי או בחרי את כל מסמכי הלוט (חשבונית, BL, תעודות משלוח, COA). רקסי תזהה ותתאים — ותוכלי לערוך הכל לפני שמירה.</p>
             <label className="block border-2 border-dashed border-line-strong rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-50">
-              <p className="text-3xl mb-2">📥</p><p className="text-[13px] text-content-body">בחרי קבצים (PDF / תמונה)</p>
+              <p className="mb-2 text-primary"><Icon name="inbox" size={32} /></p><p className="text-[13px] text-content-body">בחרי קבצים (PDF / תמונה)</p>
               <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
             </label>
             {files.length > 0 && <div className="mt-3 space-y-1">{files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between text-[12px] bg-neutral-50 rounded px-2 py-1"><span dir="ltr" className="truncate">{f.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-danger hover:text-danger">✕</button></div>
+              <div key={i} className="flex items-center justify-between text-[12px] bg-neutral-50 rounded px-2 py-1"><span dir="ltr" className="truncate">{f.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></div>
             ))}</div>}
             <div className="flex gap-2 mt-4">
-              <button onClick={extract} disabled={!files.length} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-40">⚡ חלץ והתאם ({files.length})</button>
+              <button onClick={extract} disabled={!files.length} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-40"><Icon name="zap" size={16} /> חלץ והתאם ({files.length})</button>
               <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-line-subtle text-content-body">ביטול</button>
             </div>
           </div>
         )}
 
-        {phase === 'extracting' && <p className="text-center text-content-muted py-12">רקסי מחלצת ומתאימה... ⏳</p>}
-        {phase === 'saving' && <p className="text-center text-content-muted py-12">שומר... ⏳</p>}
+        {phase === 'extracting' && <p className="text-center text-content-muted py-12">רקסי מחלצת ומתאימה... <Icon name="loading" size={16} /></p>}
+        {phase === 'saving' && <p className="text-center text-content-muted py-12">שומר... <Icon name="loading" size={16} /></p>}
 
         {phase === 'review' && p && (
           <div className="space-y-4">
             <p className="text-[12px] text-content-muted">בדקי וערכי לפי הצורך — אפשר לשנות כל שדה, להוסיף ולמחוק שורות. השמירה רק אחרי אישורך.</p>
-            {p.warnings.length > 0 && <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">{p.warnings.map((w, i) => <div key={i}>⚠️ {w}</div>)}</div>}
+            {p.warnings.length > 0 && <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">{p.warnings.map((w, i) => <div key={i}><Icon name="warning" size={14} /> {w}</div>)}</div>}
 
             <Section title="מסמכים שזוהו">
               <div className="flex flex-wrap gap-2">
                 {p.docs.map((d, i) => <span key={i} className="text-[11px] bg-azure-100 text-azure-600 rounded px-2 py-1">{DOC_LABEL[d.doc_type] || d.doc_type}: <span dir="ltr">{d.name}</span></span>)}
-                {rawResults.filter((r) => r.error).map((r, i) => <span key={i} className="text-[11px] bg-danger-soft text-danger rounded px-2 py-1" dir="ltr">{r.name} ✕</span>)}
+                {rawResults.filter((r) => r.error).map((r, i) => <span key={i} className="text-[11px] bg-danger-soft text-danger rounded px-2 py-1" dir="ltr">{r.name} <Icon name="close" size={12} /></span>)}
               </div>
             </Section>
 
@@ -264,7 +265,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={it.ordered_qty} onChange={(v: any) => setRow('items', i, 'ordered_qty', v)} w="w-16" type="number" /></td>
                     <td><I value={it.unit} onChange={(v: any) => setRow('items', i, 'unit', v)} w="w-10" ltr /></td>
                     <td><I value={it.unit_price} onChange={(v: any) => setRow('items', i, 'unit_price', v)} w="w-16" type="number" /></td>
-                    <td><button onClick={() => delRow('items', i)} className="text-danger hover:text-danger">✕</button></td>
+                    <td><button onClick={() => delRow('items', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -293,7 +294,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={c.container_type} onChange={(v: any) => setRow('containers', i, 'container_type', v)} w="w-20" ltr /></td>
                     <td><I value={c.gross_weight} onChange={(v: any) => setRow('containers', i, 'gross_weight', v)} w="w-20" type="number" /></td>
                     <td><I value={c.pieces} onChange={(v: any) => setRow('containers', i, 'pieces', v)} w="w-14" type="number" /></td>
-                    <td><button onClick={() => delRow('containers', i)} className="text-danger hover:text-danger">✕</button></td>
+                    <td><button onClick={() => delRow('containers', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -310,7 +311,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={pl.dn} onChange={(v: any) => setRow('packingLines', i, 'dn', v)} w="w-12" ltr /></td>
                     <td><I value={pl.shipped_qty} onChange={(v: any) => setRow('packingLines', i, 'shipped_qty', v)} w="w-16" type="number" /></td>
                     <td><I value={pl.unit} onChange={(v: any) => setRow('packingLines', i, 'unit', v)} w="w-10" ltr /></td>
-                    <td><button onClick={() => delRow('packingLines', i)} className="text-danger hover:text-danger">✕</button></td>
+                    <td><button onClick={() => delRow('packingLines', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -327,7 +328,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={iv.net_value} onChange={(v: any) => setRow('invoices', i, 'net_value', v)} w="w-20" type="number" /></td>
                     <td><I value={iv.freight} onChange={(v: any) => setRow('invoices', i, 'freight', v)} w="w-16" type="number" /></td>
                     <td><I value={iv.final_amount} onChange={(v: any) => setRow('invoices', i, 'final_amount', v)} w="w-20" type="number" /></td>
-                    <td><button onClick={() => delRow('invoices', i)} className="text-danger hover:text-danger">✕</button></td>
+                    <td><button onClick={() => delRow('invoices', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -344,14 +345,14 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                     <td><I value={c.pn} onChange={(v: any) => setRow('coa', i, 'pn', v)} w="w-10" ltr /></td>
                     <td><I value={c.sn} onChange={(v: any) => setRow('coa', i, 'sn', v)} w="w-14" ltr /></td>
                     <td><I value={c.delivery_notes} onChange={(v: any) => setRow('coa', i, 'delivery_notes', v)} w="w-32" ltr /></td>
-                    <td><button onClick={() => delRow('coa', i)} className="text-danger hover:text-danger">✕</button></td>
+                    <td><button onClick={() => delRow('coa', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
               </table>
             </Section>
 
             <div className="flex gap-2 pt-2 border-t border-line-subtle sticky bottom-0 bg-white">
-              <button onClick={save} className="bg-success text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-success">✓ אשר ושמור</button>
+              <button onClick={save} className="bg-success text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-success"><Icon name="confirm" size={16} /> אשר ושמור</button>
               <button onClick={() => setPhase('pick')} className="text-sm px-4 py-2 rounded-lg border border-line-subtle text-content-body">חזרה</button>
               <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg text-content-muted mr-auto">ביטול</button>
             </div>

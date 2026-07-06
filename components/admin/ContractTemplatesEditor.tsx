@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import Icon from '@/components/ui/Icon';
 
 type Clause = { num: number; text: string };
 type Section = { title: string; clauses: Clause[] };
@@ -80,9 +81,9 @@ export default function ContractTemplatesEditor({ templates: initial }: { templa
             </div>
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button onClick={() => rename(t)} className="text-[12px] bg-neutral-50 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-100">שנה שם</button>
-              <button onClick={() => duplicate(t)} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50">📋 שכפל</button>
+              <button onClick={() => duplicate(t)} className="text-[12px] bg-primary-50 text-primary px-3 py-1 rounded-lg hover:bg-primary-50"><Icon name="copy" size={16} /> שכפל</button>
               {!t.is_default && <button onClick={() => setDefault(t)} className="text-[12px] bg-success-soft text-success px-3 py-1 rounded-lg hover:bg-success-soft">קבע כברירת מחדל</button>}
-              {!t.is_default && <button onClick={() => deleteTemplate(t)} className="text-[12px] text-danger px-3 py-1 rounded-lg hover:bg-danger-soft">🗑️ מחק</button>}
+              {!t.is_default && <button onClick={() => deleteTemplate(t)} className="text-[12px] text-danger px-3 py-1 rounded-lg hover:bg-danger-soft"><Icon name="delete" size={16} /> מחק</button>}
             </div>
           </div>
           {openId === t.id && <TemplateEditor template={t} onSaved={refresh} />}
@@ -144,10 +145,10 @@ function TemplateEditor({ template, onSaved }: { template: Template; onSaved: ()
   return (
     <div className="border-t border-line-subtle bg-neutral-50 p-4 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-content-muted">⚠️ שינויים בתבנית זו ייכנסו להצעות עתידיות. הצעות שיצאו (נשלחו/נחתמו) מוקפאות עם תנאיהן.</p>
+        <p className="text-[11px] text-content-muted"><Icon name="warning" size={14} /> שינויים בתבנית זו ייכנסו להצעות עתידיות. הצעות שיצאו (נשלחו/נחתמו) מוקפאות עם תנאיהן.</p>
         <div className="flex gap-2">
           <button onClick={reset} className="text-sm text-content-muted px-3 py-1.5 rounded-lg hover:bg-neutral-100">בטל שינויים</button>
-          <button onClick={save} disabled={saving} className="text-sm bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-primary-700 disabled:opacity-50">{saving ? 'שומר…' : '💾 שמור תבנית'}</button>
+          <button onClick={save} disabled={saving} className="text-sm bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-primary-700 disabled:opacity-50">{saving ? 'שומר…' : <><Icon name="save" size={16} /> שמור תבנית</>}</button>
         </div>
       </div>
       {sections.length === 0 && <p className="text-sm text-neutral-400 text-center py-6">אין פרקים. לחץ "+ הוסף פרק".</p>}
@@ -155,9 +156,9 @@ function TemplateEditor({ template, onSaved }: { template: Template; onSaved: ()
         <div key={si} className="border border-line-subtle rounded-lg p-3 bg-white">
           <div className="flex items-center gap-2 mb-2">
             <input value={s.title} onChange={(e) => updateTitle(si, e.target.value)} className="flex-1 border border-line-subtle rounded-lg px-3 py-1.5 text-sm font-semibold" />
-            <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30">↑</button>
-            <button onClick={() => moveSection(si, 1)} disabled={si === sections.length - 1} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30">↓</button>
-            <button onClick={() => deleteSection(si)} className="text-[11px] text-danger hover:text-danger px-2">🗑️</button>
+            <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30"><Icon name="arrowUp" size={14} /></button>
+            <button onClick={() => moveSection(si, 1)} disabled={si === sections.length - 1} className="text-[11px] bg-neutral-50 border border-line-subtle px-2 py-1 rounded hover:bg-neutral-100 disabled:opacity-30"><Icon name="arrowDown" size={14} /></button>
+            <button onClick={() => deleteSection(si)} className="text-[11px] text-danger hover:text-danger px-2"><Icon name="delete" size={16} /></button>
           </div>
           <div className="space-y-2">
             {s.clauses.map((c, ci) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Icon from '@/components/ui/Icon';
 
 export interface PipeSpec {
   dn_mm: number | null;
@@ -107,7 +108,7 @@ export default function PipeSpecsInput({ specs, onChange }: PipeSpecsInputProps)
                       onClick={() => removeSpec(i)}
                       className="text-danger hover:text-danger text-sm"
                     >
-                      ✕
+                      <Icon name="close" size={16} />
                     </button>
                   </td>
                 </tr>

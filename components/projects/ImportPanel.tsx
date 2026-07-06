@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import Icon from '@/components/ui/Icon';
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   open: { label: 'פתוחה', color: 'bg-neutral-100 text-content-body' },
@@ -12,7 +13,7 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   closed: { label: 'נסגרה', color: 'bg-neutral-100 text-content-muted' },
 };
 const DOC_LABEL: Record<string, string> = {
-  email: '📧', order_confirmation: 'OC', proforma_invoice: 'PI', commercial_invoice: 'CI',
+  email: 'אימייל', order_confirmation: 'OC', proforma_invoice: 'PI', commercial_invoice: 'CI',
   packing_list: 'ת.משלוח', bl: 'BL', coa: 'COA', other: 'מסמך',
 };
 
@@ -47,8 +48,8 @@ export default function ImportPanel({ projectId }: { projectId: string }) {
   return (
     <div className="bg-white rounded-2xl border border-line-subtle p-6 mb-6" dir="rtl">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-content-body">🚢 יבוא</h2>
-        <a href="/import" className="text-[13px] text-primary hover:underline">פתח במודול היבוא ↗</a>
+        <h2 className="text-lg font-bold text-content-body"><Icon name="import" size={20} /> יבוא</h2>
+        <a href="/import" className="text-[13px] text-primary hover:underline">פתח במודול היבוא <Icon name="external" size={14} /></a>
       </div>
       <div className="space-y-3">
         {orders.map((o) => {
@@ -66,7 +67,7 @@ export default function ImportPanel({ projectId }: { projectId: string }) {
                 <div className="flex flex-wrap gap-1.5">
                   {oDocs.map((d) => (
                     <button key={d.id} onClick={() => openDoc(d)} className="text-[11px] bg-neutral-50 hover:bg-azure-100 border border-line-subtle rounded px-2 py-1 text-content-body">
-                      📎 {DOC_LABEL[d.doc_type] || d.doc_type}
+                      <Icon name="attach" size={14} /> {DOC_LABEL[d.doc_type] || d.doc_type}
                     </button>
                   ))}
                 </div>

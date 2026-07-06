@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { useState } from 'react';
+import Icon from '@/components/ui/Icon';
 
 interface Alert {
   id: string;
@@ -63,7 +64,7 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-content-body">📌 משימות לביצוע</h3>
+        <h3 className="text-lg font-bold text-content-body"><Icon name="pin" size={20} /> משימות לביצוע</h3>
         {unresolvedAlerts.length > 0 && (
           <span className="text-[12px] bg-danger-soft text-danger px-2 py-0.5 rounded-full font-bold">
             {unresolvedAlerts.length}

@@ -7,6 +7,7 @@ import StatusTracker from '@/components/projects/StatusTracker';
 import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInput';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
+import Icon from '@/components/ui/Icon';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
 const PROJECT_TYPES = ['ביוב', 'מים', 'ניקוז', 'השקיה', 'תשתית', 'אחר'];
@@ -283,13 +284,13 @@ export default function NewProjectPage() {
 
         {/* === סטטוס פרויקט === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up">
-          <h2 className="text-lg font-bold text-content-body mb-3">📌 סטטוס פרויקט</h2>
+          <h2 className="text-lg font-bold text-content-body mb-3"><Icon name="pin" size={20} /> סטטוס פרויקט</h2>
           <StatusTracker currentStatus={projectStatus} onChange={setProjectStatus} />
         </section>
 
         {/* === מידע בסיסי === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-1">
-          <h2 className="text-lg font-bold text-content-body mb-4">🏗️ מידע בסיסי</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="construction" size={20} /> מידע בסיסי</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>שם הפרויקט *</label>
@@ -325,7 +326,7 @@ export default function NewProjectPage() {
 
         {/* === תאריכים === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-2">
-          <h2 className="text-lg font-bold text-content-body mb-4">📅 תאריכים</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="calendar" size={20} /> תאריכים</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>תאריך קבלת ההזמנה</label>
@@ -370,13 +371,13 @@ export default function NewProjectPage() {
 
         {/* === אנשי קשר === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-3">
-          <h2 className="text-lg font-bold text-content-body mb-4">👥 אנשי קשר</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="team" size={20} /> אנשי קשר</h2>
           <ContactsInput contacts={contacts} onChange={setContacts} customerOptions={customerOptions} />
         </section>
 
         {/* === סוג פרויקט והתקנה === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-3">
-          <h2 className="text-lg font-bold text-content-body mb-4">⚙️ סוג פרויקט והתקנה</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="gear" size={20} /> סוג פרויקט והתקנה</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>תיאור הפרויקט</label>
@@ -430,7 +431,7 @@ export default function NewProjectPage() {
 
         {/* === מפרט צינורות === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-4">
-          <h2 className="text-lg font-bold text-content-body mb-4">📐 מפרטים טכניים ושרטוטים</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="drawings" size={20} /> מפרטים טכניים ושרטוטים</h2>
           <PipeSpecsInput specs={pipeSpecs} onChange={setPipeSpecs} />
 
           <div className="border-t border-line-subtle mt-4 pt-4">
@@ -448,7 +449,7 @@ export default function NewProjectPage() {
               <div className="space-y-1.5">
                 {pendingDrawings.map((f, i) => (
                   <div key={i} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-1.5 text-sm">
-                    <span>{f.name.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                    <span><Icon name={f.name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /></span>
                     <span className="flex-1 truncate text-content-body">{f.name}</span>
                     <button type="button" onClick={() => setPendingDrawings((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger text-lg">×</button>
                   </div>
@@ -460,7 +461,7 @@ export default function NewProjectPage() {
 
         {/* === סיפור ואינטליגנציה === */}
         <section className="bg-white rounded-xl border border-line-subtle p-5 animate-fade-in-up-delay-5">
-          <h2 className="text-lg font-bold text-content-body mb-4">📖 סיפור הפרויקט ואינטליגנציה</h2>
+          <h2 className="text-lg font-bold text-content-body mb-4"><Icon name="book" size={20} /> סיפור הפרויקט ואינטליגנציה</h2>
           <div className="space-y-4">
             <div>
               <label className={labelClass}>סיפור הפרויקט</label>

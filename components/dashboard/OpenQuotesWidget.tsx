@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatILS } from '@/lib/revenue';
+import Icon from '@/components/ui/Icon';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: 'טיוטה', color: 'bg-neutral-100 text-content-body' },
@@ -102,14 +103,14 @@ export default function OpenQuotesWidget() {
 
   const Th = ({ k, label }: { k: SortKey; label: string }) => (
     <th className="font-medium pb-2 cursor-pointer select-none hover:text-content-body" onClick={() => toggleSort(k)}>
-      {label}{sortKey === k && <span className="text-primary mr-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+      {label}{sortKey === k && <span className="text-primary mr-0.5"><Icon name={sortDir === 'asc' ? 'caretUp' : 'caretDown'} size={12} /></span>}
     </th>
   );
 
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5" dir="rtl">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-content-body">📝 הצעות מחיר פתוחות</h3>
+        <h3 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> הצעות מחיר פתוחות</h3>
         <span className="text-sm text-neutral-400">{quotes.length}</span>
       </div>
 
@@ -142,7 +143,7 @@ export default function OpenQuotesWidget() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-content-muted" dir="ltr" title={q.quote_number || ''}>{shortQuoteNumber(q.quote_number)}</span>
                         {v && (
-                          <span className="text-success" title={`הלקוח צפה ${v.count}× · אחרונה ${fmtDate(v.last)}`}>👁️</span>
+                          <span className="text-success" title={`הלקוח צפה ${v.count}× · אחרונה ${fmtDate(v.last)}`}><Icon name="eye" size={16} /></span>
                         )}
                       </div>
                     </td>

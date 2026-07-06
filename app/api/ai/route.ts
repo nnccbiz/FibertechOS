@@ -324,6 +324,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ drawing_number: '', project_name: '' });
     }
 
+    // Plain-text generation (emails, summaries) — no JSON envelope, no action
+    // prompt. Previously these prompts said "Do NOT return JSON" while the
+    // route forced responseMimeType: application/json — two conflicting
+    // instructions that worked by luck.
+    if (mode === 'text' && message) {
+      try {
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({
+          model: GEMINI_MODEL,
+          generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
+        });
+        const result = await generateWithRetry(model, [{ text: message }]);
+        return NextResponse.json({ text: result.response.text() });
+      } catch (e: any) {
+        const status = e?.status || e?.response?.status;
+        return NextResponse.json({ error: e?.message || 'שגיאה ביצירת הטקסט', gemini_status: status }, { status: 500 });
+      }
+    }
+
     let userMessage = message || '';
     if (context) {
       userMessage = `נתונים קיימים:\n${JSON.stringify(context)}\n\nפקודה:\n${message}`;

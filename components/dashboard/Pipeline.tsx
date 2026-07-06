@@ -1,5 +1,7 @@
 'use client';
 
+import Icon from '@/components/ui/Icon';
+
 interface Lead {
   id: string;
   project_name: string;
@@ -49,7 +51,7 @@ export default function Pipeline({ leads, loading }: PipelineProps) {
 
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
-      <h3 className="text-lg font-bold text-content-body mb-4">📊 צינור שיווקי</h3>
+      <h3 className="text-lg font-bold text-content-body mb-4"><Icon name="chart" size={20} /> צינור שיווקי</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {grouped.map((stage) => (
           <div key={stage.key} className="rounded-lg bg-neutral-50 p-3">

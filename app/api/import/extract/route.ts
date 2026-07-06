@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_EXTRACTION_MODEL = 'gemini-2.5-pro';
+
+// Same abuse guards as /api/ai — this route also burns Gemini Pro tokens.
+const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
+const RATE_LIMIT_MESSAGES: Record<string, string> = {
+  user_rate_limit_minute: 'חרגת ממכסת הבקשות (15 לדקה). נסה שוב בעוד דקה.',
+  user_rate_limit_hour: 'חרגת ממכסת הבקשות לשעה (200). נסה שוב מאוחר יותר.',
+  global_rate_limit_minute: 'המערכת עמוסה כרגע (מכסת בקשות כללית). נסה שוב בעוד דקה.',
+};
 
 function isTransientGeminiError(e: any): boolean {
   const status = e?.status || e?.response?.status;
@@ -147,6 +156,29 @@ export async function POST(request: NextRequest) {
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
     }
+
+    // Payload cap before any Gemini call (cost guard).
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json({ error: 'הבקשה גדולה מדי. הגודל המרבי הוא 10MB.' }, { status: 413 });
+    }
+
+    // Session + per-user/global rate limit — shared windows with /api/ai.
+    const sb = await createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'לא מורשה.' }, { status: 401 });
+    }
+    const admin = createAdminClient();
+    const { data: limitCode } = await admin.rpc('can_make_ai_request', { p_user_id: user.id });
+    if (limitCode) {
+      return NextResponse.json(
+        { error: RATE_LIMIT_MESSAGES[limitCode as string] || 'חרגת ממכסת הבקשות. נסה שוב מאוחר יותר.' },
+        { status: 429 },
+      );
+    }
+    await admin.from('ai_request_log').insert({ user_id: user.id, route: 'import-extract' });
+
     const body = await request.json();
     const files: { base64: string; mimeType: string; name: string }[] = body.files || [];
     if (!files.length) {

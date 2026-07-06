@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface InventoryItem {
   id: string;
@@ -17,7 +18,7 @@ interface InventoryItem {
 
 interface CategorySummary {
   label: string;
-  icon: string;
+  icon: IconName;
   count: number;
 }
 
@@ -50,17 +51,17 @@ export default function InventoryWidget() {
   const categories: CategorySummary[] = [
     {
       label: 'צינורות',
-      icon: '🔧',
+      icon: 'wrench',
       count: items.filter((i) => i.category === 'צינורות').reduce((sum, i) => sum + i.in_stock, 0),
     },
     {
       label: 'אביזרים',
-      icon: '⚙️',
+      icon: 'gear',
       count: items.filter((i) => i.category === 'אביזרים').reduce((sum, i) => sum + i.in_stock, 0),
     },
     {
       label: 'חומרי סיכה',
-      icon: '🧴',
+      icon: 'drop',
       count: items.filter((i) => i.category === 'חומרי סיכה').reduce((sum, i) => sum + i.in_stock, 0),
     },
   ];
@@ -83,7 +84,7 @@ export default function InventoryWidget() {
   return (
     <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-content-body">📦 מלאי מהיר</h3>
+        <h3 className="text-lg font-bold text-content-body"><Icon name="inventory" size={20} /> מלאי מהיר</h3>
         {pipeItems.length > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
@@ -98,7 +99,7 @@ export default function InventoryWidget() {
       <div className="grid grid-cols-3 gap-2">
         {categories.map((cat) => (
           <div key={cat.label} className="bg-neutral-50 rounded-lg p-3 text-center">
-            <span className="text-2xl block mb-1">{cat.icon}</span>
+            <span className="block mb-1 text-primary"><Icon name={cat.icon} size={22} /></span>
             <p className="text-[12px] text-content-muted font-medium">{cat.label}</p>
             <p className="text-lg font-bold text-content-body mt-0.5">
               {cat.count > 0 ? cat.count : '—'}

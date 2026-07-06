@@ -51,7 +51,8 @@ FibertechOS/
 │   │   ├── requests/             # Admin: pending access request approval queue
 │   │   └── users/                # Admin: user permission matrix editor
 │   └── api/
-│       ├── ai/                   # Gemini AI proxy — Roxy chatbot (PDF/image/chat) + local XLSX BOQ parsing
+│       ├── ai/                   # Gemini AI proxy — file extraction (PDF/image/XLSX) + mode:'text' + mode:'drawing_meta'
+│       │   └── chat/             # Roxy conversational engine — Flash tool-loop, RLS reads, propose_action, history
 │       ├── access-requests/      # Public POST — new access request (rate-limited)
 │       ├── approve-request/      # Admin — approve/decline access requests
 │       ├── auth/log-attempt/     # Audit log for login attempts
@@ -74,13 +75,13 @@ FibertechOS/
 │   │   ├── PhotoUpload.tsx       # Photo upload component
 │   │   └── SignaturePad.tsx      # Signature capture pad
 │   ├── dashboard/                # KpiCard, AlertsList, ProjectsTable, Pipeline, TeamStatus, InventoryWidget
-│   ├── projects/                 # PricingSection, AiChat, ContactsInput, PipeSpecsInput, StatusTracker, ExchangeRateWidget, CompanyAutocomplete
+│   ├── projects/                 # PricingSection, ContactsInput, PipeSpecsInput, StatusTracker, ExchangeRateWidget, CompanyAutocomplete
 │   ├── customers/                # CustomerForm (create/edit customer card + contacts; reused in /customers, project page, new-quote form)
 │   ├── forms/                    # FormB116, FormB12_2, FormB165, FormB244
 │   ├── logistics/                # IskoorTracker
 │   ├── admin/                    # PendingRequestsList, UserPermissionsEditor, ContractTemplatesEditor
 │   ├── ui/                       # SearchableSelect (drop-in <select> replacement, used in 20+ places)
-│   └── ai/                       # ActivityLog, AiSidebar, CommandBar, FloatingChat
+│   └── ai/                       # ActivityLog, FloatingChat (רקסי — conversational engine)
 ├── lib/
 │   ├── supabase/
 │   │   ├── client.ts             # Browser Supabase client (anon key, respects RLS)
@@ -89,6 +90,11 @@ FibertechOS/
 │   ├── auth/
 │   │   ├── permissions.ts        # Permission constants, types, validatePassword()
 │   │   └── permissions-context.tsx # React context — usePermissions() hook
+│   ├── ai/
+│   │   ├── roxy-tools.ts         # Roxy tool belt — Gemini function declarations + RLS-scoped executors + propose_action
+│   │   ├── execute-action.ts     # Runs a user-confirmed pending_action: allowlist → RLS write → activity log (undo)
+│   │   ├── activity-log.ts       # logAiAction() — owner-stamped rows in ai_activity_log
+│   │   └── write-allowlist.ts    # Table+column allowlist for every AI-driven write (verified vs live schema)
 │   ├── cn.ts                     # Minimal className joiner (no clsx/tailwind-merge dep) — used by primitives
 │   ├── pricing.ts                # Gross-margin pricing engine (pipe cost chain, roker, accessories, quote summary)
 │   ├── revenue.ts                # Monthly revenue calculator, formatILS(), MONTH_NAMES
@@ -154,7 +160,12 @@ FibertechOS/
 
 ### AI Integration (Roxy)
 - Google Gemini API. `gemini-2.5-flash` for chat (cheap, fast). `gemini-2.5-pro` for supplier-quote / drawing-meta extraction (better grounding). Requires `GEMINI_API_KEY` + active billing on Google AI Studio.
-- System prompt defines available tables and expected response format. Structured JSON output (`responseMimeType: application/json`).
+- **Conversational engine (2026-07-05)** — `/api/ai/chat`: server-side Gemini function-calling loop (max 6 rounds) over 10 read tools (projects, quotes, tasks, inventory, leads, customers, drawings, dashboard snapshot, team). Every read runs with the **user's** Supabase client → RLS enforces the permission matrix on answers. Persona: professional-warm Hebrew; answers only from tool data; when the user lacks permission it names WHO can (from `user_module_permissions`+`team_members`, injected per-request) and where to ask.
+- **Writes are proposal-only**: the `propose_action` tool returns a `pending_action` (insert/update on allowlisted tables, **no deletes**); the user must click אשר in the chat, then `lib/ai/execute-action.ts` runs allowlist → RLS write → `ai_activity_log` with `previous_values` (undo via the dashboard widget). Import tables are excluded from Roxy by standing policy.
+- **Conversation history**: `roxy_conversations`/`roxy_messages` (migration `20260705_002`, owner-only RLS — not even admins). FloatingChat resumes the latest conversation; "שיחה חדשה" button starts fresh.
+- **Audit**: every applied/failed/rejected AI action lands in `ai_activity_log`, owner-stamped (policies in `20260705_001` — SELECT own+admin-all, INSERT own, UPDATE for undo). The table was EMPTY until 2026-07-05 (no INSERT policy + no success-logging code).
+- All AI routes (`/api/ai`, `/api/ai/chat`, `/api/import/extract`) share the same guards: session, 10MB cap (256KB for chat), 15 req/min + 200/hr per user via `can_make_ai_request`, logged to `ai_request_log`.
+- Legacy JSON-action system prompt in `/api/ai` now serves only file-extraction flows; `mode:'text'` serves the email/summary generators (plain text, no JSON envelope).
 - Extraction is tuned for grounded reading: `temperature: 0, topK: 1, topP: 0.1`, `thinkingConfig.thinkingBudget: 16384`, `maxDuration: 120`. The prompt requires Pro to emit a verbatim `_audit_rows` array (one entry per source row with each column's literal value) BEFORE producing `data`; items not derivable from `_audit_rows` are treated as fabrication. Translation and prefix substitution (e.g. `CC-GRP` → `GRP`) are explicitly banned.
 - Excel/CSV BOQ files are parsed **locally only** via `xlsx` (`parseExcelBOQ` scans for every header row in the sheet for multi-section BoQs and skips totals). Excel uploads no longer fall back to Gemini — if local parsing finds nothing, the user sees an explicit error instead of fabricated items.
 - One multimodal call handles chat + PDF + image. Each file gets its own Gemini call, then results are merged; `generateWithRetry` retries 503/429/500 with exponential backoff (1s/2s/4s, 3 attempts).
@@ -262,8 +273,9 @@ Production (`main` → https://fibertech-os.vercel.app) is live with full auth +
   - **Full hand-off to production** — `GET /api/production/order-context` (admin client, pre-signed URLs) surfaces drawings/specs/details/pipe-specs/contacts to production users who lack `projects` permission; collapsible section on the `/production` OrderCard.
 
 **🎯 Next up / open**
-- **🎨 Emoji → Phosphor Icons (duotone) — NOT STARTED.** Replace every emoji used as a *functional* icon (nav, action buttons, headings, statuses, toasts) with a single `components/ui/Icon.tsx` (`@phosphor-icons/react`, weight `duotone`, `currentColor`) so weight/style is swappable from one place. Sits on top of the new primitives. RTL: `margin-inline`/`border-inline-start` (never left/right). Colours: idle `#15427E`; active nav `#135C95` on bg `#DCEBF6` + `border-inline-start: 3px solid #15427E`. Sizes: 22px nav · 20px buttons/tables. Don't touch logic/routing/text/layout — icon layer only. End with a list of replacements + any ambiguous emoji for approval.
-- **שלב ג' remaining:** deal life-cycle timeline (quote→production→PO→shipment→receipt→delivery→invoice); UI for `import_customer_deliveries` (table exists, no writer yet — closes the goods→delivered→invoiced loop); field forms → DB (`field_reports` table + Storage; today submit = `console.log`, review #5).
+- **🎨 Emoji → Phosphor Icons (duotone) — ✅ DONE 2026-07-05** (branch `claude/phosphor-icons-duotone-o5arh2`): `components/ui/Icon.tsx` (~100 logical names, duotone, currentColor), ~230 emoji replaced across 44 files; nav active-state per spec. Left as content (not icons): text-string emoji (alerts/chat/reports), PDF-page emoji, 🔴 status dots. Original spec: Replace every emoji used as a *functional* icon (nav, action buttons, headings, statuses, toasts) with a single `components/ui/Icon.tsx` (`@phosphor-icons/react`, weight `duotone`, `currentColor`) so weight/style is swappable from one place. Sits on top of the new primitives. RTL: `margin-inline`/`border-inline-start` (never left/right). Colours: idle `#15427E`; active nav `#135C95` on bg `#DCEBF6` + `border-inline-start: 3px solid #15427E`. Sizes: 22px nav · 20px buttons/tables. Don't touch logic/routing/text/layout — icon layer only. End with a list of replacements + any ambiguous emoji for approval.
+- **שלב ג' remaining:** field forms → DB (`field_reports` table + Storage; today submit = `console.log`, review #5). ~~deal timeline~~ ✅ done 2026-07-06 (`DealTimeline` on the project page). ~~UI for `import_customer_deliveries`~~ ✅ done 2026-07-06 — **delivery-certificates flow**: create from container packing lines (deliveries tab on the import order card), 3 signing paths (scan upload / SignaturePad on-site / public `/delivery/[token]` customer link via service-role `/api/delivery-sign`), send-to-accounting task (default מירי) + `/deliveries` screen + dashboard "ממתין לחשבונית" widget + cron rule 5. Migrations `20260706_001` (delivery columns; RLS untouched) + `20260706_002` (`quotes.lost_reason`).
+- **Finality layer (2026-07-06):** quote reject dialog captures `lost_reason`; cron rule 0 stamps `expired` on sent quotes past `valid_until`; project terminal statuses (`הסתיים`/`בוטל` in `realization_status` options); production completed orders collapsed.
 - **שלב ד' (depth):** server-side signing + audit trail (one atomic `/api/quotes/sign`); split the 1,561-line project page into tabs; unify quote-status sources (3 lists diverge); migrate Iskoor off the non-existent `shipments`/`containers` to `import_*`.
 - **Import module (`IMPORT_MODULE.md` §7):** suggestion engine learning from Nitzan's edits (base — `reviewed_by` — now collected); shipment-consolidation alert; `.msg` attachment extraction; inventory link.
 - **Cosmetic:** close the now-empty `signed-quote-routing` PR on GitHub (its code is already in `main`).

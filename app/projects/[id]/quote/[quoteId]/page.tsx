@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { parsePipeSpec } from '@/lib/pricing';
+import Icon from '@/components/ui/Icon';
 
 type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
 
@@ -729,23 +730,23 @@ export default function QuotePreviewPage() {
       {/* Print controls */}
       <div className="print:hidden sticky top-0 z-50 bg-white border-b border-line-subtle px-6 py-3 flex items-center gap-3">
         <button onClick={() => window.print()} className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">
-          🖨️ הדפס
+          <Icon name="print" size={16} /> הדפס
         </button>
         <button onClick={handleDownloadPdf} disabled={generatingPdf} className="bg-azure-100 text-azure-600 text-sm px-4 py-2 rounded-lg hover:bg-azure-100 transition-colors disabled:opacity-50">
-          {generatingPdf ? '⏳ מייצר...' : '⬇️ הורד PDF'}
+          {generatingPdf ? <><Icon name="loading" size={16} /> מייצר...</> : <><Icon name="download" size={16} /> הורד PDF</>}
         </button>
         <button onClick={handleEmailWithLink} disabled={sendingLink} className="bg-neutral-100 text-content-body text-sm px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50">
-          {sendingLink ? '⏳ מכין...' : '📧 שלח לינק להצעה במייל'}
+          {sendingLink ? <><Icon name="loading" size={16} /> מכין...</> : <><Icon name="email" size={16} /> שלח לינק להצעה במייל</>}
         </button>
         <a href={`https://wa.me/?text=${whatsappText}`} target="_blank" rel="noopener noreferrer" className="bg-success-soft text-success text-sm px-4 py-2 rounded-lg hover:bg-success-soft transition-colors">
-          💬 שלח בוואטסאפ
+          <Icon name="whatsapp" size={16} /> שלח בוואטסאפ
         </a>
         <button onClick={() => window.history.back()} className="text-sm text-content-muted px-3 py-2 hover:text-content-body mr-auto">
           ← חזרה
         </button>
         {quoteViews.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-content-muted border-r border-line-subtle pr-3">
-            <span className="font-semibold text-success">👁 {quoteViews.length} צפיות</span>
+            <span className="font-semibold text-success"><Icon name="eye" size={14} /> {quoteViews.length} צפיות</span>
             <span>אחרונה: {new Date(quoteViews[0].viewed_at).toLocaleString('he-IL')}</span>
           </div>
         )}
@@ -753,13 +754,13 @@ export default function QuotePreviewPage() {
 
       {quoteViews.length > 0 && (
         <div className="print:hidden max-w-[210mm] mx-auto bg-success-soft border border-success rounded-lg mx-6 mt-4 p-4" dir="rtl">
-          <h3 className="text-sm font-bold text-success mb-2">👁 היסטוריית צפיות ({quoteViews.length})</h3>
+          <h3 className="text-sm font-bold text-success mb-2"><Icon name="eye" size={14} /> היסטוריית צפיות ({quoteViews.length})</h3>
           <div className="space-y-1 max-h-32 overflow-y-auto">
             {quoteViews.map((v: any) => (
               <div key={v.id} className="flex items-center gap-3 text-xs text-success">
                 <span>{new Date(v.viewed_at).toLocaleString('he-IL')}</span>
                 {v.ip_address && <span className="text-success">IP: {v.ip_address}</span>}
-                {v.user_agent && <span className="text-success truncate max-w-[200px]">{v.user_agent.includes('Mobile') ? '📱 נייד' : '💻 מחשב'}</span>}
+                {v.user_agent && <span className="text-success truncate max-w-[200px]">{v.user_agent.includes('Mobile') ? <><Icon name="mobile" size={12} /> נייד</> : <><Icon name="desktop" size={12} /> מחשב</>}</span>}
               </div>
             ))}
           </div>

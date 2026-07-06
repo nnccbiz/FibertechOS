@@ -12,6 +12,8 @@ import TeamStatus from '@/components/dashboard/TeamStatus';
 import InventoryWidget from '@/components/dashboard/InventoryWidget';
 import OpenQuotesWidget from '@/components/dashboard/OpenQuotesWidget';
 import ActivityLog from '@/components/ai/ActivityLog';
+import Icon from '@/components/ui/Icon';
+import PendingInvoicesWidget from '@/components/dashboard/PendingInvoicesWidget';
 
 interface DashboardData {
   projects: any[];
@@ -316,7 +318,7 @@ export default function DashboardPage() {
     {
       title: 'פרויקטים פעילים',
       value: data?.kpi.activeProjects ?? '—',
-      icon: '📋',
+      icon: 'projects' as const,
       color: '#15427e',
     },
     {
@@ -324,31 +326,31 @@ export default function DashboardPage() {
       value: data
         ? formatCompact(data.kpi.monthlyRevenue)
         : '—',
-      icon: '💰',
+      icon: 'money' as const,
       color: '#1e8a5a',
     },
     {
       title: 'התראות פתוחות',
       value: data?.kpi.openAlerts ?? '—',
-      icon: '⚠️',
+      icon: 'warning' as const,
       color: '#c0392b',
     },
     {
       title: 'הצעות מחיר פתוחות',
       value: data?.kpi.openQuotes ?? '—',
-      icon: '📝',
+      icon: 'note' as const,
       color: '#1a73b8',
     },
     {
       title: 'טיוטות יבוא לבדיקה',
       value: data?.kpi.importDrafts ?? '—',
-      icon: '🚢',
+      icon: 'ship' as const,
       color: '#c9821a',
     },
     {
       title: 'משלוחים בדרך',
       value: data?.kpi.shipmentsEnRoute ?? '—',
-      icon: '🚢',
+      icon: 'ship' as const,
       color: '#2aa7c4',
     },
   ];
@@ -379,7 +381,7 @@ export default function DashboardPage() {
           {/* Error banner */}
           {error && (
             <div className="bg-danger-soft border border-danger rounded-xl p-4 mb-5 flex items-center gap-3">
-              <span className="text-2xl">❌</span>
+              <span className="text-danger"><Icon name="error" size={24} /></span>
               <div>
                 <p className="text-lg font-semibold text-danger">שגיאת חיבור</p>
                 <p className="text-sm text-danger">{error}</p>
@@ -399,21 +401,21 @@ export default function DashboardPage() {
               onClick={() => router.push('/projects/new')}
               className="flex items-center gap-2 bg-primary text-white text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors"
             >
-              <span>➕</span>
+              <Icon name="add" size={20} />
               <span>פרויקט חדש</span>
             </button>
             <button
               onClick={openQuickUpdate}
               className="flex items-center gap-2 bg-white border border-line-subtle text-content-body text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors"
             >
-              <span>📝</span>
+              <Icon name="note" size={20} />
               <span>עדכון פרויקט</span>
             </button>
             <button
               onClick={openReport}
               className="flex items-center gap-2 bg-white border border-line-subtle text-content-body text-lg font-medium px-4 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors"
             >
-              <span>📈</span>
+              <Icon name="reports" size={20} />
               <span>יצירת דוחות</span>
             </button>
           </div>
@@ -450,10 +452,15 @@ export default function DashboardPage() {
                 <ActivityLog refreshTrigger={0} />
               </div>
 
+              {/* Delivered, awaiting invoice */}
+              <div className="animate-fade-in-up-delay-2">
+                <PendingInvoicesWidget />
+              </div>
+
               {/* Shipments en route */}
               <div className="animate-fade-in-up-delay-2">
                 <div className="bg-white rounded-xl border border-line-subtle p-5">
-                  <h3 className="text-lg font-bold text-content-body mb-3">🚢 משלוחים בדרך</h3>
+                  <h3 className="text-lg font-bold text-content-body mb-3"><Icon name="ship" size={20} /> משלוחים בדרך</h3>
                   {loading ? (
                     <div className="space-y-2">
                       {[1, 2].map((i) => (
@@ -502,7 +509,7 @@ export default function DashboardPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuickUpdate(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-content-body">📝 עדכון מהיר לפרויקט</h3>
+                <h3 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> עדכון מהיר לפרויקט</h3>
                 <button onClick={() => setShowQuickUpdate(false)} className="text-neutral-400 hover:text-content-body">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
@@ -601,18 +608,18 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-content-body">📊 דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
+                <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
                 <div className="flex items-center gap-2">
                   {reportData && (
                     <>
                       <button onClick={copyReport} className="text-sm bg-neutral-100 text-content-body px-3 py-1.5 rounded-lg hover:bg-neutral-200 transition-colors">
-                        {reportCopied ? '✓ הועתק' : '📋 העתק'}
+                        {reportCopied ? <><Icon name="confirm" size={16} /> הועתק</> : <><Icon name="copy" size={16} /> העתק</>}
                       </button>
                       <button onClick={emailReport} className="text-sm bg-azure-100 text-primary px-3 py-1.5 rounded-lg hover:bg-azure-100 transition-colors">
-                        📧 מייל
+                        <Icon name="email" size={16} /> מייל
                       </button>
                       <button onClick={whatsappReport} className="text-sm bg-success-soft text-success px-3 py-1.5 rounded-lg hover:bg-success-soft transition-colors">
-                        💬 WhatsApp
+                        <Icon name="whatsapp" size={16} /> WhatsApp
                       </button>
                     </>
                   )}
@@ -655,7 +662,7 @@ export default function DashboardPage() {
                     {/* Expected revenue — next 3 months */}
                     <div className="bg-white border border-line-subtle rounded-xl p-4">
                       <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
-                        <span>📋</span> הכנסות צפויות לשלושה חודשים הקרובים
+                        <Icon name="clipboard" size={18} /> הכנסות צפויות לשלושה חודשים הקרובים
                       </h4>
                       {reportData.totalNext3 > 0 ? (
                         <div className="space-y-2">
@@ -690,7 +697,7 @@ export default function DashboardPage() {
                     {/* 100% Certain */}
                     <div className="bg-white border border-line-subtle rounded-xl p-4">
                       <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
-                        <span>💯</span> פרויקטים בסטטוס "הזמנה" (100%)
+                        <Icon name="percent" size={18} /> פרויקטים בסטטוס "הזמנה" (100%)
                       </h4>
                       {reportData.certain.length > 0 ? (
                         <div className="space-y-1.5">
@@ -713,7 +720,7 @@ export default function DashboardPage() {
                     {/* High probability */}
                     <div className="bg-white border border-line-subtle rounded-xl p-4">
                       <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
-                        <span>📈</span> פרויקטים בהסתברות גבוהה לביצוע בשנת {reportData.currentYear}
+                        <Icon name="trend" size={18} /> פרויקטים בהסתברות גבוהה לביצוע בשנת {reportData.currentYear}
                       </h4>
                       {reportData.highProb.length > 0 ? (
                         <div className="space-y-1.5">

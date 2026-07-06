@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import CustomerForm from '@/components/customers/CustomerForm';
 import { isSimilarName } from '@/components/projects/CompanyAutocomplete';
+import Icon from '@/components/ui/Icon';
 
 interface Customer {
   id: string;
@@ -83,7 +84,7 @@ export default function CustomersPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" dir="rtl">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-content-strong">👥 לקוחות</h1>
+        <h1 className="text-2xl font-bold text-content-strong"><Icon name="customers" size={24} /> לקוחות</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-neutral-400">{filtered.length} לקוחות</span>
           <button onClick={() => setShowForm(true)} className="text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">+ לקוח חדש</button>
@@ -100,7 +101,7 @@ export default function CustomersPage() {
 
       {dupPairs.length > 0 && (
         <div className="bg-warning-soft border border-warning rounded-xl p-4 mb-5">
-          <p className="text-sm font-semibold text-warning mb-2">⚠️ כפילויות אפשריות ({dupPairs.length})</p>
+          <p className="text-sm font-semibold text-warning mb-2"><Icon name="warning" size={16} /> כפילויות אפשריות ({dupPairs.length})</p>
           <div className="space-y-1">
             {dupPairs.map(([a, b], idx) => (
               <div key={idx} className="text-[13px] text-warning flex items-center gap-2 flex-wrap">

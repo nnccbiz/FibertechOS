@@ -4,20 +4,36 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { validateWrite, rejectionMessage, logRejection } from '@/lib/ai/write-allowlist';
+import { logAiAction } from '@/lib/ai/activity-log';
+import { executePendingAction } from '@/lib/ai/execute-action';
+import type { PendingAction } from '@/lib/ai/roxy-tools';
+import Icon, { type IconName } from '@/components/ui/Icon';
 
 interface AiMessage {
   role: 'user' | 'ai';
   text: string;
+  /** Write proposal awaiting the user's explicit approval */
+  pending?: PendingAction;
+  /** The user command that produced the proposal (for the audit log) */
+  pendingCommand?: string;
+  /** 'approved' | 'cancelled' once the user decided */
+  pendingResolved?: string;
 }
+
+const GREETING: AiMessage = {
+  role: 'ai',
+  text: 'היי! אני רקסי 👋\nאפשר לשאול אותי על פרויקטים, הצעות מחיר, משימות, מלאי ולקוחות — או לגרור אליי קובץ קוטציה של ספק. במה לעזור?',
+};
 
 const CONTEXT_MAP: Record<string, string> = {
   '/': 'לוח בקרה',
   '/projects': 'פרויקטים',
-  '/marketing': 'שיווק',
-  '/import': 'ייבוא',
-  '/field': 'שירות שדה',
-  '/inventory': 'מלאי',
-  '/reports': 'דוחות',
+  '/drawings': 'שרטוטים',
+  '/customers': 'לקוחות',
+  '/import': 'יבוא',
+  '/logistics': 'לוגיסטיקה',
+  '/production': 'ייצור',
+  '/forms': 'טפסים',
   '/settings': 'הגדרות',
 };
 
@@ -25,6 +41,36 @@ function getContext(pathname: string): string {
   if (pathname === '/') return 'לוח בקרה';
   const match = Object.entries(CONTEXT_MAP).find(([key]) => key !== '/' && pathname.startsWith(key));
   return match?.[1] || 'כללי';
+}
+
+// Renders Roxy's text with clickable [label](path) links — internal paths stay
+// in-app, external URLs open a new tab.
+function MessageText({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]+\]\([^)\s]+\))/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+        if (!m) return <span key={i}>{part}</span>;
+        const [, label, href] = m;
+        if (href.startsWith('/')) {
+          return (
+            <a key={i} href={href} className="underline font-semibold text-azure-600 hover:text-azure">
+              {label}
+            </a>
+          );
+        }
+        if (/^https?:\/\//.test(href)) {
+          return (
+            <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-azure-600 hover:text-azure">
+              {label}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
 }
 
 export default function FloatingChat() {
@@ -36,6 +82,8 @@ export default function FloatingChat() {
   const [isRecording, setIsRecording] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<any>(null);
   const [pendingImport, setPendingImport] = useState<{ step: 'ask_project' | 'confirm'; quote_info: any; items: any[]; projectName?: string } | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [executingAction, setExecutingAction] = useState(false);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,9 +92,41 @@ export default function FloatingChat() {
   const router = useRouter();
   const context = getContext(pathname);
 
+  // Resume the latest conversation from the DB (full history is persisted).
   useEffect(() => {
-    setMessages([{ role: 'ai', text: `היי! אני רקסי. איך אפשר לעזור?` }]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: conv } = await supabase.from('roxy_conversations')
+          .select('id').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (cancelled || !conv) { if (!cancelled) setMessages([GREETING]); return; }
+        const { data: rows } = await supabase.from('roxy_messages')
+          .select('role, content')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true })
+          .limit(60);
+        if (cancelled) return;
+        const restored: AiMessage[] = (rows || [])
+          .filter((m: any) => (m.content || '').trim())
+          .map((m: any) => ({ role: m.role === 'user' ? 'user' : 'ai', text: m.content }));
+        setConversationId(conv.id);
+        setMessages(restored.length ? restored : [GREETING]);
+      } catch {
+        if (!cancelled) setMessages([GREETING]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  function startNewConversation() {
+    setConversationId(null);
+    setMessages([GREETING]);
+    setPendingQuote(null);
+    setPendingImport(null);
+    setInput('');
+    inputRef.current?.focus();
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -217,6 +297,12 @@ export default function FloatingChat() {
             }
             await supabase.from('supplier_quote_items').insert(rows);
           }
+          await logAiAction(supabase, {
+            command: userMsg, actionType: 'import', targetTable: 'supplier_quotes',
+            targetId: sq?.id, targetLabel: qi.supplier_name || 'ספק',
+            summary: `נשמרה קוטציית ספק מ-${qi.supplier_name || 'ספק'} (${items.length} פריטים)`,
+            changes: { quote_ref: qi.quote_ref, items: items.length }, fieldsCount: items.length,
+          });
           setMessages((prev) => [...prev, { role: 'ai', text: `✅ נשמר בהצלחה — ${items.length} פריטים מ-${qi.supplier_name || 'ספק'} (Ref: ${qi.quote_ref || '—'})` }]);
         } catch (err: any) {
           setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה בשמירה: ${err.message}` }]);
@@ -307,6 +393,12 @@ export default function FloatingChat() {
             }));
             await supabase.from('cost_input_items').insert(rows);
 
+            await logAiAction(supabase, {
+              command: userMsg, actionType: 'import', targetTable: 'cost_inputs',
+              targetId: ci.id, targetLabel: pendingImport.projectName,
+              summary: `יובאו ${rows.length} פריטי תמחור מ-${qi.supplier_name || 'ספק'} לפרויקט "${pendingImport.projectName}"`,
+              changes: { supplier: qi.supplier_name, items: rows.length, currency }, fieldsCount: rows.length,
+            });
             setMessages((prev) => [...prev, { role: 'ai', text: `✅ ${rows.length} פריטים מ-${qi.supplier_name || 'ספק'}${qi.quote_ref ? ` (Ref: ${qi.quote_ref})` : ''} נשמרו לתמחור של פרויקט "${pendingImport.projectName}".\n⚠️ עדכן את שער החליפין בלשונית תמחור בדף הפרויקט.` }]);
           } catch (err: any) {
             setMessages((prev) => [...prev, { role: 'ai', text: `❌ שגיאה: ${err.message}` }]);
@@ -327,6 +419,35 @@ export default function FloatingChat() {
           return;
         }
       }
+    }
+
+    // Text-only messages go to the conversational engine (tool-loop, history,
+    // permissions-aware). File uploads keep the dedicated extraction path below.
+    if (filesToUse.length === 0) {
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: conversationId, message: userMsg, context }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setMessages((prev) => [...prev, { role: 'ai', text: data.error || 'משהו השתבש אצלי. נסה שוב בעוד רגע.' }]);
+        } else {
+          if (data.conversation_id) setConversationId(data.conversation_id);
+          setMessages((prev) => [...prev, {
+            role: 'ai',
+            text: data.reply,
+            pending: data.pending_action || undefined,
+            pendingCommand: userMsg,
+          }]);
+        }
+      } catch {
+        setMessages((prev) => [...prev, { role: 'ai', text: 'הייתה בעיית תקשורת. בדוק את החיבור ונסה שוב.' }]);
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
 
     try {
@@ -489,6 +610,31 @@ export default function FloatingChat() {
     }
   }
 
+  // The user clicked אשר/בטל on a Roxy write proposal.
+  async function resolvePending(index: number, approve: boolean) {
+    const msg = messages[index];
+    if (!msg?.pending || msg.pendingResolved || executingAction) return;
+    const supabase = createClient();
+    setExecutingAction(true);
+    try {
+      let outcome: string;
+      if (approve) {
+        const result = await executePendingAction(supabase, msg.pending, msg.pendingCommand || '');
+        outcome = result.ok ? `✅ ${result.message}` : `⚠️ ${result.message}`;
+      } else {
+        outcome = 'בסדר, ביטלתי — שום דבר לא השתנה.';
+      }
+      setMessages((prev) => prev
+        .map((m, i) => (i === index ? { ...m, pendingResolved: approve ? 'approved' : 'cancelled' } : m))
+        .concat([{ role: 'ai', text: outcome }]));
+      if (conversationId) {
+        await supabase.from('roxy_messages').insert({ conversation_id: conversationId, role: 'assistant', content: outcome });
+      }
+    } finally {
+      setExecutingAction(false);
+    }
+  }
+
   const isMac = typeof navigator !== 'undefined' && navigator.platform?.includes('Mac');
   const shortcutLabel = isMac ? '⌘K' : 'Ctrl+K';
 
@@ -508,7 +654,7 @@ export default function FloatingChat() {
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         ) : (
-          <span className="text-3xl">✨</span>
+          <Icon name="ai" size={28} />
         )}
       </button>
 
@@ -525,21 +671,30 @@ export default function FloatingChat() {
           {/* Header */}
           <div className="px-4 py-3 bg-azure-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">✨</span>
+              <Icon name="ai" size={24} className="text-azure-600" />
               <div>
                 <p className="text-lg font-bold text-azure-600">רקסי AI</p>
                 <p className="text-[12px] text-navy-500">{context}</p>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-navy-300 hover:text-azure-600 transition-colors"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={startNewConversation}
+                title="שיחה חדשה"
+                className="text-navy-300 hover:text-azure-600 transition-colors p-1"
+              >
+                <Icon name="add" size={18} />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-navy-300 hover:text-azure-600 transition-colors p-1"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -553,7 +708,31 @@ export default function FloatingChat() {
                       : 'bg-neutral-100 text-content-body rounded-tl-none'
                   }`}
                 >
-                  {msg.text}
+                  {msg.role === 'ai' ? <MessageText text={msg.text} /> : msg.text}
+                  {msg.pending && !msg.pendingResolved && (
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-line-subtle">
+                      <button
+                        onClick={() => resolvePending(i, true)}
+                        disabled={executingAction}
+                        className="text-[12px] bg-success text-white px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <Icon name="confirm" size={14} /> אשר
+                      </button>
+                      <button
+                        onClick={() => resolvePending(i, false)}
+                        disabled={executingAction}
+                        className="text-[12px] bg-neutral-200 text-content-body px-3 py-1 rounded-lg hover:bg-neutral-300 disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <Icon name="close" size={14} /> בטל
+                      </button>
+                    </div>
+                  )}
+                  {msg.pendingResolved === 'approved' && (
+                    <div className="mt-1.5 text-[11px] text-success inline-flex items-center gap-1"><Icon name="success" size={12} /> אושר</div>
+                  )}
+                  {msg.pendingResolved === 'cancelled' && (
+                    <div className="mt-1.5 text-[11px] text-content-muted">בוטל</div>
+                  )}
                 </div>
               </div>
             ))}
@@ -576,20 +755,20 @@ export default function FloatingChat() {
             <div className="px-3 py-2 border-t border-line-subtle space-y-1.5 flex-shrink-0 max-h-[120px] overflow-y-auto">
               {uploadedFiles.map((file, i) => {
                 const ext = file.name.split('.').pop()?.toLowerCase() || '';
-                const icon = file.mimeType.startsWith('image/') ? '🖼️'
-                  : ext === 'pdf' ? '📕'
-                  : ['xls', 'xlsx', 'csv'].includes(ext) ? '📊'
-                  : ['doc', 'docx'].includes(ext) ? '📝'
-                  : '📄';
+                const icon: IconName = file.mimeType.startsWith('image/') ? 'image'
+                  : ext === 'pdf' ? 'pdf'
+                  : ['xls', 'xlsx', 'csv'].includes(ext) ? 'excel'
+                  : ['doc', 'docx'].includes(ext) ? 'doc'
+                  : 'file';
                 return (
                   <div key={i} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-2.5 py-1.5 group">
-                    <span className="text-lg flex-shrink-0">{icon}</span>
+                    <span className="flex-shrink-0 text-primary"><Icon name={icon} size={18} /></span>
                     <span className="text-[12px] text-content-body truncate flex-1" dir="ltr">{file.name}</span>
                     <button
                       onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
                       className="text-neutral-300 hover:text-danger text-sm flex-shrink-0 transition-colors"
                     >
-                      ✕
+                      <Icon name="close" size={16} />
                     </button>
                   </div>
                 );
