@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
 import DeliveriesPanel from '@/components/import/DeliveriesPanel';
+import ReceiptsPanel from '@/components/import/ReceiptsPanel';
 import { Button } from '@/components/ui/Button';
 import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
 import Icon, { type IconName } from '@/components/ui/Icon';
@@ -101,6 +102,10 @@ export default function ImportPage() {
       supabase.from('projects').select('id, name, client_name').order('name'),
     ]);
     const { data: exemptions } = await supabase.from('import_quote_exemptions').select('quote_id, reason');
+    const [{ data: receipts }, { data: receiptLines }] = await Promise.all([
+      supabase.from('purchase_receipts').select('*').order('created_at', { ascending: false }),
+      supabase.from('purchase_receipt_lines').select('*'),
+    ]);
     const { data: sq } = await supabase
       .from('quotes')
       .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
@@ -121,7 +126,7 @@ export default function ImportPage() {
     setData({
       orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
-      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], exemptions: exemptions || [], cross,
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], exemptions: exemptions || [], receipts: receipts || [], receiptLines: receiptLines || [], cross,
     });
     setLoading(false);
   }
@@ -193,6 +198,67 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
   const shown = rows.filter((r: any) =>
     filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.exempt) : !!r.order);
 
+  // One-click purchase order: built from the quote's cost input — supplier,
+  // items, currency all already in the system. Nitzan confirms, not retypes.
+  async function createPO(q: any) {
+    const { data: quote } = await supabase.from('quotes').select('id, quote_number, cost_input_id, project_id').eq('id', q.id).single();
+    if (!quote?.cost_input_id) { alert('להצעה אין תמחור ספק מקושר — צור הזמנת רכש ידנית.'); return; }
+    const [{ data: ci }, { data: items }] = await Promise.all([
+      supabase.from('cost_inputs').select('source_name, currency, payment_terms').eq('id', quote.cost_input_id).single(),
+      supabase.from('cost_input_items').select('*').eq('cost_input_id', quote.cost_input_id).order('sort_order'),
+    ]);
+    if (!items?.length) { alert('התמחור המקושר ריק.'); return; }
+    const itemCur = items.find((i: any) => i.original_currency && i.original_currency !== 'ILS')?.original_currency;
+    const currency = (ci?.currency && ci.currency !== 'ILS') ? ci.currency : (itemCur || 'ILS');
+
+    // Supplier: match by name, create if new.
+    let supplierId: string | null = null;
+    if (ci?.source_name) {
+      const { data: sup } = await supabase.from('suppliers').select('id').ilike('name', `%${ci.source_name}%`).limit(1).maybeSingle();
+      if (sup) supplierId = sup.id;
+      else {
+        const { data: ns } = await supabase.from('suppliers').insert({ name: ci.source_name, currency }).select('id').single();
+        supplierId = ns?.id || null;
+      }
+    }
+    const { data: custOrder } = await supabase.from('orders').select('id, ms_number').eq('quote_id', q.id).maybeSingle();
+    const { data: poNumber } = await supabase.rpc('next_doc_number', { p_kind: 'po' });
+    const unitPrice = (it: any) => Number(it.original_price) || Number(it.cost_price) || 0;
+    const total = items.reduce((sum: number, it: any) => sum + unitPrice(it) * (Number(it.quantity) || 0), 0);
+
+    const { data: po, error } = await supabase.from('import_orders').insert({
+      supplier_id: supplierId,
+      project_id: quote.project_id || null,
+      project_name: projNameById[quote.project_id] || null,
+      quote_id: q.id,
+      customer_order_id: custOrder?.id || null,
+      po_number: poNumber || null,
+      currency,
+      payment_terms: ci?.payment_terms || null,
+      total_amount: Math.round(total * 100) / 100,
+      order_date: new Date().toISOString().slice(0, 10),
+      status: 'planned',
+      origin: 'manual_from_quote',
+      procurement_type: currency === 'ILS' ? 'domestic' : 'import',
+    }).select('id').single();
+    if (error || !po) { alert(`שגיאה: ${error?.message}`); return; }
+
+    await supabase.from('import_order_items').insert(items.map((it: any, idx: number) => ({
+      import_order_id: po.id,
+      line_no: idx + 1,
+      description: it.product_name || null,
+      dn: parseInt(String(it.dn_size || '').replace(/\D/g, ''), 10) || null,
+      pn: it.pn ?? null,
+      sn: it.sn ?? null,
+      unit: it.unit || null,
+      ordered_qty: Number(it.quantity) || 0,
+      unit_price: unitPrice(it),
+      sort_order: idx,
+    })));
+    alert(`הזמנת רכש ${poNumber || ''} נוצרה מ-${items.length} שורות התמחור${custOrder?.ms_number ? ` · מ"ס ${custOrder.ms_number}` : ''}.`);
+    onUpdate();
+  }
+
   async function toggleExempt(q: any, exempt: boolean) {
     if (exempt) {
       const { data: { user } } = await supabase.auth.getUser();
@@ -253,7 +319,8 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                           ? (canEdit && <button onClick={() => toggleExempt(q, false)} className="text-[11px] text-neutral-400 hover:text-primary hover:underline">החזר לרשימה</button>)
                           : (
                             <span className="inline-flex items-center gap-2">
-                              <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">פתח הזמנה <Icon name="zap" size={14} /></button>
+                              {canEdit && <button onClick={() => createPO(q)} className="text-[12px] font-semibold text-primary hover:underline"><Icon name="add" size={12} /> צור הזמנת רכש</button>}
+                              <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">מסמכים <Icon name="zap" size={14} /></button>
                               {canEdit && <button onClick={() => toggleExempt(q, true)} className="text-[11px] text-neutral-400 hover:text-content-body hover:underline">לא רלוונטי ליבוא</button>}
                             </span>
                           )}
@@ -294,7 +361,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [releasing, setReleasing] = useState(false);
-  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'deliveries' | 'map'>('items');
+  const [tab, setTab] = useState<'items' | 'invoices' | 'coa' | 'docs' | 'receipts' | 'deliveries' | 'map'>('items');
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.open;
   const prod = order.quote_id ? data.cross?.[order.quote_id]?.production : null;
   const prodSt = prod ? (PROD_STATUS_LABEL[prod.status] || { label: prod.status, color: 'bg-neutral-100 text-content-body' }) : null;
@@ -391,7 +458,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
       {open && (
         <div className="border-t border-line-subtle bg-neutral-50 px-5 py-4">
           <div className="flex gap-2 mb-3 border-b border-line-subtle">
-            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['deliveries', 'תעודות משלוח'], ['map', 'מפת קשרים']] as const).map(([k, l]) => (
+            {([['items', 'פריטים'], ['invoices', 'חשבוניות'], ['coa', 'COA'], ['docs', 'מסמכים'], ['receipts', 'קליטה למלאי'], ['deliveries', 'תעודות משלוח'], ['map', 'מפת קשרים']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} className={`text-[13px] px-3 py-2 -mb-px border-b-2 ${tab === k ? 'border-primary text-primary font-semibold' : 'border-transparent text-content-muted'}`}>{l}</button>
             ))}
           </div>
@@ -446,6 +513,8 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           {tab === 'invoices' && <InvoicesSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'coa' && <CoaSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
           {tab === 'docs' && <DocsSection order={order} data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={onUpdate} />}
+          {tab === 'receipts' && <ReceiptsPanel order={order} data={data} canEdit={canEdit} onUpdate={onUpdate} />}
+
           {tab === 'deliveries' && <DeliveriesPanel order={order} data={data} canEdit={canEdit} onUpdate={onUpdate} />}
 
           {tab === 'map' && <RelationshipMap order={order} data={data} />}
@@ -580,7 +649,20 @@ function InvoicesSection({ order, data, canEdit, canDelete, onUpdate }: any) {
         {rows.map((iv: any) => (
           <div key={iv.id} className="flex items-center justify-between bg-white border border-line-subtle rounded-lg px-3 py-2 text-[13px]">
             <div><span className="font-semibold text-content-body" dir="ltr"><Icon name="invoice" size={14} /> {iv.invoice_no}</span><span className="text-neutral-400 mr-2">{iv.invoice_type === 'proforma' ? 'PI' : 'CI'}</span><span className="text-content-muted mr-2">{fmtDate(iv.invoice_date)}</span></div>
-            <div className="flex items-center gap-3"><span className="text-content-body font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>{canDelete && <button onClick={() => del(iv.id)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button>}</div>
+            <div className="flex items-center gap-3">
+              <span className="text-content-body font-medium">{money(iv.final_amount ?? iv.net_value, iv.currency)}</span>
+              {iv.booked
+                ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold" title={iv.booking_ref ? `מס' קליטה ${iv.booking_ref}` : ''}><Icon name="confirm" size={11} /> נקלטה בהנה"ח</span>
+                : canEdit && (
+                  <button onClick={async () => {
+                    const ref = prompt('מס\' קליטה בהנה"ח (אופציונלי):') ?? '';
+                    const { data: { user } } = await supabase.auth.getUser();
+                    await supabase.from('import_invoices').update({ booked: true, booked_at: new Date().toISOString(), booked_by: user?.id || null, booking_ref: ref.trim() || null }).eq('id', iv.id);
+                    onUpdate();
+                  }} className="text-[11px] font-semibold text-primary hover:underline">נקלטה בהנה"ח</button>
+                )}
+              {canDelete && <button onClick={() => del(iv.id)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button>}
+            </div>
           </div>
         ))}
       </div>

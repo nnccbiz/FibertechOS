@@ -64,7 +64,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: 'search_inventory',
-    description: 'חיפוש במלאי: צינורות, אביזרים וחומרי סיכה. אפשר לסנן לפי קוטר (מ"מ) או קטגוריה.',
+    description: 'חיפוש ביתרות המלאי החי (נבנה מקליטות רכש ותעודות משלוח): צינורות, אביזרים וחומרי סיכה. אפשר לסנן לפי קוטר DN או קטגוריה.',
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -248,12 +248,13 @@ export async function executeRoxyTool(
       }
 
       case 'search_inventory': {
-        let q = sb.from('inventory')
-          .select('id, manufacturer, pipe_type, diameter_mm, pressure_bar, stiffness_sn, length_m, in_stock, category, notes')
-          .order('diameter_mm').limit(40);
-        if (args.diameter_mm) q = q.eq('diameter_mm', args.diameter_mm);
+        // Live balance derived from the movements ledger (receipts in, deliveries out).
+        let q = sb.from('inventory_balance')
+          .select('item_key, description, category, dn, pn, sn, length_m, unit, in_stock, total_in, total_out, last_movement')
+          .order('dn').limit(40);
+        if (args.diameter_mm) q = q.eq('dn', args.diameter_mm);
         if (args.category) q = q.eq('category', args.category);
-        if (args.query) q = q.or(`manufacturer.ilike.%${args.query}%,pipe_type.ilike.%${args.query}%,notes.ilike.%${args.query}%`);
+        if (args.query) q = q.or(`description.ilike.%${args.query}%,item_key.ilike.%${args.query}%`);
         const { data, error } = await q;
         if (error) return { error: error.message };
         return { inventory: clip(data, 40), count: data?.length || 0 };
