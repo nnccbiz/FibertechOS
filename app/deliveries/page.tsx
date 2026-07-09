@@ -10,8 +10,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import Icon from '@/components/ui/Icon';
+import { paymentDueDate } from '@/lib/inventory';
 
-type Filter = 'all' | 'awaiting_signature' | 'awaiting_invoice' | 'done';
+type Filter = 'all' | 'awaiting_signature' | 'awaiting_invoice' | 'awaiting_payment' | 'done';
 
 function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString('he-IL') : '—';
@@ -80,7 +81,8 @@ export default function DeliveriesPage() {
   const filtered = useMemo(() => rows.filter((d) => {
     if (filter === 'awaiting_signature') return !d.signed;
     if (filter === 'awaiting_invoice') return d.sent_to_accounting && !d.invoice_issued;
-    if (filter === 'done') return d.invoice_issued;
+    if (filter === 'awaiting_payment') return d.invoice_issued && !d.paid;
+    if (filter === 'done') return d.invoice_issued && d.paid;
     return true;
   }), [rows, filter]);
 
@@ -88,7 +90,8 @@ export default function DeliveriesPage() {
     all: rows.length,
     awaiting_signature: rows.filter((d) => !d.signed).length,
     awaiting_invoice: rows.filter((d) => d.sent_to_accounting && !d.invoice_issued).length,
-    done: rows.filter((d) => d.invoice_issued).length,
+    awaiting_payment: rows.filter((d) => d.invoice_issued && !d.paid).length,
+    done: rows.filter((d) => d.invoice_issued && d.paid).length,
   }), [rows]);
 
   async function openFile(path: string) {
@@ -101,14 +104,36 @@ export default function DeliveriesPage() {
   async function markInvoice(d: any) {
     const num = prompt('מספר החשבונית שהופקה:');
     if (!num?.trim()) return;
+    // Due date derived from the deal's customer payment terms (e.g. "שוטף+60").
+    let terms: string | null = null;
+    if (d.import_order_id) {
+      const { data: io } = await supabase.from('import_orders').select('quote_id').eq('id', d.import_order_id).single();
+      if (io?.quote_id) {
+        const { data: q } = await supabase.from('quotes').select('payment_terms').eq('id', io.quote_id).single();
+        terms = q?.payment_terms || null;
+      }
+    }
     await supabase.from('import_customer_deliveries')
-      .update({ invoice_issued: true, invoice_number: num.trim(), invoice_issued_at: new Date().toISOString() })
+      .update({
+        invoice_issued: true, invoice_number: num.trim(), invoice_issued_at: new Date().toISOString(),
+        payment_due_date: paymentDueDate(terms),
+      })
+      .eq('id', d.id);
+    load();
+  }
+
+  async function markPaid(d: any) {
+    if (!window.confirm(`לסמן שהתשלום על חשבונית ${d.invoice_number || ''} התקבל?`)) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('import_customer_deliveries')
+      .update({ paid: true, paid_at: new Date().toISOString(), paid_by: user?.id || null })
       .eq('id', d.id);
     load();
   }
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: 'awaiting_invoice', label: `ממתין לחשבונית (${counts.awaiting_invoice})` },
+    { key: 'awaiting_payment', label: `בגבייה (${counts.awaiting_payment})` },
     { key: 'awaiting_signature', label: `ממתין לחתימה (${counts.awaiting_signature})` },
     { key: 'done', label: `הושלם (${counts.done})` },
     { key: 'all', label: `הכל (${counts.all})` },
@@ -167,6 +192,12 @@ export default function DeliveriesPage() {
                       </span>
                     )}
                     {d.invoice_issued && <span className="px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold" dir="ltr">חשבונית {d.invoice_number}</span>}
+                    {d.invoice_issued && !d.paid && d.payment_due_date && (
+                      <span className={`px-2 py-0.5 rounded-full font-semibold ${new Date(d.payment_due_date) < new Date(new Date().toDateString()) ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
+                        לגבייה עד {fmtDate(d.payment_due_date)}
+                      </span>
+                    )}
+                    {d.paid && <span className="px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold"><Icon name="payment" size={11} /> שולם</span>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-[12px]">
@@ -175,6 +206,9 @@ export default function DeliveriesPage() {
                   {signedOrderDocs[d.id] && <button onClick={() => openFile(signedOrderDocs[d.id])} className="text-primary hover:underline"><Icon name="file" size={12} /> הזמנה חתומה</button>}
                   {canEdit && d.sent_to_accounting && !d.invoice_issued && (
                     <button onClick={() => markInvoice(d)} className="font-semibold text-success hover:underline"><Icon name="confirm" size={12} /> חשבונית הופקה</button>
+                  )}
+                  {canEdit && d.invoice_issued && !d.paid && (
+                    <button onClick={() => markPaid(d)} className="font-semibold text-success hover:underline"><Icon name="payment" size={12} /> התשלום התקבל</button>
                   )}
                 </div>
               </div>

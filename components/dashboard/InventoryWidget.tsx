@@ -4,16 +4,17 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Icon, { type IconName } from '@/components/ui/Icon';
 
-interface InventoryItem {
-  id: string;
-  manufacturer: string;
-  pipe_type: string;
-  diameter_mm: number;
-  pressure_bar: number | null;
-  stiffness_sn: number | null;
+// Live balance from the movements ledger (purchase receipts in, deliveries out).
+interface BalanceRow {
+  item_key: string;
+  description: string | null;
+  category: string | null;
+  dn: number | null;
+  pn: number | null;
+  sn: number | null;
   length_m: number | null;
+  unit: string | null;
   in_stock: number;
-  category: string;
 }
 
 interface CategorySummary {
@@ -22,8 +23,13 @@ interface CategorySummary {
   count: number;
 }
 
+function fmtQty(n: any) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? v.toLocaleString('he-IL') : v.toLocaleString('he-IL', { maximumFractionDigits: 2 });
+}
+
 export default function InventoryWidget() {
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [items, setItems] = useState<BalanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
@@ -32,14 +38,13 @@ export default function InventoryWidget() {
       const supabase = createClient();
       try {
         const { data, error } = await supabase
-          .from('inventory')
+          .from('inventory_balance')
           .select('*')
-          .order('manufacturer');
-
+          .order('category')
+          .order('dn');
         if (error) throw error;
-        setItems(data || []);
+        setItems((data || []) as BalanceRow[]);
       } catch {
-        // Table might not exist yet — show empty state
         setItems([]);
       } finally {
         setLoading(false);
@@ -48,25 +53,16 @@ export default function InventoryWidget() {
     fetchInventory();
   }, []);
 
+  const sumCat = (cat: string) =>
+    items.filter((i) => (i.category || 'צינורות') === cat).reduce((sum, i) => sum + (Number(i.in_stock) || 0), 0);
+
   const categories: CategorySummary[] = [
-    {
-      label: 'צינורות',
-      icon: 'wrench',
-      count: items.filter((i) => i.category === 'צינורות').reduce((sum, i) => sum + i.in_stock, 0),
-    },
-    {
-      label: 'אביזרים',
-      icon: 'gear',
-      count: items.filter((i) => i.category === 'אביזרים').reduce((sum, i) => sum + i.in_stock, 0),
-    },
-    {
-      label: 'חומרי סיכה',
-      icon: 'drop',
-      count: items.filter((i) => i.category === 'חומרי סיכה').reduce((sum, i) => sum + i.in_stock, 0),
-    },
+    { label: 'צינורות', icon: 'wrench', count: sumCat('צינורות') },
+    { label: 'אביזרים', icon: 'gear', count: sumCat('אביזרים') },
+    { label: 'חומרי סיכה', icon: 'drop', count: sumCat('חומרי סיכה') },
   ];
 
-  const pipeItems = items.filter((i) => i.category === 'צינורות');
+  const pipeItems = items.filter((i) => (i.category || 'צינורות') === 'צינורות' && Number(i.in_stock) !== 0);
 
   if (loading) {
     return (
@@ -85,14 +81,7 @@ export default function InventoryWidget() {
     <div className="bg-white rounded-xl border border-line-subtle p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-content-body"><Icon name="inventory" size={20} /> מלאי מהיר</h3>
-        {pipeItems.length > 0 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[12px] text-primary hover:underline"
-          >
-            {expanded ? 'סגור' : 'פירוט'}
-          </button>
-        )}
+        <a href="/inventory" className="text-[12px] text-primary hover:underline">למסך המלאי</a>
       </div>
 
       {/* Category summary tiles */}
@@ -101,40 +90,42 @@ export default function InventoryWidget() {
           <div key={cat.label} className="bg-neutral-50 rounded-lg p-3 text-center">
             <span className="block mb-1 text-primary"><Icon name={cat.icon} size={22} /></span>
             <p className="text-[12px] text-content-muted font-medium">{cat.label}</p>
-            <p className="text-lg font-bold text-content-body mt-0.5">
-              {cat.count > 0 ? cat.count : '—'}
+            <p className={`text-lg font-bold mt-0.5 ${cat.count < 0 ? 'text-danger' : 'text-content-body'}`}>
+              {cat.count !== 0 ? fmtQty(cat.count) : '—'}
             </p>
           </div>
         ))}
       </div>
 
+      {pipeItems.length > 0 && (
+        <button onClick={() => setExpanded(!expanded)} className="mt-2 text-[12px] text-primary hover:underline">
+          {expanded ? 'סגור' : 'פירוט'}
+        </button>
+      )}
+
       {/* Expanded table for pipes */}
       {expanded && pipeItems.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-2 overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-line-subtle">
-                <th className="text-right text-content-muted font-medium pb-1.5 pr-1">יצרן</th>
-                <th className="text-right text-content-muted font-medium pb-1.5">סוג</th>
-                <th className="text-right text-content-muted font-medium pb-1.5">קוטר</th>
-                <th className="text-right text-content-muted font-medium pb-1.5">לחץ</th>
+                <th className="text-right text-content-muted font-medium pb-1.5 pr-1">פריט</th>
+                <th className="text-right text-content-muted font-medium pb-1.5">DN</th>
+                <th className="text-right text-content-muted font-medium pb-1.5">PN</th>
                 <th className="text-right text-content-muted font-medium pb-1.5">SN</th>
-                <th className="text-right text-content-muted font-medium pb-1.5">אורך</th>
                 <th className="text-right text-content-muted font-medium pb-1.5">מלאי</th>
               </tr>
             </thead>
             <tbody>
               {pipeItems.map((item) => (
-                <tr key={item.id} className="border-b border-line-subtle">
-                  <td className="py-1.5 pr-1 text-content-body font-medium">{item.manufacturer}</td>
-                  <td className="py-1.5 text-content-body">{item.pipe_type}</td>
-                  <td className="py-1.5 text-content-body">{item.diameter_mm}mm</td>
-                  <td className="py-1.5 text-content-body">{item.pressure_bar ?? '—'}</td>
-                  <td className="py-1.5 text-content-body">{item.stiffness_sn ?? '—'}</td>
-                  <td className="py-1.5 text-content-body">{item.length_m ? `${item.length_m}m` : '—'}</td>
+                <tr key={item.item_key} className="border-b border-line-subtle">
+                  <td className="py-1.5 pr-1 text-content-body font-medium" dir="ltr">{item.description || item.item_key}</td>
+                  <td className="py-1.5 text-content-body" dir="ltr">{item.dn ?? '—'}</td>
+                  <td className="py-1.5 text-content-body" dir="ltr">{item.pn ?? '—'}</td>
+                  <td className="py-1.5 text-content-body" dir="ltr">{item.sn ?? '—'}</td>
                   <td className="py-1.5">
-                    <span className={`font-bold ${item.in_stock > 0 ? 'text-success' : 'text-danger'}`}>
-                      {item.in_stock}
+                    <span className={`font-bold ${Number(item.in_stock) > 0 ? 'text-success' : 'text-danger'}`} dir="ltr">
+                      {fmtQty(item.in_stock)}{item.unit ? ` ${item.unit}` : ''}
                     </span>
                   </td>
                 </tr>

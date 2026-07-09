@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/ui/SignaturePad';
 import Icon from '@/components/ui/Icon';
+import { itemKey, guessCategory, paymentDueDate } from '@/lib/inventory';
 
 function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString('he-IL') : '—';
@@ -83,8 +84,26 @@ export default function DeliveriesPanel({ order, data, canEdit, onUpdate }: any)
   async function markInvoice(delivery: any) {
     const num = prompt('מספר החשבונית שהופקה:');
     if (!num?.trim()) return;
+    // Payment due date from the quote's customer payment terms (e.g. "שוטף+60").
+    let terms: string | null = null;
+    if (order.quote_id) {
+      const { data: q } = await supabase.from('quotes').select('payment_terms').eq('id', order.quote_id).single();
+      terms = q?.payment_terms || null;
+    }
     await supabase.from('import_customer_deliveries')
-      .update({ invoice_issued: true, invoice_number: num.trim(), invoice_issued_at: new Date().toISOString() })
+      .update({
+        invoice_issued: true, invoice_number: num.trim(), invoice_issued_at: new Date().toISOString(),
+        payment_due_date: paymentDueDate(terms),
+      })
+      .eq('id', delivery.id);
+    onUpdate();
+  }
+
+  async function markPaid(delivery: any) {
+    if (!window.confirm(`לסמן שהתשלום על חשבונית ${delivery.invoice_number || ''} התקבל?`)) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('import_customer_deliveries')
+      .update({ paid: true, paid_at: new Date().toISOString(), paid_by: user?.id || null })
       .eq('id', delivery.id);
     onUpdate();
   }
@@ -119,6 +138,12 @@ export default function DeliveriesPanel({ order, data, canEdit, onUpdate }: any)
                   : <span className="px-2 py-0.5 rounded-full bg-warning-soft text-warning font-semibold">ממתינה לחתימה</span>}
                 {d.sent_to_accounting && !d.invoice_issued && <span className="px-2 py-0.5 rounded-full bg-azure-100 text-azure-600 font-semibold">אצל הנה"ח</span>}
                 {d.invoice_issued && <span className="px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold" dir="ltr">חשבונית {d.invoice_number}</span>}
+                {d.invoice_issued && !d.paid && d.payment_due_date && (
+                  <span className={`px-2 py-0.5 rounded-full font-semibold ${new Date(d.payment_due_date) < new Date(new Date().toDateString()) ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
+                    לגבייה עד {fmtDate(d.payment_due_date)}
+                  </span>
+                )}
+                {d.paid && <span className="px-2 py-0.5 rounded-full bg-success-soft text-success font-semibold"><Icon name="payment" size={11} /> שולם</span>}
               </div>
             </div>
 
@@ -142,6 +167,9 @@ export default function DeliveriesPanel({ order, data, canEdit, onUpdate }: any)
               {canEdit && d.sent_to_accounting && !d.invoice_issued && (
                 <button onClick={() => markInvoice(d)} className="font-semibold text-success hover:underline"><Icon name="confirm" size={12} /> חשבונית הופקה</button>
               )}
+              {canEdit && d.invoice_issued && !d.paid && (
+                <button onClick={() => markPaid(d)} className="font-semibold text-success hover:underline"><Icon name="payment" size={12} /> התשלום התקבל</button>
+              )}
             </div>
           </div>
         ))}
@@ -150,6 +178,7 @@ export default function DeliveriesPanel({ order, data, canEdit, onUpdate }: any)
       {showCreate && (
         <CreateDeliveryModal
           order={order} packing={packing} containersById={containersById} orderContainers={orderContainers}
+          orderItems={(data.items || []).filter((i: any) => i.import_order_id === order.id)}
           onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); onUpdate(); }}
         />
       )}
@@ -161,7 +190,7 @@ export default function DeliveriesPanel({ order, data, canEdit, onUpdate }: any)
 }
 
 // --- Create ---
-function CreateDeliveryModal({ order, packing, containersById, orderContainers, onClose, onCreated }: any) {
+function CreateDeliveryModal({ order, packing, containersById, orderContainers, orderItems, onClose, onCreated }: any) {
   const supabase = createClient();
   const [containerId, setContainerId] = useState<string>('');
   const [noteNumber, setNoteNumber] = useState('');
@@ -196,7 +225,7 @@ function CreateDeliveryModal({ order, packing, containersById, orderContainers, 
       const summary = containerId && containersById[containerId]
         ? `מכולה ${containersById[containerId].container_number} · ${containerLines.length} שורות · ${totalQty} יח'/מ'`
         : '';
-      const { error } = await supabase.from('import_customer_deliveries').insert({
+      const { data: created, error } = await supabase.from('import_customer_deliveries').insert({
         import_order_id: order.id,
         project_id: order.project_id || null,
         container_id: containerId || null,
@@ -208,8 +237,35 @@ function CreateDeliveryModal({ order, packing, containersById, orderContainers, 
         notes: notes.trim() || null,
         signed: false, sent_to_accounting: false, invoice_issued: false,
         created_by: user?.id || null,
-      });
-      if (error) { alert(`שגיאה: ${error.message}`); return; }
+      }).select('id').single();
+      if (error || !created) { alert(`שגיאה: ${error?.message}`); return; }
+
+      // Stock OUT — the goods left for the customer. PN/SN come from the
+      // matched PO line so the key matches the receipt's IN movement.
+      const movements = containerLines
+        .filter((p: any) => (Number(p.shipped_qty) || 0) > 0)
+        .map((p: any) => {
+          const item = (orderItems || []).find((i: any) => i.id === p.import_order_item_id)
+            || (orderItems || []).find((i: any) => i.dn != null && String(i.dn) === String(p.dn));
+          const desc = p.description || item?.description || null;
+          const spec = { description: desc, dn: p.dn ?? item?.dn ?? null, pn: item?.pn ?? null, sn: item?.sn ?? null, length_m: null };
+          return {
+            direction: 'out',
+            item_key: itemKey(spec),
+            description: desc || (spec.dn ? `DN${spec.dn}` : 'פריט'),
+            category: guessCategory(desc),
+            dn: spec.dn, pn: spec.pn, sn: spec.sn, length_m: null,
+            unit: p.unit || item?.unit || null,
+            qty: Number(p.shipped_qty),
+            project_id: order.project_id || null,
+            source_type: 'delivery', delivery_id: created.id,
+            created_by: user?.id || null,
+          };
+        });
+      if (movements.length) {
+        const { error: mvErr } = await supabase.from('inventory_movements').insert(movements);
+        if (mvErr) alert(`התעודה נוצרה אך עדכון המלאי נכשל: ${mvErr.message}`);
+      }
       onCreated();
     } finally { setSaving(false); }
   }

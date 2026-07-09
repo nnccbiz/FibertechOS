@@ -10,6 +10,7 @@
  *   5. delivery sent to accounting > 7d, invoice not issued
  *   6. factory work line's material arrived from import (stamps + notifies)
  *   7. factory work line stuck in progress > 14d
+ *   8. customer invoice past its payment due date, not collected yet
  *
  * Runs with the service-role admin client (it writes alerts across modules and
  * is not a model-driven write). Protected by CRON_SECRET: Vercel automatically
@@ -189,6 +190,22 @@ export async function GET(req: NextRequest) {
       type: `cron:work_stuck:${w.id}`,
       project_id: null,
       message: `🏭 שורת הייצור "${w.output_desc}" בעבודה כבר ${daysSince(w.started_at)} ימים בלי עדכון — לבדוק עם המפעל.`,
+    });
+  }
+
+  // Rule 8 — collection: invoice issued, payment due date passed, not paid.
+  const { data: overduePay } = await admin
+    .from('import_customer_deliveries')
+    .select('id, project_id, delivery_note_number, invoice_number, payment_due_date')
+    .eq('invoice_issued', true)
+    .eq('paid', false)
+    .not('payment_due_date', 'is', null)
+    .lt('payment_due_date', ymd(now));
+  for (const d of overduePay || []) {
+    candidates.push({
+      type: `cron:payment_overdue:${d.id}`,
+      project_id: d.project_id || null,
+      message: `💰 חשבונית ${d.invoice_number || ''} (תעודה ${d.delivery_note_number || ''}) עברה את מועד התשלום ${heDate(d.payment_due_date)} וטרם נגבתה — לטפל בגבייה (/deliveries).`,
     });
   }
 

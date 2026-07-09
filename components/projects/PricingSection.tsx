@@ -500,11 +500,11 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
           </>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1">
+            <div className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[680px]">
               <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1">
+              <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 min-w-[680px]">
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
@@ -1180,14 +1180,14 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1">
+        <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[920px]">
           <span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
           return (
           <div key={idx}>
-          <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1">
+          <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 min-w-[920px]">
             <AutoTextarea value={item.product_name} onChange={(v) => p.updateItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 w-full" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
@@ -1272,7 +1272,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line-subtle">
-      <table className="w-full text-sm border-collapse">
+      <table className="w-full text-sm border-collapse" style={{ minWidth: 780 }}>
         <colgroup>
           <col />
           <col style={{ width: '52px' }} />
