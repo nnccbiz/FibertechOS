@@ -188,18 +188,16 @@ export default function DashboardPage() {
       const detMap: Record<string, string> = {};
       allDet.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
 
-      // 1. Expected revenue in the next 3 months (projects with deliveries)
+      // 1. Expected revenue for every remaining month until the end of the year
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
-      const next3Months: { month: number; year: number; key: string; label: string }[] = [];
-      for (let i = 0; i < 3; i++) {
-        const m = ((currentMonth - 1 + i) % 12) + 1;
-        const y = currentYear + Math.floor((currentMonth - 1 + i) / 12);
-        next3Months.push({ month: m, year: y, key: `${y}-${m}`, label: `${MONTH_NAMES[m]} ${y}` });
+      const monthsUntilYearEnd: { month: number; year: number; key: string; label: string }[] = [];
+      for (let m = currentMonth; m <= 12; m++) {
+        monthsUntilYearEnd.push({ month: m, year: currentYear, key: `${currentYear}-${m}`, label: `${MONTH_NAMES[m]} ${currentYear}` });
       }
 
-      const next3MonthsData: { month: string; projects: { name: string; value: number }[]; total: number }[] = [];
-      next3Months.forEach((nm) => {
+      const monthlyRevenueData: { month: string; projects: { name: string; value: number }[]; total: number }[] = [];
+      monthsUntilYearEnd.forEach((nm) => {
         const monthProjects: { name: string; value: number }[] = [];
         allProj.forEach((p: any) => {
           const monthsList = detMap[p.id];
@@ -211,9 +209,9 @@ export default function DashboardPage() {
           monthProjects.push({ name: p.name, value: perMonth });
         });
         const total = monthProjects.reduce((s, mp) => s + mp.value, 0);
-        next3MonthsData.push({ month: nm.label, projects: monthProjects, total });
+        monthlyRevenueData.push({ month: nm.label, projects: monthProjects, total });
       });
-      const totalNext3 = next3MonthsData.reduce((s, m) => s + m.total, 0);
+      const totalUntilYearEnd = monthlyRevenueData.reduce((s, m) => s + m.total, 0);
 
       // 2. 100% certain (realization_status = 'הזמנה') — all, not just this year
       const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
@@ -225,8 +223,8 @@ export default function DashboardPage() {
 
       setReportData({
         currentYear,
-        next3MonthsData,
-        totalNext3,
+        monthlyRevenueData,
+        totalUntilYearEnd,
         certain,
         totalCertain,
         highProb,
@@ -248,17 +246,17 @@ export default function DashboardPage() {
     text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
     text += `${'═'.repeat(40)}\n\n`;
 
-    text += `📋 הכנסות צפויות לשלושה חודשים הקרובים\n`;
+    text += `📋 הכנסות צפויות עד סוף שנת ${r.currentYear}\n`;
     text += `${'─'.repeat(30)}\n`;
-    if (r.totalNext3 > 0) {
-      r.next3MonthsData.forEach((m: any) => {
+    if (r.totalUntilYearEnd > 0) {
+      r.monthlyRevenueData.forEach((m: any) => {
         if (m.total > 0) {
           text += `${m.month}: ${fmtILS(Math.round(m.total))}`;
           if (m.projects.length <= 3) text += ` (${m.projects.map((p: any) => p.name).join(', ')})`;
           text += '\n';
         }
       });
-      text += `סה"כ 3 חודשים: ${fmtILS(Math.round(r.totalNext3))}\n`;
+      text += `סה"כ עד סוף השנה: ${fmtILS(Math.round(r.totalUntilYearEnd))}\n`;
     } else {
       text += `אין אספקות צפויות\n`;
     }
@@ -643,8 +641,8 @@ export default function DashboardPage() {
                     {/* Summary cards */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-success-soft border border-success rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-success font-semibold">3 חודשים קרובים</p>
-                        <p className="text-lg font-bold text-success">{formatILS(Math.round(reportData.totalNext3))}</p>
+                        <p className="text-[12px] text-success font-semibold">עד סוף {reportData.currentYear}</p>
+                        <p className="text-lg font-bold text-success">{formatILS(Math.round(reportData.totalUntilYearEnd))}</p>
                         <p className="text-[11px] text-success">הכנסות צפויות</p>
                       </div>
                       <div className="bg-azure-100 border border-azure rounded-xl p-3 text-center">
@@ -659,14 +657,14 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Expected revenue — next 3 months */}
+                    {/* Expected revenue — every remaining month until year end */}
                     <div className="bg-white border border-line-subtle rounded-xl p-4">
                       <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
-                        <Icon name="clipboard" size={18} /> הכנסות צפויות לשלושה חודשים הקרובים
+                        <Icon name="clipboard" size={18} /> הכנסות צפויות עד סוף שנת {reportData.currentYear}
                       </h4>
-                      {reportData.totalNext3 > 0 ? (
+                      {reportData.totalUntilYearEnd > 0 ? (
                         <div className="space-y-2">
-                          {reportData.next3MonthsData.map((m: any, idx: number) => (
+                          {reportData.monthlyRevenueData.filter((m: any) => m.total > 0).map((m: any, idx: number) => (
                             <div key={idx} className="rounded-lg border border-success overflow-hidden">
                               <div className="flex items-center justify-between bg-success-soft px-3 py-2">
                                 <span className="text-sm font-bold text-success">{m.month}</span>
@@ -685,12 +683,12 @@ export default function DashboardPage() {
                             </div>
                           ))}
                           <div className="flex items-center justify-between pt-2 border-t border-success">
-                            <p className="text-sm font-bold text-content-body">סה"כ 3 חודשים</p>
-                            <p className="text-sm font-bold text-success">{formatILS(Math.round(reportData.totalNext3))}</p>
+                            <p className="text-sm font-bold text-content-body">סה"כ עד סוף השנה</p>
+                            <p className="text-sm font-bold text-success">{formatILS(Math.round(reportData.totalUntilYearEnd))}</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-neutral-400 text-center py-3">אין אספקות צפויות ב-3 חודשים הקרובים</p>
+                        <p className="text-sm text-neutral-400 text-center py-3">אין אספקות צפויות עד סוף השנה</p>
                       )}
                     </div>
 
