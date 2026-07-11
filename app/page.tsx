@@ -178,6 +178,17 @@ export default function DashboardPage() {
       const yearStart = `${currentYear}-01-01`;
       const yearEnd = `${currentYear}-12-31`;
 
+      // Report week number (Sunday-based weeks; week 1 is the week containing
+      // Jan 1). From Thursday onwards the report is prepared for the coming
+      // week, so it carries next week's number.
+      const weekAnchor = new Date();
+      if (weekAnchor.getDay() >= 4) weekAnchor.setDate(weekAnchor.getDate() + 7);
+      const jan1 = new Date(weekAnchor.getFullYear(), 0, 1);
+      const week1Sunday = new Date(jan1);
+      week1Sunday.setDate(jan1.getDate() - jan1.getDay());
+      const weekNumber = Math.floor(Math.round((weekAnchor.getTime() - week1Sunday.getTime()) / 86400000) / 7) + 1;
+      const weekYear = weekAnchor.getFullYear();
+
       const [projRes, detRes] = await Promise.all([
         supabase.from('projects').select('id, name, developer_name, order_value, realization_status, probability_percent, order_execution_date, status'),
         supabase.from('project_details').select('project_id, delivery_months_list'),
@@ -223,6 +234,8 @@ export default function DashboardPage() {
 
       setReportData({
         currentYear,
+        weekNumber,
+        weekYear,
         monthlyRevenueData,
         totalUntilYearEnd,
         certain,
@@ -242,7 +255,7 @@ export default function DashboardPage() {
     const r = reportData;
     const fmtILS = (v: number) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 
-    let text = `📊 דוח הנהלה — ${r.currentYear}\n`;
+    let text = `📊 דוח הנהלה — שבוע ${r.weekNumber}, ${r.weekYear}\n`;
     text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
     text += `${'═'.repeat(40)}\n\n`;
 
@@ -287,7 +300,7 @@ export default function DashboardPage() {
 
   function emailReport() {
     const text = generateReportText();
-    const subject = encodeURIComponent(`דוח הנהלה — ${reportData?.currentYear}`);
+    const subject = encodeURIComponent(`דוח הנהלה — שבוע ${reportData?.weekNumber}, ${reportData?.weekYear}`);
     const body = encodeURIComponent(text);
     window.open(`mailto:?subject=${subject}&body=${body}`);
   }
@@ -606,7 +619,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
+                <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה — {reportData ? `שבוע ${reportData.weekNumber}, ${reportData.weekYear}` : new Date().getFullYear()}</h3>
                 <div className="flex items-center gap-2">
                   {reportData && (
                     <>
