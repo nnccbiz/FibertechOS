@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { useState } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/Icon';
 
 interface Alert {
@@ -16,6 +17,8 @@ interface Alert {
 
 interface AlertsListProps {
   alerts: Alert[];
+  /** id → name for every project, so a linked task can name + link its project */
+  projectNames?: Record<string, string>;
   loading: boolean;
 }
 
@@ -33,7 +36,7 @@ function timeAgo(dateStr: string) {
   return 'עכשיו';
 }
 
-export default function AlertsList({ alerts, loading }: AlertsListProps) {
+export default function AlertsList({ alerts, projectNames = {}, loading }: AlertsListProps) {
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
   async function toggleResolved(id: string) {
@@ -88,9 +91,19 @@ export default function AlertsList({ alerts, loading }: AlertsListProps) {
               </button>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-content-body">{alert.message}</p>
-                {alert.assigned_to && (
-                  <p className="text-[11px] text-neutral-400 mt-0.5">{alert.assigned_to}</p>
-                )}
+                <div className="flex items-center gap-2 mt-0.5">
+                  {alert.project_id && projectNames[alert.project_id] && (
+                    <Link
+                      href={`/projects/${alert.project_id}`}
+                      className="text-[11px] font-medium text-azure-600 hover:text-azure-700 hover:underline inline-flex items-center gap-1"
+                    >
+                      <Icon name="folder" size={12} /> {projectNames[alert.project_id]}
+                    </Link>
+                  )}
+                  {alert.assigned_to && (
+                    <span className="text-[11px] text-neutral-400">{alert.assigned_to}</span>
+                  )}
+                </div>
               </div>
               <span className="text-[11px] text-neutral-400 whitespace-nowrap mt-0.5 flex-shrink-0">
                 {alert.created_at ? timeAgo(alert.created_at) : ''}
