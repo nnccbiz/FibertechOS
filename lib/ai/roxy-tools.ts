@@ -12,6 +12,7 @@
  */
 import { SchemaType, type FunctionDeclaration } from '@google/generative-ai';
 import { validateWrite, rejectionMessage } from '@/lib/ai/write-allowlist';
+import { logAiAction } from '@/lib/ai/activity-log';
 
 // ---------------------------------------------------------------------------
 // Tool declarations (what Gemini sees)
@@ -108,9 +109,23 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     description: 'רשימת חברי הצוות: שם, תפקיד, ורמת גישה. שימושי כדי לדעת מי אחראי על מה.',
   },
   {
+    name: 'create_task',
+    description: `יצירת משימה חדשה ב"משימות לביצוע" — מתבצעת מיד, ללא אישור המשתמש.
+קישור לפרויקט (project_id): רק כשהמשתמש ציין את הפרויקט במפורש — מצאי קודם את ה-id המדויק עם search_projects. אסור לנחש קישור לפרויקט; אם את רק חושדת שיש קשר — שאלי את המשתמש לפני שאת קוראת לכלי.`,
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        message: { type: SchemaType.STRING, description: 'טקסט המשימה, בעברית, כפי שיופיע בלוח הבקרה' },
+        project_id: { type: SchemaType.STRING, description: 'id הפרויקט לקישור — רק אם המשתמש ציין פרויקט במפורש (השיגי מ-search_projects)' },
+        assigned_to: { type: SchemaType.STRING, description: 'שם האחראי על המשימה — רק אם המשתמש ציין' },
+      },
+      required: ['message'],
+    },
+  },
+  {
     name: 'propose_action',
     description: `הצעת פעולת כתיבה (יצירה או עדכון) — הפעולה לא מבוצעת מיד אלא מוצגת למשתמש לאישור.
-טבלאות מותרות: alerts (משימה חדשה או סימון כטופלה), project_updates (עדכון פרויקט), projects (עדכון שדות), project_details (עדכון פרטים), project_contacts (הוספת איש קשר), pipe_specs (הוספת מפרט), leads (ליד חדש/עדכון), inventory (עדכון מלאי).
+טבלאות מותרות: alerts (סימון משימה כטופלה — משימה חדשה נוצרת דרך create_task, לא כאן), project_updates (עדכון פרויקט), projects (עדכון שדות), project_details (עדכון פרטים), project_contacts (הוספת איש קשר), pipe_specs (הוספת מפרט), leads (ליד חדש/עדכון), inventory (עדכון מלאי).
 מחיקות אסורות לחלוטין.
 לעדכון (operation=update) חובה target_id — השג אותו קודם עם כלי קריאה.
 עמודות מותרות לפי טבלה: alerts: project_id,type,message,is_resolved · project_updates: project_id,update_date,people,title,description,tasks · projects: name,description,current_stage,stage_label,progress_percent,priority,order_value,status,city,supplier,notes,developer_name,planning_office,probability_percent · project_details: location,description,project_status,project_type,installation_type,winning_contractor,tender_submission_date,expected_pipe_order_date,special_requirements · project_contacts: project_id,role,name,phone,email · pipe_specs: project_id,diameter_mm,line_length_m,unit_length_m,stiffness_pascal,pressure_bar,notes · leads: project_name,developer_name,planner_name,stage,estimated_value,next_action,next_action_date,notes · inventory: manufacturer,pipe_type,diameter_mm,pressure_bar,stiffness_sn,length_m,in_stock,category,notes`,
@@ -166,7 +181,7 @@ export async function executeRoxyTool(
   sb: any,
   name: string,
   args: Record<string, any>,
-  collector: { pendingActions: PendingAction[] },
+  collector: { pendingActions: PendingAction[]; command?: string },
 ): Promise<Record<string, any>> {
   try {
     switch (name) {
@@ -321,6 +336,55 @@ export async function executeRoxyTool(
           .select('name, role, access_level, active').eq('active', true);
         if (error) return { error: error.message };
         return { team: clip(data, 30) };
+      }
+
+      case 'create_task': {
+        // The one write Roxy performs WITHOUT user confirmation (explicit
+        // product decision): a new task lands in "משימות לביצוע" immediately.
+        // Same defenses as confirmed writes — allowlist, user's RLS client,
+        // owner-stamped activity log.
+        const message = String(args.message || '').trim();
+        if (!message) return { error: 'חסר טקסט משימה.' };
+        const data: Record<string, any> = { type: 'task', message, is_resolved: false };
+        let projectName: string | null = null;
+        if (args.project_id) {
+          const { data: proj } = await sb.from('projects').select('id, name').eq('id', String(args.project_id)).maybeSingle();
+          if (!proj) {
+            return { error: 'ה-project_id שסיפקת לא נמצא. חפשי את הפרויקט עם search_projects וקחי ממנו את ה-id המדויק, או צרי את המשימה בלי קישור.' };
+          }
+          data.project_id = proj.id;
+          projectName = proj.name;
+        }
+        if (args.assigned_to) data.assigned_to = String(args.assigned_to);
+
+        const v = validateWrite('alerts', data);
+        if (!v.ok) return { error: rejectionMessage(v) };
+
+        const { data: inserted, error } = await sb.from('alerts').insert(data).select('id').single();
+        if (error) {
+          if (/row-level security|permission|policy/i.test(error.message)) {
+            return { error: 'למשתמש אין הרשאה ליצור משימות — הסבירי לו מי כן יכול (מבלוק ההרשאות) ושאדמין יכול לתת לו הרשאה בהגדרות → משתמשים.' };
+          }
+          return { error: error.message };
+        }
+
+        await logAiAction(sb, {
+          command: collector.command || message,
+          actionType: 'create',
+          targetTable: 'alerts',
+          targetId: inserted?.id || null,
+          targetLabel: projectName || 'משימה',
+          summary: `נוצרה משימה: ${message}${projectName ? ` · פרויקט ${projectName}` : ''}`,
+          changes: data,
+          sourceType: 'chat',
+        });
+
+        return {
+          ok: true,
+          task_id: inserted?.id || null,
+          linked_project: projectName,
+          note: 'המשימה נוצרה ונוספה ל"משימות לביצוע" בלוח הבקרה — זה כבר בוצע, אשרי זאת למשתמש בקצרה.',
+        };
       }
 
       case 'propose_action': {
