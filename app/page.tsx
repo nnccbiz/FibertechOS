@@ -46,6 +46,7 @@ export default function DashboardPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [reportCopied, setReportCopied] = useState(false);
+  const [reportPdfBusy, setReportPdfBusy] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -168,11 +169,21 @@ export default function DashboardPage() {
     }
   }
 
+  // ISO week number — the report is titled by it.
+  function isoWeek(d: Date): number {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const day = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - day);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
+
   async function openReport() {
     const supabase = createClient();
     setShowReport(true);
     setReportLoading(true);
     setReportCopied(false);
+    setReportData(null); // always rebuild from the freshest data
     try {
       const currentYear = new Date().getFullYear();
       const yearStart = `${currentYear}-01-01`;
@@ -219,12 +230,16 @@ export default function DashboardPage() {
       const certain = allProj.filter((p: any) => p.realization_status === 'הזמנה');
       const totalCertain = certain.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
 
-      // 3. High probability (realization_status = 'גבוהה')
-      const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה');
+      // 3. High probability (realization_status = 'גבוהה') — only projects
+      // whose delivery months were entered in the projects list; the rest are
+      // deliberately excluded from this table.
+      const hasDeliveryMonths = (p: any) => (detMap[p.id] || '').split(',').filter(Boolean).length > 0;
+      const highProb = allProj.filter((p: any) => p.realization_status === 'גבוהה' && hasDeliveryMonths(p));
       const totalHighProb = highProb.reduce((s: number, p: any) => s + (p.order_value || 0), 0);
 
       setReportData({
         currentYear,
+        weekNumber: isoWeek(new Date()),
         next3MonthsData,
         totalNext3,
         certain,
@@ -244,7 +259,7 @@ export default function DashboardPage() {
     const r = reportData;
     const fmtILS = (v: number) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 
-    let text = `📊 דוח הנהלה — ${r.currentYear}\n`;
+    let text = `📊 דוח הנהלה מס' שבוע ${r.weekNumber} — פיברטק תשתיות\n`;
     text += `תאריך הפקה: ${new Date().toLocaleDateString('he-IL')}\n`;
     text += `${'═'.repeat(40)}\n\n`;
 
@@ -289,9 +304,43 @@ export default function DashboardPage() {
 
   function emailReport() {
     const text = generateReportText();
-    const subject = encodeURIComponent(`דוח הנהלה — ${reportData?.currentYear}`);
+    const subject = encodeURIComponent(`דוח הנהלה מס' שבוע ${reportData?.weekNumber} — פיברטק תשתיות`);
     const body = encodeURIComponent(text);
     window.open(`mailto:?subject=${subject}&body=${body}`);
+  }
+
+  async function pdfReport() {
+    const el = document.getElementById('report-content');
+    if (!el || !reportData) return;
+    setReportPdfBusy(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const imgW = pageW - margin * 2;
+      const pxPerMm = canvas.width / imgW;
+      const pageSlicePx = Math.floor((pageH - margin * 2) * pxPerMm);
+      let y = 0;
+      let first = true;
+      while (y < canvas.height) {
+        const sliceH = Math.min(pageSlicePx, canvas.height - y);
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = sliceH;
+        slice.getContext('2d')!.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        if (!first) pdf.addPage();
+        first = false;
+        pdf.addImage(slice.toDataURL('image/jpeg', 0.9), 'JPEG', margin, margin, imgW, sliceH / pxPerMm, undefined, 'FAST');
+        y += sliceH;
+      }
+      pdf.save(`דוח הנהלה שבוע ${reportData.weekNumber} - פיברטק תשתיות.pdf`);
+    } finally {
+      setReportPdfBusy(false);
+    }
   }
 
   function whatsappReport() {
@@ -608,7 +657,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
-                <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה — {reportData?.currentYear || new Date().getFullYear()}</h3>
+                <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה מס׳ שבוע {reportData?.weekNumber ?? ''} — פיברטק תשתיות</h3>
                 <div className="flex items-center gap-2">
                   {reportData && (
                     <>
@@ -620,6 +669,9 @@ export default function DashboardPage() {
                       </button>
                       <button onClick={whatsappReport} className="text-sm bg-success-soft text-success px-3 py-1.5 rounded-lg hover:bg-success-soft transition-colors">
                         <Icon name="whatsapp" size={16} /> WhatsApp
+                      </button>
+                      <button onClick={pdfReport} disabled={reportPdfBusy} className="text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">
+                        <Icon name="pdf" size={16} /> {reportPdfBusy ? 'מפיק…' : 'PDF'}
                       </button>
                     </>
                   )}
@@ -639,7 +691,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : reportData ? (
-                  <>
+                  <div id="report-content" className="space-y-5" dir="rtl">
+                    {/* Report title — part of the printable area so the PDF carries it */}
+                    <div className="text-center border-b-2 border-primary pb-3">
+                      <p className="text-lg font-bold text-primary">דוח הנהלה מס׳ שבוע {reportData.weekNumber}</p>
+                      <p className="text-sm font-semibold text-content-body">פיברטק תשתיות</p>
+                      <p className="text-[12px] text-content-muted">תאריך הפקה: {new Date().toLocaleDateString('he-IL')}</p>
+                    </div>
                     {/* Summary cards */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-success-soft border border-success rounded-xl p-3 text-center">
@@ -739,7 +797,7 @@ export default function DashboardPage() {
                         <p className="text-sm text-neutral-400 text-center py-3">אין פרויקטים בהסתברות גבוהה</p>
                       )}
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <p className="text-sm text-danger text-center py-8">שגיאה בטעינת הדוח</p>
                 )}
