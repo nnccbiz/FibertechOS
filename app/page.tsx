@@ -18,6 +18,7 @@ import PendingInvoicesWidget from '@/components/dashboard/PendingInvoicesWidget'
 interface DashboardData {
   projects: any[];
   alerts: any[];
+  projectNames: Record<string, string>;
   leads: any[];
   teamMembers: any[];
   shipments: any[];
@@ -78,6 +79,11 @@ export default function DashboardPage() {
         const teamMembers = teamRes.data || [];
         const details = detailsRes.data || [];
 
+        // id → name over ALL projects (not just active) so a task can name and
+        // link its project regardless of the project's stage.
+        const projectNames: Record<string, string> = {};
+        projects.forEach((p: any) => { projectNames[p.id] = p.name; });
+
         // Active projects = have winning_contractor AND not yet at completion stage (8+)
         const projectsWithContractor = new Set(
           details
@@ -115,6 +121,7 @@ export default function DashboardPage() {
         setData({
           projects: activeProjects,
           alerts,
+          projectNames,
           leads,
           teamMembers,
           shipments,
@@ -443,7 +450,7 @@ export default function DashboardPage() {
             {/* Left column — wide */}
             <div className="flex-1 space-y-5 min-w-0">
               <div className="animate-fade-in-up-delay-1">
-                <AlertsList alerts={data?.alerts || []} loading={loading} />
+                <AlertsList alerts={data?.alerts || []} projectNames={data?.projectNames || {}} loading={loading} />
               </div>
               <div className="animate-fade-in-up-delay-2">
                 <ProjectsTable projects={data?.projects || []} loading={loading} />
