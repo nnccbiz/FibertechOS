@@ -110,13 +110,15 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: 'create_task',
-    description: `יצירת משימה חדשה ב"משימות לביצוע" — מתבצעת מיד, ללא אישור המשתמש.
-קישור לפרויקט (project_id): רק כשהמשתמש ציין את הפרויקט במפורש — מצאי קודם את ה-id המדויק עם search_projects. אסור לנחש קישור לפרויקט; אם את רק חושדת שיש קשר — שאלי את המשתמש לפני שאת קוראת לכלי.`,
+    description: `יצירת משימה חדשה ב"משימות לביצוע" — מתבצעת מיד, ללא אישור המשתמש. קראי לכלי הזה ישירות; אין צורך לחפש פרויקט קודם.
+קישור לפרויקט: אם המשתמש ציין פרויקט במפורש, העבירי את שמו ב-project_name — השרת יאתר וייקשר לבד (אם יש כמה התאמות תקבלי רשימה ותצטרכי לשאול לאיזה). אל תנחשי קישור: אם את רק חושדת שיש קשר לפרויקט — אל תעבירי project_name, שאלי את המשתמש קודם. בלי project_name המשימה נוצרת ללא קישור.
+חשוב: אל תדווחי למשתמש שהמשימה נוספה אלא אם הכלי החזיר ok=true.`,
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
         message: { type: SchemaType.STRING, description: 'טקסט המשימה, בעברית, כפי שיופיע בלוח הבקרה' },
-        project_id: { type: SchemaType.STRING, description: 'id הפרויקט לקישור — רק אם המשתמש ציין פרויקט במפורש (השיגי מ-search_projects)' },
+        project_name: { type: SchemaType.STRING, description: 'שם הפרויקט לקישור — רק אם המשתמש ציין פרויקט במפורש. השרת מאתר את ה-id לבד.' },
+        project_id: { type: SchemaType.STRING, description: 'id הפרויקט לקישור (אופציונלי — אם כבר יש לך אותו מכלי אחר). עדיף project_name.' },
         assigned_to: { type: SchemaType.STRING, description: 'שם האחראי על המשימה — רק אם המשתמש ציין' },
       },
       required: ['message'],
@@ -347,13 +349,42 @@ export async function executeRoxyTool(
         if (!message) return { error: 'חסר טקסט משימה.' };
         const data: Record<string, any> = { type: 'task', message, is_resolved: false };
         let projectName: string | null = null;
+
+        // Resolve the project link server-side so task creation is a single,
+        // reliable tool call (no dependency on a prior search_projects round).
         if (args.project_id) {
           const { data: proj } = await sb.from('projects').select('id, name').eq('id', String(args.project_id)).maybeSingle();
           if (!proj) {
-            return { error: 'ה-project_id שסיפקת לא נמצא. חפשי את הפרויקט עם search_projects וקחי ממנו את ה-id המדויק, או צרי את המשימה בלי קישור.' };
+            return { error: 'ה-project_id שסיפקת לא נמצא. העבירי project_name במקום, או צרי את המשימה בלי קישור.' };
           }
           data.project_id = proj.id;
           projectName = proj.name;
+        } else if (args.project_name) {
+          const term = String(args.project_name).trim();
+          const { data: matches } = await sb.from('projects')
+            .select('id, name, developer_name, city')
+            .ilike('name', `%${term}%`)
+            .limit(6);
+          const rows = matches || [];
+          if (rows.length === 0) {
+            // The user named a project we can't find — don't silently drop the
+            // link and don't guess. Ask, or offer to create it unlinked.
+            return {
+              needs_clarification: true,
+              reason: 'project_not_found',
+              note: `לא נמצא פרויקט בשם "${term}". שאלי את המשתמש אם התכוון לשם אחר, או אם ליצור את המשימה בלי קישור לפרויקט. אל תדווחי שהמשימה נוצרה.`,
+            };
+          }
+          if (rows.length > 1) {
+            return {
+              needs_clarification: true,
+              reason: 'multiple_projects',
+              candidates: rows.map((p: any) => ({ id: p.id, name: p.name, developer_name: p.developer_name, city: p.city })),
+              note: 'נמצאו כמה פרויקטים תואמים. שאלי את המשתמש לאיזה מהם לקשר, ואז קראי שוב עם project_id המתאים. אל תדווחי שהמשימה נוצרה.',
+            };
+          }
+          data.project_id = rows[0].id;
+          projectName = rows[0].name;
         }
         if (args.assigned_to) data.assigned_to = String(args.assigned_to);
 
