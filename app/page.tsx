@@ -664,7 +664,7 @@ export default function DashboardPage() {
                         <p className="text-[11px] text-azure">{reportData.certain.length} פרויקטים</p>
                       </div>
                       <div className="bg-primary-50 border border-primary rounded-xl p-3 text-center">
-                        <p className="text-[12px] text-primary font-semibold">הסתברות גבוהה {reportData.currentYear}</p>
+                        <p className="text-[12px] text-primary font-semibold">הסתברות גבוהה</p>
                         <p className="text-lg font-bold text-primary">{formatILS(reportData.totalHighProb)}</p>
                         <p className="text-[11px] text-navy-500">{reportData.highProb.length} פרויקטים</p>
                       </div>
