@@ -279,7 +279,7 @@ export default function DashboardPage() {
     r.certain.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
     text += `סה"כ: ${fmtILS(r.totalCertain)}\n`;
 
-    text += `\n📈 פרויקטים בהסתברות גבוהה לביצוע בשנת ${r.currentYear}\n`;
+    text += `\n📈 פרויקטים בהסתברות גבוהה לביצוע\n`;
     text += `${'─'.repeat(30)}\n`;
     if (r.highProb.length > 0) {
       r.highProb.forEach((p: any) => { text += `• ${p.name} — ${fmtILS(p.order_value || 0)}\n`; });
@@ -731,7 +731,7 @@ export default function DashboardPage() {
                     {/* High probability */}
                     <div className="bg-white border border-line-subtle rounded-xl p-4">
                       <h4 className="text-sm font-bold text-content-body mb-3 flex items-center gap-2">
-                        <Icon name="trend" size={18} /> פרויקטים בהסתברות גבוהה לביצוע בשנת {reportData.currentYear}
+                        <Icon name="trend" size={18} /> פרויקטים בהסתברות גבוהה לביצוע
                       </h4>
                       {reportData.highProb.length > 0 ? (
                         <div className="space-y-1.5">
