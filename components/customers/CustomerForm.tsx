@@ -151,7 +151,7 @@ export default function CustomerForm({ customerId, onSaved, onCancel }: Props) {
         </div>
         <div className="space-y-2">
           {contacts.map((c, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_28px] gap-2 items-center">
+            <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_1fr_28px] gap-2 items-center">
               <input type="text" value={c.name} onChange={(e) => updateContact(i, 'name', e.target.value)} placeholder="שם" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
               <input type="text" value={c.role} onChange={(e) => updateContact(i, 'role', e.target.value)} placeholder="תפקיד" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
               <input type="tel" dir="ltr" value={c.phone} onChange={(e) => updateContact(i, 'phone', e.target.value)} placeholder="טלפון" className="border border-line-subtle rounded px-2 py-1.5 text-sm text-right" />

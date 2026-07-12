@@ -244,12 +244,12 @@ function EstimateCard({ estimate: e, open, onToggle, projName, canEdit, settings
           )}
 
           {/* Cost lines */}
-          <div className="bg-white rounded-lg border border-line-subtle p-2">
-            <div className="grid grid-cols-[1fr_70px_55px_80px_85px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1 mb-1">
+          <div className="bg-white rounded-lg border border-line-subtle p-2 overflow-x-auto">
+            <div className="grid grid-cols-[1fr_70px_55px_80px_85px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1 mb-1 min-w-[480px]">
               <span>תיאור</span><span>כמות</span><span>יח'</span><span>מחיר יח' ₪</span><span>סה"כ ₪</span><span></span>
             </div>
             {lines.map((l, i) => (
-              <div key={i} className="grid grid-cols-[1fr_70px_55px_80px_85px_24px] gap-1 mb-1">
+              <div key={i} className="grid grid-cols-[1fr_70px_55px_80px_85px_24px] gap-1 mb-1 min-w-[480px]">
                 <input disabled={!canEdit || e.status === 'approved'} value={l.desc} onChange={(ev) => setLine(i, { desc: ev.target.value })} className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
                 <input disabled={!canEdit || e.status === 'approved'} type="number" value={l.qty} onChange={(ev) => setLine(i, { qty: parseFloat(ev.target.value) || 0 })} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" dir="ltr" />
                 <input disabled={!canEdit || e.status === 'approved'} value={l.unit} onChange={(ev) => setLine(i, { unit: ev.target.value })} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />

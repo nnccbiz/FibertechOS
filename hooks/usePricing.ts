@@ -1215,8 +1215,11 @@ export function usePricing(projectId: string): UsePricingReturn {
         const { data: existingOrd } = await supabase.from('orders').select('id').eq('quote_id', quoteId).maybeSingle();
         if (!existingOrd) {
           const orderNum = q?.quote_number ? q.quote_number.replace(/^HM/, 'HZ') : `HZ-${Date.now().toString(36).toUpperCase()}`;
+          // Customer-order serial (מ"ס) — yearly running number, assigned by the DB.
+          const { data: msNumber } = await supabase.rpc('next_doc_number', { p_kind: 'ms' });
           const { data: ord } = await supabase.from('orders').insert({
             project_id: projectId, quote_id: quoteId, order_number: orderNum,
+            ms_number: msNumber || null,
             status: 'pending', total_amount: q?.total_amount || 0, advance_percent: 40,
           }).select().single();
           if (ord) {
