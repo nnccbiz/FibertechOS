@@ -36,6 +36,49 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('he-IL');
 }
 
+// Row drag-to-reorder for the item editors. Only the grip handle is draggable;
+// each row is a drop target. onReorder(from, to) moves the item in the array
+// (sort_order is re-assigned by index on save).
+function useRowDnd(onReorder: (from: number, to: number) => void) {
+  const dragIdx = useRef<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
+  const handleProps = (idx: number) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => { dragIdx.current = idx; e.dataTransfer.effectAllowed = 'move'; },
+    onDragEnd: () => { dragIdx.current = null; setOverIdx(null); },
+  });
+  const rowProps = (idx: number) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (dragIdx.current === null) return;
+      e.preventDefault();
+      if (overIdx !== idx) setOverIdx(idx);
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      const from = dragIdx.current;
+      dragIdx.current = null;
+      setOverIdx(null);
+      if (from !== null && from !== idx) onReorder(from, idx);
+    },
+    'data-over': overIdx === idx ? '1' : undefined,
+  });
+  return { handleProps, rowProps, overIdx };
+}
+
+// Small grip glyph used as the drag handle (no dedicated icon in the kit).
+function DragHandle(props: React.HTMLAttributes<HTMLSpanElement> & { draggable?: boolean; onDragStart?: any; onDragEnd?: any }) {
+  return (
+    <span
+      {...props}
+      title="גרור לשינוי סדר השורות"
+      className="flex items-center justify-center text-neutral-300 hover:text-content-muted cursor-grab active:cursor-grabbing select-none leading-none"
+    >
+      ⠿
+    </span>
+  );
+}
+
 const ITEM_TYPES = [
   { value: '', label: '—' },
   { value: 'pipe_with_coupling', label: 'צינור+מחבר' },
@@ -475,17 +518,19 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
   const displayCurrency = effectiveCurrency(ci, p.editingCostItems);
   const isForex = displayCurrency !== 'ILS';
   const sym = CURRENCY_SYMBOLS[displayCurrency] || (isForex ? '$' : '$');
+  const dnd = useRowDnd(p.reorderCostItems);
 
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto">
         {isForex ? (
           <>
-            <div className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[740px]">
-              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
+            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[758px]">
+              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[740px]">
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[758px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+                <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
@@ -500,11 +545,12 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
           </>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1">
-              <span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
+            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1">
+              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className="grid grid-cols-[1fr_115px_70px_80px_70px_80px_80px_32px] gap-1">
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+                <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
@@ -1146,6 +1192,7 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
 
 function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const [bulkProfit, setBulkProfit] = useState('');
+  const dnd = useRowDnd(p.reorderEditingItems);
   const subtotal = p.editingItems.reduce((s, i) => {
     const qty = parseFloat(i.quantity) || 0;
     const up = parseFloat(i.unit_price) || 0;
@@ -1180,14 +1227,18 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1">
-          <span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
+        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1">
+          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
           return (
           <div key={idx}>
-          <div className="grid grid-cols-[1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1">
+          <div
+            className={`grid grid-cols-[18px_1fr_55px_46px_60px_45px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
+            {...dnd.rowProps(idx)}
+          >
+            <DragHandle {...dnd.handleProps(idx)} />
             <AutoTextarea value={item.product_name} onChange={(v) => p.updateItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 w-full" />
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />

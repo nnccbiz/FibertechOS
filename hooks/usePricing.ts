@@ -101,8 +101,10 @@ export interface UsePricingReturn {
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
+  reorderEditingItems: (from: number, to: number) => void;
   addCostItem: () => void;
   removeCostItem: (idx: number) => void;
+  reorderCostItems: (from: number, to: number) => void;
   toggleArchiveCostInput: (ciId: string) => Promise<void>;
   uploadAttachment: (quoteId: string, file: File) => Promise<void>;
   deleteAttachment: (id: string) => Promise<void>;
@@ -1321,6 +1323,18 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // Reorder a quote line by drag. sort_order is (re)assigned by array index on
+  // save, so moving the item in the array is all that's needed to persist.
+  function reorderEditingItems(from: number, to: number) {
+    setEditingItems((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
   function addCostItem() {
     const ci = editingCostInput ? costInputs.find((c) => c.id === editingCostInput) : null;
     setEditingCostItems((prev) => {
@@ -1336,6 +1350,17 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   function removeCostItem(idx: number) {
     setEditingCostItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  // Reorder a cost line by drag — same persistence logic as reorderEditingItems.
+  function reorderCostItems(from: number, to: number) {
+    setEditingCostItems((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   }
 
   async function toggleArchiveCostInput(ciId: string) {
@@ -1366,7 +1391,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
-    addEditingItem, removeEditingItem, addCostItem, removeCostItem,
+    addEditingItem, removeEditingItem, reorderEditingItems, addCostItem, removeCostItem, reorderCostItems,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,
   };
 }
