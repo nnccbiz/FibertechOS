@@ -36,43 +36,69 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('he-IL');
 }
 
-// Row drag-to-reorder for the item editors. Only the grip handle is draggable;
-// each row is a drop target. onReorder(from, to) moves the item in the array
-// (sort_order is re-assigned by index on save).
+// Row drag-to-reorder for the item editors, built on Pointer Events so it works
+// with mouse AND touch (iPad) across browsers — HTML5 drag-and-drop is flaky in
+// Safari and doesn't fire on touch at all. Only the grip handle starts a drag;
+// the target row is computed from the pointer's Y against each row's rect.
+// onReorder(from, to) moves the item in the array (sort_order is re-assigned by
+// index on save).
 function useRowDnd(onReorder: (from: number, to: number) => void) {
   const dragIdx = useRef<number | null>(null);
+  const rows = useRef<Map<number, HTMLElement>>(new Map());
   const [overIdx, setOverIdx] = useState<number | null>(null);
 
+  function rowAtY(clientY: number): number | null {
+    let hit: number | null = null;
+    let best: number | null = null;
+    let bestDist = Infinity;
+    for (const [idx, el] of rows.current.entries()) {
+      const r = el.getBoundingClientRect();
+      if (clientY >= r.top && clientY <= r.bottom) { hit = idx; break; }
+      const dist = Math.abs(clientY - (r.top + r.bottom) / 2);
+      if (dist < bestDist) { bestDist = dist; best = idx; }
+    }
+    return hit !== null ? hit : best;
+  }
+
   const handleProps = (idx: number) => ({
-    draggable: true,
-    onDragStart: (e: React.DragEvent) => { dragIdx.current = idx; e.dataTransfer.effectAllowed = 'move'; },
-    onDragEnd: () => { dragIdx.current = null; setOverIdx(null); },
-  });
-  const rowProps = (idx: number) => ({
-    onDragOver: (e: React.DragEvent) => {
-      if (dragIdx.current === null) return;
+    onPointerDown: (e: React.PointerEvent) => {
       e.preventDefault();
-      if (overIdx !== idx) setOverIdx(idx);
+      dragIdx.current = idx;
+      setOverIdx(idx);
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     },
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault();
+    onPointerMove: (e: React.PointerEvent) => {
+      if (dragIdx.current === null) return;
+      const t = rowAtY(e.clientY);
+      if (t !== null && t !== overIdx) setOverIdx(t);
+    },
+    onPointerUp: (e: React.PointerEvent) => {
       const from = dragIdx.current;
+      if (from === null) return;
+      const to = rowAtY(e.clientY);
       dragIdx.current = null;
       setOverIdx(null);
-      if (from !== null && from !== idx) onReorder(from, idx);
+      if (to !== null && to !== from) onReorder(from, to);
     },
+    onPointerCancel: () => { dragIdx.current = null; setOverIdx(null); },
+    style: { touchAction: 'none' as const },
+  });
+
+  const rowProps = (idx: number) => ({
+    ref: (el: HTMLElement | null) => { if (el) rows.current.set(idx, el); else rows.current.delete(idx); },
     'data-over': overIdx === idx ? '1' : undefined,
   });
+
   return { handleProps, rowProps, overIdx };
 }
 
 // Small grip glyph used as the drag handle (no dedicated icon in the kit).
-function DragHandle(props: React.HTMLAttributes<HTMLSpanElement> & { draggable?: boolean; onDragStart?: any; onDragEnd?: any }) {
+function DragHandle(props: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       {...props}
       title="גרור לשינוי סדר השורות"
-      className="flex items-center justify-center text-neutral-300 hover:text-content-muted cursor-grab active:cursor-grabbing select-none leading-none"
+      className="flex items-center justify-center text-neutral-300 hover:text-content-muted cursor-grab active:cursor-grabbing select-none leading-none touch-none"
     >
       ⠿
     </span>
