@@ -261,6 +261,19 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   async function deleteAttachment(id: string) {
     const att = attachments.find((a) => a.id === id);
+    // Cost-input source files go through the server route, which blocks the
+    // delete if a quote based on this cost input was already sent/signed.
+    if (att?.entity_type === 'cost_input') {
+      try {
+        const res = await fetch(`/api/pricing/cost-attachment?id=${id}`, { method: 'DELETE' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(json.error || 'מחיקת הקובץ נכשלה.'); return; }
+        setAttachments((prev) => prev.filter((a) => a.id !== id));
+      } catch (e: any) {
+        alert(`מחיקת הקובץ נכשלה: ${e?.message || e}`);
+      }
+      return;
+    }
     await supabase.from('attachments').delete().eq('id', id);
     await removeStorageIfOrphan(att?.file_url);
     setAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -268,25 +281,41 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   // Save an uploaded file as an attachment linked to a cost input — so the
   // original supplier quote (PDF/image/Excel) stays traceable from the price.
+  // Routed through a server API (service-role) so the storage write + row
+  // insert happen atomically and reliably, instead of the old client path that
+  // could upload the blob but lose the row to an RLS edge (orphan + silent loss).
   async function uploadCostInputAttachment(ciId: string, file: File): Promise<any | null> {
-    const ext = file.name.split('.').pop() || 'file';
-    const path = `${projectId}/cost_inputs/${ciId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
-    if (uploadErr) { console.error('upload cost_input attachment failed', uploadErr); return null; }
-    const { data: att, error: insertErr } = await supabase.from('attachments').insert({
-      entity_type: 'cost_input', entity_id: ciId, project_id: projectId,
-      file_name: file.name, file_url: path,
-      file_type: 'supplier_quote', file_size_bytes: file.size,
-    }).select().single();
-    if (insertErr || !att) { console.error('insert cost_input attachment failed', insertErr); return null; }
-    setAttachments((prev) => [att, ...prev]);
-    return att;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('costInputId', ciId);
+      if (projectId) fd.append('projectId', projectId);
+      const res = await fetch('/api/pricing/cost-attachment', { method: 'POST', body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.attachment) {
+        console.error('cost_input attachment save failed', json.error || res.status);
+        return null;
+      }
+      setAttachments((prev) => [json.attachment, ...prev]);
+      return json.attachment;
+    } catch (e: any) {
+      console.error('cost_input attachment save failed', e?.message || e);
+      return null;
+    }
   }
 
   // Delete a cost input (its items cascade via FK; attachments are removed
   // explicitly — both the rows and the underlying storage objects).
   async function deleteCostInput(ciId: string) {
     try {
+      // Block deleting a pricing (and its source files) once a quote based on
+      // it was sent/signed — same audit rule as deleting a single file.
+      const linkedSent = quotes.filter((q) => q.cost_input_id === ciId && (q.status === 'sent' || q.status === 'signed'));
+      if (linkedSent.length > 0) {
+        const nums = Array.from(new Set(linkedSent.map((q) => q.quote_number))).join(', ');
+        alert(`לא ניתן למחוק את התמחור — נשלחה/נחתמה הצעת מחיר שמבוססת עליו (${nums}). המחיקה חסומה כדי לשמור תיעוד.`);
+        return;
+      }
       const ciAtts = attachments.filter((a) => a.entity_type === 'cost_input' && a.entity_id === ciId);
       if (ciAtts.length) {
         // Delete the rows first, then remove each unique blob only if no other
@@ -707,7 +736,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₪';
       const partialNote = excelErrors.length ? `\n\n⚠️ ${excelErrors.join('\n')}` : '';
       const uploadNote = uploadFailures > 0
-        ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה (כנראה אין לך הרשאת עריכה לפרויקטים) — הפריטים חולצו אך הקובץ המקורי לא נשמר.`
+        ? `\n\n⚠️ ${uploadFailures} קבצי מקור לא נשמרו כצרופה — הפריטים חולצו אך הקובץ המקורי לא נשמר. נסה שוב, ואם זה חוזר ודא שיש לך הרשאת עריכה לפרויקטים.`
         : '';
       // Show which engine read the file: local Excel parser (reliable) vs
       // Gemini (used for PDF/images; can hallucinate on unreadable input).
