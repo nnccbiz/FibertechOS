@@ -869,7 +869,29 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {q.status === 'rejected' && q.lost_reason && (
             <span className="text-[11px] text-danger" title={q.lost_reason}>סיבת הפסד: {q.lost_reason.length > 40 ? q.lost_reason.slice(0, 40) + '…' : q.lost_reason}</span>
           )}
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+          {/* Status pill doubles as a quick-change menu — flip draft→sent/נדחה
+              straight from the header without expanding the quote. Signing stays
+              behind the signed-file upload in the expanded actions. */}
+          <div className="relative group" onClick={(e) => e.stopPropagation()}>
+            <button className={`text-[11px] px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1 ${st.color}`} title="שנה סטטוס">
+              {st.label}<span className="text-[8px] opacity-60">▼</span>
+            </button>
+            <div className="hidden group-hover:block absolute top-full right-0 z-30 pt-1">
+              <div className="bg-white border border-line-subtle rounded-lg shadow-lg py-1 min-w-[130px]">
+                {[{ key: 'draft', label: 'טיוטה' }, { key: 'sent', label: 'נשלח' }, { key: 'rejected', label: 'נדחה' }]
+                  .filter((s) => s.key !== q.status)
+                  .map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => { if (s.key === 'rejected') setShowReject(true); else p.updateQuoteStatus(q.id, s.key); }}
+                      className={`block w-full text-right px-3 py-1.5 text-[12px] hover:bg-neutral-50 ${s.key === 'rejected' ? 'text-danger' : 'text-content-body'}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-content-body">{formatCurrency(q.total_amount || 0)}</span>
@@ -1057,19 +1079,29 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 }
 
 // Captures WHY a quote was lost — feeds win-rate analysis later.
-const LOST_REASONS = ['מחיר גבוה', 'מתחרה זכה', 'המכרז בוטל', 'הפרויקט נדחה/הוקפא', 'אחר'];
+const SUPERSEDED_REASON = 'נשלחה הצעה מעודכנת במקום';
+const LOST_REASONS = ['מחיר גבוה', 'מתחרה זכה', SUPERSEDED_REASON, 'המכרז בוטל', 'הפרויקט נדחה/הוקפא', 'אחר'];
 
 function RejectQuoteModal({ q, p, onClose }: { q: any; p: ReturnType<typeof usePricing>; onClose: () => void }) {
   const [reason, setReason] = useState(LOST_REASONS[0]);
   const [competitor, setCompetitor] = useState('');
+  const [replacementId, setReplacementId] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Other quotes on this project — offered as the replacement when this one was
+  // superseded by an updated quote.
+  const otherQuotes = (p.quotes || []).filter((x: any) => x.id !== q.id);
 
   async function save() {
     setSaving(true);
     try {
       const parts = [reason];
-      if (competitor.trim()) parts.push(`מתחרה: ${competitor.trim()}`);
+      if (reason === 'מתחרה זכה' && competitor.trim()) parts.push(`מתחרה: ${competitor.trim()}`);
+      if (reason === SUPERSEDED_REASON && replacementId) {
+        const rep = otherQuotes.find((x: any) => x.id === replacementId);
+        if (rep) parts.push(`במקום: ${rep.quote_number}`);
+      }
       if (note.trim()) parts.push(note.trim());
       await p.updateQuoteStatus(q.id, 'rejected', { lost_reason: parts.join(' · ') });
       onClose();
@@ -1094,6 +1126,18 @@ function RejectQuoteModal({ q, p, onClose }: { q: any; p: ReturnType<typeof useP
             <div>
               <label className="block text-[12px] font-medium text-content-body mb-1">שם המתחרה (אם ידוע)</label>
               <input value={competitor} onChange={(e) => setCompetitor(e.target.value)} className="w-full text-[13px] border border-line-subtle rounded-lg px-2 py-1.5" />
+            </div>
+          )}
+          {reason === SUPERSEDED_REASON && (
+            <div>
+              <label className="block text-[12px] font-medium text-content-body mb-1">איזו הצעה נשלחה במקום? (אופציונלי)</label>
+              <select value={replacementId} onChange={(e) => setReplacementId(e.target.value)} className="w-full text-[13px] border border-line-subtle rounded-lg px-2 py-1.5">
+                <option value="">— בחר הצעה —</option>
+                {otherQuotes.map((x: any) => (
+                  <option key={x.id} value={x.id}>{x.quote_number}{x.client_name ? ` · ${x.client_name}` : ''}</option>
+                ))}
+              </select>
+              {otherQuotes.length === 0 && <p className="text-[11px] text-neutral-400 mt-1">אין הצעה אחרת בפרויקט. שכפל את ההצעה קודם כדי ליצור גרסה מעודכנת.</p>}
             </div>
           )}
           <div>
