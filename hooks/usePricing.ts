@@ -426,9 +426,19 @@ export function usePricing(projectId: string): UsePricingReturn {
   // quote arrives and most fields are the same as a previous one.
   async function duplicateCostInput(ciId: string) {
     try {
+      // Let the user name the copy up front (title = source_name).
+      const src = costInputs.find((c) => c.id === ciId);
+      const suggested = src ? `${src.source_name} (עותק)` : '';
+      const entered = window.prompt('שם התמחור המשוכפל:', suggested);
+      if (entered === null) return; // cancelled
+      const newName = entered.trim() || suggested;
+
       // Atomic server-side copy (row + all items in one transaction).
       const { data: newId, error: rpcErr } = await supabase.rpc('duplicate_cost_input', { p_ci_id: ciId });
       if (rpcErr || !newId) { alert(`שגיאה בשכפול: ${rpcErr?.message || 'לא הוחזר מזהה'}`); return; }
+
+      // Apply the chosen title to the copy (the RPC clones the source name).
+      if (newName) await supabase.from('cost_inputs').update({ source_name: newName }).eq('id', newId);
 
       const [{ data: nci, error: ciErr }, { data: items }] = await Promise.all([
         supabase.from('cost_inputs').select('*').eq('id', newId).single(),
@@ -832,7 +842,13 @@ export function usePricing(projectId: string): UsePricingReturn {
     const src = quotes.find((x) => x.id === quoteId);
     if (!src) return;
     const existingCount = quotes.filter((x) => x.status !== 'cancelled').length;
-    const num = buildDocNumber('HM', existingCount + 1);
+    const autoNum = buildDocNumber('HM', existingCount + 1);
+
+    // Let the user set the copy's number/title (defaults to the next auto number;
+    // handy for bumping a version, e.g. …-V08 → …-V09).
+    const entered = window.prompt('מספר ההצעה המשוכפלת:', autoNum);
+    if (entered === null) return; // cancelled
+    const num = entered.trim() || autoNum;
 
     const { data: nq, error } = await supabase.from('quotes').insert({
       project_id: projectId, quote_number: num, client_name: '',
