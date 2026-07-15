@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
@@ -848,6 +849,61 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
   );
 }
 
+// Status pill + quick-change menu for the quote header. Rendered via a portal
+// with fixed positioning so it floats above everything — the quote card is
+// overflow-hidden (rounded corners), which would otherwise clip an absolutely
+// positioned dropdown.
+function HeaderStatusMenu({ q, p, st, onReject }: { q: any; p: ReturnType<typeof usePricing>; st: { label: string; color: string }; onReject: () => void }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current!.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setOpen(true);
+  }
+
+  const choices = [{ key: 'draft', label: 'טיוטה' }, { key: 'sent', label: 'נשלח' }, { key: 'rejected', label: 'נדחה' }]
+    .filter((s) => s.key !== q.status);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className={`text-[11px] px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1 ${st.color}`}
+        title="שנה סטטוס"
+      >
+        {st.label}<span className="text-[8px] opacity-60">▼</span>
+      </button>
+      {open && pos && createPortal(
+        <div className="fixed inset-0 z-[60]" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>
+          <div
+            style={{ position: 'fixed', top: pos.top, right: pos.right }}
+            className="bg-white border border-line-subtle rounded-lg shadow-lg py-1 min-w-[130px]"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {choices.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => { setOpen(false); if (s.key === 'rejected') onReject(); else p.updateQuoteStatus(q.id, s.key); }}
+                className={`block w-full text-right px-3 py-1.5 text-[12px] hover:bg-neutral-50 ${s.key === 'rejected' ? 'text-danger' : 'text-content-body'}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const st = QUOTE_STATUS_MAP[q.status] || QUOTE_STATUS_MAP.draft;
   const tier = QUOTE_TIER_MAP[q.tier] || QUOTE_TIER_MAP.contractor_pre_tender;
@@ -872,26 +928,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
           {/* Status pill doubles as a quick-change menu — flip draft→sent/נדחה
               straight from the header without expanding the quote. Signing stays
               behind the signed-file upload in the expanded actions. */}
-          <div className="relative group" onClick={(e) => e.stopPropagation()}>
-            <button className={`text-[11px] px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1 ${st.color}`} title="שנה סטטוס">
-              {st.label}<span className="text-[8px] opacity-60">▼</span>
-            </button>
-            <div className="hidden group-hover:block absolute top-full right-0 z-30 pt-1">
-              <div className="bg-white border border-line-subtle rounded-lg shadow-lg py-1 min-w-[130px]">
-                {[{ key: 'draft', label: 'טיוטה' }, { key: 'sent', label: 'נשלח' }, { key: 'rejected', label: 'נדחה' }]
-                  .filter((s) => s.key !== q.status)
-                  .map((s) => (
-                    <button
-                      key={s.key}
-                      onClick={() => { if (s.key === 'rejected') setShowReject(true); else p.updateQuoteStatus(q.id, s.key); }}
-                      className={`block w-full text-right px-3 py-1.5 text-[12px] hover:bg-neutral-50 ${s.key === 'rejected' ? 'text-danger' : 'text-content-body'}`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          </div>
+          <HeaderStatusMenu q={q} p={p} st={st} onReject={() => setShowReject(true)} />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-content-body">{formatCurrency(q.total_amount || 0)}</span>
