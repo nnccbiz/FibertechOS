@@ -77,6 +77,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   const outerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [fitH, setFitH] = useState<number | null>(null);
 
   // Measure the real rendered height of every block in the hidden mirror, then pack
   // pages by those exact heights — estimates can't track html2canvas output.
@@ -146,16 +147,24 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     return () => { cancelled = true; };
   }, [items, attachmentPages, quote, contractSections, costCurrency]);
 
-  // Recompute the fit-to-width zoom on layout / viewport changes.
+  // Recompute the fit-to-width scale AND the placeholder height it needs, so the
+  // scaled document occupies its real (reduced) space in flow — nothing above it
+  // (e.g. the internal page's views panel) or below it overlaps.
   useEffect(() => {
     const recompute = () => {
       const avail = outerRef.current?.clientWidth ?? A4_W;
-      setScale(Math.min(1, avail / A4_W));
+      const s = Math.min(1, avail / A4_W);
+      setScale(s);
+      const h = contentRef.current?.offsetHeight ?? 0;
+      setFitH(h ? Math.ceil(h * s) : null);
     };
     recompute();
     const t1 = setTimeout(recompute, 250);
+    const t2 = setTimeout(recompute, 800);
     window.addEventListener('resize', recompute);
-    return () => { window.removeEventListener('resize', recompute); clearTimeout(t1); };
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) fonts.ready.then(recompute);
+    return () => { window.removeEventListener('resize', recompute); clearTimeout(t1); clearTimeout(t2); };
   }, [measuredPages, items, attachmentPages, contractSections, costCurrency, quote]);
 
   async function generatePdfBase64(): Promise<string | null> {
@@ -163,9 +172,11 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     const { jsPDF } = await import('jspdf');
     const wrapper = document.getElementById('quote-page-content');
     if (!wrapper) return null;
-    // Capture at the true A4 width regardless of the on-screen fit zoom.
-    const prevZoom = wrapper.style.zoom;
-    wrapper.style.zoom = '1';
+    // Capture at the true A4 width regardless of the on-screen fit scale.
+    const prevTransform = wrapper.style.transform;
+    const prevPosition = wrapper.style.position;
+    wrapper.style.transform = 'none';
+    wrapper.style.position = 'static';
     try {
       const pages = wrapper.children;
       const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
@@ -190,7 +201,8 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       bytes.forEach((b) => (bin += String.fromCharCode(b)));
       return btoa(bin);
     } finally {
-      wrapper.style.zoom = prevZoom;
+      wrapper.style.transform = prevTransform;
+      wrapper.style.position = prevPosition;
     }
   }
 
@@ -564,11 +576,15 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   };
 
   return (
-    <div ref={outerRef} className="w-full relative overflow-x-hidden flex justify-center">
+    <div ref={outerRef} className="w-full relative overflow-x-hidden">
+      {/* Holder reserves the scaled height so surrounding content never overlaps. */}
+      <div style={{ position: 'relative', width: scale < 1 && fitH ? A4_W * scale : undefined, height: scale < 1 && fitH ? fitH : undefined, margin: '0 auto' }}>
         <div
           id="quote-page-content"
           ref={contentRef}
-          style={{ width: A4_W, zoom: scale }}
+          style={scale < 1 && fitH
+            ? { width: A4_W, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }
+            : { width: A4_W, margin: '0 auto' }}
         >
           {renderPages.map((pg: any, pIdx: number) => (
             <React.Fragment key={`page-${pIdx}`}>
@@ -594,6 +610,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
             <AttachmentPageBlock key={`tail-${page.attId}-${page.pageNum}`} page={page} pageNum={renderPages.length + 1 + idx} quoteNumber={quote.quote_number} PageMeta={PageMeta} />
           ))}
         </div>
+      </div>
 
       {/* Hidden mirror — measures real rendered heights for exact pagination. */}
       <div id="pdf-measure" aria-hidden="true" style={{ position: 'absolute', left: '-99999px', top: 0, width: '210mm', visibility: 'hidden' }}>
@@ -618,7 +635,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
         @media print {
           body { background: white !important; }
           @page { size: A4; margin: 8mm; }
-          #quote-page-content { zoom: 1 !important; }
+          #quote-page-content { transform: none !important; position: static !important; }
         }
       `}</style>
     </div>
