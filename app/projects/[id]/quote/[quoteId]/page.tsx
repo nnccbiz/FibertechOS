@@ -49,6 +49,7 @@ export default function QuotePreviewPage() {
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
+  const [sendingWa, setSendingWa] = useState(false);
   const [costCurrency, setCostCurrency] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,22 +166,25 @@ export default function QuotePreviewPage() {
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
 
-  const whatsappText = encodeURIComponent(
-    `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}\nלצפייה: ${typeof window !== 'undefined' ? window.location.href : ''}`
-  );
   const emailSubjectRaw = `${quote.client_name || ''} | ${project.name || ''} | הצעת מחיר ${quote.quote_number} — פיברטק`;
   const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
+
+  // Generate a PUBLIC share link (/quote/<token>) so the customer sees the quote
+  // directly — the internal /projects/... URL would send them to the login page.
+  async function createShareLink(): Promise<string> {
+    const res = await fetch('/api/quote-share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_id: quoteId, expires_days: 30 }),
+    });
+    const shareData = await res.json();
+    return shareData.token ? `${window.location.origin}/quote/${shareData.token}` : '';
+  }
 
   async function handleEmailWithLink() {
     setSendingLink(true);
     try {
-      const res = await fetch('/api/quote-share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quote_id: quoteId, expires_days: 3 }),
-      });
-      const shareData = await res.json();
-      const shareLink = shareData.token ? `${window.location.origin}/quote/${shareData.token}` : '';
+      const shareLink = await createShareLink();
       const bodyWithLink = emailBodyRaw + (shareLink ? `\n\nלצפייה בהצעת המחיר:\n${shareLink}` : '');
       const mailto = `mailto:?subject=${encodeURIComponent(emailSubjectRaw)}&body=${encodeURIComponent(bodyWithLink)}`;
       window.open(mailto, '_self');
@@ -188,6 +192,24 @@ export default function QuotePreviewPage() {
       alert('שגיאה ביצירת הקישור');
     } finally {
       setSendingLink(false);
+    }
+  }
+
+  async function handleWhatsapp() {
+    setSendingWa(true);
+    // Open the tab synchronously (before the await) so Safari/mobile don't block
+    // it as a non-user-initiated popup after the fetch resolves.
+    const w = window.open('', '_blank');
+    try {
+      const shareLink = await createShareLink();
+      const text = `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}${shareLink ? `\nלצפייה: ${shareLink}` : ''}`;
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch {
+      if (w) w.close();
+      alert('שגיאה ביצירת הקישור');
+    } finally {
+      setSendingWa(false);
     }
   }
 
@@ -217,9 +239,9 @@ export default function QuotePreviewPage() {
         <button onClick={handleEmailWithLink} disabled={sendingLink} className="bg-neutral-100 text-content-body text-sm px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50">
           {sendingLink ? <><Icon name="loading" size={16} /> מכין...</> : <><Icon name="email" size={16} /> שלח לינק להצעה במייל</>}
         </button>
-        <a href={`https://wa.me/?text=${whatsappText}`} target="_blank" rel="noopener noreferrer" className="bg-success-soft text-success text-sm px-4 py-2 rounded-lg hover:bg-success-soft transition-colors">
-          <Icon name="whatsapp" size={16} /> שלח בוואטסאפ
-        </a>
+        <button onClick={handleWhatsapp} disabled={sendingWa} className="bg-success-soft text-success text-sm px-4 py-2 rounded-lg hover:bg-success-soft transition-colors disabled:opacity-50">
+          {sendingWa ? <><Icon name="loading" size={16} /> מכין...</> : <><Icon name="whatsapp" size={16} /> שלח בוואטסאפ</>}
+        </button>
         <button onClick={() => window.history.back()} className="text-sm text-content-muted px-3 py-2 hover:text-content-body mr-auto">
           ← חזרה
         </button>
