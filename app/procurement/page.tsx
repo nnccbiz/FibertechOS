@@ -32,6 +32,97 @@ function Empty({ text }: { text: string }) {
   return <p className="text-sm text-neutral-400 text-center py-6">{text}</p>;
 }
 
+const hasHebrew = (s: string | null | undefined) => /[֐-׿]/.test(s || '');
+
+// ============================================================
+// Translation window — Hebrew free text → editable English, side by side.
+// Gemini (mode:'text') translates; Nitzan reviews/edits each line, then
+// "החל" writes the English back into the PO editor fields.
+// ============================================================
+type TranslateField = { key: string; label: string; text: string };
+
+function TranslateModal({ fields, onApply, onClose }: {
+  fields: TranslateField[];
+  onApply: (values: { key: string; value: string }[]) => void;
+  onClose: () => void;
+}) {
+  const [translations, setTranslations] = useState<string[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const SEP = '\n###\n';
+        const prompt = `Translate the following Hebrew texts into professional English suitable for a purchase order sent to a foreign supplier. Keep technical terms, product codes (DN, PN, SN, GRP), numbers and units exactly as they are. Return ONLY the translations, in the same order, separated by a line containing exactly ###. No numbering, no commentary.\n\n${fields.map((f) => f.text).join(SEP)}`;
+        const res = await fetch('/api/ai', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'text', message: prompt }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok || !data.text) { setError(data.error || 'התרגום נכשל — נסה שוב.'); return; }
+        const parts = String(data.text).split(/\n?\s*#{3,}\s*\n?/).map((s: string) => s.trim());
+        setTranslations(fields.map((_, i) => parts[i] ?? ''));
+      } catch {
+        if (!cancelled) setError('התרגום נכשל — בדוק חיבור ונסה שוב.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl max-w-[900px] w-full my-8" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-line-subtle">
+          <p className="font-bold text-content-strong"><Icon name="ai" size={18} /> תרגום לאנגלית</p>
+          <button onClick={onClose} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
+        </div>
+        <div className="p-5">
+          {error ? (
+            <p className="text-sm text-danger text-center py-8">{error}</p>
+          ) : !translations ? (
+            <p className="text-sm text-neutral-400 text-center py-8"><Icon name="loading" size={16} /> מתרגם…</p>
+          ) : (
+            <>
+              <p className="text-[12px] text-neutral-400 mb-3">בדוק וערוך את התרגום לפני ההחלה — האנגלית תחליף את הטקסט בעורך ההזמנה.</p>
+              <div className="space-y-3 max-h-[55vh] overflow-y-auto pl-1">
+                {fields.map((f, i) => (
+                  <div key={f.key} className="grid grid-cols-2 gap-3 items-start">
+                    <div>
+                      <p className="text-[11px] text-neutral-400 mb-1">{f.label} — מקור</p>
+                      <div className="text-[13px] text-content-body bg-neutral-50 border border-line-subtle rounded-lg px-3 py-2 whitespace-pre-line">{f.text}</div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-neutral-400 mb-1">English — ניתן לעריכה</p>
+                      <textarea
+                        value={translations[i]}
+                        onChange={(e) => setTranslations((prev) => prev!.map((t, j) => (j === i ? e.target.value : t)))}
+                        dir="ltr"
+                        rows={Math.max(2, Math.ceil((translations[i] || '').length / 60))}
+                        className="w-full text-[13px] border border-line-subtle rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={onClose} className="text-[13px] px-4 py-2 rounded-lg bg-neutral-100 text-content-body hover:bg-neutral-200">ביטול</button>
+                <button
+                  onClick={() => onApply(fields.map((f, i) => ({ key: f.key, value: translations[i] || '' })))}
+                  className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-700"
+                >
+                  <Icon name="confirm" size={14} /> החל את התרגומים
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProcurementPage() {
   const supabase = createClient();
   const { canAccess } = usePermissions();
@@ -299,6 +390,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
+  const [translateFields, setTranslateFields] = useState<TranslateField[] | null>(null);
   const pdfRef = useRef<PODocumentHandle>(null);
 
   // Editable copy — reset whenever the card opens or fresh data arrives.
@@ -403,6 +495,31 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
     } finally {
       setSending(false);
     }
+  }
+
+  // Collect every Hebrew free-text field on the PO for the translation window.
+  function openTranslate() {
+    const f: TranslateField[] = [];
+    if (hasHebrew(form?.notes)) f.push({ key: 'notes', label: 'הערות', text: form.notes });
+    if (hasHebrew(form?.payment_terms)) f.push({ key: 'payment_terms', label: 'תנאי תשלום', text: form.payment_terms });
+    rows.forEach((r, idx) => {
+      if (hasHebrew(r.description)) f.push({ key: `desc-${idx}`, label: `שורה ${idx + 1}`, text: r.description });
+    });
+    if (f.length === 0) { alert('אין טקסט בעברית לתרגום — כל השדות כבר באנגלית.'); return; }
+    setTranslateFields(f);
+  }
+
+  function applyTranslations(values: { key: string; value: string }[]) {
+    values.forEach(({ key, value }) => {
+      if (!value.trim()) return;
+      if (key === 'notes') setForm((prev: any) => ({ ...prev, notes: value }));
+      else if (key === 'payment_terms') setForm((prev: any) => ({ ...prev, payment_terms: value }));
+      else if (key.startsWith('desc-')) {
+        const idx = parseInt(key.slice(5), 10);
+        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, description: value } : r)));
+      }
+    });
+    setTranslateFields(null);
   }
 
   async function deletePO() {
@@ -533,6 +650,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
             {canEdit && (
               <>
                 <button onClick={addRow} className="text-[13px] text-primary hover:underline"><Icon name="add" size={14} /> הוסף שורה</button>
+                <button onClick={openTranslate} className="text-[13px] text-primary hover:underline" title="תרגום הערות ותיאורים לאנגלית (AI) — לעריכה לפני החלה">
+                  <Icon name="ai" size={14} /> תרגם לאנגלית
+                </button>
                 <span className="flex-1" />
                 <button onClick={save} disabled={saving} className="text-[13px] font-semibold bg-neutral-100 text-content-body px-4 py-2 rounded-lg hover:bg-neutral-200 disabled:opacity-50">
                   {saving ? 'שומר…' : <><Icon name="save" size={14} /> שמור</>}
@@ -559,6 +679,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
             )}
           </div>
         </div>
+      )}
+
+      {translateFields && (
+        <TranslateModal fields={translateFields} onApply={applyTranslations} onClose={() => setTranslateFields(null)} />
       )}
 
       {/* PDF preview modal */}

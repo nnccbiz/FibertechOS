@@ -108,7 +108,10 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const en = currency !== 'ILS';
   const L = (he: string, enText: string) => (en ? enText : he);
   const dir = en ? 'ltr' : 'rtl';
-  const dateLocale = en ? 'en-GB' : 'he-IL';
+  // English date reads "19 July 2026" (day, full month name, year).
+  const fmtDocDate = (d: Date) => en
+    ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : d.toLocaleDateString('he-IL');
   // Common Hebrew unit values → English on a foreign PO (free-text fallback kept as-is).
   const unitLabel = (u: string | null | undefined) => {
     if (!u) return '—';
@@ -117,7 +120,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
     return map[u.trim()] || u;
   };
   const total = items.reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.ordered_qty) || 0), 0);
-  const orderDate = order.order_date ? new Date(order.order_date).toLocaleDateString(dateLocale) : new Date().toLocaleDateString(dateLocale);
+  const orderDate = fmtDocDate(order.order_date ? new Date(order.order_date) : new Date());
   // Side accent on info blocks follows the reading direction.
   const accent = en ? 'border-l-4 border-navy-700 pl-4 text-left' : 'border-r-4 border-navy-700 pr-4 text-right';
 
