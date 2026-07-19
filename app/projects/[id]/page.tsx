@@ -1249,7 +1249,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {/* Pricing & Quotes — extracted to PricingSection component */}
-        <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
+        <div id="pricing" style={{ scrollMarginTop: '80px' }}>
+          <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
+        </div>
         {/* Import — documents & orders linked to this project */}
         <ImportPanel projectId={params.id as string} />
         {/* Updates / Meeting log */}
