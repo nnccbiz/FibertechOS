@@ -56,19 +56,31 @@ export default function PublicQuotePage() {
         token_id: shareToken.id, quote_id: shareToken.quote_id, ip_address: null, user_agent: navigator.userAgent,
       });
 
-      const [{ data: q }, { data: its }, { data: atts }] = await Promise.all([
+      const [{ data: q }, { data: its }, { data: atts }, { data: qd }] = await Promise.all([
         supabase.from('quotes').select('*').eq('id', shareToken.quote_id).single(),
         supabase.from('quote_items').select('*').eq('quote_id', shareToken.quote_id).order('sort_order'),
         supabase.from('attachments').select('*').eq('entity_type', 'quote').eq('entity_id', shareToken.quote_id),
+        supabase.from('quote_drawings').select('attachment_id').eq('quote_id', shareToken.quote_id),
       ]);
       if (!q) { setExpired(true); setLoading(false); return; }
 
       const { data: proj } = await supabase.from('projects').select('*').eq('id', q.project_id).single();
 
+      // Drawings/specs linked to the quote via checkboxes live as project
+      // attachments referenced by quote_drawings (anon RLS scopes these to a
+      // valid share token). Merge them with any quote-level attachments.
+      let linkedDrawings: any[] = [];
+      const drawingIds = (qd || []).map((r: any) => r.attachment_id);
+      if (drawingIds.length > 0) {
+        const { data: dAtts } = await supabase.from('attachments').select('*').in('id', drawingIds);
+        linkedDrawings = dAtts || [];
+      }
+      const allAtts = [...(atts || []), ...linkedDrawings];
+
       setQuote(q);
       setItems(its || []);
       setProject(proj);
-      setAttachments(atts || []);
+      setAttachments(allAtts);
 
       // Contract terms: the issued-quote snapshot (contract_overrides) if present,
       // else the hard-coded library fallback. Anon can't read templates, but
@@ -92,8 +104,8 @@ export default function PublicQuotePage() {
       } catch {}
 
       // Render quote attachments (images + PDFs) as document pages.
-      if (atts && atts.length > 0) {
-        const renderable = atts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp|pdf)$/i.test(a.file_name));
+      if (allAtts.length > 0) {
+        const renderable = allAtts.filter((a: any) => /\.(png|jpg|jpeg|gif|bmp|webp|pdf)$/i.test(a.file_name));
         const pageEntries = await Promise.all(
           renderable.map(async (att: any) => {
             try {
