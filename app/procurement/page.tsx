@@ -228,7 +228,13 @@ export default function ProcurementPage() {
         }
       }
       const { data: custOrder } = await supabase.from('orders').select('id, ms_number').eq('quote_id', q.id).maybeSingle();
-      const { data: poNumber } = await supabase.rpc('next_doc_number', { p_kind: 'po' });
+      // PO number mirrors the approved quote's number with HM → PO
+      // (same convention as customer orders' HM → HZ); RPC fallback otherwise.
+      let poNumber: string | null = q.quote_number ? q.quote_number.replace(/^HM/, 'PO') : null;
+      if (!poNumber) {
+        const { data: rpcNum } = await supabase.rpc('next_doc_number', { p_kind: 'po' });
+        poNumber = rpcNum || null;
+      }
       const unitPrice = (it: any) => Number(it.original_price) || Number(it.cost_price) || 0;
       const total = items.reduce((sum: number, it: any) => sum + unitPrice(it) * (Number(it.quantity) || 0), 0);
 
