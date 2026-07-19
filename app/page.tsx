@@ -92,6 +92,7 @@ export default function DashboardPage() {
         );
         const COMPLETED_STAGES = ['ח׳ דוח גמר', 'ט׳ אחריות', 'י׳ סיכום שיווקי', 'תעודת גמר', 'אחריות', 'סיכום'];
         const activeProjects = projects.filter((p) => {
+          if (['הסתיים', 'בוטל'].includes(p.realization_status)) return false;
           if (!projectsWithContractor.has(p.id)) return false;
           const stage = (p.stage_label || '').trim();
           if (COMPLETED_STAGES.some((s) => stage.includes(s))) return false;
@@ -108,6 +109,7 @@ export default function DashboardPage() {
         details.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
 
         const monthlyRevenue = projects.reduce((sum, p) => {
+          if (['הסתיים', 'בוטל'].includes(p.realization_status)) return sum;
           const monthsList = detMap[p.id];
           if (!monthsList) return sum;
           const entries = monthsList.split(',').filter(Boolean);
@@ -201,7 +203,8 @@ export default function DashboardPage() {
         supabase.from('project_details').select('project_id, delivery_months_list'),
       ]);
 
-      const allProj = projRes.data || [];
+      // Archived projects (הסתיים/בוטל) are excluded from the management report.
+      const allProj = (projRes.data || []).filter((p: any) => !['הסתיים', 'בוטל'].includes(p.realization_status));
       const allDet = detRes.data || [];
       const detMap: Record<string, string> = {};
       allDet.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });

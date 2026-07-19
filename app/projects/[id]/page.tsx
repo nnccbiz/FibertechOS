@@ -93,6 +93,7 @@ export default function ProjectDetailPage() {
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [uploadingSpec, setUploadingSpec] = useState(false);
+  const [uploadingClosure, setUploadingClosure] = useState(false);
   const [drawingDragOver, setDrawingDragOver] = useState(false);
   const drawingDragDepth = useRef(0);
   const [specDragOver, setSpecDragOver] = useState(false);
@@ -294,6 +295,35 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // Closure documents (completion report / warranty certificate). Receiving one
+  // is a project-lifecycle event, so it also stamps projects.last_updated_at —
+  // that date is what the archive table shows as the closing date.
+  async function uploadClosureDoc(file: File, kind: 'completion_report' | 'warranty_cert') {
+    setUploadingClosure(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/closure/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: kind, file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await supabase.from('projects').update({ last_updated_at: new Date().toISOString() }).eq('id', id);
+      if (!['הסתיים', 'בוטל'].includes(form.realization_status) &&
+          confirm('המסמך הועלה. לסמן את הפרויקט כ"הסתיים" ולהעבירו לארכיון?')) {
+        const { error: stErr } = await supabase.from('projects')
+          .update({ realization_status: 'הסתיים', last_updated_at: new Date().toISOString() }).eq('id', id);
+        if (stErr) alert(`עדכון הסטטוס נכשל: ${stErr.message}`);
+      }
+      await load();
+    } finally {
+      setUploadingClosure(false);
+    }
+  }
+
   async function setDrawingNumber(attId: string, drawingNumber: string) {
     await supabase.from('attachments').update({ drawing_number: drawingNumber || null }).eq('id', attId);
     setProjectAttachments((prev) => prev.map((a) => a.id === attId ? { ...a, drawing_number: drawingNumber } : a));
@@ -448,7 +478,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
     setSaving(true);
     try {
       const id = params.id as string;
-      await supabase.from('projects').update({
+      const { error: projErr } = await supabase.from('projects').update({
         name: form.name,
         order_value: form.order_value ? parseFloat(form.order_value) : null,
         developer_name: form.developer_name,
@@ -460,6 +490,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         status: form.status,
         last_updated_at: new Date().toISOString(),
       }).eq('id', id);
+      if (projErr) { alert(`השמירה נכשלה: ${projErr.message}`); return; }
 
       // Upsert project_details
       const detailData = {
@@ -782,7 +813,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <EditableField label="אחראי פרויקט" value={d.responsible_party || ''} editing={editInfo} onChange={(v) => updateDetailForm('responsible_party', v)} />
             <EditableField label="ערך הזמנה" value={editInfo ? String(form.order_value || '') : (form.order_value ? formatCurrency(form.order_value) : '')} editing={editInfo} type="number" onChange={(v) => updateForm('order_value', v)} />
             <EditableField label="סטטוס פרויקט" value={form.status || ''} editing={editInfo} onChange={(v) => updateForm('status', v)} />
-            <EditableField label="סטטוס הסתברות" value={form.realization_status || ''} editing={editInfo} type="select" options={['הזמנה', 'גבוהה', 'בינוני', 'נמוך']} onChange={(v) => updateForm('realization_status', v)} />
+            <EditableField label="סטטוס הסתברות" value={form.realization_status || ''} editing={editInfo} type="select" options={['הזמנה', 'גבוהה', 'בינוני', 'נמוך', 'הסתיים', 'בוטל']} onChange={(v) => updateForm('realization_status', v)} />
             <EditableField label="הסתברות %" value={String(form.probability_percent || '')} editing={editInfo} type="number" onChange={(v) => updateForm('probability_percent', v)} />
             <EditableField label="חודשי אספקה" value={String(form.delivery_months || '')} editing={editInfo} type="number" onChange={(v) => updateForm('delivery_months', v)} />
             <EditableField label="תיאור" value={form.description || ''} editing={editInfo} type="textarea" onChange={(v) => updateForm('description', v)} />
@@ -1223,7 +1254,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </label>
           </div>
           {(() => {
-            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type !== 'spec');
+            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && !['spec', 'completion_report', 'warranty_cert'].includes(a.file_type));
             if (drawings.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
             return (
               <div className="space-y-2">
@@ -1240,6 +1271,46 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
                         placeholder="—" className="w-24 border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="ltr" />
                     </label>
+                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </section>
+
+        {/* Closure documents — completion report / warranty certificate.
+            Uploading one stamps last_updated_at (the archive closing date). */}
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-content-body"><Icon name="archive" size={20} /> מסמכי סיום פרויקט</h2>
+            <div className="flex gap-2">
+              {([
+                { kind: 'completion_report' as const, label: '+ דוח סיום' },
+                { kind: 'warranty_cert' as const, label: '+ תעודת אחריות' },
+              ]).map((b) => (
+                <label key={b.kind} className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingClosure ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
+                  {uploadingClosure ? <><Icon name="loading" size={14} /> מעלה…</> : b.label}
+                  <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" multiple disabled={uploadingClosure}
+                    onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadClosureDoc(f, b.kind); } }} />
+                </label>
+              ))}
+            </div>
+          </div>
+          {(() => {
+            const closureDocs = projectAttachments.filter((a: any) => a.entity_type === 'project' && ['completion_report', 'warranty_cert'].includes(a.file_type));
+            if (closureDocs.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין מסמכי סיום. העלאת דוח סיום או תעודת אחריות מעדכנת את תאריך העדכון של הפרויקט בטבלת הארכיון.</p>;
+            return (
+              <div className="space-y-2">
+                {closureDocs.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <span className="text-[12px] font-bold text-success bg-success-soft px-2 py-1 rounded whitespace-nowrap">
+                      {att.file_type === 'completion_report' ? 'דוח סיום' : 'תעודת אחריות'}
+                    </span>
+                    <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
+                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'file'} size={14} /> {att.file_name}
+                    </button>
+                    <span className="text-[11px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
                     <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
                   </div>
                 ))}

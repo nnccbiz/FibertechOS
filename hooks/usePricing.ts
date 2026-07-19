@@ -176,7 +176,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       supabase.from('project_details').select('project_number').eq('project_id', projectId).maybeSingle(),
       supabase.from('project_contacts').select('id, role, name, phone, email').eq('project_id', projectId).order('created_at'),
       supabase.from('clients').select('id, name').order('name'),
-      supabase.from('attachments').select('id, file_name, file_url, drawing_number, file_type').eq('project_id', projectId).eq('entity_type', 'project').order('created_at'),
+      supabase.from('attachments').select('id, file_name, file_url, drawing_number, file_type').eq('project_id', projectId).eq('entity_type', 'project').in('file_type', ['drawing', 'spec']).order('created_at'),
       supabase.from('client_contacts').select('id, client_id, name, role, phone, email').order('created_at'),
       supabase.from('contract_term_templates').select('id, name, description, is_default').order('is_default', { ascending: false }).order('name'),
       supabase.from('pipe_specs').select('dn_mm, pressure_bar, stiffness_pascal').eq('project_id', projectId).order('dn_mm'),
@@ -1142,6 +1142,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       .select('id, file_name, file_url, drawing_number, file_type')
       .eq('project_id', projectId)
       .eq('entity_type', 'project')
+      .in('file_type', ['drawing', 'spec'])
       .order('created_at');
     setProjectDrawings(data || []);
   }
