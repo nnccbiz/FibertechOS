@@ -35,12 +35,20 @@ function Empty({ text }: { text: string }) {
 const hasHebrew = (s: string | null | undefined) => /[֐-׿]/.test(s || '');
 
 // Standard PO terms — seeded into every new PO's notes; Nitzan edits freely.
-const DEFAULT_PO_NOTES = [
+// Foreign-currency POs go to foreign suppliers → English; domestic → Hebrew.
+const DEFAULT_PO_NOTES_EN = [
+  '1. Upon invoice submission, the supplier shall provide quality certificates for all supplied goods.',
+  '2. The goods shall be packed on wooden pallets.',
+  '3. During packing, the supplier shall provide Fibertech with photos and details of the packing, to allow Fibertech to prepare for unloading.',
+  '4. This order is subject to compliance with the agreed time schedule. Any deviation from the agreed schedule will incur penalties, which will be deducted from the payment due to the supplier for the goods.',
+].join('\n');
+const DEFAULT_PO_NOTES_HE = [
   '1. בעת הגשת החשבונית הספק ימציא תעודות איכות לכלל הטובין שסופקו.',
   '2. הטובין יומכלו על גבי משטחי עץ.',
   '3. בעת ההמכלה הספק ידאג להמציא לפיברטק תמונות ומידע על ההמכלה לטובת היערכות פיברטק לפריקה.',
   '4. הזמנה זו כפופה לעמידה בלוח הזמנים, חריגה מלוח הזמנים המוסכם תגרור קנסות אשר יקוזזו מתשלום אותו פיברטק צריכה לשלם לספק בגין הטובין.',
 ].join('\n');
+const defaultPoNotes = (currency: string | null | undefined) => (currency === 'ILS' ? DEFAULT_PO_NOTES_HE : DEFAULT_PO_NOTES_EN);
 
 // ============================================================
 // Translation window — Hebrew free text → editable English, side by side.
@@ -238,7 +246,7 @@ export default function ProcurementPage() {
         status: 'planned',
         origin: 'manual_from_quote',
         procurement_type: currency === 'ILS' ? 'domestic' : 'import',
-        notes: DEFAULT_PO_NOTES,
+        notes: defaultPoNotes(currency),
       }).select('id').single();
       if (error || !po) { alert(`שגיאה ביצירת ההזמנה: ${error?.message}`); return; }
 
@@ -412,8 +420,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
       delivery_date: po.delivery_date || '',
       payment_terms: po.payment_terms || '',
       incoterms: po.incoterms || '',
+      project_name: po.project_name || projNameById[po.project_id] || '',
       // Older POs created before the default terms existed get them on open.
-      notes: po.notes || DEFAULT_PO_NOTES,
+      notes: po.notes || defaultPoNotes(po.currency),
     });
     setRows(items.map((it: any) => ({ ...it })));
     setDeletedRowIds([]);
@@ -450,6 +459,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
         delivery_date: form.delivery_date || null,
         payment_terms: form.payment_terms || null,
         incoterms: form.incoterms || null,
+        project_name: form.project_name || null,
         notes: form.notes || null,
         total_amount: newTotal,
         procurement_type: form.currency === 'ILS' ? 'domestic' : 'import',
@@ -510,6 +520,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
   // Collect every Hebrew free-text field on the PO for the translation window.
   function openTranslate() {
     const f: TranslateField[] = [];
+    if (hasHebrew(form?.project_name)) f.push({ key: 'project_name', label: 'שם הפרויקט', text: form.project_name });
     if (hasHebrew(form?.notes)) f.push({ key: 'notes', label: 'הערות', text: form.notes });
     if (hasHebrew(form?.payment_terms)) f.push({ key: 'payment_terms', label: 'תנאי תשלום', text: form.payment_terms });
     rows.forEach((r, idx) => {
@@ -523,6 +534,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
     values.forEach(({ key, value }) => {
       if (!value.trim()) return;
       if (key === 'notes') setForm((prev: any) => ({ ...prev, notes: value }));
+      else if (key === 'project_name') setForm((prev: any) => ({ ...prev, project_name: value }));
       else if (key === 'payment_terms') setForm((prev: any) => ({ ...prev, payment_terms: value }));
       else if (key.startsWith('desc-')) {
         const idx = parseInt(key.slice(5), 10);
@@ -601,6 +613,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
             <div>
               <label className="block text-[11px] text-neutral-400 mb-1">מועד אספקה</label>
               <input type="date" value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} className={inp} disabled={!canEdit} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">שם הפרויקט (יופיע ב-PDF)</label>
+              <input value={form.project_name} onChange={(e) => setForm({ ...form, project_name: e.target.value })} className={inp} disabled={!canEdit} />
             </div>
             <div className="col-span-2 md:col-span-4">
               <label className="block text-[11px] text-neutral-400 mb-1">הערות (יופיעו ב-PDF)</label>
@@ -714,7 +730,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
                 order={{ ...po, ...(form || {}) }}
                 items={form ? rows : items}
                 supplier={supplier}
-                projectName={po.project_name || projNameById[po.project_id] || null}
+                projectName={(form?.project_name ?? po.project_name) || projNameById[po.project_id] || null}
                 msNumber={po.quote_id ? msByQuote[po.quote_id] || null : null}
               />
             </div>

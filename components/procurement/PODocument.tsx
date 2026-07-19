@@ -256,11 +256,6 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
           <div className="border-b border-neutral-400" />
           <p className="text-[11px] text-neutral-400 mt-2">{L('שם + חתימה + תאריך', 'Name + Signature + Date')}</p>
         </div>
-        <div>
-          <p className="text-sm font-bold text-content-body mb-10">{L('אישור הספק / Supplier', 'Supplier Approval')}</p>
-          <div className="border-b border-neutral-400" />
-          <p className="text-[11px] text-neutral-400 mt-2">Name + Signature + Date</p>
-        </div>
       </div>
     </div>
   );
