@@ -159,7 +159,11 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${(fileName || `הזמנת-רכש-${order.po_number || ''}`).replace(/[\\/:*?"<>|]/g, '')}.pdf`;
+      // Default file name: "הזמנת רכש <project> <date>" (he-IL date uses dots —
+      // filename-safe).
+      const dateStr = (order.order_date ? new Date(order.order_date) : new Date()).toLocaleDateString('he-IL');
+      const defaultName = ['הזמנת רכש', projectName || order.project_name || order.po_number || '', dateStr].filter(Boolean).join(' ');
+      a.download = `${(fileName || defaultName).replace(/[\\/:*?"<>|]/g, '')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
