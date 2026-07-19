@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { icon: 'projects', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
   { icon: 'drawings', label: 'שרטוטים', key: 'projects', href: '/drawings' },
   { icon: 'customers', label: 'לקוחות', key: 'marketing', href: '/customers' },
+  { icon: 'procurement', label: 'רכש', key: 'import', href: '/procurement' },
   { icon: 'import', label: 'יבוא', key: 'import', href: '/import' },
   { icon: 'logistics', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
   { icon: 'invoice', label: 'תעודות משלוח', key: 'import', href: '/deliveries' },

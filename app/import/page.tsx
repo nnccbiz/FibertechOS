@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
+import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 import DeliveriesPanel from '@/components/import/DeliveriesPanel';
 import ReceiptsPanel from '@/components/import/ReceiptsPanel';
 import { Button } from '@/components/ui/Button';
@@ -123,8 +124,13 @@ export default function ImportPage() {
       } catch { /* ignore */ }
     }
 
+    // Procurement split: a PO belongs to /procurement until it was sent to the
+    // supplier (po_sent_at) — only sent orders are tracked here in /import.
+    const allOrders = o.data || [];
     setData({
-      orders: o.data || [], items: it.data || [], shipments: sh.data || [], containers: co.data || [],
+      orders: allOrders.filter((x: any) => x.po_sent_at),
+      procurementOrders: allOrders.filter((x: any) => !x.po_sent_at),
+      items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
       custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], exemptions: exemptions || [], receipts: receipts || [], receiptLines: receiptLines || [], cross,
     });
@@ -176,6 +182,44 @@ function Info({ label, value }: { label: string; value?: any }) {
   return (<div><p className="text-[11px] text-neutral-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-content-body">{value || '—'}</p></div>);
 }
 
+// "צפה בהזמנת רכש" — read-only branded PO PDF (same document Nitzan sent from
+// /procurement), so Nurit can see exactly what went out to the supplier.
+function POViewButton({ order, items, projectName, className }: { order: any; items: any[]; projectName?: string | null; className?: string }) {
+  const [show, setShow] = useState(false);
+  const pdfRef = useRef<PODocumentHandle>(null);
+  return (
+    <>
+      <button onClick={() => setShow(true)} className={className || 'text-[12px] font-semibold text-primary hover:underline'}>
+        <Icon name="pdf" size={14} /> צפה בהזמנת רכש
+      </button>
+      {show && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShow(false)}>
+          <div className="bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
+              <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
+                  <Icon name="download" size={14} /> הורד PDF
+                </button>
+                <button onClick={() => setShow(false)} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
+              </div>
+            </div>
+            <div className="p-4">
+              <PODocument
+                ref={pdfRef}
+                order={order}
+                items={items}
+                supplier={order.suppliers || null}
+                projectName={projectName || order.project_name || order.projects?.name || null}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ============================================================
 // Approved-quotes view — every signed quote + its import status
 // ============================================================
@@ -188,76 +232,19 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
       || (q.project_id ? data.orders.find((o: any) => o.project_id && o.project_id === q.project_id) : null)
       || null;
   }
+  // A PO that exists but wasn't sent to the supplier yet lives in /procurement.
+  function procurementFor(q: any) {
+    return (data.procurementOrders || []).find((o: any) => o.quote_id === q.id) || null;
+  }
   const exemptByQuote: Record<string, string> = {};
   (data.exemptions || []).forEach((e: any) => { exemptByQuote[e.quote_id] = e.reason || ''; });
   const projNameById: Record<string, string> = {};
   (data.projects || []).forEach((p: any) => { projNameById[p.id] = p.name; });
-  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q), exempt: exemptByQuote[q.id] !== undefined }));
+  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q), procurement: procurementFor(q), exempt: exemptByQuote[q.id] !== undefined }));
   // Exempt quotes (internal / ILS / marked manually) are not "pending import".
-  const pendingCount = rows.filter((r: any) => !r.order && !r.exempt).length;
+  const pendingCount = rows.filter((r: any) => !r.order && !r.procurement && !r.exempt).length;
   const shown = rows.filter((r: any) =>
-    filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.exempt) : !!r.order);
-
-  // One-click purchase order: built from the quote's cost input — supplier,
-  // items, currency all already in the system. Nitzan confirms, not retypes.
-  async function createPO(q: any) {
-    const { data: quote } = await supabase.from('quotes').select('id, quote_number, cost_input_id, project_id').eq('id', q.id).single();
-    if (!quote?.cost_input_id) { alert('להצעה אין תמחור ספק מקושר — צור הזמנת רכש ידנית.'); return; }
-    const [{ data: ci }, { data: items }] = await Promise.all([
-      supabase.from('cost_inputs').select('source_name, currency, payment_terms').eq('id', quote.cost_input_id).single(),
-      supabase.from('cost_input_items').select('*').eq('cost_input_id', quote.cost_input_id).order('sort_order'),
-    ]);
-    if (!items?.length) { alert('התמחור המקושר ריק.'); return; }
-    const itemCur = items.find((i: any) => i.original_currency && i.original_currency !== 'ILS')?.original_currency;
-    const currency = (ci?.currency && ci.currency !== 'ILS') ? ci.currency : (itemCur || 'ILS');
-
-    // Supplier: match by name, create if new.
-    let supplierId: string | null = null;
-    if (ci?.source_name) {
-      const { data: sup } = await supabase.from('suppliers').select('id').ilike('name', `%${ci.source_name}%`).limit(1).maybeSingle();
-      if (sup) supplierId = sup.id;
-      else {
-        const { data: ns } = await supabase.from('suppliers').insert({ name: ci.source_name, currency }).select('id').single();
-        supplierId = ns?.id || null;
-      }
-    }
-    const { data: custOrder } = await supabase.from('orders').select('id, ms_number').eq('quote_id', q.id).maybeSingle();
-    const { data: poNumber } = await supabase.rpc('next_doc_number', { p_kind: 'po' });
-    const unitPrice = (it: any) => Number(it.original_price) || Number(it.cost_price) || 0;
-    const total = items.reduce((sum: number, it: any) => sum + unitPrice(it) * (Number(it.quantity) || 0), 0);
-
-    const { data: po, error } = await supabase.from('import_orders').insert({
-      supplier_id: supplierId,
-      project_id: quote.project_id || null,
-      project_name: projNameById[quote.project_id] || null,
-      quote_id: q.id,
-      customer_order_id: custOrder?.id || null,
-      po_number: poNumber || null,
-      currency,
-      payment_terms: ci?.payment_terms || null,
-      total_amount: Math.round(total * 100) / 100,
-      order_date: new Date().toISOString().slice(0, 10),
-      status: 'planned',
-      origin: 'manual_from_quote',
-      procurement_type: currency === 'ILS' ? 'domestic' : 'import',
-    }).select('id').single();
-    if (error || !po) { alert(`שגיאה: ${error?.message}`); return; }
-
-    await supabase.from('import_order_items').insert(items.map((it: any, idx: number) => ({
-      import_order_id: po.id,
-      line_no: idx + 1,
-      description: it.product_name || null,
-      dn: parseInt(String(it.dn_size || '').replace(/\D/g, ''), 10) || null,
-      pn: it.pn ?? null,
-      sn: it.sn ?? null,
-      unit: it.unit || null,
-      ordered_qty: Number(it.quantity) || 0,
-      unit_price: unitPrice(it),
-      sort_order: idx,
-    })));
-    alert(`הזמנת רכש ${poNumber || ''} נוצרה מ-${items.length} שורות התמחור${custOrder?.ms_number ? ` · מ"ס ${custOrder.ms_number}` : ''}.`);
-    onUpdate();
-  }
+    filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.procurement && !r.exempt) : !!r.order);
 
   async function toggleExempt(q: any, exempt: boolean) {
     if (exempt) {
@@ -292,7 +279,7 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
               </tr>
             </thead>
             <tbody>
-              {shown.map(({ q, order, exempt }: any) => {
+              {shown.map(({ q, order, procurement, exempt }: any) => {
                 const st = order ? (ORDER_STATUS[order.status] || ORDER_STATUS.open) : null;
                 return (
                   <tr key={q.id} className="border-t border-line-subtle hover:bg-neutral-50">
@@ -308,22 +295,26 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                     <td className="py-2 px-3">
                       {order && st
                         ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-                        : exempt
-                          ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">לא רלוונטי ליבוא</span>
-                          : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">🔴 טרם הזמנת יבוא</span>}
+                        : procurement
+                          ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">בהכנה ברכש</span>
+                          : exempt
+                            ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">לא רלוונטי ליבוא</span>
+                            : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger">🔴 טרם הזמנת יבוא</span>}
                     </td>
                     <td className="py-2 px-3 text-left">
                       {order
-                        ? <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>
-                        : exempt
-                          ? (canEdit && <button onClick={() => toggleExempt(q, false)} className="text-[11px] text-neutral-400 hover:text-primary hover:underline">החזר לרשימה</button>)
-                          : (
-                            <span className="inline-flex items-center gap-2">
-                              {canEdit && <button onClick={() => createPO(q)} className="text-[12px] font-semibold text-primary hover:underline"><Icon name="add" size={12} /> צור הזמנת רכש</button>}
-                              <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">מסמכים <Icon name="zap" size={14} /></button>
-                              {canEdit && <button onClick={() => toggleExempt(q, true)} className="text-[11px] text-neutral-400 hover:text-content-body hover:underline">לא רלוונטי ליבוא</button>}
-                            </span>
-                          )}
+                        ? <POViewButton order={order} items={data.items.filter((i: any) => i.import_order_id === order.id)} projectName={q.project_id ? projNameById[q.project_id] : null} />
+                        : procurement
+                          ? <a href="/procurement" className="text-[12px] font-semibold text-primary hover:underline">{procurement.po_number || 'לעריכה'} ברכש ←</a>
+                          : exempt
+                            ? (canEdit && <button onClick={() => toggleExempt(q, false)} className="text-[11px] text-neutral-400 hover:text-primary hover:underline">החזר לרשימה</button>)
+                            : (
+                              <span className="inline-flex items-center gap-2">
+                                {canEdit && <a href="/procurement" className="text-[12px] font-semibold text-primary hover:underline"><Icon name="procurement" size={12} /> צור הזמנת רכש ברכש</a>}
+                                <button onClick={onSmartUpload} className="text-[12px] text-primary hover:underline">מסמכים <Icon name="zap" size={14} /></button>
+                                {canEdit && <button onClick={() => toggleExempt(q, true)} className="text-[11px] text-neutral-400 hover:text-content-body hover:underline">לא רלוונטי ליבוא</button>}
+                              </span>
+                            )}
                     </td>
                   </tr>
                 );
@@ -441,6 +432,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">
             {open ? <>הסתר <Icon name="caretUp" size={12} /></> : <>פריטים, חשבוניות, COA ומסמכים <Icon name="caretDown" size={12} /></>}
           </button>
+          <POViewButton order={order} items={items} className="text-[12px] text-primary font-medium hover:underline" />
           {canEdit && order.status === 'draft' && (
             <Button size="sm" onClick={release} disabled={releasing} iconLeft={<Icon name="confirm" size={20} />}>
               {releasing ? 'משחרר…' : 'שחרר לתפ"י'}
@@ -988,6 +980,8 @@ function NewOrderModal({ data, onClose, onCreated }: any) {
         is_stock: f.is_stock, supplier_order_no: f.supplier_order_no || null, project_name: f.project_name || null,
         currency: f.currency, incoterms: f.incoterms || null, payment_terms: f.payment_terms || null,
         total_amount: f.total_amount === '' ? 0 : Number(f.total_amount), order_date: f.order_date || null,
+        // Created directly in /import = the PO is already with the supplier.
+        po_sent_at: new Date().toISOString(),
       });
       if (error) { alert('שגיאה: ' + error.message); return; }
       onCreated();
