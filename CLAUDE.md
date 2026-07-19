@@ -106,7 +106,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT)
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT) + 20260715_001 (shared_quote_peg_currency RPC) + 20260719_001 (anon RLS for shared-quote drawings/specs) — plus the 20260705/0706/0708 batches noted in §7
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -192,7 +192,7 @@ FibertechOS/
 - `/drawings` search page: by drawing number / project name / project number. Roxy understands "find a drawing of project X" and routes to `/drawings?q=`.
 - `quote_drawings` (despite its name) links **both** drawings and specs to a quote via checkboxes in the quote card. Multi-select. The quote preview renders each linked file as a full A4 page (orientation per `file_type`) inserted between the summary section and the contract terms. Picker label: "📐 שרטוטים ומפרטים לצירוף להצעה זו"; each item shows the matching 📐/📋 icon.
 - After uploading or deleting a spec/drawing on the project page, `attachmentVersion` (a counter) is bumped and passed to `PricingSection`, which calls `usePricing.refreshProjectDrawings()` so the quote-card checkboxes pick up the change without a full reload.
-- Public `/quote/[token]` does not yet show linked drawings/specs (needs anon RLS).
+- Public `/quote/[token]` **now shows linked drawings/specs** (2026-07-19, migration `20260719_001`): the page fetches `quote_drawings` + the linked project attachments and renders them as A4 pages like the internal preview. Anon RLS added — `anon_read_shared_quote_drawings` on `quote_drawings`, and `anon_read_shared_attachments` on `attachments` broadened to also cover `entity_type='project'` files linked via `quote_drawings` — both strictly scoped to a valid (non-expired) share token. **Cost-input attachments (`entity_type='cost_input'`) are never referenced by `quote_drawings`**, so pricing files stay invisible to anon (verified against live DB: anon sees 0 cost_input rows). Files stream in real-time by token, so a link already sent to a customer picks up the specs on reload without re-issuing.
 
 ### Contract Terms Library
 - Master templates live in `contract_term_templates` (jsonb `content` of `{title, clauses: [{num, text}]}[]`). Editor at `/settings/contract-templates` lets admins create, rename, duplicate, mark a default, delete, and edit sections/clauses of templates.
@@ -340,7 +340,7 @@ Verified findings from a high-effort multi-angle review of the branch. Ranked by
 - Normalize `clients` table — partially done: `clients` is now the customer master with `customer_id` links on quotes/projects, but `projects` still keeps plaintext `developer_name`/`planning_office` alongside the FK roles.
 - Project stage history tracking.
 - Backfill `projects.customer_id` for existing projects (only quotes were auto-seeded to customers).
-- Linked drawings/specs on public `/quote/[token]` (needs anon RLS on `quote_drawings` + `attachments`).
+- ~~Linked drawings/specs on public `/quote/[token]`~~ ✅ done 2026-07-19 (migration `20260719_001` — see Drawings & Specs Module).
 - Consolidate inline `formatCurrency` / `formatDate` copies into `lib/revenue.ts` helpers (Reuse cleanup, see review #11-12).
 - Extract `useFileDrop` hook and `<Modal>` wrapper from duplicated implementations.
 - Move pdf.js dynamic import to module scope (currently re-imported per attachment in quote preview).
