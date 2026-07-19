@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const [canHover, setCanHover] = useState(true);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { canAccess, loading } = usePermissions();
@@ -40,6 +41,22 @@ export default function Sidebar() {
   useEffect(() => {
     setCanHover(window.matchMedia('(hover: hover)').matches);
   }, []);
+
+  // Open only after the cursor rests on the sidebar for 2s straight; leaving
+  // before then cancels the pending open. Clear the timer on unmount too.
+  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+
+  function handleEnter() {
+    if (!canHover) return;
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setExpanded(true), 2000);
+  }
+
+  function handleLeave() {
+    if (!canHover) return;
+    if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; }
+    setExpanded(false);
+  }
 
   async function handleLogout() {
     const supabase = createClient();
@@ -59,8 +76,8 @@ export default function Sidebar() {
 
   return (
     <aside
-      onMouseEnter={() => canHover && setExpanded(true)}
-      onMouseLeave={() => canHover && setExpanded(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
       className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-line-subtle flex-col z-40 transition-all duration-300 ${
         expanded ? 'w-[200px] shadow-lg' : 'w-[60px]'
       }`}
