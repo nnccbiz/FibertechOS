@@ -345,6 +345,7 @@ export default function ProcurementPage() {
                 suppliers={suppliers}
                 projNameById={projNameById}
                 msByQuote={msByQuote}
+                quoteNumber={signedQuotes.find((q) => q.id === po.quote_id)?.quote_number || null}
                 expanded={expandedPO === po.id}
                 onToggle={() => setExpandedPO(expandedPO === po.id ? null : po.id)}
                 canEdit={canEdit}
@@ -399,10 +400,11 @@ export default function ProcurementPage() {
 // ============================================================
 // PO card — inline editor + PDF + send-to-supplier
 // ============================================================
-function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onToggle, canEdit, canDelete, onUpdate }: any) {
+function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, expanded, onToggle, canEdit, canDelete, onUpdate }: any) {
   const supabase = createClient();
   const [form, setForm] = useState<any>(null);
   const [rows, setRows] = useState<any[]>([]);
+  const [quoteItems, setQuoteItems] = useState<any[] | null>(null);
   const [deletedRowIds, setDeletedRowIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -427,6 +429,96 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
     setRows(items.map((it: any) => ({ ...it })));
     setDeletedRowIds([]);
   }, [expanded, po, items]);
+
+  // The customer-approved quote lines — the reference the PO is checked against.
+  useEffect(() => {
+    if (!expanded || !po.quote_id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('quote_items')
+        .select('product_name, dn_size, pn, sn, quantity, unit')
+        .eq('quote_id', po.quote_id);
+      if (!cancelled) setQuoteItems(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, po.quote_id]);
+
+  // Item identity = DN|PN|SN (numbers only; missing spec → '').
+  const specKey = (dn: any, pn: any, sn: any) => {
+    const n = (v: any) => { const x = parseInt(String(v ?? '').replace(/\D/g, ''), 10); return isNaN(x) ? '' : x; };
+    const d = n(dn);
+    if (d === '') return null;
+    return `${d}|${n(pn)}|${n(sn)}`;
+  };
+  const specLabel = (k: string) => {
+    const [d, p, s] = k.split('|');
+    return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}`;
+  };
+
+  // Aggregate quote quantities per spec, compare against the live PO rows.
+  // Overlapping specs with different totals = anomaly; specs the customer
+  // approved that are absent from the PO = missing.
+  const quoteAgg = (() => {
+    if (!quoteItems?.length) return null;
+    const m = new Map<string, number>();
+    quoteItems.forEach((qi) => {
+      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      if (!k) return;
+      m.set(k, (m.get(k) || 0) + (Number(qi.quantity) || 0));
+    });
+    return m.size ? m : null;
+  })();
+
+  const comparison = (() => {
+    if (!quoteAgg || !form) return null;
+    const poAgg = new Map<string, { qty: number; rowIdxs: number[] }>();
+    rows.forEach((r, idx) => {
+      const k = specKey(r.dn, r.pn, r.sn);
+      if (!k) return;
+      const e = poAgg.get(k) || { qty: 0, rowIdxs: [] };
+      e.qty += Number(r.ordered_qty) || 0;
+      e.rowIdxs.push(idx);
+      poAgg.set(k, e);
+    });
+    const mismatches: { k: string; quoteQty: number; poQty: number }[] = [];
+    const missing: { k: string; quoteQty: number }[] = [];
+    quoteAgg.forEach((qQty, k) => {
+      const p = poAgg.get(k);
+      if (!p) missing.push({ k, quoteQty: qQty });
+      else if (Math.abs(p.qty - qQty) > 0.001) mismatches.push({ k, quoteQty: qQty, poQty: p.qty });
+    });
+    return { mismatches, missing, poAgg };
+  })();
+  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
+
+  // Pull the approved quantities into matching PO rows (unique-match only);
+  // stays local until שמור.
+  function pullQuantitiesFromQuote() {
+    if (!quoteAgg || !comparison) return;
+    let applied = 0; const skipped: string[] = [];
+    setRows((prev) => {
+      const next = prev.map((r) => ({ ...r }));
+      quoteAgg.forEach((qQty, k) => {
+        const p = comparison.poAgg.get(k);
+        if (!p) return;
+        if (p.rowIdxs.length === 1) {
+          if (Math.abs((Number(next[p.rowIdxs[0]].ordered_qty) || 0) - qQty) > 0.001) {
+            next[p.rowIdxs[0]].ordered_qty = qQty;
+            applied++;
+          }
+        } else if (Math.abs(p.qty - qQty) > 0.001) {
+          skipped.push(specLabel(k));
+        }
+      });
+      return next;
+    });
+    setTimeout(() => {
+      let msg = applied > 0 ? `עודכנו כמויות ב-${applied} שורות מתוך ההצעה המאושרת. זכור לשמור.` : 'הכמויות כבר תואמות להצעה המאושרת.';
+      if (skipped.length) msg += `\nדולגו (כמה שורות לאותו מפרט — עדכן ידנית): ${skipped.join(', ')}`;
+      alert(msg);
+    }, 0);
+  }
 
   const currency = form?.currency || po.currency || 'ILS';
   const liveRows = form ? rows : items;
@@ -624,6 +716,37 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
             </div>
           </div>
 
+          {/* Cross-check against the customer-approved quote */}
+          {hasAnomaly && comparison && (
+            <div className="mb-4 bg-warning-soft border border-warning rounded-xl p-4">
+              <p className="text-sm font-bold text-warning mb-2">
+                <Icon name="warning" size={16} /> אנומליה מול ההצעה שהלקוח אישר{quoteNumber ? <> (<span dir="ltr">{quoteNumber}</span>)</> : ''}
+              </p>
+              <div className="space-y-1 text-[13px] text-content-body">
+                {comparison.mismatches.map((m) => (
+                  <p key={m.k}>
+                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
+                  </p>
+                ))}
+                {comparison.missing.map((m) => (
+                  <p key={m.k}>
+                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                  </p>
+                ))}
+              </div>
+              {canEdit && comparison.mismatches.length > 0 && (
+                <button onClick={pullQuantitiesFromQuote} className="mt-3 text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
+                  <Icon name="download" size={14} /> משוך כמויות מההצעה המאושרת
+                </button>
+              )}
+            </div>
+          )}
+          {comparison && !hasAnomaly && (
+            <p className="mb-3 text-[12px] text-success font-medium">
+              <Icon name="success" size={14} /> הקטרים, הלחצים והכמויות תואמים להצעה המאושרת{quoteNumber ? <> (<span dir="ltr">{quoteNumber}</span>)</> : ''}
+            </p>
+          )}
+
           {/* Items */}
           <div className="overflow-x-auto mb-3">
             <table className="w-full text-[12px] border-collapse">
@@ -679,6 +802,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
                 <button onClick={openTranslate} className="text-[13px] text-primary hover:underline" title="תרגום הערות ותיאורים לאנגלית (AI) — לעריכה לפני החלה">
                   <Icon name="ai" size={14} /> תרגם לאנגלית
                 </button>
+                {quoteAgg && (
+                  <button onClick={pullQuantitiesFromQuote} className="text-[13px] text-primary hover:underline" title="עדכון כמויות השורות לפי ההצעה שהלקוח אישר (התאמה לפי DN/PN/SN)">
+                    <Icon name="download" size={14} /> משוך כמויות מההצעה
+                  </button>
+                )}
                 <span className="flex-1" />
                 <button onClick={save} disabled={saving} className="text-[13px] font-semibold bg-neutral-100 text-content-body px-4 py-2 rounded-lg hover:bg-neutral-200 disabled:opacity-50">
                   {saving ? 'שומר…' : <><Icon name="save" size={14} /> שמור</>}
