@@ -38,6 +38,8 @@ function money(v: number, currency: string) {
   }
 }
 
+type POPage = { itemIdxs: number[]; blocks: ('totals' | 'sign')[] };
+
 const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocument(
   { order, items, supplier, projectName, msNumber },
   ref,
@@ -46,6 +48,74 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [fitH, setFitH] = useState<number | null>(null);
+  const [measuredPages, setMeasuredPages] = useState<POPage[] | null>(null);
+
+  // Exact pagination: measure the real rendered height of every table row and
+  // trailer block in a hidden mirror, then pack pages by those heights — a
+  // fixed rows-per-page estimate cuts rows when descriptions wrap.
+  useEffect(() => {
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      const root = document.getElementById('po-measure');
+      if (!root) return;
+      const rh = (sel: string) => {
+        const el = root.querySelector(sel);
+        return el ? (el as HTMLElement).getBoundingClientRect().height : 0;
+      };
+      const page297 = rh('[data-m="page"]');
+      const footerH = rh('[data-m="footer"]');
+      const padH = rh('[data-m="pad"]');
+      const headerH = rh('[data-m="header"]');
+      const contLabelH = rh('[data-m="contlabel"]');
+      const theadH = rh('[data-m="items"] thead');
+      const totalsH = rh('[data-m="totals"]');
+      const signH = rh('[data-m="sign"]');
+      if (!page297 || !footerH) return;
+
+      const trs = Array.from(root.querySelectorAll('[data-m="items"] tbody tr')) as HTMLElement[];
+      const rowHs = trs.map((el) => el.getBoundingClientRect().height);
+
+      const SAFETY = 16;
+      const contentAvail = page297 - footerH - padH;
+      const pages: POPage[] = [];
+      let i = 0;
+      if (rowHs.length === 0) pages.push({ itemIdxs: [], blocks: [] });
+      while (i < rowHs.length) {
+        const first = pages.length === 0;
+        const avail = contentAvail - (first ? headerH : contLabelH) - theadH - SAFETY;
+        let used = 0;
+        const idxs: number[] = [];
+        while (i < rowHs.length && (idxs.length === 0 || used + rowHs[i] <= avail)) {
+          used += rowHs[i];
+          idxs.push(i);
+          i++;
+        }
+        pages.push({ itemIdxs: idxs, blocks: [] });
+      }
+
+      // Trailer: totals then notes+signatures, breaking to a new page as needed.
+      let cur = pages[pages.length - 1];
+      const curUsed = (pages.length === 1 ? headerH : contLabelH)
+        + (cur.itemIdxs.length ? theadH : 0)
+        + cur.itemIdxs.reduce((s, idx) => s + rowHs[idx], 0);
+      let rem = contentAvail - curUsed - SAFETY;
+      ([['totals', totalsH], ['sign', signH]] as const).forEach(([kind, h]) => {
+        if (h > rem && (cur.itemIdxs.length > 0 || cur.blocks.length > 0)) {
+          cur = { itemIdxs: [], blocks: [] };
+          pages.push(cur);
+          rem = contentAvail - contLabelH - SAFETY;
+        }
+        cur.blocks.push(kind);
+        rem -= h;
+      });
+      setMeasuredPages(pages);
+    };
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) fonts.ready.then(() => requestAnimationFrame(measure));
+    else requestAnimationFrame(measure);
+    return () => { cancelled = true; };
+  }, [items, order]);
 
   useEffect(() => {
     const recompute = () => {
@@ -59,7 +129,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
     const t = setTimeout(recompute, 300);
     window.addEventListener('resize', recompute);
     return () => { window.removeEventListener('resize', recompute); clearTimeout(t); };
-  }, [items, order]);
+  }, [items, order, measuredPages]);
 
   async function handleDownloadPdf(fileName?: string) {
     const html2canvas = (await import('html2canvas')).default;
@@ -124,24 +194,24 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   // Side accent on info blocks follows the reading direction.
   const accent = en ? 'border-l-4 border-navy-700 pl-4 text-left' : 'border-r-4 border-navy-700 pr-4 text-right';
 
-  // Uniform-row pagination: first page fits fewer rows (header block), rest more.
-  // TRAILER covers totals + notes (default terms are ~5 lines) + signatures.
-  const FIRST_PAGE_ROWS = 18, NEXT_PAGE_ROWS = 30, TRAILER_ROWS = 13;
-  const pages: any[][] = [];
-  {
+  // Conservative estimate shown only until the measured pass lands.
+  const estimatePages: POPage[] = (() => {
+    const FIRST = 12, NEXT = 22, TRAILER = 13;
+    const pages: POPage[] = [];
     let i = 0;
     while (i < items.length || pages.length === 0) {
-      const cap = pages.length === 0 ? FIRST_PAGE_ROWS : NEXT_PAGE_ROWS;
-      pages.push(items.slice(i, i + cap));
+      const cap = pages.length === 0 ? FIRST : NEXT;
+      pages.push({ itemIdxs: items.slice(i, i + cap).map((_, j) => i + j), blocks: [] });
       i += cap;
       if (items.length === 0) break;
     }
-    // Totals + signatures need room — if the last page is nearly full, give
-    // them their own page.
-    const lastCap = pages.length === 1 ? FIRST_PAGE_ROWS : NEXT_PAGE_ROWS;
-    if (pages[pages.length - 1].length > lastCap - TRAILER_ROWS) pages.push([]);
-  }
-  const totalPages = pages.length;
+    const lastCap = pages.length === 1 ? FIRST : NEXT;
+    if (pages[pages.length - 1].itemIdxs.length > lastCap - TRAILER) pages.push({ itemIdxs: [], blocks: [] });
+    pages[pages.length - 1].blocks = ['totals', 'sign'];
+    return pages;
+  })();
+  const renderPages = measuredPages ?? estimatePages;
+  const totalPages = renderPages.length;
 
   const Footer = ({ pageNum }: { pageNum: number }) => (
     <div className="bg-neutral-100 px-10 py-4 text-center" dir={dir}>
@@ -270,23 +340,35 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
             ? { width: A4_W, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }
             : { width: A4_W, margin: '0 auto' }}
         >
-          {pages.map((slice, pIdx) => {
-            const startIdx = pIdx === 0 ? 0 : FIRST_PAGE_ROWS + (pIdx - 1) * NEXT_PAGE_ROWS;
-            const last = pIdx === pages.length - 1;
-            return (
-              <div key={pIdx} className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
-                <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir={dir}>
-                  {pIdx === 0
-                    ? <Header />
-                    : <p className="text-sm text-neutral-400 mb-4">{L('הזמנת רכש —', 'Purchase Order —')} <span dir="ltr">{order.po_number || ''}</span> {L('(המשך)', '(continued)')}</p>}
-                  {slice.length > 0 && <ItemsTable slice={slice} startIdx={startIdx} />}
-                  {last && <Totals />}
-                  {last && <Signatures />}
-                </div>
-                <Footer pageNum={pIdx + 1} />
+          {renderPages.map((pg, pIdx) => (
+            <div key={pIdx} className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col justify-between" style={{ height: '297mm', overflow: 'hidden' }}>
+              <div className="px-10 pt-8 pb-6 overflow-hidden min-h-0" dir={dir}>
+                {pIdx === 0
+                  ? <Header />
+                  : <p className="text-sm text-neutral-400 mb-4">{L('הזמנת רכש —', 'Purchase Order —')} <span dir="ltr">{order.po_number || ''}</span> {L('(המשך)', '(continued)')}</p>}
+                {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i) => items[i])} startIdx={pg.itemIdxs[0]} />}
+                {pg.blocks.includes('totals') && <Totals />}
+                {pg.blocks.includes('sign') && <Signatures />}
               </div>
-            );
-          })}
+              <Footer pageNum={pIdx + 1} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Hidden mirror — real rendered heights for exact pagination. */}
+      <div id="po-measure" aria-hidden="true" style={{ position: 'absolute', left: '-99999px', top: 0, width: '210mm', visibility: 'hidden' }}>
+        <div data-m="page" style={{ height: '297mm' }} />
+        <div data-m="pad" className="pt-8 pb-6" style={{ display: 'flow-root' }}><div style={{ height: '1px' }} /></div>
+        <div data-m="footer" style={{ display: 'flow-root' }}><Footer pageNum={1} /></div>
+        <div className="px-10" dir={dir}>
+          <div data-m="header" style={{ display: 'flow-root' }}><Header /></div>
+          <div data-m="contlabel" style={{ display: 'flow-root' }}>
+            <p className="text-sm text-neutral-400 mb-4">{L('הזמנת רכש —', 'Purchase Order —')} <span dir="ltr">{order.po_number || ''}</span> {L('(המשך)', '(continued)')}</p>
+          </div>
+          <div data-m="items">{items.length > 0 && <ItemsTable slice={items} startIdx={0} />}</div>
+          <div data-m="totals" style={{ display: 'flow-root' }}><Totals /></div>
+          <div data-m="sign" style={{ display: 'flow-root' }}><Signatures /></div>
         </div>
       </div>
     </div>

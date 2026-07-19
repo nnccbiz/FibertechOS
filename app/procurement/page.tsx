@@ -679,11 +679,12 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       const exactQty = candidates.filter((pk) => Math.abs(agg.get(pk)!.qty - qQty) <= 0.001);
       const chosen = exactQty.length === 1 ? exactQty[0] : (candidates.length === 1 ? candidates[0] : null);
       if (!chosen) return;
-      agg.get(chosen)!.rowIdxs.forEach((idx) => {
+      const fixedRows = agg.get(chosen)!.rowIdxs;
+      fixedRows.forEach((idx) => {
         if (!String(next[idx].pn || '').trim() && p) next[idx].pn = p;
         if (!String(next[idx].sn || '').trim() && s) next[idx].sn = s;
       });
-      report.push(`הושלמו PN/SN חסרים בשורות ${specLabel(k)} — עכשיו תואמות להצעה.`);
+      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${specLabel(k)}) — עכשיו תואמות להצעה.`);
       agg = buildAgg();
     });
 
@@ -694,9 +695,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
       if (e.rowIdxs.length === 1) {
         next[e.rowIdxs[0]].ordered_qty = qQty;
-        report.push(`כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
+        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
       } else {
-        report.push(`⚠ ${specLabel(k)}: כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
+        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
       }
     });
 
@@ -710,7 +711,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
         unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
       });
-      report.push(`⚠ נוספה שורה ${specLabel(k)} (${qQty.toLocaleString()}) — יש להזין מחיר ספק.`);
+      report.push(`⚠ שורה ${next.length} (חדשה): נוסף מפרט ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
     // 4. zero-qty leftovers not in the quote
@@ -720,7 +721,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
-        report.push(`הוסרה שורה ${specLabel(k)} בכמות 0 שאינה קיימת בהצעה.`);
+        report.push(`שורה ${idx + 1}: הוסרה (${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
       }
     }
 
