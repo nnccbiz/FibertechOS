@@ -125,7 +125,8 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const accent = en ? 'border-l-4 border-navy-700 pl-4 text-left' : 'border-r-4 border-navy-700 pr-4 text-right';
 
   // Uniform-row pagination: first page fits fewer rows (header block), rest more.
-  const FIRST_PAGE_ROWS = 18, NEXT_PAGE_ROWS = 30, TRAILER_ROWS = 8;
+  // TRAILER covers totals + notes (default terms are ~5 lines) + signatures.
+  const FIRST_PAGE_ROWS = 18, NEXT_PAGE_ROWS = 30, TRAILER_ROWS = 13;
   const pages: any[][] = [];
   {
     let i = 0;
@@ -176,15 +177,13 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
           <h3 className="text-sm font-bold text-navy-700 mb-2">{L('אל הספק / To Supplier', 'To Supplier')}</h3>
           <p className="text-base font-bold text-content-strong" dir="ltr">{supplier?.name || '—'}</p>
           {supplier?.contact_name && <p className="text-sm text-content-body" dir="ltr">{supplier.contact_name}</p>}
-          {order.supplier_project_no && (
-            <p className="text-sm text-content-body mt-1">{L('מס׳ פרויקט ספק:', 'Supplier Project No.:')} <span dir="ltr">{order.supplier_project_no}</span></p>
-          )}
         </div>
         <div className={accent}>
           <h3 className="text-sm font-bold text-navy-700 mb-2">{L('פרטי ההזמנה', 'Order Details')}</h3>
           {projectName && <p className="text-sm text-content-body">{L('פרויקט:', 'Project:')} <span className="font-semibold">{projectName}</span></p>}
           <p className="text-sm text-content-body">{L('מטבע:', 'Currency:')} <span dir="ltr">{currency}</span></p>
           {order.incoterms && <p className="text-sm text-content-body">{L('תנאי סחר:', 'Incoterms:')} <span dir="ltr">{order.incoterms}</span></p>}
+          {order.delivery_date && <p className="text-sm text-content-body">{L('מועד אספקה:', 'Delivery Date:')} <span className="font-semibold">{fmtDocDate(new Date(order.delivery_date))}</span></p>}
           {order.payment_terms && <p className="text-sm text-content-body">{L('תנאי תשלום:', 'Payment Terms:')} {order.payment_terms}</p>}
         </div>
       </div>

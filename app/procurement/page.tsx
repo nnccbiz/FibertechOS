@@ -34,6 +34,14 @@ function Empty({ text }: { text: string }) {
 
 const hasHebrew = (s: string | null | undefined) => /[֐-׿]/.test(s || '');
 
+// Standard PO terms — seeded into every new PO's notes; Nitzan edits freely.
+const DEFAULT_PO_NOTES = [
+  '1. בעת הגשת החשבונית הספק ימציא תעודות איכות לכלל הטובין שסופקו.',
+  '2. הטובין יומכלו על גבי משטחי עץ.',
+  '3. בעת ההמכלה הספק ידאג להמציא לפיברטק תמונות ומידע על ההמכלה לטובת היערכות פיברטק לפריקה.',
+  '4. הזמנה זו כפופה לעמידה בלוח הזמנים, חריגה מלוח הזמנים המוסכם תגרור קנסות אשר יקוזזו מתשלום אותו פיברטק צריכה לשלם לספק בגין הטובין.',
+].join('\n');
+
 // ============================================================
 // Translation window — Hebrew free text → editable English, side by side.
 // Gemini (mode:'text') translates; Nitzan reviews/edits each line, then
@@ -230,6 +238,7 @@ export default function ProcurementPage() {
         status: 'planned',
         origin: 'manual_from_quote',
         procurement_type: currency === 'ILS' ? 'domestic' : 'import',
+        notes: DEFAULT_PO_NOTES,
       }).select('id').single();
       if (error || !po) { alert(`שגיאה ביצירת ההזמנה: ${error?.message}`); return; }
 
@@ -400,10 +409,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
       supplier_id: po.supplier_id || '',
       currency: po.currency || 'USD',
       order_date: po.order_date || new Date().toISOString().slice(0, 10),
+      delivery_date: po.delivery_date || '',
       payment_terms: po.payment_terms || '',
       incoterms: po.incoterms || '',
-      supplier_project_no: po.supplier_project_no || '',
-      notes: po.notes || '',
+      // Older POs created before the default terms existed get them on open.
+      notes: po.notes || DEFAULT_PO_NOTES,
     });
     setRows(items.map((it: any) => ({ ...it })));
     setDeletedRowIds([]);
@@ -437,9 +447,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
         supplier_id: form.supplier_id || null,
         currency: form.currency,
         order_date: form.order_date || null,
+        delivery_date: form.delivery_date || null,
         payment_terms: form.payment_terms || null,
         incoterms: form.incoterms || null,
-        supplier_project_no: form.supplier_project_no || null,
         notes: form.notes || null,
         total_amount: newTotal,
         procurement_type: form.currency === 'ILS' ? 'domestic' : 'import',
@@ -589,12 +599,12 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, expanded, onTog
               <input value={form.payment_terms} onChange={(e) => setForm({ ...form, payment_terms: e.target.value })} className={inp} disabled={!canEdit} />
             </div>
             <div>
-              <label className="block text-[11px] text-neutral-400 mb-1">מס׳ פרויקט ספק</label>
-              <input value={form.supplier_project_no} onChange={(e) => setForm({ ...form, supplier_project_no: e.target.value })} className={inp} dir="ltr" disabled={!canEdit} />
+              <label className="block text-[11px] text-neutral-400 mb-1">מועד אספקה</label>
+              <input type="date" value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} className={inp} disabled={!canEdit} />
             </div>
-            <div>
+            <div className="col-span-2 md:col-span-4">
               <label className="block text-[11px] text-neutral-400 mb-1">הערות (יופיעו ב-PDF)</label>
-              <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inp} disabled={!canEdit} />
+              <textarea rows={5} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={`${inp} min-h-[110px] leading-relaxed`} disabled={!canEdit} />
             </div>
           </div>
 
