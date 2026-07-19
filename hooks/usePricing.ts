@@ -10,7 +10,7 @@ import { parseExcelBOQ } from '@/lib/boq-parser';
 
 // Default payment terms, pre-filled on new records and editable everywhere.
 export const DEFAULT_COST_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 60 יום לאחר מועד הפקת החשבונית.';
-export const DEFAULT_QUOTE_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 30 יום לאחר הודעת פיברטק כי המוצר הגיע לנמל ישראל.';
+export const DEFAULT_QUOTE_PAYMENT_TERMS = 'שוטף 40% מקדמה, יתרה 30 יום לאחר הודעת פיברטק כי המוצר הגיע לנמל ישראל.';
 
 // Categorize a quote line by its Hebrew product name for bulk profit operations.
 // Short pipes / rokers are grouped with accessories, not full-length pipe runs.
