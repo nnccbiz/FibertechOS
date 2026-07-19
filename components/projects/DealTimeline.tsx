@@ -7,6 +7,7 @@
  * stages (import) simply show as unknown for users without that module.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Icon, { type IconName } from '@/components/ui/Icon';
 
@@ -19,6 +20,16 @@ interface Stage {
   state: StageState;
   detail?: string;
 }
+
+// Where each stage navigates. Absolute routes go through the router; the
+// quote stage scrolls to the pricing section on the same project page.
+const STAGE_NAV: Record<string, string> = {
+  quote: '#pricing',
+  prod: '/production',
+  import: '/import',
+  deliv: '/deliveries',
+  inv: '/deliveries',
+};
 
 const STATE_STYLE: Record<StageState, { circle: string; label: string }> = {
   done: { circle: 'bg-success text-white', label: 'text-success' },
@@ -33,6 +44,18 @@ function heDate(d?: string | null) {
 
 export default function DealTimeline({ projectId }: { projectId: string }) {
   const [stages, setStages] = useState<Stage[] | null>(null);
+  const router = useRouter();
+
+  const goToStage = (key: string) => {
+    const target = STAGE_NAV[key];
+    if (!target) return;
+    if (target.startsWith('#')) {
+      const el = document.getElementById(target.slice(1));
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      router.push(target);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -117,13 +140,18 @@ export default function DealTimeline({ projectId }: { projectId: string }) {
       <div className="flex items-start justify-between overflow-x-auto gap-1">
         {stages.map((s, i) => (
           <div key={s.key} className="flex items-start flex-1 min-w-[90px]">
-            <div className="flex flex-col items-center text-center flex-1">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${STATE_STYLE[s.state].circle}`}>
+            <button
+              type="button"
+              onClick={() => goToStage(s.key)}
+              title={`מעבר ל${s.label}`}
+              className="group flex flex-col items-center text-center flex-1 cursor-pointer bg-transparent border-0 p-0 rounded-lg transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-azure-300"
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-shadow group-hover:shadow-md ${STATE_STYLE[s.state].circle}`}>
                 {s.state === 'done' ? <Icon name="confirm" size={18} /> : <Icon name={s.icon} size={18} />}
               </div>
-              <p className={`text-[12px] mt-1.5 ${STATE_STYLE[s.state].label}`}>{s.label}</p>
+              <p className={`text-[12px] mt-1.5 group-hover:underline ${STATE_STYLE[s.state].label}`}>{s.label}</p>
               {s.detail && <p className="text-[10px] text-neutral-400 mt-0.5" dir="ltr">{s.detail}</p>}
-            </div>
+            </button>
             {i < stages.length - 1 && (
               <div className={`h-0.5 flex-shrink-0 w-6 md:w-10 mt-5 ${s.state === 'done' ? 'bg-success' : 'bg-line-subtle'}`} />
             )}
