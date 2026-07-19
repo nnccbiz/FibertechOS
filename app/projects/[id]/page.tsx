@@ -8,6 +8,7 @@ import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
 import ImportPanel from '@/components/projects/ImportPanel';
+import ProjectPOCard from '@/components/procurement/ProjectPOCard';
 import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -1323,6 +1324,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         <div id="pricing" style={{ scrollMarginTop: '80px' }}>
           <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
         </div>
+        {/* Purchase orders — created in /procurement, tracked in /import */}
+        <ProjectPOCard projectId={params.id as string} />
         {/* Import — documents & orders linked to this project */}
         <ImportPanel projectId={params.id as string} />
         {/* Updates / Meeting log */}

@@ -90,6 +90,8 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
           project_name: p.order.project_name, currency: p.order.currency || 'USD',
           incoterms: p.order.incoterms, payment_terms: p.order.payment_terms,
           total_amount: Math.round(ordersTotal * 100) / 100, status: 'in_transit',
+          // Smart-upload orders come from supplier documents — already sent.
+          po_sent_at: new Date().toISOString(),
         }).select().single();
         if (error) throw error;
         orderId = o.id;
