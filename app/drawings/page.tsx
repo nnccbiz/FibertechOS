@@ -31,7 +31,7 @@ export default function DrawingsPage() {
   useEffect(() => {
     async function load() {
       const [{ data: atts }, { data: projs }, { data: dets }] = await Promise.all([
-        supabase.from('attachments').select('id, project_id, file_name, file_url, drawing_number, created_at').eq('entity_type', 'project').order('created_at', { ascending: false }),
+        supabase.from('attachments').select('id, project_id, file_name, file_url, drawing_number, created_at').eq('entity_type', 'project').in('file_type', ['drawing', 'spec']).order('created_at', { ascending: false }),
         supabase.from('projects').select('id, name'),
         supabase.from('project_details').select('project_id, project_number'),
       ]);

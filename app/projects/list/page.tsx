@@ -38,7 +38,9 @@ const STATUS_COLORS: Record<string, string> = {
   'בוטל': 'bg-neutral-100 text-neutral-400 line-through',
 };
 
-const STATUS_OPTIONS = ['הזמנה', 'גבוהה', 'בינוני', 'נמוך', 'הסתיים', 'בוטל'];
+const ACTIVE_STATUS_OPTIONS = ['הזמנה', 'גבוהה', 'בינוני', 'נמוך'];
+const TERMINAL_STATUSES = ['הסתיים', 'בוטל'];
+const STATUS_OPTIONS = [...ACTIVE_STATUS_OPTIONS, ...TERMINAL_STATUSES];
 
 export default function ProjectsListPage() {
   const router = useRouter();
@@ -53,6 +55,20 @@ export default function ProjectsListPage() {
   const [sortField, setSortField] = useState<string>('last_updated_at');
   const [sortAsc, setSortAsc] = useState(false);
   const [probFilter, setProbFilter] = useState<Set<string>>(new Set());
+  // Archive table (projects marked הסתיים/בוטל) — own filter + sort state.
+  const [archFilter, setArchFilter] = useState<Set<string>>(new Set());
+  const [archSortField, setArchSortField] = useState<string>('last_updated_at');
+  const [archSortAsc, setArchSortAsc] = useState(false);
+  const [archOpen, setArchOpen] = useState(true);
+
+  function toggleArchFilter(value: string) {
+    setArchFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
 
   function toggleFilter(value: string) {
     setFilter((prev) => {
@@ -110,7 +126,22 @@ export default function ProjectsListPage() {
     }
   }
 
-  const filtered = projects
+  function compareProjects(a: Project, b: Project, field: string, asc: boolean) {
+    const f = field as keyof Project;
+    let aVal = a[f] ?? '';
+    let bVal = b[f] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return asc ? aVal - bVal : bVal - aVal;
+    }
+    aVal = String(aVal);
+    bVal = String(bVal);
+    return asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  }
+
+  const activeProjects = projects.filter((p) => !TERMINAL_STATUSES.includes(p.realization_status));
+  const archivedProjects = projects.filter((p) => TERMINAL_STATUSES.includes(p.realization_status));
+
+  const filtered = activeProjects
     .filter((p) => {
       if (filter.size > 0 && !filter.has(p.realization_status)) return false;
       if (probFilter.size > 0) {
@@ -121,17 +152,26 @@ export default function ProjectsListPage() {
       if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
       return true;
     })
-    .sort((a, b) => {
-      const f = sortField as keyof Project;
-      let aVal = a[f] ?? '';
-      let bVal = b[f] ?? '';
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortAsc ? aVal - bVal : bVal - aVal;
-      }
-      aVal = String(aVal);
-      bVal = String(bVal);
-      return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    });
+    .sort((a, b) => compareProjects(a, b, sortField, sortAsc));
+
+  const archivedFiltered = archivedProjects
+    .filter((p) => {
+      if (archFilter.size > 0 && !archFilter.has(p.realization_status)) return false;
+      if (search && !p.name?.includes(search) && !p.developer_name?.includes(search)) return false;
+      return true;
+    })
+    .sort((a, b) => compareProjects(a, b, archSortField, archSortAsc));
+
+  const archivedTotal = archivedFiltered.reduce((sum, p) => sum + (p.order_value || 0), 0);
+
+  function toggleArchSort(field: string) {
+    if (archSortField === field) {
+      setArchSortAsc(!archSortAsc);
+    } else {
+      setArchSortField(field);
+      setArchSortAsc(field === 'name' || field === 'developer_name' || field === 'planning_office');
+    }
+  }
 
   const currentYear = new Date().getFullYear();
 
@@ -202,11 +242,15 @@ export default function ProjectsListPage() {
     } else if (field === 'order_execution_date') {
       updateData.order_execution_date = value || null;
     } else if (field === 'realization_status') {
-      updateData.realization_status = value;
+      updateData.realization_status = value || null;
     }
     updateData.last_updated_at = new Date().toISOString();
     setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, ...updateData } : p));
-    await supabase.from('projects').update(updateData).eq('id', projectId);
+    const { error } = await supabase.from('projects').update(updateData).eq('id', projectId);
+    if (error) {
+      alert(`השמירה נכשלה: ${error.message}`);
+      await fetchData();
+    }
   }
 
   return (
@@ -255,7 +299,7 @@ export default function ProjectsListPage() {
               >
                 הכל
               </button>
-              {STATUS_OPTIONS.map((s) => (
+              {ACTIVE_STATUS_OPTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => toggleFilter(s)}
@@ -451,6 +495,123 @@ export default function ProjectsListPage() {
                   </tfoot>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* Archive — projects marked הסתיים/בוטל leave the main table and land here. */}
+          {!loading && archivedProjects.length > 0 && (
+            <div className="mt-8">
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                <button
+                  onClick={() => setArchOpen(!archOpen)}
+                  className="flex items-center gap-2 text-lg font-bold text-content-strong hover:text-primary transition-colors"
+                >
+                  <Icon name="archive" size={20} />
+                  ארכיון פרויקטים
+                  <span className="text-[13px] font-medium text-neutral-400">({archivedFiltered.length})</span>
+                  <Icon name={archOpen ? 'caretUp' : 'caretDown'} size={14} />
+                </button>
+                {archOpen && (
+                  <div className="flex gap-1 flex-wrap">
+                    <button
+                      onClick={() => setArchFilter(new Set())}
+                      className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
+                        archFilter.size === 0 ? 'bg-primary text-white' : 'bg-neutral-100 text-content-body hover:bg-neutral-200'
+                      }`}
+                    >
+                      הכל
+                    </button>
+                    {TERMINAL_STATUSES.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => toggleArchFilter(s)}
+                        className={`text-[13px] px-3 py-1.5 rounded-lg transition-colors ${
+                          archFilter.has(s) ? 'bg-primary text-white' : 'bg-neutral-100 text-content-body hover:bg-neutral-200'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {archOpen && (
+                <div className="bg-white rounded-xl border border-line-subtle overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-line-subtle">
+                          {[
+                            { key: 'serial_number', label: '#', align: 'right', sticky: true },
+                            { key: 'last_updated_at', label: 'עדכון', align: 'right' },
+                            { key: 'developer_name', label: 'יזם', align: 'right' },
+                            { key: 'planning_office', label: 'משרד תכנון', align: 'right' },
+                            { key: 'name', label: 'שם פרויקט', align: 'right', minW: true },
+                            { key: 'description', label: 'תיאור', align: 'right' },
+                            { key: 'order_value', label: 'סך הפרויקט', align: 'right' },
+                            { key: 'order_execution_date', label: 'מועד הזמנה', align: 'center' },
+                            { key: 'realization_status', label: 'סטטוס', align: 'center' },
+                          ].map((col) => (
+                            <th
+                              key={col.label}
+                              onClick={() => col.key && toggleArchSort(col.key)}
+                              className={`text-${col.align} text-[12px] text-content-muted font-medium py-2.5 px-2 whitespace-nowrap ${col.sticky ? 'sticky right-0 bg-neutral-50 z-10' : ''} ${col.minW ? 'min-w-[140px]' : ''} ${col.key ? 'cursor-pointer hover:text-primary select-none' : ''}`}
+                            >
+                              {col.label}{archSortField === col.key ? <> <Icon name={archSortAsc ? 'caretUp' : 'caretDown'} size={12} /></> : ''}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {archivedFiltered.map((project, idx) => (
+                          <tr
+                            key={project.id}
+                            onClick={() => router.push(`/projects/${project.id}`)}
+                            className="border-b border-line-subtle hover:bg-azure-100 cursor-pointer transition-colors bg-neutral-50/50"
+                          >
+                            <td className="py-2 px-2 text-neutral-400 sticky right-0 bg-white z-10">{project.serial_number || idx + 1}</td>
+                            <td className="py-2 px-2 text-[12px] text-neutral-400 whitespace-nowrap">
+                              {project.last_updated_at
+                                ? new Date(project.last_updated_at).toLocaleDateString('he-IL')
+                                : '—'}
+                            </td>
+                            <td className="py-2 px-2 text-content-body whitespace-nowrap">{project.developer_name || '—'}</td>
+                            <td className="py-2 px-2 text-content-body whitespace-nowrap">{project.planning_office || '—'}</td>
+                            <td className="py-2 px-2 font-semibold text-content-body">{project.name}</td>
+                            <td className="py-2 px-2 text-content-muted max-w-[150px] truncate">{project.description || '—'}</td>
+                            <td className="py-2 px-2 whitespace-nowrap text-content-body">{formatILS(project.order_value)}</td>
+                            <td className="py-2 px-2 text-center whitespace-nowrap text-content-body">
+                              {project.order_execution_date ? new Date(project.order_execution_date).toLocaleDateString('he-IL') : '—'}
+                            </td>
+                            <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              {editingCell?.id === project.id && editingCell?.field === 'realization_status' ? (
+                                <SearchableSelect value={editValue} autoOpen
+                                  onChange={(v) => { saveInlineEdit(project.id, 'realization_status', v); setEditingCell(null); }}
+                                  className="border border-primary rounded px-1 py-0.5 text-sm min-w-[120px]" placeholder="—"
+                                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+                              ) : (
+                                <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${
+                                  STATUS_COLORS[project.realization_status] || 'bg-neutral-100 text-content-body'
+                                }`} onClick={() => startEdit(project.id, 'realization_status', project.realization_status || '')}>
+                                  {project.realization_status || '—'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-neutral-50 border-t-2 border-line-subtle">
+                          <td colSpan={9} className="py-2.5 px-2 text-sm font-bold text-content-body sticky right-0 bg-neutral-50 z-10">
+                            סה"כ בארכיון: {formatILS(archivedTotal)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
