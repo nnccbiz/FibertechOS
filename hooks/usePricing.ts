@@ -8,6 +8,10 @@ import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency } from '@/lib/pricing';
 import { parseExcelBOQ } from '@/lib/boq-parser';
 
+// Default payment terms, pre-filled on new records and editable everywhere.
+export const DEFAULT_COST_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 60 יום לאחר מועד הפקת החשבונית.';
+export const DEFAULT_QUOTE_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 30 יום לאחר הודעת פיברטק כי המוצר הגיע לנמל ישראל.';
+
 // Categorize a quote line by its Hebrew product name for bulk profit operations.
 // Short pipes / rokers are grouped with accessories, not full-length pipe runs.
 export function itemCategory(productName?: string): 'pipe' | 'accessory' {
@@ -142,11 +146,11 @@ export function usePricing(projectId: string): UsePricingReturn {
   const [pricingTab, setPricingTab] = useState<'costs' | 'quotes' | 'orders'>('quotes');
   const [showNewCostInput, setShowNewCostInput] = useState(false);
   const [showNewQuote, setShowNewQuote] = useState(false);
-  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
+  const [newCostInput, setNewCostInput] = useState({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: DEFAULT_COST_PAYMENT_TERMS });
   const [newQuote, setNewQuote] = useState({
     client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
     default_overheads_pct: 17, default_profit_pct: 25,
-    disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+    disclaimer_type: 'grp_pipe', payment_terms: DEFAULT_QUOTE_PAYMENT_TERMS, notes: '',
     tier: 'contractor_pre_tender',
   });
   const [editingQuote, setEditingQuote] = useState<string | null>(null);
@@ -444,7 +448,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
     setShowNewCostInput(false);
-    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: '' });
+    setNewCostInput({ source_type: 'supplier', source_name: '', notes: '', currency: 'USD', payment_terms: DEFAULT_COST_PAYMENT_TERMS });
     setCostInputs((prev) => [ci, ...prev]);
     setExpandedCostInput(ci.id);
     setEditingCostInput(ci.id);
@@ -855,7 +859,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     setNewQuote({
       client_name: '', customer_id: '', contact_id: '', cost_input_id: '', cost_source: 'supplier', supplier_name: '',
       default_overheads_pct: 17, default_profit_pct: 25,
-      disclaimer_type: 'grp_pipe', payment_terms: '40% מקדמה, יתרה שוטף +30', notes: '',
+      disclaimer_type: 'grp_pipe', payment_terms: DEFAULT_QUOTE_PAYMENT_TERMS, notes: '',
       tier: 'contractor_pre_tender',
     });
     setQuotes((prev) => [q, ...prev]);
