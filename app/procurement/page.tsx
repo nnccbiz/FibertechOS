@@ -636,6 +636,100 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     setTranslateFields(null);
   }
 
+  // One-click anomaly repair, in this order:
+  // 1. Complete missing PN/SN on PO rows that clearly correspond to an approved
+  //    spec (same DN, blank metadata, matching quantity) — the usual root cause
+  //    when the supplier pricing lacked pn/sn.
+  // 2. Align quantities to the approved quote (unique-row match only).
+  // 3. Add rows for approved specs still absent (price 0 — Nitzan fills in).
+  // 4. Drop zero-quantity rows whose spec isn't in the quote at all.
+  // Everything stays local until שמור.
+  function autoFixAnomalies() {
+    if (!quoteAgg) return;
+    const report: string[] = [];
+    const next = rows.map((r) => ({ ...r }));
+    const delIds: string[] = [];
+
+    const buildAgg = () => {
+      const m = new Map<string, { qty: number; rowIdxs: number[] }>();
+      next.forEach((r, idx) => {
+        const k = specKey(r.dn, r.pn, r.sn);
+        if (!k) return;
+        const e = m.get(k) || { qty: 0, rowIdxs: [] };
+        e.qty += Number(r.ordered_qty) || 0;
+        e.rowIdxs.push(idx);
+        m.set(k, e);
+      });
+      return m;
+    };
+
+    // 1. metadata completion
+    let agg = buildAgg();
+    quoteAgg.forEach((qQty, k) => {
+      if (agg.has(k)) return;
+      const [d, p, s] = k.split('|');
+      const candidates = Array.from(agg.keys()).filter((pk) => {
+        if (quoteAgg.has(pk)) return false;
+        const [pd, pp, ps] = pk.split('|');
+        if (pd !== d) return false;
+        if (pp !== '' && pp !== p) return false;
+        if (ps !== '' && ps !== s) return false;
+        return pp === '' || ps === '';
+      });
+      const exactQty = candidates.filter((pk) => Math.abs(agg.get(pk)!.qty - qQty) <= 0.001);
+      const chosen = exactQty.length === 1 ? exactQty[0] : (candidates.length === 1 ? candidates[0] : null);
+      if (!chosen) return;
+      agg.get(chosen)!.rowIdxs.forEach((idx) => {
+        if (!String(next[idx].pn || '').trim() && p) next[idx].pn = p;
+        if (!String(next[idx].sn || '').trim() && s) next[idx].sn = s;
+      });
+      report.push(`הושלמו PN/SN חסרים בשורות ${specLabel(k)} — עכשיו תואמות להצעה.`);
+      agg = buildAgg();
+    });
+
+    // 2. quantity alignment
+    agg = buildAgg();
+    quoteAgg.forEach((qQty, k) => {
+      const e = agg.get(k);
+      if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
+      if (e.rowIdxs.length === 1) {
+        next[e.rowIdxs[0]].ordered_qty = qQty;
+        report.push(`כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
+      } else {
+        report.push(`⚠ ${specLabel(k)}: כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
+      }
+    });
+
+    // 3. still-missing specs → new rows
+    agg = buildAgg();
+    quoteAgg.forEach((qQty, k) => {
+      if (agg.has(k)) return;
+      const [d, p, s] = k.split('|');
+      const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+      next.push({
+        id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
+        unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
+      });
+      report.push(`⚠ נוספה שורה ${specLabel(k)} (${qQty.toLocaleString()}) — יש להזין מחיר ספק.`);
+    });
+
+    // 4. zero-qty leftovers not in the quote
+    for (let idx = next.length - 1; idx >= 0; idx--) {
+      const r = next[idx];
+      const k = specKey(r.dn, r.pn, r.sn);
+      if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
+        if (r.id) delIds.push(r.id);
+        next.splice(idx, 1);
+        report.push(`הוסרה שורה ${specLabel(k)} בכמות 0 שאינה קיימת בהצעה.`);
+      }
+    }
+
+    if (report.length === 0) { alert('לא נמצא מה לתקן אוטומטית — בדוק את הפערים ידנית.'); return; }
+    setRows(next);
+    if (delIds.length) setDeletedRowIds((prev) => [...prev, ...delIds]);
+    alert(`בוצע תיקון (בדוק את השורות ולחץ שמור):\n\n${report.join('\n')}`);
+  }
+
   async function deletePO() {
     if (!confirm(`למחוק את הזמנת רכש ${po.po_number || ''}? פעולה זו אינה הפיכה.`)) return;
     await supabase.from('import_order_items').delete().eq('import_order_id', po.id);
@@ -734,9 +828,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   </p>
                 ))}
               </div>
-              {canEdit && comparison.mismatches.length > 0 && (
-                <button onClick={pullQuantitiesFromQuote} className="mt-3 text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
-                  <Icon name="download" size={14} /> משוך כמויות מההצעה המאושרת
+              {canEdit && (
+                <button onClick={autoFixAnomalies} className="mt-3 text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
+                  <Icon name="wrench" size={14} /> תקן אנומליה אוטומטית
                 </button>
               )}
             </div>
