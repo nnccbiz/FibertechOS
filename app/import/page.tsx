@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
+import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 import DeliveriesPanel from '@/components/import/DeliveriesPanel';
 import ReceiptsPanel from '@/components/import/ReceiptsPanel';
 import { Button } from '@/components/ui/Button';
@@ -181,6 +182,44 @@ function Info({ label, value }: { label: string; value?: any }) {
   return (<div><p className="text-[11px] text-neutral-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-content-body">{value || '—'}</p></div>);
 }
 
+// "צפה בהזמנת רכש" — read-only branded PO PDF (same document Nitzan sent from
+// /procurement), so Nurit can see exactly what went out to the supplier.
+function POViewButton({ order, items, projectName, className }: { order: any; items: any[]; projectName?: string | null; className?: string }) {
+  const [show, setShow] = useState(false);
+  const pdfRef = useRef<PODocumentHandle>(null);
+  return (
+    <>
+      <button onClick={() => setShow(true)} className={className || 'text-[12px] font-semibold text-primary hover:underline'}>
+        <Icon name="pdf" size={14} /> צפה בהזמנת רכש
+      </button>
+      {show && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShow(false)}>
+          <div className="bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
+              <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
+                  <Icon name="download" size={14} /> הורד PDF
+                </button>
+                <button onClick={() => setShow(false)} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
+              </div>
+            </div>
+            <div className="p-4">
+              <PODocument
+                ref={pdfRef}
+                order={order}
+                items={items}
+                supplier={order.suppliers || null}
+                projectName={projectName || order.project_name || order.projects?.name || null}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ============================================================
 // Approved-quotes view — every signed quote + its import status
 // ============================================================
@@ -264,7 +303,7 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                     </td>
                     <td className="py-2 px-3 text-left">
                       {order
-                        ? <span className="text-[11px] text-neutral-400" dir="ltr">{order.supplier_order_no || order.po_number || ''}</span>
+                        ? <POViewButton order={order} items={data.items.filter((i: any) => i.import_order_id === order.id)} projectName={q.project_id ? projNameById[q.project_id] : null} />
                         : procurement
                           ? <a href="/procurement" className="text-[12px] font-semibold text-primary hover:underline">{procurement.po_number || 'לעריכה'} ברכש ←</a>
                           : exempt
@@ -393,6 +432,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <button onClick={() => setOpen(!open)} className="text-[12px] text-primary font-medium hover:underline">
             {open ? <>הסתר <Icon name="caretUp" size={12} /></> : <>פריטים, חשבוניות, COA ומסמכים <Icon name="caretDown" size={12} /></>}
           </button>
+          <POViewButton order={order} items={items} className="text-[12px] text-primary font-medium hover:underline" />
           {canEdit && order.status === 'draft' && (
             <Button size="sm" onClick={release} disabled={releasing} iconLeft={<Icon name="confirm" size={20} />}>
               {releasing ? 'משחרר…' : 'שחרר לתפ"י'}
