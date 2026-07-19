@@ -58,6 +58,7 @@ export default function ProductionPage() {
   const [docsByOrder, setDocsByOrder] = useState<Record<string, any[]>>({});
   const [cross, setCross] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   async function loadData() {
     const { data: ordersData } = await supabase
@@ -130,7 +131,6 @@ export default function ProductionPage() {
 
   const activeOrders = orders.filter((o) => o.status !== 'completed');
   const completedOrders = orders.filter((o) => o.status === 'completed');
-  const [showCompleted, setShowCompleted] = useState(false);
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
