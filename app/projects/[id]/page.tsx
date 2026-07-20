@@ -95,6 +95,7 @@ export default function ProjectDetailPage() {
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [uploadingSpec, setUploadingSpec] = useState(false);
   const [uploadingClosure, setUploadingClosure] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [drawingDragOver, setDrawingDragOver] = useState(false);
   const drawingDragDepth = useRef(0);
   const [specDragOver, setSpecDragOver] = useState(false);
@@ -293,6 +294,28 @@ export default function ProjectDetailPage() {
       setAttachmentVersion((v) => v + 1);
     } finally {
       setUploadingSpec(false);
+    }
+  }
+
+  // Internal project documents (pricing files, order confirmations, misc) —
+  // the "מסמכי פרויקט" repository under the pricing section. Distinct
+  // file_types keep them out of the drawings/specs/quote-PDF surfaces.
+  async function uploadProjectDoc(file: File, kind: 'pricing_doc' | 'order_confirmation' | 'project_doc') {
+    setUploadingDoc(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/docs/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: kind, file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await load();
+    } finally {
+      setUploadingDoc(false);
     }
   }
 
@@ -1035,7 +1058,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Pipe specs */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="drawings" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
+          <SectionHeader title="מפרט צינורות" icon="drawings" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
           {editSpecs ? (
             <div className="space-y-2">
             <div className="divide-y divide-success">
@@ -1120,29 +1143,6 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <p className="text-sm text-neutral-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
           )}
 
-          {/* Attachments */}
-          {projectAttachments.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-line-subtle">
-              <h3 className="text-sm font-bold text-content-body mb-2"><Icon name="attach" size={16} /> שרטוטים ומסמכים ({projectAttachments.length})</h3>
-              <div className="space-y-1.5">
-                {projectAttachments.map((att: any) => {
-                  const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
-                  return (
-                    <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-2 text-sm">
-                      <span className="text-neutral-400"><Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? 'image' : 'attach'} size={14} /></span>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex-1">{att.file_name}</a>
-                      {linkedQuote && (
-                        <span className="text-[11px] bg-azure-100 text-azure-600 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          הצעה {linkedQuote.quote_number}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-neutral-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </section>
 
         {/* Project specs (portrait orientation in the quote PDF) */}
@@ -1255,7 +1255,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             </label>
           </div>
           {(() => {
-            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && !['spec', 'completion_report', 'warranty_cert'].includes(a.file_type));
+            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && !['spec', 'completion_report', 'warranty_cert', 'pricing_doc', 'order_confirmation', 'project_doc'].includes(a.file_type));
             if (drawings.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
             return (
               <div className="space-y-2">
@@ -1324,6 +1324,66 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         <div id="pricing" style={{ scrollMarginTop: '80px' }}>
           <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
         </div>
+
+        {/* Project documents — the internal repository: pricing files, order
+            confirmations, quote attachments. Every file that isn't a drawing /
+            spec / closure doc lands here with a type chip. */}
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-bold text-content-body"><Icon name="folder" size={20} /> מסמכי פרויקט</h2>
+            <div className="flex gap-2">
+              {([
+                { kind: 'pricing_doc' as const, label: '+ תמחור' },
+                { kind: 'order_confirmation' as const, label: '+ אישור הזמנה' },
+                { kind: 'project_doc' as const, label: '+ מסמך אחר' },
+              ]).map((b) => (
+                <label key={b.kind} className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDoc ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
+                  {uploadingDoc ? <><Icon name="loading" size={14} /> מעלה…</> : b.label}
+                  <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.msg,.eml" multiple disabled={uploadingDoc}
+                    onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDoc(f, b.kind); } }} />
+                </label>
+              ))}
+            </div>
+          </div>
+          {(() => {
+            // Everything with a dedicated card elsewhere is excluded; the rest
+            // is the internal repository.
+            const surfaceTypes = ['drawing', 'spec', 'completion_report', 'warranty_cert'];
+            const docs = projectAttachments.filter((a: any) => !(a.entity_type === 'project' && surfaceTypes.includes(a.file_type)));
+            if (docs.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין מסמכים. קבצי תמחור והצעות נשמרים כאן אוטומטית, ואפשר להעלות אישורי הזמנה ומסמכים פנימיים.</p>;
+            const docLabel = (att: any): { text: string; cls: string } => {
+              if (att.entity_type === 'cost_input' || att.file_type === 'supplier_quote' || att.file_type === 'pricing_doc')
+                return { text: 'תמחור', cls: 'bg-warning-soft text-warning' };
+              if (att.entity_type === 'quote') {
+                const q = projectQuotes.find((x: any) => x.id === att.entity_id);
+                return { text: q?.quote_number ? `הצעה ${q.quote_number}` : 'הצעת מחיר', cls: 'bg-azure-100 text-azure-600' };
+              }
+              if (att.file_type === 'order_confirmation') return { text: 'אישור הזמנה', cls: 'bg-success-soft text-success' };
+              return { text: 'מסמך', cls: 'bg-neutral-100 text-content-muted' };
+            };
+            const deletable = (att: any) => att.entity_type === 'project' && ['pricing_doc', 'order_confirmation', 'project_doc'].includes(att.file_type);
+            return (
+              <div className="space-y-1.5">
+                {docs.map((att: any) => {
+                  const lbl = docLabel(att);
+                  return (
+                    <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${lbl.cls}`}>{lbl.text}</span>
+                      <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
+                        <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? 'image' : 'attach'} size={14} /> {att.file_name}
+                      </button>
+                      <span className="text-[10px] text-neutral-400 whitespace-nowrap">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
+                      {deletable(att) && (
+                        <button onClick={() => { if (confirm(`למחוק את ${att.file_name}?`)) deleteProjectDrawing(att.id); }} className="text-danger hover:text-danger text-lg shrink-0">×</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </section>
+
         {/* Purchase orders — created in /procurement, tracked in /import */}
         <ProjectPOCard projectId={params.id as string} />
         {/* Import — documents & orders linked to this project */}
