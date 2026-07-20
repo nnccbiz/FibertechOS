@@ -29,6 +29,30 @@ function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
 
+// The single "מסמכים" card is tabbed by document type. Pricing files stay in
+// the pricing section; order confirmations live in the orders tab there.
+const DOC_TABS: { key: string; label: string; icon: IconName }[] = [
+  { key: 'spec', label: 'מפרטים', icon: 'spec' },
+  { key: 'drawing', label: 'שרטוטים', icon: 'drawings' },
+  { key: 'correspondence', label: 'תכתובת', icon: 'email' },
+  { key: 'field_report', label: 'דוחות שירות שדה', icon: 'clipboard' },
+  { key: 'photo', label: 'תמונות', icon: 'image' },
+  { key: 'completion_report', label: 'דוח סיום', icon: 'archive' },
+  { key: 'warranty_cert', label: 'תעודת אחריות', icon: 'confirm' },
+];
+const DOC_TAB_LABEL: Record<string, string> = Object.fromEntries(DOC_TABS.map((t) => [t.key, t.label]));
+const DOC_ACCEPT: Record<string, string> = {
+  spec: '.pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx',
+  drawing: '.pdf,.png,.jpg,.jpeg',
+  correspondence: '.pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.msg,.eml',
+  field_report: '.pdf,.png,.jpg,.jpeg,.doc,.docx',
+  photo: 'image/*',
+  completion_report: '.pdf,.png,.jpg,.jpeg,.doc,.docx',
+  warranty_cert: '.pdf,.png,.jpg,.jpeg,.doc,.docx',
+};
+// Drawings = any project attachment that isn't one of the other known types.
+const DOC_NON_DRAWING_TYPES = ['spec', 'completion_report', 'warranty_cert', 'pricing_doc', 'order_confirmation', 'project_doc', 'correspondence', 'field_report', 'photo', 'supplier_quote'];
+
 interface EditableFieldProps {
   label: string;
   value: string;
@@ -95,10 +119,10 @@ export default function ProjectDetailPage() {
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [uploadingSpec, setUploadingSpec] = useState(false);
   const [uploadingClosure, setUploadingClosure] = useState(false);
-  const [drawingDragOver, setDrawingDragOver] = useState(false);
-  const drawingDragDepth = useRef(0);
-  const [specDragOver, setSpecDragOver] = useState(false);
-  const specDragDepth = useRef(0);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docTab, setDocTab] = useState<string>('spec');
+  const [docDragOver, setDocDragOver] = useState(false);
+  const docDragDepth = useRef(0);
   // Bumped after every spec/drawing upload so PricingSection refetches the
   // project-level attachments and the linking checkboxes pick up the new file.
   const [attachmentVersion, setAttachmentVersion] = useState(0);
@@ -294,6 +318,36 @@ export default function ProjectDetailPage() {
     } finally {
       setUploadingSpec(false);
     }
+  }
+
+  // Generic internal document upload for the "מסמכים" card tabs (correspondence,
+  // field reports, photos, misc). Distinct file_types keep each in its own tab
+  // and out of the drawings/specs/quote-PDF surfaces.
+  async function uploadProjectDoc(file: File, kind: 'correspondence' | 'field_report' | 'photo' | 'project_doc') {
+    setUploadingDoc(true);
+    try {
+      const id = params.id as string;
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${id}/docs/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'project', entity_id: id, project_id: id,
+        file_name: file.name, file_url: path, file_type: kind, file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await load();
+    } finally {
+      setUploadingDoc(false);
+    }
+  }
+
+  // Routes an uploaded file to the right handler for the active "מסמכים" tab.
+  async function dispatchDocUpload(file: File) {
+    if (docTab === 'drawing') return uploadProjectDrawing(file);
+    if (docTab === 'spec') return uploadProjectSpec(file);
+    if (docTab === 'completion_report' || docTab === 'warranty_cert') return uploadClosureDoc(file, docTab);
+    return uploadProjectDoc(file, docTab as 'correspondence' | 'field_report' | 'photo');
   }
 
   // Closure documents (completion report / warranty certificate). Receiving one
@@ -855,6 +909,130 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           </div>
         </section>
 
+        {/* Updates / Meeting log — right below basic info */}
+        <section className="bg-white rounded-xl border border-line-subtle p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> מעקב עדכונים ופגישות</h2>
+            <button
+              onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
+              className="text-[13px] bg-primary-50 text-primary px-3 py-1.5 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              {showAddUpdate ? 'ביטול' : '+ עדכון חדש'}
+            </button>
+          </div>
+
+          {/* Add new update form */}
+          {showAddUpdate && (
+            <div className="bg-azure-100 border border-azure rounded-xl p-4 mb-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">תאריך</label>
+                  <input type="date" value={newUpdate.update_date} onChange={(e) => setNewUpdate({ ...newUpdate, update_date: e.target.value })} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-content-muted mb-1">אנשים נוגעים בעניין</label>
+                  <input type="text" placeholder="שמות, מופרדים בפסיק" value={newUpdate.people} onChange={(e) => setNewUpdate({ ...newUpdate, people: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">כותרת (תיאור קצר)</label>
+                <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={newUpdate.title} onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">תיאור מלא</label>
+                <textarea placeholder="פירוט הפגישה / העדכון..." value={newUpdate.description} onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })} className={`${inputClass} min-h-[80px]`} />
+              </div>
+              <div>
+                <label className="block text-[13px] font-semibold text-content-muted mb-1">משימות לביצוע</label>
+                <textarea placeholder="משימה 1, משימה 2..." value={newUpdate.tasks} onChange={(e) => setNewUpdate({ ...newUpdate, tasks: e.target.value })} className={`${inputClass} min-h-[50px]`} />
+              </div>
+              <button
+                onClick={async () => {
+                  if (!newUpdate.title.trim()) return;
+                  setSaving(true);
+                  await supabase.from('project_updates').insert({
+                    project_id: params.id as string,
+                    update_date: newUpdate.update_date,
+                    people: newUpdate.people,
+                    title: newUpdate.title,
+                    description: newUpdate.description,
+                    tasks: newUpdate.tasks,
+                  });
+                  setShowAddUpdate(false);
+                  setSaving(false);
+                  await load();
+                }}
+                disabled={saving || !newUpdate.title.trim()}
+                className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'שומר...' : 'שמור עדכון'}
+              </button>
+            </div>
+          )}
+
+          {/* Updates list */}
+          {updates.length > 0 ? (
+            <div className="space-y-2">
+              {updates.map((upd) => (
+                <div key={upd.id} className="border border-line-subtle rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedUpdate(expandedUpdate === upd.id ? null : upd.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-neutral-50 transition-colors"
+                  >
+                    <span className="text-[13px] text-neutral-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
+                    <span className="text-[13px] text-primary flex-shrink-0 w-32 truncate">{upd.people}</span>
+                    <span className="text-sm font-medium text-content-strong flex-1 truncate">{upd.title}</span>
+                    <svg className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  {expandedUpdate === upd.id && (
+                    <div className="px-4 pb-4 border-t border-line-subtle bg-neutral-50">
+                      {upd.description && (
+                        <div className="mt-3">
+                          <p className="text-[12px] font-bold text-neutral-400 mb-1">תיאור</p>
+                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.description}</p>
+                        </div>
+                      )}
+                      {upd.tasks && (
+                        <div className="mt-3">
+                          <p className="text-[12px] font-bold text-neutral-400 mb-1">משימות לביצוע</p>
+                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.tasks}</p>
+                        </div>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => {
+                            setExportUpdate(upd);
+                            setExportLang('he');
+                            setExportRecipient('');
+                            setExportEmail('');
+                            setExportCopied(false);
+                          }}
+                          className="text-[12px] text-primary hover:text-primary-700 font-medium"
+                        >
+                          <Icon name="send" size={14} /> ייצא
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('למחוק עדכון זה?')) {
+                              await supabase.from('project_updates').delete().eq('id', upd.id);
+                              await load();
+                            }
+                          }}
+                          className="text-[12px] text-danger hover:text-danger"
+                        >
+                          מחק עדכון
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
+          )}
+        </section>
+
         {/* Dates */}
         <section className="bg-white rounded-xl border border-line-subtle p-5">
           <SectionHeader title="תאריכים" icon="calendar" editing={editDates} onToggle={() => editDates ? cancelEdit('dates') : setEditDates(true)} onSave={saveDates} saving={saving} />
@@ -1033,286 +1211,90 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
           )}
         </section>
 
-        {/* Pipe specs */}
-        <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <SectionHeader title="מפרטים טכניים ושרטוטים" icon="drawings" editing={editSpecs} onToggle={() => editSpecs ? cancelEdit('specs') : setEditSpecs(true)} onSave={saveSpecs} saving={saving} />
-          {editSpecs ? (
-            <div className="space-y-2">
-            <div className="divide-y divide-success">
-              {specsForm.map((s, i) => (
-                <div key={i} className="flex gap-2 items-center flex-wrap py-3 first:pt-0">
-                  <div className="flex gap-1 items-center">
-                    <input type="number" placeholder="DN" value={s.dn_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], dn_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר נומינלי" />
-                    <input type="number" placeholder="OD" value={s.od_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], od_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר חיצוני" />
-                    <input type="number" placeholder="ID" value={s.id_mm || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], id_mm: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-20`} title="קוטר פנימי" />
-                  </div>
-                  <SearchableSelect value={s.pipe_type || 'הטמנה'} onChange={(v) => { const next = [...specsForm]; next[i] = { ...next[i], pipe_type: v }; setSpecsForm(next); }} className={`${inputClass} w-36`}
-                    options={[{ value: 'הטמנה', label: 'הטמנה' }, { value: 'דחיקה', label: 'דחיקה (Jacking)' }, { value: 'השחלה', label: 'השחלה (Slip Lining)' }, { value: 'עילי', label: 'עילי' }, { value: 'ביאקסיאלי', label: 'ביאקסיאלי' }]} />
-                  <input type="number" placeholder="אורך קו (מ׳)" value={s.line_length_m || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], line_length_m: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-28`} />
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-neutral-400">אורך יחידה (מ׳)</span>
-                    <div className="flex gap-2 items-center flex-nowrap">
-                      <input type="number" step="0.1" placeholder="אחר" value={(() => { const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean); const custom = vals.find((v: number) => ![11.7, 5.7, 3.8, 2.8].includes(v)); return custom ?? ''; })()} onChange={(e) => {
-                        const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
-                        const predefined = vals.filter((v: number) => [11.7, 5.7, 3.8, 2.8].includes(v));
-                        const newVals = e.target.value ? [...predefined, parseFloat(e.target.value)] : predefined;
-                        const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
-                      }} className={`${inputClass} w-20`} />
-                      {[11.7, 5.7, 3.8, 2.8].map((len) => {
-                        const selected = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
-                        const isChecked = selected.includes(len);
-                        return (
-                          <label key={len} className="flex items-center gap-1 text-sm cursor-pointer whitespace-nowrap">
-                            <input type="checkbox" checked={isChecked} onChange={() => {
-                              const vals = (s.unit_length_m || '').split(',').map(Number).filter(Boolean);
-                              const newVals = isChecked ? vals.filter((v: number) => v !== len) : [...vals, len];
-                              const next = [...specsForm]; next[i] = { ...next[i], unit_length_m: newVals.join(',') }; setSpecsForm(next);
-                            }} className="accent-primary" />
-                            {len}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <input type="number" placeholder="קשיחות" value={s.stiffness_pascal || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], stiffness_pascal: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
-                  <input type="number" placeholder="לחץ (בר)" value={s.pressure_bar || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], pressure_bar: e.target.value }; setSpecsForm(next); }} className={`${inputClass} w-24`} />
-                  <input type="text" placeholder="הערות" value={s.notes || ''} onChange={(e) => { const next = [...specsForm]; next[i] = { ...next[i], notes: e.target.value }; setSpecsForm(next); }} className={`${inputClass} flex-1`} />
-                  <button onClick={() => setSpecsForm((prev) => prev.filter((_, j) => j !== i))} className="text-danger hover:text-danger"><Icon name="close" size={20} /></button>
-                </div>
-              ))}
-            </div>
-              <button onClick={() => setSpecsForm((prev) => [...prev, { dn_mm: '', od_mm: '', id_mm: '', pipe_type: 'הטמנה', line_length_m: '', unit_length_m: '', stiffness_pascal: '', pressure_bar: '', notes: '' }])} className="text-[13px] text-primary hover:underline mt-3 block">+ הוסף מפרט צינור</button>
-            </div>
-          ) : pipeSpecs.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line-subtle">
-                    <th className="text-right text-content-muted font-medium pb-2 pr-2">DN</th>
-                    <th className="text-right text-content-muted font-medium pb-2">OD</th>
-                    <th className="text-right text-content-muted font-medium pb-2">ID</th>
-                    <th className="text-right text-content-muted font-medium pb-2">סוג צינור</th>
-                    <th className="text-right text-content-muted font-medium pb-2">אורך קו (מ׳)</th>
-                    <th className="text-right text-content-muted font-medium pb-2">אורך יחידה (מ׳)</th>
-                    <th className="text-right text-content-muted font-medium pb-2">קשיחות (פסקל)</th>
-                    <th className="text-right text-content-muted font-medium pb-2">לחץ (בר)</th>
-                    <th className="text-right text-content-muted font-medium pb-2">הערות</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pipeSpecs.map((spec) => (
-                    <tr key={spec.id} className="border-b border-line-subtle">
-                      <td className="py-2 pr-2 font-semibold text-content-strong">{spec.dn_mm || '—'}</td>
-                      <td className="py-2 text-content-body">{spec.od_mm || '—'}</td>
-                      <td className="py-2 text-content-body">{spec.id_mm || '—'}</td>
-                      <td className="py-2 text-content-body">{spec.pipe_type || 'הטמנה'}</td>
-                      <td className="py-2 text-content-body">{spec.line_length_m ?? '—'}</td>
-                      <td className="py-2 text-content-body" dir="ltr">{spec.unit_length_m ? spec.unit_length_m.split(',').join(', ') : '—'}</td>
-                      <td className="py-2 text-content-body">{spec.stiffness_pascal ?? '—'}</td>
-                      <td className="py-2 text-content-body">{spec.pressure_bar ?? '—'}</td>
-                      <td className="py-2 text-content-body">{spec.notes || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-400 text-center py-3">אין מפרט צינורות. לחץ עריכה להוסיף.</p>
-          )}
-
-          {/* Attachments */}
-          {projectAttachments.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-line-subtle">
-              <h3 className="text-sm font-bold text-content-body mb-2"><Icon name="attach" size={16} /> שרטוטים ומסמכים ({projectAttachments.length})</h3>
-              <div className="space-y-1.5">
-                {projectAttachments.map((att: any) => {
-                  const linkedQuote = att.entity_type === 'quote' ? projectQuotes.find((q: any) => q.id === att.entity_id) : null;
-                  return (
-                    <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-2 text-sm">
-                      <span className="text-neutral-400"><Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg)$/i) ? 'image' : 'attach'} size={14} /></span>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex-1">{att.file_name}</a>
-                      {linkedQuote && (
-                        <span className="text-[11px] bg-azure-100 text-azure-600 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          הצעה {linkedQuote.quote_number}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-neutral-400">{new Date(att.created_at).toLocaleDateString('he-IL')}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Project specs (portrait orientation in the quote PDF) */}
+        {/* Documents — one card, tabbed by type. Drag-drop uploads to the
+            active tab; specs/drawings still feed the quote PDF & linking. */}
         <section
-          className={`relative bg-white rounded-xl border p-5 transition-colors ${specDragOver ? 'border-warning ring-2 ring-warning' : 'border-line-subtle'}`}
+          className={`relative bg-white rounded-xl border p-5 transition-colors ${docDragOver ? 'border-primary ring-2 ring-primary-100' : 'border-line-subtle'}`}
           onDragEnter={(e) => {
-            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            if (uploadingSpec || uploadingDrawing || uploadingClosure || uploadingDoc || !e.dataTransfer?.types?.includes('Files')) return;
             e.preventDefault();
-            specDragDepth.current += 1;
-            setSpecDragOver(true);
+            docDragDepth.current += 1;
+            setDocDragOver(true);
           }}
           onDragOver={(e) => {
-            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
+            if (!e.dataTransfer?.types?.includes('Files')) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
           }}
           onDragLeave={(e) => {
             e.preventDefault();
-            specDragDepth.current = Math.max(0, specDragDepth.current - 1);
-            if (specDragDepth.current === 0) setSpecDragOver(false);
+            docDragDepth.current = Math.max(0, docDragDepth.current - 1);
+            if (docDragDepth.current === 0) setDocDragOver(false);
           }}
           onDrop={async (e) => {
             e.preventDefault();
-            specDragDepth.current = 0;
-            setSpecDragOver(false);
-            if (uploadingSpec || !e.dataTransfer?.types?.includes('Files')) return;
-            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g|docx?|xlsx?)$/i.test(f.name));
-            for (const f of files) { await uploadProjectSpec(f); }
+            docDragDepth.current = 0;
+            setDocDragOver(false);
+            if (!e.dataTransfer?.types?.includes('Files')) return;
+            const files = Array.from(e.dataTransfer?.files || []);
+            for (const f of files) { await dispatchDocUpload(f); }
           }}
         >
-          {specDragOver && (
-            <div className="absolute inset-0 z-20 bg-warning-soft border-2 border-dashed border-warning rounded-xl flex items-center justify-center pointer-events-none">
-              <div className="text-center">
-                <div className="mb-1 text-warning"><Icon name="spec" size={32} /></div>
-                <p className="text-sm font-bold text-warning">שחרר כדי להעלות מפרטים</p>
-                <p className="text-[11px] text-warning mt-0.5">PDF, PNG, JPG, DOC/DOCX, XLS/XLSX · בהצעה יוצגו לאורך</p>
-              </div>
-            </div>
-          )}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-content-body"><Icon name="spec" size={20} /> מפרטים טכניים של הפרויקט</h2>
-            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingSpec ? 'bg-neutral-100 text-neutral-400' : 'bg-warning-soft text-warning hover:bg-warning-soft'}`}>
-              {uploadingSpec ? <><Icon name="loading" size={14} /> מעלה…</> : '+ העלה מפרט'}
-              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple disabled={uploadingSpec}
-                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectSpec(f); } }} />
-            </label>
-          </div>
-          {(() => {
-            const specs = projectAttachments.filter((a: any) => a.entity_type === 'project' && a.file_type === 'spec');
-            if (specs.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין מפרטים. גרור קבצים פנימה, או לחץ &quot;+ העלה מפרט&quot;. מפרטים יוצגו לאורך בהצעת המחיר.</p>;
-            return (
-              <div className="space-y-2">
-                {specs.map((att: any) => (
-                  <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-warning bg-warning-soft px-2 py-1 rounded whitespace-nowrap"><Icon name="spec" size={14} /> מפרט</span>
-                    <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /> {att.file_name}
-                    </button>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </section>
-
-        {/* Project drawings (landscape orientation in the quote PDF) */}
-        <section
-          className={`relative bg-white rounded-xl border p-5 transition-colors ${drawingDragOver ? 'border-primary ring-2 ring-primary-100' : 'border-line-subtle'}`}
-          onDragEnter={(e) => {
-            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
-            e.preventDefault();
-            drawingDragDepth.current += 1;
-            setDrawingDragOver(true);
-          }}
-          onDragOver={(e) => {
-            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            drawingDragDepth.current = Math.max(0, drawingDragDepth.current - 1);
-            if (drawingDragDepth.current === 0) setDrawingDragOver(false);
-          }}
-          onDrop={async (e) => {
-            e.preventDefault();
-            drawingDragDepth.current = 0;
-            setDrawingDragOver(false);
-            if (uploadingDrawing || !e.dataTransfer?.types?.includes('Files')) return;
-            const files = Array.from(e.dataTransfer?.files || []).filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.name));
-            for (const f of files) { await uploadProjectDrawing(f); }
-          }}
-        >
-          {drawingDragOver && (
+          {docDragOver && (
             <div className="absolute inset-0 z-20 bg-primary-50 border-2 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none">
               <div className="text-center">
-                <div className="mb-1 text-azure-600"><Icon name="drawings" size={32} /></div>
-                <p className="text-sm font-bold text-primary">שחרר כדי להעלות שרטוטים</p>
-                <p className="text-[11px] text-primary mt-0.5">PDF, PNG, JPG · מספר השרטוט יזוהה אוטומטית · בהצעה יוצגו לרוחב</p>
+                <div className="mb-1 text-azure-600"><Icon name="folder" size={32} /></div>
+                <p className="text-sm font-bold text-primary">שחרר כדי להעלות ל{DOC_TAB_LABEL[docTab]}</p>
               </div>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-content-body"><Icon name="drawings" size={20} /> שרטוטים של הפרויקט</h2>
-            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingDrawing ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
-              {uploadingDrawing ? <><Icon name="loading" size={14} /> מעלה ומזהה…</> : '+ העלה שרטוט'}
-              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple disabled={uploadingDrawing}
-                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadProjectDrawing(f); } }} />
+          <h2 className="text-lg font-bold text-content-body mb-3"><Icon name="folder" size={20} /> מסמכים</h2>
+
+          {/* Tabs */}
+          <div className="flex gap-1 mb-4 border-b border-line-subtle pb-2 overflow-x-auto">
+            {DOC_TABS.map((t) => {
+              const count = projectAttachments.filter((a: any) => a.entity_type === 'project' && (t.key === 'drawing' ? !DOC_NON_DRAWING_TYPES.includes(a.file_type) : a.file_type === t.key)).length;
+              return (
+                <button key={t.key} onClick={() => setDocTab(t.key)}
+                  className={`text-[13px] px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${docTab === t.key ? 'bg-primary text-white font-semibold' : 'text-content-muted hover:bg-neutral-50'}`}>
+                  <Icon name={t.icon} size={14} /> {t.label}{count > 0 ? ` (${count})` : ''}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Upload for the active tab */}
+          <div className="flex items-center justify-end mb-3">
+            <label className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${(uploadingSpec || uploadingDrawing || uploadingClosure || uploadingDoc) ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
+              {(uploadingSpec || uploadingDrawing || uploadingClosure || uploadingDoc) ? <><Icon name="loading" size={14} /> מעלה…</> : `+ העלה ${DOC_TAB_LABEL[docTab]}`}
+              <input type="file" className="hidden" accept={DOC_ACCEPT[docTab]} multiple disabled={uploadingSpec || uploadingDrawing || uploadingClosure || uploadingDoc}
+                onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await dispatchDocUpload(f); } }} />
             </label>
           </div>
-          {(() => {
-            const drawings = projectAttachments.filter((a: any) => a.entity_type === 'project' && !['spec', 'completion_report', 'warranty_cert'].includes(a.file_type));
-            if (drawings.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין שרטוטים. גרור קבצים פנימה, או לחץ &quot;+ העלה שרטוט&quot;. שרטוטים יוצגו לרוחב בהצעת המחיר.</p>;
-            return (
-              <div className="space-y-2">
-                {drawings.map((att: any) => (
-                  <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-navy-700 bg-primary-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">
-                      {(details.project_number || '—')}/{att.drawing_number || '?'}
-                    </span>
-                    <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'image'} size={14} /> {att.file_name}
-                    </button>
-                    <label className="text-[11px] text-neutral-400 flex items-center gap-1">
-                      מס׳ שרטוט:
-                      <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }}
-                        placeholder="—" className="w-24 border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="ltr" />
-                    </label>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </section>
 
-        {/* Closure documents — completion report / warranty certificate.
-            Uploading one stamps last_updated_at (the archive closing date). */}
-        <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-lg font-bold text-content-body"><Icon name="archive" size={20} /> מסמכי סיום פרויקט</h2>
-            <div className="flex gap-2">
-              {([
-                { kind: 'completion_report' as const, label: '+ דוח סיום' },
-                { kind: 'warranty_cert' as const, label: '+ תעודת אחריות' },
-              ]).map((b) => (
-                <label key={b.kind} className={`text-[13px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${uploadingClosure ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
-                  {uploadingClosure ? <><Icon name="loading" size={14} /> מעלה…</> : b.label}
-                  <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" multiple disabled={uploadingClosure}
-                    onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) { await uploadClosureDoc(f, b.kind); } }} />
-                </label>
-              ))}
-            </div>
-          </div>
+          {/* List for the active tab */}
           {(() => {
-            const closureDocs = projectAttachments.filter((a: any) => a.entity_type === 'project' && ['completion_report', 'warranty_cert'].includes(a.file_type));
-            if (closureDocs.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין מסמכי סיום. העלאת דוח סיום או תעודת אחריות מעדכנת את תאריך העדכון של הפרויקט בטבלת הארכיון.</p>;
+            const items = projectAttachments.filter((a: any) => a.entity_type === 'project' && (docTab === 'drawing' ? !DOC_NON_DRAWING_TYPES.includes(a.file_type) : a.file_type === docTab));
+            if (items.length === 0) return <p className="text-sm text-neutral-400 text-center py-3">אין {DOC_TAB_LABEL[docTab]}. גרור קבצים פנימה או לחץ &quot;+ העלה&quot;.{docTab === 'drawing' ? ' מספר השרטוט יזוהה אוטומטית; יוצגו לרוחב בהצעה.' : docTab === 'spec' ? ' יוצגו לאורך בהצעת המחיר.' : ''}</p>;
             return (
               <div className="space-y-2">
-                {closureDocs.map((att: any) => (
+                {items.map((att: any) => (
                   <div key={att.id} className="flex items-center gap-3 bg-neutral-50 rounded-lg px-3 py-2 text-sm flex-wrap">
-                    <span className="text-[12px] font-bold text-success bg-success-soft px-2 py-1 rounded whitespace-nowrap">
-                      {att.file_type === 'completion_report' ? 'דוח סיום' : 'תעודת אחריות'}
-                    </span>
+                    {docTab === 'drawing' ? (
+                      <span className="text-[12px] font-bold text-navy-700 bg-primary-50 px-2 py-1 rounded whitespace-nowrap" dir="ltr">{(details.project_number || '—')}/{att.drawing_number || '?'}</span>
+                    ) : (
+                      <span className="text-[12px] font-bold text-content-muted bg-neutral-100 px-2 py-1 rounded whitespace-nowrap"><Icon name={DOC_TABS.find((t) => t.key === docTab)?.icon || 'attach'} size={14} /> {DOC_TAB_LABEL[docTab]}</span>
+                    )}
                     <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'file'} size={14} /> {att.file_name}
+                      <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? 'image' : 'attach'} size={14} /> {att.file_name}
                     </button>
-                    <span className="text-[11px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
-                    <button onClick={() => deleteProjectDrawing(att.id)} className="text-danger hover:text-danger text-lg shrink-0">×</button>
+                    {docTab === 'drawing' && (
+                      <label className="text-[11px] text-neutral-400 flex items-center gap-1">מס׳ שרטוט:
+                        <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }} placeholder="—" className="w-24 border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="ltr" />
+                      </label>
+                    )}
+                    <span className="text-[10px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
+                    <button onClick={() => { if (confirm(`למחוק את ${att.file_name}?`)) deleteProjectDrawing(att.id); }} className="text-danger hover:text-danger text-lg shrink-0">×</button>
                   </div>
                 ))}
               </div>
@@ -1324,134 +1306,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         <div id="pricing" style={{ scrollMarginTop: '80px' }}>
           <PricingSection projectId={params.id as string} attachmentVersion={attachmentVersion} />
         </div>
+
         {/* Purchase orders — created in /procurement, tracked in /import */}
         <ProjectPOCard projectId={params.id as string} />
         {/* Import — documents & orders linked to this project */}
         <ImportPanel projectId={params.id as string} />
-        {/* Updates / Meeting log */}
-        <section className="bg-white rounded-xl border border-line-subtle p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> מעקב עדכונים ופגישות</h2>
-            <button
-              onClick={() => { setShowAddUpdate(!showAddUpdate); setNewUpdate({ update_date: new Date().toISOString().substring(0, 10), people: '', title: '', description: '', tasks: '' }); }}
-              className="text-[13px] bg-primary-50 text-primary px-3 py-1.5 rounded-lg hover:bg-primary-100 transition-colors"
-            >
-              {showAddUpdate ? 'ביטול' : '+ עדכון חדש'}
-            </button>
-          </div>
-
-          {/* Add new update form */}
-          {showAddUpdate && (
-            <div className="bg-azure-100 border border-azure rounded-xl p-4 mb-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[13px] font-semibold text-content-muted mb-1">תאריך</label>
-                  <input type="date" value={newUpdate.update_date} onChange={(e) => setNewUpdate({ ...newUpdate, update_date: e.target.value })} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-semibold text-content-muted mb-1">אנשים נוגעים בעניין</label>
-                  <input type="text" placeholder="שמות, מופרדים בפסיק" value={newUpdate.people} onChange={(e) => setNewUpdate({ ...newUpdate, people: e.target.value })} className={inputClass} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[13px] font-semibold text-content-muted mb-1">כותרת (תיאור קצר)</label>
-                <input type="text" placeholder="למשל: פגישה עם מנהל הפרויקט" value={newUpdate.title} onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-[13px] font-semibold text-content-muted mb-1">תיאור מלא</label>
-                <textarea placeholder="פירוט הפגישה / העדכון..." value={newUpdate.description} onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })} className={`${inputClass} min-h-[80px]`} />
-              </div>
-              <div>
-                <label className="block text-[13px] font-semibold text-content-muted mb-1">משימות לביצוע</label>
-                <textarea placeholder="משימה 1, משימה 2..." value={newUpdate.tasks} onChange={(e) => setNewUpdate({ ...newUpdate, tasks: e.target.value })} className={`${inputClass} min-h-[50px]`} />
-              </div>
-              <button
-                onClick={async () => {
-                  if (!newUpdate.title.trim()) return;
-                  setSaving(true);
-                  await supabase.from('project_updates').insert({
-                    project_id: params.id as string,
-                    update_date: newUpdate.update_date,
-                    people: newUpdate.people,
-                    title: newUpdate.title,
-                    description: newUpdate.description,
-                    tasks: newUpdate.tasks,
-                  });
-                  setShowAddUpdate(false);
-                  setSaving(false);
-                  await load();
-                }}
-                disabled={saving || !newUpdate.title.trim()}
-                className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? 'שומר...' : 'שמור עדכון'}
-              </button>
-            </div>
-          )}
-
-          {/* Updates list */}
-          {updates.length > 0 ? (
-            <div className="space-y-2">
-              {updates.map((upd) => (
-                <div key={upd.id} className="border border-line-subtle rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setExpandedUpdate(expandedUpdate === upd.id ? null : upd.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-neutral-50 transition-colors"
-                  >
-                    <span className="text-[13px] text-neutral-400 flex-shrink-0 w-20">{formatDate(upd.update_date)}</span>
-                    <span className="text-[13px] text-primary flex-shrink-0 w-32 truncate">{upd.people}</span>
-                    <span className="text-sm font-medium text-content-strong flex-1 truncate">{upd.title}</span>
-                    <svg className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${expandedUpdate === upd.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-                  </button>
-                  {expandedUpdate === upd.id && (
-                    <div className="px-4 pb-4 border-t border-line-subtle bg-neutral-50">
-                      {upd.description && (
-                        <div className="mt-3">
-                          <p className="text-[12px] font-bold text-neutral-400 mb-1">תיאור</p>
-                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.description}</p>
-                        </div>
-                      )}
-                      {upd.tasks && (
-                        <div className="mt-3">
-                          <p className="text-[12px] font-bold text-neutral-400 mb-1">משימות לביצוע</p>
-                          <p className="text-sm text-content-body whitespace-pre-wrap">{upd.tasks}</p>
-                        </div>
-                      )}
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => {
-                            setExportUpdate(upd);
-                            setExportLang('he');
-                            setExportRecipient('');
-                            setExportEmail('');
-                            setExportCopied(false);
-                          }}
-                          className="text-[12px] text-primary hover:text-primary-700 font-medium"
-                        >
-                          <Icon name="send" size={14} /> ייצא
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (confirm('למחוק עדכון זה?')) {
-                              await supabase.from('project_updates').delete().eq('id', upd.id);
-                              await load();
-                            }
-                          }}
-                          className="text-[12px] text-danger hover:text-danger"
-                        >
-                          מחק עדכון
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-400 text-center py-4">אין עדכונים עדיין. הוסף עדכון ראשון או ספר לרקסי על פגישה.</p>
-          )}
-        </section>
-
         {/* Export email modal */}
         {exportUpdate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
@@ -1557,6 +1416,7 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             <EditableField label="פוליטיקה" value={d.politics || ''} editing={editStory} type="textarea" onChange={(v) => updateDetailForm('politics', v)} />
           </div>
         </section>
+
       </div>
 
       {/* Project export modal */}

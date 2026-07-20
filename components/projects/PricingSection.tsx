@@ -289,7 +289,7 @@ export default function PricingSection({ projectId, attachmentVersion = 0 }: { p
       {p.pricingTab === 'quotes' && <QuotesTab p={p} />}
 
       {/* ORDERS TAB */}
-      {p.pricingTab === 'orders' && <OrdersTab p={p} />}
+      {p.pricingTab === 'orders' && <OrdersTab p={p} projectId={projectId} />}
     </section>
   );
 }
@@ -1716,7 +1716,7 @@ const WARNING_STYLE: Record<'low_margin' | 'high_margin' | 'zero_cost', { bg: st
   zero_cost:   { bg: 'bg-primary-50 text-primary border border-primary', icon: 'search' as IconName, msg: 'עלות אפס' },
 };
 
-function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
+function OrdersTab({ p, projectId }: { p: ReturnType<typeof usePricing>; projectId: string }) {
   if (p.orders.length === 0) {
     return <p className="text-sm text-neutral-400 text-center py-3">אין הזמנות. הזמנות נוצרות אוטומטית כשהצעת מחיר נחתמת.</p>;
   }
@@ -1760,9 +1760,86 @@ function OrdersTab({ p }: { p: ReturnType<typeof usePricing> }) {
               )}
             </div>
             {ord.notes && <p className="text-[12px] text-content-muted mt-2"><Icon name="pin" size={14} /> {ord.notes}</p>}
+            <OrderDocs orderId={ord.id} projectId={projectId} />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Order-confirmation documents, attached per customer order. Self-contained
+// (own fetch/upload/open/delete) — file_type='order_confirmation',
+// entity_type='order' keeps them out of the drawings/specs/quote surfaces.
+function OrderDocs({ orderId, projectId }: { orderId: string; projectId: string }) {
+  const supabase = createClient();
+  const [docs, setDocs] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  async function load() {
+    const { data } = await supabase.from('attachments')
+      .select('id, file_name, file_url, created_at')
+      .eq('entity_type', 'order').eq('entity_id', orderId).eq('file_type', 'order_confirmation')
+      .order('created_at', { ascending: false });
+    setDocs(data || []);
+  }
+  useEffect(() => { load(); }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function upload(file: File) {
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'file';
+      const path = `${projectId}/orders/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from('attachments').insert({
+        entity_type: 'order', entity_id: orderId, project_id: projectId,
+        file_name: file.name, file_url: path, file_type: 'order_confirmation', file_size_bytes: file.size,
+      });
+      if (insErr) { alert(`שגיאה: ${insErr.message}`); return; }
+      await load();
+    } finally { setUploading(false); }
+  }
+
+  function openFile(path: string) {
+    if (/^https?:/.test(path)) { window.open(path, '_blank'); return; }
+    const w = window.open('about:blank', '_blank');
+    supabase.storage.from('project-files').createSignedUrl(path, 3600).then(({ data, error }) => {
+      if (error || !data?.signedUrl) { if (w) w.close(); alert('לא ניתן לפתוח את הקובץ'); return; }
+      if (w) w.location.href = data.signedUrl; else window.location.href = data.signedUrl;
+    });
+  }
+
+  async function del(id: string, name: string) {
+    if (!confirm(`למחוק את ${name}?`)) return;
+    await supabase.from('attachments').delete().eq('id', id);
+    await load();
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-line-subtle">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[12px] font-semibold text-content-muted"><Icon name="attach" size={14} /> אישורי הזמנה{docs.length > 0 ? ` (${docs.length})` : ''}</span>
+        <label className={`text-[12px] px-2.5 py-1 rounded-lg cursor-pointer transition-colors ${uploading ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
+          {uploading ? 'מעלה…' : '+ אישור הזמנה'}
+          <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.msg,.eml" multiple disabled={uploading}
+            onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) await upload(f); }} />
+        </label>
+      </div>
+      {docs.length > 0 && (
+        <div className="space-y-1.5">
+          {docs.map((att) => (
+            <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-1.5 text-[13px]">
+              <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-0.5 rounded-full whitespace-nowrap">אישור הזמנה</span>
+              <button onClick={() => openFile(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
+                <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'attach'} size={14} /> {att.file_name}
+              </button>
+              <span className="text-[10px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
+              <button onClick={() => del(att.id, att.file_name)} className="text-danger hover:text-danger text-base shrink-0">×</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
