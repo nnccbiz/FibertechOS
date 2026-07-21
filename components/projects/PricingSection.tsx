@@ -1822,9 +1822,9 @@ function OrderDocs({ orderId, projectId }: { orderId: string; projectId: string 
   return (
     <div className="mt-3 pt-3 border-t border-line-subtle">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[12px] font-semibold text-content-muted"><Icon name="attach" size={14} /> אישורי הזמנה{docs.length > 0 ? ` (${docs.length})` : ''}</span>
+        <span className="text-[12px] font-semibold text-content-muted"><Icon name="attach" size={14} /> אישור הזמנת לקוח (חתום){docs.length > 0 ? ` (${docs.length})` : ''}</span>
         <label className={`text-[12px] px-2.5 py-1 rounded-lg cursor-pointer transition-colors ${uploading ? 'bg-neutral-100 text-neutral-400' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}>
-          {uploading ? 'מעלה…' : '+ אישור הזמנה'}
+          {uploading ? 'מעלה…' : '+ העלה אישור לקוח'}
           <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.msg,.eml" multiple disabled={uploading}
             onChange={async (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; for (const f of files) await upload(f); }} />
         </label>
@@ -1833,9 +1833,9 @@ function OrderDocs({ orderId, projectId }: { orderId: string; projectId: string 
         <div className="space-y-1.5">
           {docs.map((att) => (
             <div key={att.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg px-3 py-1.5 text-[13px]">
-              <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-0.5 rounded-full whitespace-nowrap">אישור הזמנה</span>
-              <button onClick={() => openFile(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
-                <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'attach'} size={14} /> {att.file_name}
+              <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-0.5 rounded-full whitespace-nowrap">אישור לקוח</span>
+              <button onClick={() => openFile(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0" title="צפייה בקובץ">
+                <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : 'attach'} size={14} /> {att.file_name} <Icon name="external" size={12} />
               </button>
               <span className="text-[10px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
               <button onClick={() => del(att.id, att.file_name)} className="text-danger hover:text-danger text-base shrink-0">×</button>
