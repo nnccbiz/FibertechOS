@@ -1238,9 +1238,17 @@ export function usePricing(projectId: string): UsePricingReturn {
         // when the linked contact was deleted between draft and send.
         const c = q.contact_id ? contacts.find((x) => x.id === q.contact_id) : null;
         if (c) {
+          // Freeze the customer's ח.פ. into the snapshot too — the public share
+          // page (anon) can't read the clients table, so this is its only source.
+          let taxId: string | null = null;
+          if (q.customer_id) {
+            const { data: cl } = await supabase.from('clients').select('tax_id').eq('id', q.customer_id).single();
+            taxId = cl?.tax_id || null;
+          }
           const snap = {
             name: c.name || '', role: c.role || '', phone: c.phone || '', email: c.email || '',
             company: q.customer_id ? (customers.find((cu) => cu.id === q.customer_id)?.name || null) : null,
+            tax_id: taxId,
           };
           await supabase.from('quotes').update({ contact_snapshot: snap }).eq('id', quoteId);
           setQuotes((prev) => prev.map((x) => x.id === quoteId ? { ...x, contact_snapshot: snap } : x));

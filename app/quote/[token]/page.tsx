@@ -41,6 +41,7 @@ export default function PublicQuotePage() {
   const [contractSections, setContractSections] = useState<{ title: string; clauses: { num: number; text: string }[] }[]>(CONTRACT_SECTIONS);
   const [clientContact, setClientContact] = useState<{ name: string; phone: string; email: string } | null>(null);
   const [costCurrency, setCostCurrency] = useState<string | null>(null);
+  const [customerTaxId, setCustomerTaxId] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -94,6 +95,8 @@ export default function PublicQuotePage() {
       if (q.contact_snapshot) {
         const s = q.contact_snapshot;
         setClientContact({ name: s.name || '', phone: s.phone || '', email: s.email || '' });
+        // ח.פ. was frozen into the snapshot on issue (anon can't read clients).
+        if (s.tax_id) setCustomerTaxId(s.tax_id);
       }
 
       // Price-peg currency via a SECURITY DEFINER RPC (returns only the code,
@@ -197,6 +200,7 @@ export default function PublicQuotePage() {
         clientContact={clientContact}
         contractSections={contractSections}
         costCurrency={costCurrency}
+        customerTaxId={customerTaxId}
         attachmentPages={attachmentPages}
         attachments={attachments}
       />

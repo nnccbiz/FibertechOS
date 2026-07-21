@@ -39,6 +39,8 @@ export interface QuoteDocumentData {
   attachmentPages: QuoteAttachmentPage[];
   /** Raw attachment rows — used only to list non-image files by name. */
   attachments?: any[];
+  /** Customer company registration number (ח.פ.) — shown under the client name. */
+  customerTaxId?: string | null;
 }
 
 export interface QuoteDocumentHandle {
@@ -67,7 +69,7 @@ function formatCurrency(v: number) {
 }
 
 const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(function QuoteDocument(
-  { quote, items, project, clientContact, contractSections, costCurrency, attachmentPages, attachments = [] },
+  { quote, items, project, clientContact, contractSections, costCurrency, attachmentPages, attachments = [], customerTaxId },
   ref,
 ) {
   const [measuredPages, setMeasuredPages] = useState<any[] | null>(null);
@@ -369,6 +371,9 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
         <div className="border-r-4 border-navy-700 pr-4 flex flex-col text-right">
           <h3 className="text-sm font-bold text-navy-700 mb-3 text-right">לכבוד</h3>
           <p className="text-base font-bold text-content-strong text-right">{quote.client_name}</p>
+          {customerTaxId && (
+            <p className="text-sm text-content-body text-right">ח.פ. <span dir="ltr">{customerTaxId}</span></p>
+          )}
           {project.client_name && project.client_name !== quote.client_name && (
             <p className="text-sm text-content-body text-right">{project.client_name}</p>
           )}
