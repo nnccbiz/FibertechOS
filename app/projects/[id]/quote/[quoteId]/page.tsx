@@ -51,6 +51,7 @@ export default function QuotePreviewPage() {
   const [sendingLink, setSendingLink] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
   const [costCurrency, setCostCurrency] = useState<string | null>(null);
+  const [customerTaxId, setCustomerTaxId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +66,21 @@ export default function QuotePreviewPage() {
       setQuote(q);
       setItems(its || []);
       setProject(proj);
+
+      // Customer ח.פ. — prefer the frozen snapshot on an issued quote, else read
+      // it live from the linked customer (authenticated read).
+      try {
+        const snapTax = q?.contact_snapshot?.tax_id;
+        if (snapTax) {
+          setCustomerTaxId(snapTax);
+        } else {
+          const custId = q?.customer_id || proj?.customer_id;
+          if (custId) {
+            const { data: cl } = await supabase.from('clients').select('tax_id').eq('id', custId).single();
+            if (cl?.tax_id) setCustomerTaxId(cl.tax_id);
+          }
+        }
+      } catch {}
 
       try {
         if (q?.contract_overrides && Array.isArray(q.contract_overrides) && q.contract_overrides.length > 0) {
@@ -276,6 +292,7 @@ export default function QuotePreviewPage() {
         clientContact={clientContact}
         contractSections={contractSections}
         costCurrency={costCurrency}
+        customerTaxId={customerTaxId}
         attachmentPages={attachmentPages}
         attachments={attachments}
       />
