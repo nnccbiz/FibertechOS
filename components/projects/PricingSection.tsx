@@ -738,6 +738,9 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                   onChange={(v) => {
                     const cust = p.customers.find((c: any) => c.id === v);
                     p.setNewQuote({ ...p.newQuote, customer_id: v, client_name: cust?.name || p.newQuote.client_name, contact_id: '' });
+                    // Pull the latest contacts for the chosen customer so a
+                    // contact added elsewhere shows up without a page reload.
+                    if (v) p.refreshCustomers();
                   }}
                   className="flex-1 border border-line-subtle rounded-lg px-3 py-2 text-sm"
                   placeholder="— ללא לקוח —"
@@ -915,7 +918,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
   return (
     <div className="border border-line-subtle rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-neutral-50 cursor-pointer hover:bg-neutral-100 transition-colors" onClick={() => p.setExpandedQuote(isExpanded ? null : q.id)}>
+      <div className="flex items-center justify-between px-4 py-3 bg-neutral-50 cursor-pointer hover:bg-neutral-100 transition-colors" onClick={() => { const opening = !isExpanded; p.setExpandedQuote(opening ? q.id : null); if (opening && q.customer_id) p.refreshCustomers(); }}>
         <div className="flex items-center gap-3">
           <span className="text-sm font-mono text-neutral-400">{q.quote_number}</span>
           {q.client_name?.trim()

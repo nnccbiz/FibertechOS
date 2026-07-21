@@ -1148,8 +1148,15 @@ export function usePricing(projectId: string): UsePricingReturn {
   }
 
   async function refreshCustomers() {
-    const { data } = await supabase.from('clients').select('id, name').order('name');
-    setCustomers(data || []);
+    // Reload BOTH the customer list and their contacts — a newly-added
+    // client_contact must reach customerContacts, otherwise the quote's contact
+    // picker keeps showing the stale list (missing the new contact).
+    const [{ data: cl }, { data: cc }] = await Promise.all([
+      supabase.from('clients').select('id, name').order('name'),
+      supabase.from('client_contacts').select('id, client_id, name, role, phone, email').order('created_at'),
+    ]);
+    setCustomers(cl || []);
+    setCustomerContacts(cc || []);
   }
 
   async function toggleQuoteDrawing(quoteId: string, attachmentId: string) {
