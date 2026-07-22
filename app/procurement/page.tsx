@@ -450,16 +450,28 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return () => { cancelled = true; };
   }, [expanded, po.quote_id]);
 
-  // Item identity = DN|PN|SN (numbers only; missing spec → '').
-  const specKey = (dn: any, pn: any, sn: any) => {
+  // Item identity = product signature + DN|PN|SN. The signature (product name
+  // with lengths/numbers stripped) is essential: the same DN carries several
+  // distinct products (GRP pipe, rocker, Reka coupling, wall coupling), and
+  // matching on DN|PN|SN alone wrongly merges them — producing wrong quantities
+  // and hiding items the customer didn't order.
+  const prodSig = (s: any) => String(s ?? '')
+    .toLowerCase()
+    .replace(/l\s*=?\s*[\d.]+\s*m?\b/g, ' ')   // strip length tokens (L=5.7m)
+    .replace(/[\d.]+/g, ' ')                    // strip remaining numbers
+    .replace(/[^a-z֐-׿]+/g, ' ')      // keep letters (latin + hebrew)
+    .trim()
+    .replace(/\s+/g, ' ');
+  const specKey = (desc: any, dn: any, pn: any, sn: any) => {
     const n = (v: any) => { const x = parseInt(String(v ?? '').replace(/\D/g, ''), 10); return isNaN(x) ? '' : x; };
     const d = n(dn);
     if (d === '') return null;
-    return `${d}|${n(pn)}|${n(sn)}`;
+    return `${prodSig(desc)}|${d}|${n(pn)}|${n(sn)}`;
   };
   const specLabel = (k: string) => {
-    const [d, p, s] = k.split('|');
-    return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}`;
+    const [sig, d, p, s] = k.split('|');
+    const words = sig.split(' ').filter(Boolean).slice(0, 3).join(' ');
+    return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}${words ? ` · ${words}` : ''}`;
   };
 
   // Aggregate quote quantities per spec, compare against the live PO rows.
@@ -469,7 +481,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteItems?.length) return null;
     const m = new Map<string, number>();
     quoteItems.forEach((qi) => {
-      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
       if (!k) return;
       m.set(k, (m.get(k) || 0) + (Number(qi.quantity) || 0));
     });
@@ -480,7 +492,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteAgg || !form) return null;
     const poAgg = new Map<string, { qty: number; rowIdxs: number[] }>();
     rows.forEach((r, idx) => {
-      const k = specKey(r.dn, r.pn, r.sn);
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
       if (!k) return;
       const e = poAgg.get(k) || { qty: 0, rowIdxs: [] };
       e.qty += Number(r.ordered_qty) || 0;
@@ -494,9 +506,12 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!p) missing.push({ k, quoteQty: qQty });
       else if (Math.abs(p.qty - qQty) > 0.001) mismatches.push({ k, quoteQty: qQty, poQty: p.qty });
     });
-    return { mismatches, missing, poAgg };
+    // PO specs the customer did NOT order (not in the signed quote) — to remove.
+    const extras: { k: string; poQty: number }[] = [];
+    poAgg.forEach((v, k) => { if (!quoteAgg.has(k)) extras.push({ k, poQty: v.qty }); });
+    return { mismatches, missing, extras, poAgg };
   })();
-  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
+  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0 || comparison.extras.length > 0);
 
   // Pull the approved quantities into matching PO rows (unique-match only);
   // stays local until שמור.
@@ -642,14 +657,14 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     setTranslateFields(null);
   }
 
-  // One-click anomaly repair, in this order:
-  // 1. Complete missing PN/SN on PO rows that clearly correspond to an approved
-  //    spec (same DN, blank metadata, matching quantity) — the usual root cause
-  //    when the supplier pricing lacked pn/sn.
-  // 2. Align quantities to the approved quote (unique-row match only).
-  // 3. Add rows for approved specs still absent (price 0 — Nitzan fills in).
-  // 4. Drop zero-quantity rows whose spec isn't in the quote at all.
-  // Everything stays local until שמור.
+  // One-click anomaly repair, in this order (everything stays local until שמור):
+  // 1. Complete missing PN/SN on PO rows that unambiguously match an approved
+  //    spec (same product + DN, blank PN/SN) — the usual root cause when the
+  //    supplier pricing lacked pn/sn.
+  // 2. Align quantities to the approved quote (unique-row match per spec).
+  // 3. Add rows for approved specs still absent from the PO (price 0).
+  // 4. REMOVE PO rows whose spec isn't in the signed quote at all — the items
+  //    the customer ended up not ordering.
   function autoFixAnomalies() {
     if (!quoteAgg) return;
     const report: string[] = [];
@@ -659,7 +674,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     const buildAgg = () => {
       const m = new Map<string, { qty: number; rowIdxs: number[] }>();
       next.forEach((r, idx) => {
-        const k = specKey(r.dn, r.pn, r.sn);
+        const k = specKey(r.description, r.dn, r.pn, r.sn);
         if (!k) return;
         const e = m.get(k) || { qty: 0, rowIdxs: [] };
         e.qty += Number(r.ordered_qty) || 0;
@@ -669,15 +684,15 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       return m;
     };
 
-    // 1. metadata completion
+    // 1. metadata completion — same product + DN, PO row missing PN/SN.
     let agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
+      const [qsig, d, p, s] = k.split('|');
       const candidates = Array.from(agg.keys()).filter((pk) => {
         if (quoteAgg.has(pk)) return false;
-        const [pd, pp, ps] = pk.split('|');
-        if (pd !== d) return false;
+        const [psig, pd, pp, ps] = pk.split('|');
+        if (psig !== qsig || pd !== d) return false;
         if (pp !== '' && pp !== p) return false;
         if (ps !== '' && ps !== s) return false;
         return pp === '' || ps === '';
@@ -700,8 +715,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       const e = agg.get(k);
       if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
       if (e.rowIdxs.length === 1) {
+        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${specLabel(k)} עודכנה מ-${(Number(next[e.rowIdxs[0]].ordered_qty) || 0).toLocaleString()} ל-${qQty.toLocaleString()} לפי ההצעה.`);
         next[e.rowIdxs[0]].ordered_qty = qQty;
-        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
       } else {
         report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
       }
@@ -711,27 +726,27 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
-      const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+      const [, d, p, s] = k.split('|');
+      const qi = (quoteItems || []).find((x: any) => specKey(x.product_name, x.dn_size, x.pn, x.sn) === k);
       next.push({
-        id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
+        id: null, description: qi?.product_name || `DN${d}`, dn: d, pn: p, sn: s,
         unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
       });
       report.push(`⚠ שורה ${next.length} (חדשה): נוסף מפרט ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
-    // 4. zero-qty leftovers not in the quote
+    // 4. remove PO rows whose spec isn't in the signed quote (customer dropped them)
     for (let idx = next.length - 1; idx >= 0; idx--) {
       const r = next[idx];
-      const k = specKey(r.dn, r.pn, r.sn);
-      if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
+      if (k && !quoteAgg.has(k)) {
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
-        report.push(`שורה ${idx + 1}: הוסרה (${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
+        report.push(`שורה ${idx + 1}: הוסרה (${specLabel(k)}, כמות ${(Number(r.ordered_qty) || 0).toLocaleString()}) — לא קיימת בהצעה החתומה.`);
       }
     }
 
-    if (report.length === 0) { alert('לא נמצא מה לתקן אוטומטית — בדוק את הפערים ידנית.'); return; }
+    if (report.length === 0) { alert('אין מה לתקן — ההזמנה כבר תואמת להצעה החתומה.'); return; }
     setRows(next);
     if (delIds.length) setDeletedRowIds((prev) => [...prev, ...delIds]);
     alert(`בוצע תיקון (בדוק את השורות ולחץ שמור):\n\n${report.join('\n')}`);
@@ -832,6 +847,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.missing.map((m) => (
                   <p key={m.k}>
                     <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                  </p>
+                ))}
+                {comparison.extras.map((m) => (
+                  <p key={m.k}>
+                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהזמנת הרכש ({m.poQty.toLocaleString()}) אך <span className="font-semibold">לא קיים בהצעה החתומה</span> — יוסר בתיקון
                   </p>
                 ))}
               </div>
