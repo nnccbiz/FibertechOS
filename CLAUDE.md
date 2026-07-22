@@ -42,10 +42,12 @@ FibertechOS/
 │   ├── customers/                # Customers module (under marketing)
 │   │   ├── page.tsx              # Customers list + search (company/contact/phone/email) + "new customer"
 │   │   └── [id]/                 # Customer card: quote history (color-coded) + projects + contacts
-│   ├── drawings/                 # Drawings search page (by drawing number / project name / project number) + Roxy can route here
+│   ├── finance/                  # כספים domain (import permission) — FINANCE_TABS
+│   │   ├── collections/          # חשבוניות וגבייה — aging, per-customer groups, payments, follow-up log
+│   │   ├── suppliers/            # תשלומים לספקים — placeholder ("בקרוב", phase 3)
+│   │   └── reports/              # דוחות ותזרים — placeholder ("בקרוב", phase 3)
 │   ├── production/               # Production order tracking with status workflow
 │   ├── forms/                    # Israeli standard forms (B116, B12-2, B165, B244)
-│   ├── logistics/iskoor/         # Iskoor logistics tracker
 │   ├── quote/[token]/            # Public shared quote page (no auth)
 │   ├── (admin)/settings/
 │   │   ├── requests/             # Admin: pending access request approval queue
@@ -62,8 +64,9 @@ FibertechOS/
 ├── components/
 │   ├── ui/
 │   │   ├── AppShell.tsx          # Layout shell — Sidebar + BottomNav + FloatingChat
-│   │   ├── Sidebar.tsx           # Desktop sidebar — permission-gated nav items
-│   │   ├── BottomNav.tsx         # Mobile bottom nav — permission-gated
+│   │   ├── Sidebar.tsx           # Desktop sidebar — renders NAV_ITEMS from lib/nav.ts
+│   │   ├── BottomNav.tsx         # Mobile bottom nav — same NAV_ITEMS
+│   │   ├── SectionTabs.tsx       # Secondary tab strip for a nav domain (logistics/finance) — per-tab module permission
 │   │   ├── Button.tsx            # Primitive — variants primary/secondary/ghost/danger, sizes sm/md/lg
 │   │   ├── Input.tsx             # Primitives — Input / Textarea / Select (token-styled, invalid/iconLeft)
 │   │   ├── Field.tsx             # Primitive — label + hint/error wrapper
@@ -74,15 +77,15 @@ FibertechOS/
 │   │   ├── Toast.tsx             # Primitive — ToastProvider + useToast() (mounted in AppShell)
 │   │   ├── PhotoUpload.tsx       # Photo upload component
 │   │   └── SignaturePad.tsx      # Signature capture pad
-│   ├── dashboard/                # KpiCard, AlertsList, ProjectsTable, Pipeline, TeamStatus, InventoryWidget
+│   ├── dashboard/                # KpiCard, AlertsList, ProjectsTable, Pipeline, TeamStatus, InventoryWidget, CollectionsWidget
 │   ├── projects/                 # PricingSection, ContactsInput, PipeSpecsInput, StatusTracker, ExchangeRateWidget, CompanyAutocomplete
 │   ├── customers/                # CustomerForm (create/edit customer card + contacts; reused in /customers, project page, new-quote form)
 │   ├── forms/                    # FormB116, FormB12_2, FormB165, FormB244
-│   ├── logistics/                # IskoorTracker
 │   ├── admin/                    # PendingRequestsList, UserPermissionsEditor, ContractTemplatesEditor
 │   ├── ui/                       # SearchableSelect (drop-in <select> replacement, used in 20+ places)
 │   └── ai/                       # ActivityLog, FloatingChat (רקסי — conversational engine)
 ├── lib/
+│   ├── nav.ts                    # Shared nav model — NAV_ITEMS + LOGISTICS_TABS/FINANCE_TABS (single source for Sidebar/BottomNav/SectionTabs)
 │   ├── supabase/
 │   │   ├── client.ts             # Browser Supabase client (anon key, respects RLS)
 │   │   └── server.ts             # Server Supabase client + createAdminClient() (service_role, bypasses RLS)
@@ -106,7 +109,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT) + 20260715_001 (shared_quote_peg_currency RPC) + 20260719_001 (anon RLS for shared-quote drawings/specs) + 20260719_002 (realization_status terminal values) + 20260719_003 (import_orders.po_sent_at/po_sent_by — procurement stage) + 20260719_004 (import_orders.delivery_date) — plus the 20260705/0706/0708 batches noted in §7
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT) + 20260715_001 (shared_quote_peg_currency RPC) + 20260719_001 (anon RLS for shared-quote drawings/specs) + 20260719_002 (realization_status terminal values) + 20260719_003 (import_orders.po_sent_at/po_sent_by — procurement stage) + 20260719_004 (import_orders.delivery_date) + 20260722_001 (collections module — customer_invoices/customer_payments/collection_activities, see §5 Finance) — plus the 20260705/0706/0708 batches noted in §7
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -190,7 +193,7 @@ FibertechOS/
   - **Specs** — `file_type='spec'`, amber 📋 chip, no drawing-number column, no Gemini extraction. Drag-drop accepts `pdf,png,jpg,doc,docx,xls,xlsx`. Render orientation in the quote PDF: **portrait** A4.
 - **Consolidated "מסמכים" card (2026-07-20)**: the project page now has ONE tabbed documents card (visual pattern of the pricing tabs) replacing the four separate cards. Tabs: מפרטים (`spec`) · שרטוטים (`drawing`) · תכתובת (`correspondence`) · דוחות שירות שדה (`field_report`) · תמונות (`photo`) · דוח סיום (`completion_report`) · תעודת אחריות (`warranty_cert`). Drag-drop uploads to the active tab (`dispatchDocUpload`); the drawings tab keeps AI drawing-number detection + inline editing. `DOC_TABS`/`DOC_ACCEPT`/`DOC_NON_DRAWING_TYPES` are module constants in `app/projects/[id]/page.tsx`. All files open via signed URL (Safari-safe). Placed after "סוג פרויקט והתקנה", before the pricing section, so specs/drawings still feed the quote picker & PDF.
   - **Pricing files stay in the pricing section** (cost-input cards); the old general "מסמכי פרויקט" repository card was removed. **Order confirmations** moved to the pricing **הזמנות** tab — `OrderDocs` sub-component in `PricingSection.tsx`, self-contained upload/open/delete, `file_type='order_confirmation'` + `entity_type='order'` (outside the drawings/specs/quote surfaces).
-- `/drawings` search page: by drawing number / project name / project number. Roxy understands "find a drawing of project X" and routes to `/drawings?q=`.
+- ~~`/drawings` search page~~ — **removed 2026-07-22**: drawings live only in each project's מסמכים card. Roxy's `find_drawings` tool still searches all drawings and returns a `project_url` per match (links to the project page).
 - `quote_drawings` (despite its name) links **both** drawings and specs to a quote via checkboxes in the quote card. Multi-select. The quote preview renders each linked file as a full A4 page (orientation per `file_type`) inserted between the summary section and the contract terms. Picker label: "📐 שרטוטים ומפרטים לצירוף להצעה זו"; each item shows the matching 📐/📋 icon.
 - After uploading or deleting a spec/drawing on the project page, `attachmentVersion` (a counter) is bumped and passed to `PricingSection`, which calls `usePricing.refreshProjectDrawings()` so the quote-card checkboxes pick up the change without a full reload.
 - Public `/quote/[token]` **now shows linked drawings/specs** (2026-07-19, migration `20260719_001`): the page fetches `quote_drawings` + the linked project attachments and renders them as A4 pages like the internal preview. Anon RLS added — `anon_read_shared_quote_drawings` on `quote_drawings`, and `anon_read_shared_attachments` on `attachments` broadened to also cover `entity_type='project'` files linked via `quote_drawings` — both strictly scoped to a valid (non-expired) share token. **Cost-input attachments (`entity_type='cost_input'`) are never referenced by `quote_drawings`**, so pricing files stay invisible to anon (verified against live DB: anon sees 0 cost_input rows). Files stream in real-time by token, so a link already sent to a customer picks up the specs on reload without re-issuing.
@@ -233,10 +236,20 @@ FibertechOS/
 - A4 preview with drawings. PDF generation via jspdf + html2canvas. Email via .eml file with PDF attachment.
 - Quote date in the printed header/footer: drafts → today (fresh each render, since prices are pegged to today's FX); sent/signed → `quote.sent_at` (frozen on issue, falls back to `updated_at` for legacy quotes). **Fixed (2026-06-14, #6)**: `sent_at` is stamped once in `updateQuoteStatus`, so the printed date no longer drifts when back-office fields change.
 
-### Navigation
-- Desktop: Collapsible sidebar (hover to expand, 60px collapsed / 200px expanded).
-- Mobile: Scrollable bottom nav bar.
-- Both are permission-gated: only modules the user has access to appear.
+### Navigation (restructured 2026-07-22)
+- **8 nav items** (down from 12): בקרה · פרויקטים · לקוחות · **לוגיסטיקה** · **כספים** · ייצור · טפסים · הגדרות.
+- **Domain items with tabs**: `lib/nav.ts` is the single source (`NAV_ITEMS`, `LOGISTICS_TABS`, `FINANCE_TABS`) for Sidebar, BottomNav and the `SectionTabs` strip rendered at the top of each domain page. לוגיסטיקה = רכש (/procurement) · יבוא (/import) · תעודות משלוח (/deliveries) · מלאי (/inventory). כספים = חשבוניות וגבייה (/finance/collections) · תשלומים לספקים · דוחות ותזרים (last two are placeholders).
+- A domain nav item is visible if the user can access ANY of its modules; each tab keeps its own module permission (e.g. inventory-only users see only the מלאי tab); the item links to the first accessible tab and is active for every tab path.
+- **Removed pages**: `/drawings` (global drawings search — drawings live only in each project's מסמכים card; Roxy's `find_drawings` returns `project_url` per match) and `/logistics/iskoor` (read from a view that never existed in the DB — always empty; import module covers it).
+- Desktop: Collapsible sidebar (hover to expand, 60px collapsed / 200px expanded). Mobile: Scrollable bottom nav bar. Both permission-gated.
+
+### Finance Module — Collections (2026-07-22, migration `20260722_001`)
+- **Tables** (RLS = import-module pattern, GRANTs per convention): `customer_invoices` (amount + vat_amount + generated total_amount; `invoice_type` delivery/advance/milestone/final/other; status open/partially_paid/paid/cancelled; `payment_terms` + `payment_due_date`), `customer_payments` (partial payments; method/reference; **DB trigger `sync_invoice_payment_status`** keeps invoice status+paid_at in sync — REVOKEd from RPC surface), `collection_activities` (follow-up log: call/email/meeting/promise/note + `promised_date` + `next_action_date` + assignee). View `customer_invoice_balances` (security_invoker) adds `paid_total`/`balance`.
+- **`import_customer_deliveries.customer_invoice_id`** links a delivery to its invoice (one invoice can cover several). On /deliveries, "חשבונית הופקה" opens a modal (amount+VAT, terms→due date via `paymentDueDate`) that creates the linked `customer_invoices` row; payment tracking moved to /finance/collections ("מעקב גבייה בכספים" link). Recording a payment that fully pays an invoice also stamps linked deliveries `paid`.
+- **/finance/collections**: KPI row (open debt / overdue / collected this month), aging strip (שוטף/1-30/31-60/61-90/90+ by `payment_due_date`), invoices grouped per customer (fallback: project), per-invoice actions: record partial payment, log collection activity (promise date, next-action date + assignee), edit, cancel (import:full). Backfilled invoices carry amount 0 + "חסר סכום" chip until filled in.
+- **Dashboard**: `CollectionsWidget` — open balance, red when overdue exists.
+- **Cron escalation** (rules 8/8b/8c in `/api/cron/alerts`): overdue invoice alerts re-fire **weekly** (dedup key carries the overdue-week bucket `cron:payment_overdue:<id>:w<N>` — unlike the one-shot rules), due-in-≤3-days heads-up, and a reminder when a logged `next_action_date` arrives.
+- Phase 3 (open): supplier-payments tab, cash-flow report, customer-card open balance, Roxy read tool.
 
 ### UI Conventions
 - **SearchableSelect** (`components/ui/SearchableSelect.tsx`) is the drop-in replacement for native `<select>` used across the app (20+ places). Popover uses fixed positioning (so it escapes table/overflow containers), auto-flips above when there isn't room below, clamps to the viewport horizontally, repositions on scroll/resize while open. Supports `optgroup`-style grouping via the `group` field on options.
