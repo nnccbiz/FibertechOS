@@ -68,6 +68,19 @@ function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
 
+// Shared footer identity lines — used by BOTH the quote pages and the
+// attachment (drawings/specs) pages so every page's footer is identical.
+function FooterInfo() {
+  return (
+    <>
+      <p className="text-[11px] font-bold text-content-muted">פיברטק תשתיות צנרת וכימיקלים בע״מ | ח.פ. 510931389</p>
+      <p className="text-[9px] text-content-muted mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
+      <p className="text-[9px] text-content-muted">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
+      <p className="text-[9px] font-semibold text-content-muted mt-0.5">www.fibertech.co.il</p>
+    </>
+  );
+}
+
 const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(function QuoteDocument(
   { quote, items, project, clientContact, contractSections, costCurrency, attachmentPages, attachments = [], customerTaxId },
   ref,
@@ -345,10 +358,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
 
   const QuoteFooter = ({ pageNum }: { pageNum: number }) => (
     <div className="bg-neutral-100 px-10 py-4 text-center" dir="rtl">
-      <p className="text-[11px] font-bold text-content-muted">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-      <p className="text-[9px] text-content-muted mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
-      <p className="text-[9px] text-content-muted">קבוצת מאיה אופקים: אלי הורוביץ 27, רחובות 7608803 | טל׳: 073-2290900 | shula@maya-group.co.il</p>
-      <p className="text-[9px] font-semibold text-content-muted mt-0.5">www.fibertech.co.il</p>
+      <FooterInfo />
       <PageMeta pageNum={pageNum} />
     </div>
   );
@@ -674,10 +684,8 @@ function AttachmentPageBlock({
       <div className="flex-1 flex items-center justify-center px-6 min-h-0">
         <img src={page.dataUrl} alt={page.fileName} className="max-w-full max-h-full object-contain" />
       </div>
-      <div className="bg-neutral-100 px-8 py-3 text-center" dir="rtl">
-        <p className="text-[11px] font-bold text-content-muted">פיברטק תשתיות צנרת וכימיקלים בע״מ</p>
-        <p className="text-[9px] text-content-muted mt-0.5">מפעל פיברטק: אזור תעשיה קרני שומרון, ת.ד 44855 | טל׳: 09-7929441 | info@fibertech.co.il</p>
-        <p className="text-[9px] font-semibold text-content-muted mt-0.5">www.fibertech.co.il</p>
+      <div className="bg-neutral-100 px-10 py-4 text-center" dir="rtl">
+        <FooterInfo />
         <PageMeta pageNum={pageNum} />
       </div>
     </div>
