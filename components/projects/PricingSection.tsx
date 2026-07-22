@@ -552,11 +552,11 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
       <div className="overflow-x-auto">
         {isForex ? (
           <>
-            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[758px]">
+            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[778px]">
               <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_32px] gap-1 min-w-[758px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_52px] gap-1 min-w-[778px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
                 <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
@@ -566,17 +566,20 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
                 <input type="number" value={item.original_price || ''} onChange={(e) => p.updateCostItem(idx, 'original_price', e.target.value)} placeholder={sym} className="border border-line-subtle rounded px-2 py-1.5 text-sm bg-warning-soft" dir="ltr" />
                 <span className="flex items-center text-[11px] text-neutral-400 px-1">{parseFloat(ci.exchange_rate || p.exchangeRates[displayCurrency]?.rate || 0).toFixed(2)}</span>
                 <span className="flex items-center text-sm font-medium text-content-body px-1">₪{(parseFloat(item.cost_price) || 0).toFixed(0)}</span>
-                <button onClick={() => p.removeCostItem(idx)} className="text-danger hover:text-danger text-lg">×</button>
+                <div className="flex items-center justify-center gap-1">
+                  <button onClick={() => p.duplicateCostItem(idx)} title="שכפל שורה" className="text-neutral-400 hover:text-primary"><Icon name="copy" size={14} /></button>
+                  <button onClick={() => p.removeCostItem(idx)} title="מחק שורה" className="text-danger hover:text-danger text-lg">×</button>
+                </div>
               </div>
             ))}
           </>
         ) : (
           <>
-            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[698px]">
+            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[718px]">
               <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_32px] gap-1 min-w-[698px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_52px] gap-1 min-w-[718px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
                 <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
@@ -585,7 +588,10 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateCostItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 <span className="flex items-center text-sm font-medium text-content-body px-1">{formatCurrency(parseFloat(item.total_cost) || 0)}</span>
-                <button onClick={() => p.removeCostItem(idx)} className="text-danger hover:text-danger text-lg">×</button>
+                <div className="flex items-center justify-center gap-1">
+                  <button onClick={() => p.duplicateCostItem(idx)} title="שכפל שורה" className="text-neutral-400 hover:text-primary"><Icon name="copy" size={14} /></button>
+                  <button onClick={() => p.removeCostItem(idx)} title="מחק שורה" className="text-danger hover:text-danger text-lg">×</button>
+                </div>
               </div>
             ))}
           </>
@@ -1337,7 +1343,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[955px]">
+        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[977px]">
           <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
@@ -1345,7 +1351,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
           return (
           <div key={idx}>
           <div
-            className={`grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_24px] gap-1 min-w-[955px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
+            className={`grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 min-w-[977px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
             {...dnd.rowProps(idx)}
           >
             <DragHandle {...dnd.handleProps(idx)} />
@@ -1372,7 +1378,10 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             >
               <Icon name="production" size={14} />
             </button>
-            <button onClick={() => p.removeEditingItem(idx)} className="text-danger hover:text-danger text-lg">×</button>
+            <div className="flex items-center justify-center gap-1">
+              <button onClick={() => p.duplicateEditingItem(idx)} title="שכפל שורה" className="text-neutral-400 hover:text-primary"><Icon name="copy" size={14} /></button>
+              <button onClick={() => p.removeEditingItem(idx)} title="מחק שורה" className="text-danger hover:text-danger text-lg">×</button>
+            </div>
           </div>
           {item.requires_production && (
             <div className="flex flex-wrap items-center gap-1.5 bg-primary-50 border border-primary rounded-lg px-2 py-1.5 mb-1">

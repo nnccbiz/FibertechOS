@@ -547,6 +547,16 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       return prev.filter((_, i) => i !== idx);
     });
   }
+  // Duplicate a PO line right below its source — id:null so save() INSERTs it;
+  // line_no/sort_order are reassigned by index on save.
+  function duplicateRow(idx: number) {
+    setRows((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev;
+      const next = prev.slice();
+      next.splice(idx + 1, 0, { ...prev[idx], id: null });
+      return next;
+    });
+  }
 
   async function save(): Promise<boolean> {
     if (!form) return false;
@@ -865,7 +875,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   <th className="font-medium py-1.5 px-2 w-20">כמות</th>
                   <th className="font-medium py-1.5 px-2 w-24">מחיר יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-24">סה״כ</th>
-                  {canEdit && <th className="w-8"></th>}
+                  {canEdit && <th className="w-14"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -881,8 +891,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     <td className="py-1 px-2"><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
-                      <td className="py-1 px-1 text-center">
-                        <button onClick={() => removeRow(idx)} className="text-danger hover:opacity-70" title="מחק שורה"><Icon name="close" size={14} /></button>
+                      <td className="py-1 px-1 text-center whitespace-nowrap">
+                        <button onClick={() => duplicateRow(idx)} className="text-neutral-400 hover:text-primary ms-1" title="שכפל שורה"><Icon name="copy" size={14} /></button>
+                        <button onClick={() => removeRow(idx)} className="text-danger hover:opacity-70 ms-1" title="מחק שורה"><Icon name="close" size={14} /></button>
                       </td>
                     )}
                   </tr>
