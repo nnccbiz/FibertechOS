@@ -28,10 +28,11 @@ const GREETING: AiMessage = {
 const CONTEXT_MAP: Record<string, string> = {
   '/': 'לוח בקרה',
   '/projects': 'פרויקטים',
-  '/drawings': 'שרטוטים',
   '/customers': 'לקוחות',
+  '/procurement': 'רכש',
   '/import': 'יבוא',
-  '/logistics': 'לוגיסטיקה',
+  '/deliveries': 'תעודות משלוח',
+  '/inventory': 'מלאי',
   '/production': 'ייצור',
   '/forms': 'טפסים',
   '/settings': 'הגדרות',
@@ -594,9 +595,8 @@ export default function FloatingChat() {
           if (matches.length === 0) {
             setMessages((prev) => [...prev, { role: 'ai', text: `לא מצאתי שרטוטים תואמים ל"${term}".` }]);
           } else {
-            const lines = matches.slice(0, 8).map((a: any) => `• ${numById[a.project_id] ?? '—'}/${a.drawing_number || '?'} — ${nameById[a.project_id] || ''} (${a.file_name})`).join('\n');
-            setMessages((prev) => [...prev, { role: 'ai', text: `📐 מצאתי ${matches.length} שרטוטים:\n${lines}\n\nפותח את מסך השרטוטים לצפייה…` }]);
-            router.push(`/drawings?q=${encodeURIComponent(term)}`);
+            const lines = matches.slice(0, 8).map((a: any) => `• ${numById[a.project_id] ?? '—'}/${a.drawing_number || '?'} — [${nameById[a.project_id] || 'פרויקט'}](/projects/${a.project_id}) (${a.file_name})`).join('\n');
+            setMessages((prev) => [...prev, { role: 'ai', text: `📐 מצאתי ${matches.length} שרטוטים:\n${lines}\n\nכל שרטוט נמצא בכרטיס "מסמכים" של הפרויקט שלו — לחץ על שם הפרויקט.` }]);
           }
         } else {
           const debugInfo = `action: ${data.action}, table: ${data.target_table}, data_type: ${Array.isArray(data.data) ? `array[${data.data?.length}]` : typeof data.data}`;

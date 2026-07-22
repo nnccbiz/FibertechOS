@@ -10,7 +10,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import Icon from '@/components/ui/Icon';
+import SectionTabs from '@/components/ui/SectionTabs';
+import { LOGISTICS_TABS } from '@/lib/nav';
 import { paymentDueDate } from '@/lib/inventory';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Field } from '@/components/ui/Field';
+
+const VAT_RATE = 0.18;
+
+function todayYmd() {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
 
 type Filter = 'all' | 'awaiting_signature' | 'awaiting_invoice' | 'awaiting_payment' | 'done';
 
@@ -101,33 +114,60 @@ export default function DeliveriesPage() {
     else w?.close();
   }
 
-  async function markInvoice(d: any) {
-    const num = prompt('מספר החשבונית שהופקה:');
-    if (!num?.trim()) return;
-    // Due date derived from the deal's customer payment terms (e.g. "שוטף+60").
-    let terms: string | null = null;
+  // ---------- "חשבונית הופקה" — creates a real customer_invoices row (כספים) ----------
+  const [invFor, setInvFor] = useState<any | null>(null);
+  const [invForm, setInvForm] = useState({ invoice_number: '', amount: '', vat_amount: '', payment_terms: '', payment_due_date: '' });
+  const [invSaving, setInvSaving] = useState(false);
+  const [invError, setInvError] = useState<string | null>(null);
+
+  async function openInvoice(d: any) {
+    setInvError(null);
+    // Payment terms come from the deal's quote (e.g. "שוטף+60") — editable before save.
+    let terms = '';
     if (d.import_order_id) {
       const { data: io } = await supabase.from('import_orders').select('quote_id').eq('id', d.import_order_id).single();
       if (io?.quote_id) {
         const { data: q } = await supabase.from('quotes').select('payment_terms').eq('id', io.quote_id).single();
-        terms = q?.payment_terms || null;
+        terms = q?.payment_terms || '';
       }
     }
-    await supabase.from('import_customer_deliveries')
-      .update({
-        invoice_issued: true, invoice_number: num.trim(), invoice_issued_at: new Date().toISOString(),
-        payment_due_date: paymentDueDate(terms),
-      })
-      .eq('id', d.id);
-    load();
+    setInvForm({ invoice_number: '', amount: '', vat_amount: '', payment_terms: terms, payment_due_date: paymentDueDate(terms || null) });
+    setInvFor(d);
   }
 
-  async function markPaid(d: any) {
-    if (!window.confirm(`לסמן שהתשלום על חשבונית ${d.invoice_number || ''} התקבל?`)) return;
+  async function saveInvoice() {
+    if (!invFor) return;
+    if (!invForm.invoice_number.trim()) { setInvError('יש להזין מספר חשבונית'); return; }
+    setInvSaving(true); setInvError(null);
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('import_customer_deliveries')
-      .update({ paid: true, paid_at: new Date().toISOString(), paid_by: user?.id || null })
-      .eq('id', d.id);
+    // Customer link comes from the project's winning customer (may be null).
+    let customerId: string | null = null;
+    if (invFor.project_id) {
+      const { data: p } = await supabase.from('projects').select('customer_id').eq('id', invFor.project_id).single();
+      customerId = p?.customer_id || null;
+    }
+    const { data: inv, error: invErr } = await supabase.from('customer_invoices').insert({
+      invoice_number: invForm.invoice_number.trim(),
+      customer_id: customerId,
+      project_id: invFor.project_id || null,
+      invoice_type: 'delivery',
+      amount: Number(invForm.amount) || 0,
+      vat_amount: Number(invForm.vat_amount) || 0,
+      issued_at: todayYmd(),
+      payment_terms: invForm.payment_terms.trim() || null,
+      payment_due_date: invForm.payment_due_date || null,
+      created_by: user?.id || null,
+    }).select('id').single();
+    if (invErr || !inv) { setInvSaving(false); setInvError(invErr?.message || 'שגיאה ביצירת החשבונית'); return; }
+    const { error: dErr } = await supabase.from('import_customer_deliveries')
+      .update({
+        invoice_issued: true, invoice_number: invForm.invoice_number.trim(), invoice_issued_at: new Date().toISOString(),
+        payment_due_date: invForm.payment_due_date || null, customer_invoice_id: inv.id,
+      })
+      .eq('id', invFor.id);
+    setInvSaving(false);
+    if (dErr) { setInvError(dErr.message); return; }
+    setInvFor(null);
     load();
   }
 
@@ -141,6 +181,7 @@ export default function DeliveriesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto" dir="rtl">
+      <SectionTabs tabs={LOGISTICS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-content-strong"><Icon name="invoice" size={24} /> תעודות משלוח</h1>
         <p className="text-sm text-content-muted mt-1">מעקב אספקות ללקוח: חתימה ← הוראת חיוב להנה"ח ← חשבונית</p>
@@ -205,10 +246,10 @@ export default function DeliveriesPage() {
                   {d.signature_file_path && <button onClick={() => openFile(d.signature_file_path)} className="text-primary hover:underline"><Icon name="edit" size={12} /> חתימה דיגיטלית</button>}
                   {signedOrderDocs[d.id] && <button onClick={() => openFile(signedOrderDocs[d.id])} className="text-primary hover:underline"><Icon name="file" size={12} /> הזמנה חתומה</button>}
                   {canEdit && d.sent_to_accounting && !d.invoice_issued && (
-                    <button onClick={() => markInvoice(d)} className="font-semibold text-success hover:underline"><Icon name="confirm" size={12} /> חשבונית הופקה</button>
+                    <button onClick={() => openInvoice(d)} className="font-semibold text-success hover:underline"><Icon name="confirm" size={12} /> חשבונית הופקה</button>
                   )}
-                  {canEdit && d.invoice_issued && !d.paid && (
-                    <button onClick={() => markPaid(d)} className="font-semibold text-success hover:underline"><Icon name="payment" size={12} /> התשלום התקבל</button>
+                  {d.invoice_issued && !d.paid && (
+                    <a href="/finance/collections" className="font-semibold text-azure-600 hover:underline no-underline"><Icon name="payment" size={12} /> מעקב גבייה בכספים ←</a>
                   )}
                 </div>
               </div>
@@ -216,6 +257,40 @@ export default function DeliveriesPage() {
           })}
         </div>
       )}
+
+      {/* חשבונית הופקה — נרשמת גם כחשבונית לקוח במודול הכספים */}
+      <Modal open={!!invFor} onClose={() => setInvFor(null)} size="md"
+        title={`חשבונית הופקה — תעודה ${invFor?.delivery_note_number || ''}`}
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setInvFor(null)} disabled={invSaving}>סגור</Button>
+          <Button size="sm" onClick={saveInvoice} disabled={invSaving}>{invSaving ? 'שומר…' : 'שמור'}</Button>
+        </>}>
+        {invFor && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" dir="rtl">
+            <div className="sm:col-span-2 text-[13px] text-content-muted">
+              החשבונית תיפתח למעקב גבייה במסך <a href="/finance/collections" className="text-primary hover:underline">כספים ← חשבוניות וגבייה</a>.
+            </div>
+            <Field label="מספר חשבונית" required>
+              <Input dir="ltr" value={invForm.invoice_number} onChange={(e) => setInvForm({ ...invForm, invoice_number: e.target.value })} />
+            </Field>
+            <Field label="סכום לפני מע״מ (₪)">
+              <Input dir="ltr" type="number" min="0" step="0.01" value={invForm.amount}
+                onChange={(e) => setInvForm({ ...invForm, amount: e.target.value, vat_amount: e.target.value === '' ? '' : String(Math.round(Number(e.target.value) * VAT_RATE * 100) / 100) })} />
+            </Field>
+            <Field label="מע״מ (₪)" hint="מחושב אוטומטית — ניתן לעריכה">
+              <Input dir="ltr" type="number" min="0" step="0.01" value={invForm.vat_amount} onChange={(e) => setInvForm({ ...invForm, vat_amount: e.target.value })} />
+            </Field>
+            <Field label="תנאי תשלום">
+              <Input value={invForm.payment_terms}
+                onChange={(e) => setInvForm({ ...invForm, payment_terms: e.target.value, payment_due_date: paymentDueDate(e.target.value || null) })} />
+            </Field>
+            <Field label="מועד תשלום (לגבייה)">
+              <Input dir="ltr" type="date" value={invForm.payment_due_date} onChange={(e) => setInvForm({ ...invForm, payment_due_date: e.target.value })} />
+            </Field>
+            {invError && <p className="sm:col-span-2 text-sm text-danger">{invError}</p>}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

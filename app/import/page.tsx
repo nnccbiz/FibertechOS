@@ -10,6 +10,8 @@ import ReceiptsPanel from '@/components/import/ReceiptsPanel';
 import { Button } from '@/components/ui/Button';
 import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
 import Icon, { type IconName } from '@/components/ui/Icon';
+import SectionTabs from '@/components/ui/SectionTabs';
+import { LOGISTICS_TABS } from '@/lib/nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,6 +146,7 @@ export default function ImportPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
+      <SectionTabs tabs={LOGISTICS_TABS} />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-content-strong"><Icon name="import" size={24} /> יבוא</h1>
@@ -158,11 +161,17 @@ export default function ImportPage() {
             <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הזמנות</button>
             <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>משלוחים</button>
           </div>
-          {canEdit && view === 'orders' && (
-            <button onClick={() => setShowNewOrder(true)} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700">+ הזמנה</button>
-          )}
-          {canEdit && view === 'shipments' && (
-            <button onClick={() => setShowNewShipment(true)} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-700">+ משלוח</button>
+          {canEdit && (
+            /* Fixed-width slot so the view toggle never shifts when the + button appears */
+            <div className="w-[96px]">
+              {(view === 'orders' || view === 'shipments') && (
+                <button
+                  onClick={() => (view === 'orders' ? setShowNewOrder(true) : setShowNewShipment(true))}
+                  className="w-full bg-primary text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-primary-700 whitespace-nowrap">
+                  {view === 'orders' ? '+ הזמנה' : '+ משלוח'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
