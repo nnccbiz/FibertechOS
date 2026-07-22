@@ -610,6 +610,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   }
 
   async function sendToSupplier() {
+    const noPrice = rows.filter((r) => !(Number(r.unit_price) > 0));
+    if (noPrice.length > 0 && !confirm(`שים לב: ל-${noPrice.length} שורות אין מחיר בהזמנה. להעביר לספק בכל זאת?`)) return;
     if (!confirm(`להעביר את הזמנת רכש ${po.po_number || ''} לספק?\nההזמנה תעבור למעקב במודול היבוא.`)) return;
     setSending(true);
     try {
@@ -846,7 +848,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 ))}
                 {comparison.missing.map((m) => (
                   <p key={m.k}>
-                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש — ייווסף, ו<span className="font-semibold">יש להזין לו מחיר</span>
                   </p>
                 ))}
                 {comparison.extras.map((m) => (
@@ -867,6 +869,15 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               <Icon name="success" size={14} /> הקטרים, הלחצים והכמויות תואמים להצעה המאושרת{quoteNumber ? <> (<span dir="ltr">{quoteNumber}</span>)</> : ''}
             </p>
           )}
+          {(() => {
+            const noPrice = rows.filter((r) => !(Number(r.unit_price) > 0)).length;
+            if (noPrice === 0) return null;
+            return (
+              <p className="mb-3 text-[12px] font-semibold text-warning bg-warning-soft border border-warning rounded-lg px-3 py-1.5">
+                <Icon name="warning" size={14} /> {noPrice} שורות ללא מחיר — יש להזין מחיר ספק לפני העברה לספק (מסומנות ברקע כתום).
+              </p>
+            );
+          })()}
 
           {/* Items */}
           <div className="overflow-x-auto mb-3">
@@ -886,8 +897,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={r.id || `new-${idx}`} className="border-t border-line-subtle">
+                {rows.map((r, idx) => {
+                  const needsPrice = !(Number(r.unit_price) > 0);
+                  return (
+                  <tr key={r.id || `new-${idx}`} className={`border-t border-line-subtle ${needsPrice ? 'bg-warning-soft' : ''}`}>
                     <td className="py-1 px-2 text-neutral-400">{idx + 1}</td>
                     <td className="py-1 px-2"><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
@@ -895,7 +908,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     <td className="py-1 px-2"><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className="py-1 px-2"><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={`${cellInp} ${needsPrice ? 'ring-1 ring-warning rounded' : ''}`} placeholder={needsPrice ? 'הזן מחיר' : ''} title={needsPrice ? 'נדרש להזין מחיר' : ''} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
                       <td className="py-1 px-1 text-center">
@@ -903,7 +916,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-line-subtle bg-neutral-50">
