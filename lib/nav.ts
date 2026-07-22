@@ -22,6 +22,13 @@ export const LOGISTICS_TABS: SectionTab[] = [
   { label: 'מלאי', href: '/inventory', module: 'inventory' },
 ];
 
+// כספים — חשבוניות ללקוח וגבייה · תשלומים לספקים · דוחות ותזרים
+export const FINANCE_TABS: SectionTab[] = [
+  { label: 'חשבוניות וגבייה', href: '/finance/collections', module: 'import' },
+  { label: 'תשלומים לספקים', href: '/finance/suppliers', module: 'import' },
+  { label: 'דוחות ותזרים', href: '/finance/reports', module: 'import' },
+];
+
 export interface NavEntry {
   icon: IconName;
   label: string;
@@ -35,6 +42,7 @@ export const NAV_ITEMS: NavEntry[] = [
   { icon: 'projects', label: 'פרויקטים', modules: ['projects'], href: '/projects/list' },
   { icon: 'customers', label: 'לקוחות', modules: ['marketing'], href: '/customers' },
   { icon: 'logistics', label: 'לוגיסטיקה', modules: ['import', 'inventory'], href: '/procurement', tabs: LOGISTICS_TABS },
+  { icon: 'money', label: 'כספים', modules: ['import'], href: '/finance/collections', tabs: FINANCE_TABS },
   { icon: 'production', label: 'ייצור', modules: ['production'], href: '/production' },
   { icon: 'forms', label: 'טפסים', modules: ['field'], href: '/forms' },
   { icon: 'settings', label: 'הגדרות', modules: ['settings'], href: '/settings/users' },

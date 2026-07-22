@@ -10,7 +10,10 @@
  *   5. delivery sent to accounting > 7d, invoice not issued
  *   6. factory work line's material arrived from import (stamps + notifies)
  *   7. factory work line stuck in progress > 14d
- *   8. customer invoice past its payment due date, not collected yet
+ *   8. customer invoice past its payment due date, not collected yet —
+ *      escalates weekly (dedup key carries the overdue-week bucket)
+ *   8b. customer invoice due within 3 days (heads-up before the deadline)
+ *   8c. collection follow-up: a logged next_action_date arrived
  *
  * Runs with the service-role admin client (it writes alerts across modules and
  * is not a model-driven write). Protected by CRON_SECRET: Vercel automatically
@@ -193,19 +196,56 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Rule 8 — collection: invoice issued, payment due date passed, not paid.
-  const { data: overduePay } = await admin
-    .from('import_customer_deliveries')
-    .select('id, project_id, delivery_note_number, invoice_number, payment_due_date')
-    .eq('invoice_issued', true)
-    .eq('paid', false)
+  // Rule 8 — collection: customer invoice past due, not collected. ESCALATING —
+  // the dedup key carries the overdue-week bucket, so a fresh alert fires every
+  // week the debt stays open (unlike the other one-shot rules).
+  const { data: overdueInv } = await admin
+    .from('customer_invoice_balances')
+    .select('id, project_id, invoice_number, payment_due_date, balance')
+    .in('status', ['open', 'partially_paid'])
     .not('payment_due_date', 'is', null)
     .lt('payment_due_date', ymd(now));
-  for (const d of overduePay || []) {
+  const ilsFmt = (n: number) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n || 0);
+  for (const inv of overdueInv || []) {
+    const daysOver = daysSince(inv.payment_due_date);
+    const week = Math.floor(daysOver / 7);
+    const balTxt = Number(inv.balance) > 0 ? ` על סך ${ilsFmt(Number(inv.balance))}` : '';
     candidates.push({
-      type: `cron:payment_overdue:${d.id}`,
-      project_id: d.project_id || null,
-      message: `💰 חשבונית ${d.invoice_number || ''} (תעודה ${d.delivery_note_number || ''}) עברה את מועד התשלום ${heDate(d.payment_due_date)} וטרם נגבתה — לטפל בגבייה (/deliveries).`,
+      type: `cron:payment_overdue:${inv.id}:w${week}`,
+      project_id: inv.project_id || null,
+      message: `💰 חשבונית ${inv.invoice_number || ''}${balTxt} בפיגור ${daysOver} ימים (מועד: ${heDate(inv.payment_due_date)}) — לטפל בגבייה (/finance/collections).`,
+    });
+  }
+
+  // Rule 8b — collection heads-up: invoice due within 3 days, not collected.
+  const { data: dueSoonInv } = await admin
+    .from('customer_invoice_balances')
+    .select('id, project_id, invoice_number, payment_due_date, balance')
+    .in('status', ['open', 'partially_paid'])
+    .not('payment_due_date', 'is', null)
+    .gte('payment_due_date', ymd(now))
+    .lte('payment_due_date', ymd(shift(3)));
+  for (const inv of dueSoonInv || []) {
+    candidates.push({
+      type: `cron:payment_due_soon:${inv.id}`,
+      project_id: inv.project_id || null,
+      message: `🔔 חשבונית ${inv.invoice_number || ''} מגיעה לפירעון ב-${heDate(inv.payment_due_date)} — לוודא שהתשלום בדרך (/finance/collections).`,
+    });
+  }
+
+  // Rule 8c — collection follow-up reminder: a logged next_action_date arrived.
+  const { data: dueActions } = await admin
+    .from('collection_activities')
+    .select('id, invoice_id, summary, next_action_date, customer_invoices(invoice_number, project_id, status)')
+    .not('next_action_date', 'is', null)
+    .lte('next_action_date', ymd(now));
+  for (const a of dueActions || []) {
+    const inv: any = a.customer_invoices;
+    if (!inv || inv.status === 'paid' || inv.status === 'cancelled') continue;
+    candidates.push({
+      type: `cron:collection_action:${a.id}`,
+      project_id: inv.project_id || null,
+      message: `📞 תזכורת גבייה לחשבונית ${inv.invoice_number || ''}: "${(a.summary || '').slice(0, 80)}" — הגיע מועד הפעולה הבאה (/finance/collections).`,
     });
   }
 

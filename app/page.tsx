@@ -14,6 +14,7 @@ import OpenQuotesWidget from '@/components/dashboard/OpenQuotesWidget';
 import ActivityLog from '@/components/ai/ActivityLog';
 import Icon from '@/components/ui/Icon';
 import PendingInvoicesWidget from '@/components/dashboard/PendingInvoicesWidget';
+import CollectionsWidget from '@/components/dashboard/CollectionsWidget';
 
 interface DashboardData {
   projects: any[];
@@ -471,6 +472,11 @@ export default function DashboardPage() {
               {/* AI Activity Log */}
               <div className="animate-fade-in-up-delay-1">
                 <ActivityLog refreshTrigger={0} />
+              </div>
+
+              {/* Collections — open customer debt */}
+              <div className="animate-fade-in-up-delay-2">
+                <CollectionsWidget />
               </div>
 
               {/* Delivered, awaiting invoice */}
