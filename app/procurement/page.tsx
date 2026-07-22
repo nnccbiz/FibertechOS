@@ -11,6 +11,8 @@ import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import Icon from '@/components/ui/Icon';
+import SectionTabs from '@/components/ui/SectionTabs';
+import { LOGISTICS_TABS } from '@/lib/nav';
 import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS'];
@@ -285,6 +287,7 @@ export default function ProcurementPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
+      <SectionTabs tabs={LOGISTICS_TABS} />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-content-strong"><Icon name="procurement" size={24} /> רכש</h1>

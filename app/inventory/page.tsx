@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import Icon, { type IconName } from '@/components/ui/Icon';
+import SectionTabs from '@/components/ui/SectionTabs';
+import { LOGISTICS_TABS } from '@/lib/nav';
 import { itemKey, guessCategory } from '@/lib/inventory';
 
 function fmtDate(d: string | null) {
@@ -70,6 +72,7 @@ export default function InventoryPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto" dir="rtl">
+      <SectionTabs tabs={LOGISTICS_TABS} />
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-content-strong"><Icon name="inventory" size={24} /> מלאי</h1>

@@ -311,10 +311,11 @@ export async function executeRoxyTool(
         }).map((a: any) => ({
           ref: `${numById[a.project_id] ?? '—'}/${a.drawing_number || '?'}`,
           project: nameById[a.project_id] || '',
+          project_url: `/projects/${a.project_id}`,
           file_name: a.file_name,
           kind: a.file_type === 'spec' ? 'מפרט' : 'שרטוט',
         }));
-        return { drawings: clip(matches, 15), count: matches.length, open_url: `/drawings?q=${encodeURIComponent(args.query || '')}` };
+        return { drawings: clip(matches, 15), count: matches.length, note: 'כל שרטוט/מפרט נמצא בכרטיס "מסמכים" של הפרויקט שלו — קשרי לשם דרך project_url' };
       }
 
       case 'dashboard_snapshot': {

@@ -4,32 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
-import { AppModule } from '@/lib/auth/permissions';
-import Icon, { type IconName } from '@/components/ui/Icon';
-
-interface NavItem {
-  icon: IconName;
-  label: string;
-  key: AppModule;
-  href: string;
-}
-
-// Only routes that actually exist. /marketing, /field, /inventory, /reports
-// were dead 404 links — re-add each when its module is built.
-const navItems: NavItem[] = [
-  { icon: 'dashboard', label: 'בקרה', key: 'dashboard', href: '/' },
-  { icon: 'projects', label: 'פרויקטים', key: 'projects', href: '/projects/list' },
-  { icon: 'drawings', label: 'שרטוטים', key: 'projects', href: '/drawings' },
-  { icon: 'customers', label: 'לקוחות', key: 'marketing', href: '/customers' },
-  { icon: 'procurement', label: 'רכש', key: 'import', href: '/procurement' },
-  { icon: 'import', label: 'יבוא', key: 'import', href: '/import' },
-  { icon: 'logistics', label: 'לוגיסטיקה', key: 'import', href: '/logistics/iskoor' },
-  { icon: 'invoice', label: 'תעודות משלוח', key: 'import', href: '/deliveries' },
-  { icon: 'inventory', label: 'מלאי', key: 'inventory', href: '/inventory' },
-  { icon: 'production', label: 'ייצור', key: 'production', href: '/production' },
-  { icon: 'forms', label: 'טפסים', key: 'field', href: '/forms' },
-  { icon: 'settings', label: 'הגדרות', key: 'settings', href: '/settings/users' },
-];
+import Icon from '@/components/ui/Icon';
+import { NAV_ITEMS, navHref, navMatches } from '@/lib/nav';
 
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
@@ -66,14 +42,10 @@ export default function Sidebar() {
     router.refresh();
   }
 
-  function getActiveHref() {
-    if (pathname === '/') return '/';
-    const match = navItems.find((item) => item.href !== '/' && pathname.startsWith(item.href));
-    return match?.href || '/';
-  }
-
-  const activeHref = getActiveHref();
-  const visibleItems = loading ? navItems : navItems.filter((item) => canAccess(item.key));
+  const activeLabel = pathname === '/'
+    ? 'בקרה'
+    : NAV_ITEMS.find((item) => navMatches(item, pathname))?.label || 'בקרה';
+  const visibleItems = loading ? NAV_ITEMS : NAV_ITEMS.filter((item) => item.modules.some((m) => canAccess(m)));
 
   return (
     <aside
@@ -99,27 +71,30 @@ export default function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 py-2 overflow-y-auto">
-        {visibleItems.map((item) => (
-          <a
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 py-3 text-lg font-medium transition-all duration-200 no-underline ${
-              expanded ? 'px-4' : 'px-0 justify-center'
-            } ${
-              activeHref === item.href
-                ? 'bg-azure-100 text-azure-600 border-s-[3px] border-primary'
-                : 'text-content-muted hover:bg-neutral-50 hover:text-content-strong'
-            }`}
-            title={!expanded ? item.label : undefined}
-          >
-            <span className={`flex-shrink-0 ${activeHref === item.href ? 'text-azure-600' : 'text-primary'}`}>
-              <Icon name={item.icon} size={22} />
-            </span>
-            {expanded && (
-              <span className="whitespace-nowrap overflow-hidden">{item.label}</span>
-            )}
-          </a>
-        ))}
+        {visibleItems.map((item) => {
+          const active = activeLabel === item.label;
+          return (
+            <a
+              key={item.label}
+              href={loading ? item.href : navHref(item, canAccess)}
+              className={`flex items-center gap-3 py-3 text-lg font-medium transition-all duration-200 no-underline ${
+                expanded ? 'px-4' : 'px-0 justify-center'
+              } ${
+                active
+                  ? 'bg-azure-100 text-azure-600 border-s-[3px] border-primary'
+                  : 'text-content-muted hover:bg-neutral-50 hover:text-content-strong'
+              }`}
+              title={!expanded ? item.label : undefined}
+            >
+              <span className={`flex-shrink-0 ${active ? 'text-azure-600' : 'text-primary'}`}>
+                <Icon name={item.icon} size={22} />
+              </span>
+              {expanded && (
+                <span className="whitespace-nowrap overflow-hidden">{item.label}</span>
+              )}
+            </a>
+          );
+        })}
       </nav>
 
       {/* Logout */}

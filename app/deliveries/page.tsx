@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import Icon from '@/components/ui/Icon';
+import SectionTabs from '@/components/ui/SectionTabs';
+import { LOGISTICS_TABS } from '@/lib/nav';
 import { paymentDueDate } from '@/lib/inventory';
 
 type Filter = 'all' | 'awaiting_signature' | 'awaiting_invoice' | 'awaiting_payment' | 'done';
@@ -141,6 +143,7 @@ export default function DeliveriesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto" dir="rtl">
+      <SectionTabs tabs={LOGISTICS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-content-strong"><Icon name="invoice" size={24} /> תעודות משלוח</h1>
         <p className="text-sm text-content-muted mt-1">מעקב אספקות ללקוח: חתימה ← הוראת חיוב להנה"ח ← חשבונית</p>
