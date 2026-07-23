@@ -460,6 +460,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   const productFamily = (name: any): string => {
     const t = String(name || '').toLowerCase();
     if (/rocker|רוקר|short\s*pipe|צינור קצר/.test(t)) return 'rocker';
+    // "GRP Pipe with One Coupling on end" is a PIPE — the pipe check must win
+    // over the coupling keywords.
+    if (/pipe|צינור/.test(t)) return 'pipe';
     if (/wall\s*coupling|מצמד קיר|מחבר קיר/.test(t)) return 'wall_coupling';
     if (/coupling|מצמד|מחבר|reka/.test(t)) return 'coupling';
     if (/elbow|bend|ברך/.test(t)) return 'elbow';
@@ -467,8 +470,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (/reducer|מעבר|קונוס/.test(t)) return 'reducer';
     return 'pipe';
   };
+  // Pipe is the default family — no prefix word on its anomaly lines.
   const FAMILY_LABELS: Record<string, string> = {
-    pipe: 'צינור', rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
+    rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
     elbow: 'ברך', flange: 'אוגן', reducer: 'מעבר',
   };
 
@@ -484,6 +488,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}`;
   };
   const famLabel = (k: string) => FAMILY_LABELS[k.split('|')[0]] || '';
+  const fullLabel = (k: string) => [famLabel(k), specLabel(k)].filter(Boolean).join(' ');
 
   // Aggregate quote quantities per spec, compare against the live PO rows.
   // Overlapping specs with different totals = anomaly; specs the customer
@@ -577,7 +582,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (e.rowIdxs.length === 1) {
       setRow(e.rowIdxs[0], 'ordered_qty', qQty);
     } else {
-      alert(`יש כמה שורות לאותו מפרט (${famLabel(k)} ${specLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
+      alert(`יש כמה שורות לאותו מפרט (${fullLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
     }
   }
 
@@ -622,7 +627,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!comparison) return;
     const e = comparison.poAgg.get(k);
     if (!e) return;
-    if (!confirm(`להסיר מהזמנת הרכש את ${famLabel(k)} ${specLabel(k)} (${e.rowIdxs.length === 1 ? 'שורה אחת' : `${e.rowIdxs.length} שורות`})? הפריט לא קיים בהצעה המאושרת.`)) return;
+    if (!confirm(`להסיר מהזמנת הרכש את ${fullLabel(k)} (${e.rowIdxs.length === 1 ? 'שורה אחת' : `${e.rowIdxs.length} שורות`})? הפריט לא קיים בהצעה המאושרת.`)) return;
     const idxSet = new Set(e.rowIdxs);
     const ids = e.rowIdxs.map((i) => rows[i]?.id).filter(Boolean);
     if (ids.length) setDeletedRowIds((d) => [...d, ...ids]);
@@ -675,7 +680,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
             applied++;
           }
         } else if (Math.abs(p.qty - qQty) > 0.001) {
-          skipped.push(`${famLabel(k)} ${specLabel(k)}`);
+          skipped.push(`${fullLabel(k)}`);
         }
       });
       return next;
@@ -861,7 +866,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         if (!String(next[idx].pn || '').trim() && p) next[idx].pn = p;
         if (!String(next[idx].sn || '').trim() && s) next[idx].sn = s;
       });
-      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${famLabel(k)} ${specLabel(k)}) — עכשיו תואמות להצעה.`);
+      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${fullLabel(k)}) — עכשיו תואמות להצעה.`);
       agg = buildAgg();
     });
 
@@ -872,9 +877,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
       if (e.rowIdxs.length === 1) {
         next[e.rowIdxs[0]].ordered_qty = qQty;
-        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${famLabel(k)} ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
+        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${fullLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
       } else {
-        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${famLabel(k)} ${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
+        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${fullLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
       }
     });
 
@@ -888,7 +893,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
         unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
       });
-      report.push(`⚠ שורה ${next.length} (חדשה): נוסף ${famLabel(k)} ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
+      report.push(`⚠ שורה ${next.length} (חדשה): נוסף ${fullLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
     // 4. extras — keyed rows that are not in the approved quote are removed
@@ -900,7 +905,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
         const qty = Number(r.ordered_qty) || 0;
-        report.push(`שורה ${idx + 1}: הוסרה — ${famLabel(k)} ${specLabel(k)}${qty ? ` בכמות ${qty.toLocaleString()}` : ''} לא קיים בהצעה המאושרת.`);
+        report.push(`שורה ${idx + 1}: הוסרה — ${fullLabel(k)}${qty ? ` בכמות ${qty.toLocaleString()}` : ''} לא קיים בהצעה המאושרת.`);
       }
     }
 
@@ -1000,7 +1005,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.mismatches.map((m) => (
                   <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="m-0">
-                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
                     </p>
                     {canEdit && (
                       <button onClick={() => fixMismatch(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
@@ -1012,7 +1017,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.missing.map((m) => (
                   <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="m-0">
-                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
                     </p>
                     {canEdit && (
                       <button onClick={() => fixMissing(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
@@ -1024,7 +1029,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.extras.map((m) => (
                   <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="m-0">
-                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהזמנת הרכש ({m.poQty.toLocaleString()}) אך <span className="font-semibold">לא קיים</span> בהצעה המאושרת
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהזמנת הרכש ({m.poQty.toLocaleString()}) אך <span className="font-semibold">לא קיים</span> בהצעה המאושרת
                     </p>
                     {canEdit && (
                       <button onClick={() => fixExtra(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
