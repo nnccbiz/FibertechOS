@@ -14,6 +14,7 @@ import Icon from '@/components/ui/Icon';
 import SectionTabs from '@/components/ui/SectionTabs';
 import { LOGISTICS_TABS } from '@/lib/nav';
 import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
+import { storageKey, pdfPagesToDataUrls } from '@/lib/po-attachments';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS'];
 
@@ -434,6 +435,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       project_name: po.project_name || projNameById[po.project_id] || '',
       // Older POs created before the default terms existed get them on open.
       notes: po.notes || defaultPoNotes(po.currency),
+      attached_pages: Array.isArray(po.attached_pages) ? po.attached_pages : [],
     });
     setRows(items.map((it: any) => ({ ...it })));
     setDeletedRowIds([]);
@@ -452,6 +454,74 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     })();
     return () => { cancelled = true; };
   }, [expanded, po.quote_id]);
+
+  // Deal documents that can be attached to the PO PDF: the customer-signed
+  // order scan, order confirmations, quote uploads and linked drawings/specs.
+  const [sourceDocs, setSourceDocs] = useState<{ path: string; label: string }[]>([]);
+  const [picker, setPicker] = useState<{ path: string; label: string } | null>(null);
+  const [pickerThumbs, setPickerThumbs] = useState<{ page: number; dataUrl: string }[] | null>(null);
+  useEffect(() => {
+    if (!expanded || !po.quote_id) return;
+    let cancelled = false;
+    (async () => {
+      const docs: { path: string; label: string }[] = [];
+      const { data: prodOrders } = await supabase.from('orders').select('id').eq('quote_id', po.quote_id);
+      const prodIds = (prodOrders || []).map((o: any) => o.id);
+      if (prodIds.length) {
+        const { data: od } = await supabase.from('order_documents').select('file_path, doc_type').in('order_id', prodIds);
+        (od || []).forEach((d: any) => {
+          if (d.file_path) docs.push({ path: storageKey(d.file_path), label: d.doc_type === 'signed_order' ? 'הזמנה חתומה ע"י הלקוח' : 'מסמך הזמנה' });
+        });
+        const { data: oc } = await supabase.from('attachments').select('file_url, file_name').eq('entity_type', 'order').in('entity_id', prodIds);
+        (oc || []).forEach((a: any) => docs.push({ path: storageKey(a.file_url), label: `אישור הזמנת לקוח · ${a.file_name}` }));
+      }
+      const { data: qAtts } = await supabase.from('attachments').select('file_url, file_name').eq('entity_type', 'quote').eq('entity_id', po.quote_id);
+      (qAtts || []).forEach((a: any) => docs.push({ path: storageKey(a.file_url), label: `קובץ מההצעה · ${a.file_name}` }));
+      const { data: qd } = await supabase.from('quote_drawings').select('attachment_id').eq('quote_id', po.quote_id);
+      const dIds = (qd || []).map((r: any) => r.attachment_id);
+      if (dIds.length) {
+        const { data: dAtts } = await supabase.from('attachments').select('file_url, file_name, file_type, drawing_number').in('id', dIds);
+        (dAtts || []).forEach((a: any) => docs.push({ path: storageKey(a.file_url), label: `${a.file_type === 'spec' ? 'מפרט' : 'שרטוט'}${a.drawing_number ? ` ${a.drawing_number}` : ''} · ${a.file_name}` }));
+      }
+      const seenPaths = new Set<string>();
+      const unique = docs.filter((d) => d.path && !seenPaths.has(d.path) && !!seenPaths.add(d.path));
+      if (!cancelled) setSourceDocs(unique);
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, po.quote_id]);
+
+  async function openPagePicker(doc: { path: string; label: string }) {
+    setPicker(doc);
+    setPickerThumbs(null);
+    const { data: blob } = await supabase.storage.from('project-files').download(doc.path);
+    if (!blob) { setPickerThumbs([]); return; }
+    if (/\.pdf$/i.test(doc.path)) {
+      try {
+        const map = await pdfPagesToDataUrls(blob, 0.4);
+        setPickerThumbs(Array.from(map.entries()).map(([page, dataUrl]) => ({ page, dataUrl })));
+      } catch { setPickerThumbs([]); }
+    } else {
+      const dataUrl = await new Promise<string>((res) => {
+        const r = new FileReader();
+        r.onloadend = () => res(r.result as string);
+        r.readAsDataURL(blob);
+      });
+      setPickerThumbs([{ page: 0, dataUrl }]);
+    }
+  }
+  const isPageAttached = (path: string, page: number) =>
+    (form?.attached_pages || []).some((r: any) => r.path === path && r.page === page);
+  function togglePage(page: number) {
+    if (!picker || !form) return;
+    const exists = isPageAttached(picker.path, page);
+    setForm({
+      ...form,
+      attached_pages: exists
+        ? form.attached_pages.filter((r: any) => !(r.path === picker.path && r.page === page))
+        : [...form.attached_pages, { path: picker.path, page, label: `${picker.label}${page ? ` — עמ' ${page}` : ''}` }],
+    });
+  }
+  const attachedCountFor = (path: string) => (form?.attached_pages || []).filter((r: any) => r.path === path).length;
 
   // Product family — part of the item identity, so a pipe, a rocker and a
   // coupling that share DN/PN/SN don't merge into one "spec" (real bug: rocker
@@ -734,6 +804,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         incoterms: form.incoterms || null,
         project_name: form.project_name || null,
         notes: form.notes || null,
+        attached_pages: form.attached_pages?.length ? form.attached_pages : null,
         total_amount: newTotal,
         procurement_type: form.currency === 'ILS' ? 'domestic' : 'import',
         updated_at: new Date().toISOString(),
@@ -994,6 +1065,29 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
             </div>
           </div>
 
+          {/* Signed-scan / drawing pages attached to the PO PDF */}
+          <div className="mb-4">
+            <p className="text-[12px] font-semibold text-content-body mb-1.5"><Icon name="attach" size={14} /> שרטוטים ונספחים חתומים להזמנה</p>
+            {sourceDocs.length === 0 ? (
+              <p className="text-[12px] text-neutral-400 m-0">לא נמצאו מסמכים על העסקה (הזמנה חתומה / קבצי הצעה / שרטוטים מקושרים) — העלה אותם בדף הפרויקט או בכרטיס ההצעה.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {sourceDocs.map((d) => (
+                  <button key={d.path} onClick={() => openPagePicker(d)} disabled={!canEdit}
+                    className={`text-[12px] border rounded-lg px-3 py-1.5 bg-white hover:bg-neutral-50 ${attachedCountFor(d.path) > 0 ? 'border-primary text-primary font-semibold' : 'border-line-subtle text-content-body'}`}>
+                    <Icon name="file" size={12} /> {d.label}
+                    {attachedCountFor(d.path) > 0 && <span> · {attachedCountFor(d.path)} עמ׳ מצורפים</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(form.attached_pages?.length || 0) > 0 && (
+              <p className="text-[12px] text-success mt-1.5 m-0">
+                <Icon name="confirm" size={12} /> {form.attached_pages.length} עמודים יצורפו כנספחים בסוף ה-PDF של ההזמנה (נשמר בלחיצת שמור).
+              </p>
+            )}
+          </div>
+
           {/* Cross-check against the customer-approved quote */}
           {hasAnomaly && comparison && (
             <div className="mb-4 bg-warning-soft border border-warning rounded-xl p-4">
@@ -1148,6 +1242,59 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
 
       {translateFields && (
         <TranslateModal fields={translateFields} onApply={applyTranslations} onClose={() => setTranslateFields(null)} />
+      )}
+
+      {/* Page picker — choose which pages of the signed scan join the PO */}
+      {picker && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setPicker(null)}>
+          <div className="bg-white rounded-xl max-w-3xl w-full my-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle sticky top-0 bg-white rounded-t-xl z-10">
+              <div>
+                <p className="font-bold text-content-strong m-0">{picker.label}</p>
+                <p className="text-[12px] text-content-muted m-0">לחץ על עמוד כדי לצרף / להסיר אותו מהזמנת הרכש</p>
+              </div>
+              <button onClick={() => setPicker(null)} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
+            </div>
+            <div className="p-4">
+              {pickerThumbs === null ? (
+                <p className="text-neutral-400 text-center py-10">טוען עמודים…</p>
+              ) : pickerThumbs.length === 0 ? (
+                <p className="text-neutral-400 text-center py-10">לא ניתן לקרוא את הקובץ</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {pickerThumbs.map((t) => {
+                    const selected = isPageAttached(picker.path, t.page);
+                    return (
+                      <button key={t.page} onClick={() => togglePage(t.page)}
+                        className={`relative border-2 rounded-lg overflow-hidden ${selected ? 'border-primary shadow-focus' : 'border-line-subtle hover:border-line-strong'}`}
+                        style={{ width: 150 }}>
+                        <img src={t.dataUrl} alt={`עמוד ${t.page || 1}`} style={{ width: '100%', display: 'block' }} />
+                        <span className={`absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded font-bold ${selected ? 'bg-primary text-white' : 'bg-white/90 text-content-muted border border-line-subtle'}`}>
+                          {selected ? '✓ ' : ''}{t.page ? `עמ׳ ${t.page}` : 'קובץ'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-line-subtle">
+              <button
+                onClick={() => {
+                  if (!picker || !form || !pickerThumbs?.length) return;
+                  const missing = pickerThumbs.filter((t) => !isPageAttached(picker.path, t.page));
+                  setForm({
+                    ...form,
+                    attached_pages: [...form.attached_pages, ...missing.map((t) => ({ path: picker.path, page: t.page, label: `${picker.label}${t.page ? ` — עמ' ${t.page}` : ''}` }))],
+                  });
+                }}
+                className="text-[13px] text-primary hover:underline" disabled={!pickerThumbs?.length}>
+                צרף את כל העמודים
+              </button>
+              <button onClick={() => setPicker(null)} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">סיום</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PDF preview modal */}
