@@ -8,6 +8,7 @@
  * The document body is bilingual-friendly: item descriptions render LTR.
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { renderAttachedPages, type RenderedAttachedPage } from '@/lib/po-attachments';
 
 export interface PODocumentData {
   order: any;               // import_orders row
@@ -49,6 +50,16 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const [scale, setScale] = useState(1);
   const [fitH, setFitH] = useState<number | null>(null);
   const [measuredPages, setMeasuredPages] = useState<POPage[] | null>(null);
+  // Signed-scan / drawing pages attached to the PO (order.attached_pages) —
+  // rendered as full A4 pages at the end of the document + PDF export.
+  const [extraPages, setExtraPages] = useState<RenderedAttachedPage[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const refs = Array.isArray(order?.attached_pages) ? order.attached_pages : [];
+    if (!refs.length) { setExtraPages([]); return; }
+    renderAttachedPages(refs).then((pages) => { if (!cancelled) setExtraPages(pages); });
+    return () => { cancelled = true; };
+  }, [JSON.stringify(order?.attached_pages || null)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Exact pagination: measure the real rendered height of every table row and
   // trailer block in a hidden mirror, then pack pages by those heights — a
@@ -355,6 +366,21 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
                 {pg.blocks.includes('sign') && <Signatures />}
               </div>
               <Footer pageNum={pIdx + 1} />
+            </div>
+          ))}
+          {/* Attached signed-scan / drawing pages — integral part of the PO */}
+          {extraPages.map((ap, aIdx) => (
+            <div key={`att-${aIdx}`} className="w-[210mm] mx-auto bg-white shadow-lg my-6 print:my-0 print:shadow-none flex flex-col" style={{ height: '297mm', overflow: 'hidden' }}>
+              <div className="flex items-center justify-between px-6 pt-4 pb-2" dir={dir}>
+                <p className="text-[11px] text-neutral-400 m-0">
+                  {L('נספח להזמנת רכש', 'Annex to Purchase Order')} <span dir="ltr">{order.po_number || ''}</span>
+                  {ap.label ? <> · {ap.label}</> : null}
+                </p>
+                <img src="/logo.png" alt="Fibertech" style={{ height: 22, objectFit: 'contain' }} />
+              </div>
+              <div className="flex-1 min-h-0 px-4 pb-4 flex items-center justify-center">
+                <img src={ap.dataUrl} alt={ap.label || ''} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              </div>
             </div>
           ))}
         </div>
