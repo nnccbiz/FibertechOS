@@ -501,6 +501,94 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   })();
   const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
 
+  // Row indices that participate in an anomaly — painted warning-orange in the
+  // table itself. Derived live from the same comparison, so a manual edit that
+  // closes a gap clears the highlight immediately.
+  const anomalyRowIdxs = (() => {
+    const s = new Set<number>();
+    if (!comparison) return s;
+    comparison.mismatches.forEach((m) => comparison.poAgg.get(m.k)?.rowIdxs.forEach((i) => s.add(i)));
+    return s;
+  })();
+
+  // ---- per-anomaly fixes (same logic as the auto-fix steps, one spec at a time) ----
+  function fixMismatch(k: string) {
+    if (!comparison || !quoteAgg) return;
+    const e = comparison.poAgg.get(k);
+    const qQty = quoteAgg.get(k);
+    if (!e || qQty == null) return;
+    if (e.rowIdxs.length === 1) {
+      setRow(e.rowIdxs[0], 'ordered_qty', qQty);
+    } else {
+      alert(`יש כמה שורות לאותו מפרט (${specLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
+    }
+  }
+
+  function fixMissing(k: string) {
+    if (!quoteAgg || !comparison) return;
+    const qQty = quoteAgg.get(k) || 0;
+    const [d, p, s] = k.split('|');
+    // First try completing blank PN/SN on an unambiguous existing row.
+    const agg = comparison.poAgg;
+    const candidates = Array.from(agg.keys()).filter((pk) => {
+      if (quoteAgg.has(pk)) return false;
+      const [pd, pp, ps] = pk.split('|');
+      if (pd !== d) return false;
+      if (pp !== '' && pp !== p) return false;
+      if (ps !== '' && ps !== s) return false;
+      return pp === '' || ps === '';
+    });
+    const exactQty = candidates.filter((pk) => Math.abs(agg.get(pk)!.qty - qQty) <= 0.001);
+    const chosen = exactQty.length === 1 ? exactQty[0] : (candidates.length === 1 ? candidates[0] : null);
+    if (chosen) {
+      const idxs = agg.get(chosen)!.rowIdxs;
+      setRows((prev) => {
+        const next = prev.map((r) => ({ ...r }));
+        idxs.forEach((i) => {
+          if (!String(next[i].pn || '').trim() && p) next[i].pn = p;
+          if (!String(next[i].sn || '').trim() && s) next[i].sn = s;
+        });
+        return next;
+      });
+      return;
+    }
+    // Otherwise add the approved spec as a new row (supplier price pending).
+    const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+    setRows((prev) => [...prev, {
+      id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
+      unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: prev.length,
+    }]);
+  }
+
+  // Re-fetch the approved quote and re-run the check against the current rows
+  // (the panel is live anyway — this also picks up quote changes + gives a verdict).
+  async function refreshCheck() {
+    if (!po.quote_id) return;
+    const { data } = await supabase
+      .from('quote_items')
+      .select('product_name, dn_size, pn, sn, quantity, unit')
+      .eq('quote_id', po.quote_id);
+    setQuoteItems(data || []);
+    const qAgg = new Map<string, number>();
+    (data || []).forEach((qi: any) => {
+      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      if (k) qAgg.set(k, (qAgg.get(k) || 0) + (Number(qi.quantity) || 0));
+    });
+    const pAgg = new Map<string, number>();
+    rows.forEach((r) => {
+      const k = specKey(r.dn, r.pn, r.sn);
+      if (k) pAgg.set(k, (pAgg.get(k) || 0) + (Number(r.ordered_qty) || 0));
+    });
+    let gaps = 0;
+    qAgg.forEach((q, k) => {
+      const pv = pAgg.get(k);
+      if (pv == null || Math.abs(pv - q) > 0.001) gaps++;
+    });
+    alert(gaps === 0
+      ? '✓ הבדיקה עברה — הזמנת הרכש תואמת להצעה המאושרת. זכור לשמור.'
+      : `נבדק מחדש: נותרו ${gaps} פערים מול ההצעה — השורות מסומנות בכתום.`);
+  }
+
   // Pull the approved quantities into matching PO rows (unique-match only);
   // stays local until שמור.
   function pullQuantitiesFromQuote() {
@@ -836,22 +924,42 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               <p className="text-sm font-bold text-warning mb-2">
                 <Icon name="warning" size={16} /> אנומליה מול ההצעה שהלקוח אישר{quoteNumber ? <> (<span dir="ltr">{quoteNumber}</span>)</> : ''}
               </p>
-              <div className="space-y-1 text-[13px] text-content-body">
+              <div className="space-y-1.5 text-[13px] text-content-body">
                 {comparison.mismatches.map((m) => (
-                  <p key={m.k}>
-                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
-                  </p>
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixMismatch(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> תקן
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {comparison.missing.map((m) => (
-                  <p key={m.k}>
-                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
-                  </p>
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixMissing(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> תקן
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] text-content-muted">השורות החורגות מסומנות בכתום בטבלה — אפשר גם לתקן אותן שם ידנית; הסימון נעלם ברגע שהפער נסגר.</p>
               {canEdit && (
-                <button onClick={autoFixAnomalies} className="mt-3 text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
-                  <Icon name="wrench" size={14} /> תקן אנומליה אוטומטית
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button onClick={refreshCheck} className="text-[13px] font-semibold bg-white text-content-body border border-line-strong px-3 py-1.5 rounded-lg hover:bg-neutral-50">
+                    <Icon name="refresh" size={14} /> רענן בדיקה
+                  </button>
+                  <button onClick={autoFixAnomalies} className="text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
+                    <Icon name="wrench" size={14} /> תקן את כל האנומליות
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -880,7 +988,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
-                  <tr key={r.id || `new-${idx}`} className="border-t border-line-subtle">
+                  <tr key={r.id || `new-${idx}`} className={`border-t border-line-subtle ${anomalyRowIdxs.has(idx) ? 'bg-warning-soft' : ''}`}>
                     <td className="py-1 px-2 text-neutral-400">{idx + 1}</td>
                     <td className="py-1 px-2"><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
