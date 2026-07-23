@@ -43,9 +43,9 @@ FibertechOS/
 │   │   ├── page.tsx              # Customers list + search (company/contact/phone/email) + "new customer"
 │   │   └── [id]/                 # Customer card: quote history (color-coded) + projects + contacts
 │   ├── finance/                  # כספים domain (import permission) — FINANCE_TABS
-│   │   ├── collections/          # חשבוניות וגבייה — aging, per-customer groups, payments, follow-up log
-│   │   ├── suppliers/            # תשלומים לספקים — placeholder ("בקרוב", phase 3)
-│   │   └── reports/              # דוחות ותזרים — placeholder ("בקרוב", phase 3)
+│   │   ├── collections/          # חשבוניות וגבייה — aging, payments, follow-up log, proforma, SAP file upload, ?project= filter
+│   │   ├── suppliers/            # תשלומים לספקים — supplier invoices per currency, due dates, partial payments
+│   │   └── reports/              # דוחות ותזרים — monthly inflow/outflow + running balance (FX at today's BoI rate)
 │   ├── production/               # Production order tracking with status workflow
 │   ├── forms/                    # Israeli standard forms (B116, B12-2, B165, B244)
 │   ├── quote/[token]/            # Public shared quote page (no auth)
@@ -109,7 +109,7 @@ FibertechOS/
 ├── middleware.ts                 # Auth gate — all routes require session except PUBLIC_ROUTES
 ├── supabase/
 │   ├── schema.sql                # Base schema reference
-│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT) + 20260715_001 (shared_quote_peg_currency RPC) + 20260719_001 (anon RLS for shared-quote drawings/specs) + 20260719_002 (realization_status terminal values) + 20260719_003 (import_orders.po_sent_at/po_sent_by — procurement stage) + 20260719_004 (import_orders.delivery_date) + 20260722_001 (collections module — customer_invoices/customer_payments/collection_activities, see §5 Finance) — plus the 20260705/0706/0708 batches noted in §7
+│   └── migrations/               # 001-020 + 20260419_001-004 + 20260420_001 + 20260524_001-006 + 20260524_007 (sync_contacts_to_customers_trigger) + 20260528_001 (contact_link_sync_and_quote_snapshot) + 20260528_002 (security_advisor_hardening) + 20260531_001 (duplicate_cost_input_rpc) + 20260603_001 (contract_term_templates) + 20260614_001 (quote_items pn/sn) + 20260614_002/006 (replace_quote_items RPC, atomic + length_m) + 20260614_003 (quotes.sent_at) + 20260614_004 (quote_items.length_m) + 20260614_005 (quote_drawings GRANT) + 20260715_001 (shared_quote_peg_currency RPC) + 20260719_001 (anon RLS for shared-quote drawings/specs) + 20260719_002 (realization_status terminal values) + 20260719_003 (import_orders.po_sent_at/po_sent_by — procurement stage) + 20260719_004 (import_orders.delivery_date) + 20260722_001 (collections module — customer_invoices/customer_payments/collection_activities, see §5 Finance) + 20260723_001 (supplier payments) + 20260723_002 (quotes.billing_trigger) + 20260723_003 (proforma + invoice files) — plus the 20260705/0706/0708 batches noted in §7
 ├── database/                     # STALE — pre-migration schema files (should be regenerated or deleted)
 ├── public/
 │   └── logo.png
@@ -250,7 +250,13 @@ FibertechOS/
 - **/finance/collections**: KPI row (open debt / overdue / collected this month), aging strip (שוטף/1-30/31-60/61-90/90+ by `payment_due_date`), invoices grouped per customer (fallback: project), per-invoice actions: record partial payment, log collection activity (promise date, next-action date + assignee), edit, cancel (import:full). Backfilled invoices carry amount 0 + "חסר סכום" chip until filled in.
 - **Dashboard**: `CollectionsWidget` — open balance, red when overdue exists.
 - **Cron escalation** (rules 8/8b/8c in `/api/cron/alerts`): overdue invoice alerts re-fire **weekly** (dedup key carries the overdue-week bucket `cron:payment_overdue:<id>:w<N>` — unlike the one-shot rules), due-in-≤3-days heads-up, and a reminder when a logged `next_action_date` arrives.
-- Phase 3 (open): supplier-payments tab, cash-flow report, customer-card open balance, Roxy read tool.
+- **Phase 3 (2026-07-23, migrations `20260723_001-003`) — DONE:**
+  - **Supplier payments** (`/finance/suppliers`): `import_invoices` gained `payment_due_date`/`payment_status`/`paid_at`; `supplier_payments` table (partial payments, trigger `sync_supplier_invoice_status` — payable = `final_amount` fallback `net_value+freight`); view `supplier_invoice_balances`. UI groups by supplier in the ORIGINAL currency. Cron rule 10: due-≤7d one-shot + overdue weekly escalation.
+  - **Cash-flow** (`/finance/reports`): monthly buckets of open customer balances (inflow) vs open supplier balances (outflow, converted via `/api/exchange-rate`), net + running balance; "ללא מועד פירעון" row.
+  - **Billing-trigger engine** (`lib/billing.ts` + cron rules 9a-9c): `quotes.billing_trigger` (auto/delivery/port_arrival) + `billing_advance_pct` — 'auto' detects the anchor and "מקדמה X%" from the free-text payment terms; selector on the quote card next to payment terms. Rule 9a: signed quote with advance % and no advance invoice → alert with computed amount. Rule 9b: shipment arrived (status, or ETA passed) on a port-anchored deal → alert with per-DN goods detail from packing lines. Rule 9c: SIGNED delivery certificate with no invoice → immediate alert with the certificate's items detail. The tax invoice itself is issued in SAP — the system tracks and nags.
+  - **Proforma invoices**: `invoice_type='proforma'` (auto-numbered `PF-YYYY-NNN` via `next_doc_number('PF')`), `customer_invoices.lines` jsonb (editable line editor in the invoice modal; auto-carried from the delivery certificate's items; "סכם שורות" fills amount+VAT) + `components/finance/ProformaDocument.tsx` — branded A4 + PDF ("מסמך זה אינו חשבונית מס").
+  - **SAP invoice upload**: `customer_invoices.file_path` — upload to storage (`project-files`, `finance/{invoiceId}/`), Safari-safe signed-URL view. No `attachments`-table RLS involvement.
+  - **Project linkage**: `ProjectFinanceCard` on the project page (after הזמנות רכש) — the project's invoices + open total, links to `/finance/collections?project=<id>` (the screen supports the filter); customer card shows open balance; Roxy read tool `collections_status` ("כמה חייב לנו X?").
 
 ### UI Conventions
 - **SearchableSelect** (`components/ui/SearchableSelect.tsx`) is the drop-in replacement for native `<select>` used across the app (20+ places). Popover uses fixed positioning (so it escapes table/overflow containers), auto-flips above when there isn't room below, clamps to the viewport horizontally, repositions on scroll/resize while open. Supports `optgroup`-style grouping via the `group` field on options.

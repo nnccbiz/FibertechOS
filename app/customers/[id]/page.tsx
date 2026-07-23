@@ -83,6 +83,7 @@ export default function CustomerDetailPage() {
   const [projectNames, setProjectNames] = useState<Record<string, string>>({});
   const [quoteContactNames, setQuoteContactNames] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<{ id: string; name: string; status: string | null }[]>([]);
+  const [openBalance, setOpenBalance] = useState<{ open: number; overdue: number; count: number } | null>(null);
   const [projectContacts, setProjectContacts] = useState<{ id: string; project: string; role: string | null; name: string; company: string | null; phone: string | null; email: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
@@ -186,6 +187,28 @@ export default function CustomerDetailPage() {
       (quoteContactsRes.data || []).forEach((c: any) => { cnMap[c.id] = c.name; });
       setQuoteContactNames(cnMap);
 
+      // Open collection balance — visible only to users with import:view
+      // (RLS on customer_invoice_balances returns no rows otherwise).
+      try {
+        const { data: invs } = await supabase
+          .from('customer_invoice_balances')
+          .select('balance, payment_due_date')
+          .eq('customer_id', customerId)
+          .in('status', ['open', 'partially_paid']);
+        if (invs && invs.length) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          let open = 0, overdue = 0;
+          invs.forEach((r: any) => {
+            const b = Number(r.balance) || 0;
+            open += b;
+            if (r.payment_due_date && new Date(r.payment_due_date) < today) overdue += b;
+          });
+          setOpenBalance({ open, overdue, count: invs.length });
+        } else {
+          setOpenBalance(null);
+        }
+      } catch { setOpenBalance(null); }
+
       setLoading(false);
     }
     load();
@@ -237,6 +260,19 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         {customer.notes && <p className="text-sm text-content-muted mt-3 whitespace-pre-line">{customer.notes}</p>}
+
+        {openBalance && openBalance.open > 0 && (
+          <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${openBalance.overdue > 0 ? 'border-danger bg-danger-soft' : 'border-warning bg-warning-soft'}`}>
+            <p className="m-0 text-sm text-content-body">
+              <Icon name="money" size={14} /> יתרת חוב פתוחה: <span className="font-bold ft-figure" dir="ltr">{new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(openBalance.open)}</span>
+              <span className="text-content-muted"> ({openBalance.count} חשבוניות)</span>
+              {openBalance.overdue > 0 && (
+                <span className="text-danger font-semibold"> · מזה בפיגור <span dir="ltr" className="ft-figure">{new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(openBalance.overdue)}</span></span>
+              )}
+            </p>
+            <a href="/finance/collections" className="text-[12px] text-primary hover:underline whitespace-nowrap">למעקב הגבייה ←</a>
+          </div>
+        )}
 
         {contacts.length > 0 && (
           <div className="mt-4 pt-3 border-t border-line-subtle">

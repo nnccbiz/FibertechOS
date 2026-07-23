@@ -76,6 +76,16 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     },
   },
   {
+    name: 'collections_status',
+    description: 'מצב הגבייה מלקוחות: חשבוניות פתוחות, יתרות ופיגורים בשקלים. אפשר לסנן לפי שם לקוח ("כמה חייב לנו X?").',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        customer: { type: SchemaType.STRING, description: 'שם לקוח (או חלק ממנו) לסינון. ריק = כל החשבוניות הפתוחות' },
+      },
+    },
+  },
+  {
     // Gemini rejects OBJECT params with empty properties — zero-arg tools omit `parameters`.
     name: 'list_leads',
     description: 'רשימת לידים (פרויקטים פוטנציאליים בשלבי הכרות/מסמכים/מכרז/מו"מ).',
@@ -275,6 +285,45 @@ export async function executeRoxyTool(
         const { data, error } = await q;
         if (error) return { error: error.message };
         return { inventory: clip(data, 40), count: data?.length || 0 };
+      }
+
+      case 'collections_status': {
+        // Customer-side collections — RLS (import:view) decides who gets rows.
+        let q = sb.from('customer_invoice_balances')
+          .select('invoice_number, customer_id, project_id, invoice_type, total_amount, paid_total, balance, payment_due_date, status, issued_at')
+          .in('status', ['open', 'partially_paid'])
+          .order('payment_due_date', { ascending: true }).limit(50);
+        const { data, error } = await q;
+        if (error) return { error: error.message };
+        let rows = data || [];
+        // Resolve customer names (and filter by name when asked).
+        const custIds = Array.from(new Set(rows.map((r: any) => r.customer_id).filter(Boolean)));
+        const names: Record<string, string> = {};
+        if (custIds.length) {
+          const { data: cls } = await sb.from('clients').select('id, name').in('id', custIds);
+          (cls || []).forEach((c: any) => { names[c.id] = c.name; });
+        }
+        if (args.customer) {
+          const t = String(args.customer).trim();
+          rows = rows.filter((r: any) => (names[r.customer_id] || '').includes(t));
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const out = rows.map((r: any) => ({
+          invoice_number: r.invoice_number,
+          customer: names[r.customer_id] || null,
+          balance_ils: Number(r.balance) || 0,
+          total_ils: Number(r.total_amount) || 0,
+          due_date: r.payment_due_date,
+          overdue: !!(r.payment_due_date && r.payment_due_date < today),
+          status: r.status,
+        }));
+        return {
+          invoices: clip(out, 50),
+          count: out.length,
+          open_total_ils: out.reduce((s: number, r: any) => s + r.balance_ils, 0),
+          overdue_total_ils: out.filter((r: any) => r.overdue).reduce((s: number, r: any) => s + r.balance_ils, 0),
+          open_url: '/finance/collections',
+        };
       }
 
       case 'list_leads': {

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { usePricing } from '@/hooks/usePricing';
 import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
+import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -1582,6 +1583,23 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           className="w-full border border-line-subtle rounded-lg px-3 py-1.5 text-[11px] text-content-body bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-100 mt-1 resize-y leading-relaxed whitespace-pre-wrap"
           placeholder="40% מקדמה, יתרה שוטף +30"
         />
+        {/* Billing-trigger anchor — drives the automatic billing alerts (cron 9a-9c). */}
+        <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px]">
+          <span className="font-semibold text-content-body">עוגן חיוב:</span>
+          <select
+            value={q.billing_trigger || 'auto'}
+            onChange={async (e) => {
+              p.setQuoteField(q.id, 'billing_trigger', e.target.value);
+              await createClient().from('quotes').update({ billing_trigger: e.target.value }).eq('id', q.id);
+            }}
+            className="border border-line-subtle rounded px-2 py-0.5 text-[11px] bg-white"
+          >
+            <option value="auto">אוטומטי — זוהה: {BILLING_ANCHOR_LABELS[detectBillingAnchor(q.payment_terms)]}</option>
+            <option value="delivery">אספקה ללקוח</option>
+            <option value="port_arrival">הגעה לנמל</option>
+          </select>
+          {(() => { const pct = effectiveAdvancePct(q); return pct ? <span className="text-content-muted">מקדמה שזוהתה: {pct}%</span> : null; })()}
+        </div>
       </div>
       <div className="mt-3">
         <span className="text-[11px] font-semibold text-content-body">זמן אספקה:</span>
