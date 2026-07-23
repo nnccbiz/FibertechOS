@@ -470,9 +470,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (/reducer|מעבר|קונוס/.test(t)) return 'reducer';
     return 'pipe';
   };
-  // Pipe is the default family — no prefix word on its anomaly lines.
   const FAMILY_LABELS: Record<string, string> = {
-    rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
+    pipe: 'צינור', rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
     elbow: 'ברך', flange: 'אוגן', reducer: 'מעבר',
   };
 
