@@ -453,17 +453,41 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return () => { cancelled = true; };
   }, [expanded, po.quote_id]);
 
-  // Item identity = DN|PN|SN (numbers only; missing spec → '').
-  const specKey = (dn: any, pn: any, sn: any) => {
+  // Product family — part of the item identity, so a pipe, a rocker and a
+  // coupling that share DN/PN/SN don't merge into one "spec" (real bug: rocker
+  // 20m + pipe 718.7m read as one 738.7m line). Keyword-based → robust to
+  // wording/language differences between quote items and supplier descriptions.
+  const productFamily = (name: any): string => {
+    const t = String(name || '').toLowerCase();
+    if (/rocker|רוקר|short\s*pipe|צינור קצר/.test(t)) return 'rocker';
+    // "GRP Pipe with One Coupling on end" is a PIPE — the pipe check must win
+    // over the coupling keywords.
+    if (/pipe|צינור/.test(t)) return 'pipe';
+    if (/wall\s*coupling|מצמד קיר|מחבר קיר/.test(t)) return 'wall_coupling';
+    if (/coupling|מצמד|מחבר|reka/.test(t)) return 'coupling';
+    if (/elbow|bend|ברך/.test(t)) return 'elbow';
+    if (/flange|אוגן/.test(t)) return 'flange';
+    if (/reducer|מעבר|קונוס/.test(t)) return 'reducer';
+    return 'pipe';
+  };
+  const FAMILY_LABELS: Record<string, string> = {
+    pipe: 'צינור', rocker: 'רוקר', coupling: 'מחבר', wall_coupling: 'מחבר קיר',
+    elbow: 'ברך', flange: 'אוגן', reducer: 'מעבר',
+  };
+
+  // Item identity = family|DN|PN|SN (numbers only; missing spec → '').
+  const specKey = (name: any, dn: any, pn: any, sn: any) => {
     const n = (v: any) => { const x = parseInt(String(v ?? '').replace(/\D/g, ''), 10); return isNaN(x) ? '' : x; };
     const d = n(dn);
     if (d === '') return null;
-    return `${d}|${n(pn)}|${n(sn)}`;
+    return `${productFamily(name)}|${d}|${n(pn)}|${n(sn)}`;
   };
   const specLabel = (k: string) => {
-    const [d, p, s] = k.split('|');
+    const [, d, p, s] = k.split('|');
     return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}`;
   };
+  const famLabel = (k: string) => FAMILY_LABELS[k.split('|')[0]] || '';
+  const fullLabel = (k: string) => [famLabel(k), specLabel(k)].filter(Boolean).join(' ');
 
   // Aggregate quote quantities per spec, compare against the live PO rows.
   // Overlapping specs with different totals = anomaly; specs the customer
@@ -472,7 +496,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteItems?.length) return null;
     const m = new Map<string, number>();
     quoteItems.forEach((qi) => {
-      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
       if (!k) return;
       m.set(k, (m.get(k) || 0) + (Number(qi.quantity) || 0));
     });
@@ -483,7 +507,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteAgg || !form) return null;
     const poAgg = new Map<string, { qty: number; rowIdxs: number[] }>();
     rows.forEach((r, idx) => {
-      const k = specKey(r.dn, r.pn, r.sn);
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
       if (!k) return;
       const e = poAgg.get(k) || { qty: 0, rowIdxs: [] };
       e.qty += Number(r.ordered_qty) || 0;
@@ -497,9 +521,147 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!p) missing.push({ k, quoteQty: qQty });
       else if (Math.abs(p.qty - qQty) > 0.001) mismatches.push({ k, quoteQty: qQty, poQty: p.qty });
     });
-    return { mismatches, missing, poAgg };
+    // Extras — specs in the PO that the customer never approved. A row whose
+    // blank PN/SN makes it a completion candidate of a missing spec is NOT an
+    // extra (it surfaces via `missing` + the PN/SN cell highlight).
+    const extras: { k: string; poQty: number; rowIdxs: number[] }[] = [];
+    poAgg.forEach((e, k) => {
+      if (quoteAgg.has(k)) return;
+      const [f, d, p, s] = k.split('|');
+      const isCandidate = (p === '' || s === '') && missing.some((ms) => {
+        const [mf, md, mp, msn] = ms.k.split('|');
+        return mf === f && md === d && (p === '' || p === mp) && (s === '' || s === msn);
+      });
+      if (!isCandidate) extras.push({ k, poQty: e.qty, rowIdxs: e.rowIdxs });
+    });
+    return { mismatches, missing, extras, poAgg };
   })();
-  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
+  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0 || comparison.extras.length > 0);
+
+  // Anomalous CELLS (rowIdx → fields) — painted warning-orange in the table:
+  // quantity mismatch → the כמות cell; a missing approved spec whose match is a
+  // row with blank PN/SN → those blank cells. Derived live from the same
+  // comparison, so a manual edit that closes a gap clears the highlight.
+  const anomalyCells = (() => {
+    const m = new Map<number, Set<string>>();
+    if (!comparison || !quoteAgg) return m;
+    const mark = (idx: number, field: string) => {
+      if (!m.has(idx)) m.set(idx, new Set());
+      m.get(idx)!.add(field);
+    };
+    comparison.mismatches.forEach((mm) =>
+      comparison.poAgg.get(mm.k)?.rowIdxs.forEach((i) => mark(i, 'ordered_qty')));
+    // An extra item's anomaly is its very existence → mark the description cell.
+    comparison.extras.forEach((ex) => ex.rowIdxs.forEach((i) => mark(i, 'description')));
+    comparison.missing.forEach((ms) => {
+      const [f, d, p, s] = ms.k.split('|');
+      comparison.poAgg.forEach((e, pk) => {
+        if (quoteAgg.has(pk)) return;
+        const [pf, pd, pp, ps] = pk.split('|');
+        if (pf !== f || pd !== d) return;
+        if (pp !== '' && pp !== String(p)) return;
+        if (ps !== '' && ps !== String(s)) return;
+        e.rowIdxs.forEach((i) => {
+          if (pp === '' && p) mark(i, 'pn');
+          if (ps === '' && s) mark(i, 'sn');
+        });
+      });
+    });
+    return m;
+  })();
+  const cellCls = (idx: number, field: string) =>
+    anomalyCells.get(idx)?.has(field) ? ' bg-warning-soft' : '';
+
+  // ---- per-anomaly fixes (same logic as the auto-fix steps, one spec at a time) ----
+  function fixMismatch(k: string) {
+    if (!comparison || !quoteAgg) return;
+    const e = comparison.poAgg.get(k);
+    const qQty = quoteAgg.get(k);
+    if (!e || qQty == null) return;
+    if (e.rowIdxs.length === 1) {
+      setRow(e.rowIdxs[0], 'ordered_qty', qQty);
+    } else {
+      alert(`יש כמה שורות לאותו מפרט (${fullLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
+    }
+  }
+
+  function fixMissing(k: string) {
+    if (!quoteAgg || !comparison) return;
+    const qQty = quoteAgg.get(k) || 0;
+    const [f, d, p, s] = k.split('|');
+    // First try completing blank PN/SN on an unambiguous existing row.
+    const agg = comparison.poAgg;
+    const candidates = Array.from(agg.keys()).filter((pk) => {
+      if (quoteAgg.has(pk)) return false;
+      const [pf, pd, pp, ps] = pk.split('|');
+      if (pf !== f || pd !== d) return false;
+      if (pp !== '' && pp !== p) return false;
+      if (ps !== '' && ps !== s) return false;
+      return pp === '' || ps === '';
+    });
+    const exactQty = candidates.filter((pk) => Math.abs(agg.get(pk)!.qty - qQty) <= 0.001);
+    const chosen = exactQty.length === 1 ? exactQty[0] : (candidates.length === 1 ? candidates[0] : null);
+    if (chosen) {
+      const idxs = agg.get(chosen)!.rowIdxs;
+      setRows((prev) => {
+        const next = prev.map((r) => ({ ...r }));
+        idxs.forEach((i) => {
+          if (!String(next[i].pn || '').trim() && p) next[i].pn = p;
+          if (!String(next[i].sn || '').trim() && s) next[i].sn = s;
+        });
+        return next;
+      });
+      return;
+    }
+    // Otherwise add the approved spec as a new row (supplier price pending).
+    const qi = (quoteItems || []).find((x: any) => specKey(x.product_name, x.dn_size, x.pn, x.sn) === k);
+    setRows((prev) => [...prev, {
+      id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
+      unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: prev.length,
+    }]);
+  }
+
+  // Remove an extra item (exists in the PO, absent from the approved quote).
+  function fixExtra(k: string) {
+    if (!comparison) return;
+    const e = comparison.poAgg.get(k);
+    if (!e) return;
+    if (!confirm(`להסיר מהזמנת הרכש את ${fullLabel(k)} (${e.rowIdxs.length === 1 ? 'שורה אחת' : `${e.rowIdxs.length} שורות`})? הפריט לא קיים בהצעה המאושרת.`)) return;
+    const idxSet = new Set(e.rowIdxs);
+    const ids = e.rowIdxs.map((i) => rows[i]?.id).filter(Boolean);
+    if (ids.length) setDeletedRowIds((d) => [...d, ...ids]);
+    setRows((prev) => prev.filter((_, i) => !idxSet.has(i)));
+  }
+
+  // Re-fetch the approved quote and re-run the check against the current rows
+  // (the panel is live anyway — this also picks up quote changes + gives a verdict).
+  async function refreshCheck() {
+    if (!po.quote_id) return;
+    const { data } = await supabase
+      .from('quote_items')
+      .select('product_name, dn_size, pn, sn, quantity, unit')
+      .eq('quote_id', po.quote_id);
+    setQuoteItems(data || []);
+    const qAgg = new Map<string, number>();
+    (data || []).forEach((qi: any) => {
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
+      if (k) qAgg.set(k, (qAgg.get(k) || 0) + (Number(qi.quantity) || 0));
+    });
+    const pAgg = new Map<string, number>();
+    rows.forEach((r) => {
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
+      if (k) pAgg.set(k, (pAgg.get(k) || 0) + (Number(r.ordered_qty) || 0));
+    });
+    let gaps = 0;
+    qAgg.forEach((q, k) => {
+      const pv = pAgg.get(k);
+      if (pv == null || Math.abs(pv - q) > 0.001) gaps++;
+    });
+    pAgg.forEach((_, k) => { if (!qAgg.has(k)) gaps++; });
+    alert(gaps === 0
+      ? '✓ הבדיקה עברה — הזמנת הרכש תואמת להצעה המאושרת. זכור לשמור.'
+      : `נבדק מחדש: נותרו ${gaps} פערים מול ההצעה — השורות מסומנות בכתום.`);
+  }
 
   // Pull the approved quantities into matching PO rows (unique-match only);
   // stays local until שמור.
@@ -517,7 +679,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
             applied++;
           }
         } else if (Math.abs(p.qty - qQty) > 0.001) {
-          skipped.push(specLabel(k));
+          skipped.push(`${fullLabel(k)}`);
         }
       });
       return next;
@@ -545,6 +707,16 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       const r = prev[idx];
       if (r?.id) setDeletedRowIds((d) => [...d, r.id]);
       return prev.filter((_, i) => i !== idx);
+    });
+  }
+  // Duplicate a PO line right below its source — id:null so save() INSERTs it;
+  // line_no/sort_order are reassigned by index on save.
+  function duplicateRow(idx: number) {
+    setRows((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev;
+      const next = prev.slice();
+      next.splice(idx + 1, 0, { ...prev[idx], id: null });
+      return next;
     });
   }
 
@@ -662,7 +834,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     const buildAgg = () => {
       const m = new Map<string, { qty: number; rowIdxs: number[] }>();
       next.forEach((r, idx) => {
-        const k = specKey(r.dn, r.pn, r.sn);
+        const k = specKey(r.description, r.dn, r.pn, r.sn);
         if (!k) return;
         const e = m.get(k) || { qty: 0, rowIdxs: [] };
         e.qty += Number(r.ordered_qty) || 0;
@@ -676,11 +848,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     let agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
+      const [f, d, p, s] = k.split('|');
       const candidates = Array.from(agg.keys()).filter((pk) => {
         if (quoteAgg.has(pk)) return false;
-        const [pd, pp, ps] = pk.split('|');
-        if (pd !== d) return false;
+        const [pf, pd, pp, ps] = pk.split('|');
+        if (pf !== f || pd !== d) return false;
         if (pp !== '' && pp !== p) return false;
         if (ps !== '' && ps !== s) return false;
         return pp === '' || ps === '';
@@ -693,7 +865,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         if (!String(next[idx].pn || '').trim() && p) next[idx].pn = p;
         if (!String(next[idx].sn || '').trim() && s) next[idx].sn = s;
       });
-      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${specLabel(k)}) — עכשיו תואמות להצעה.`);
+      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${fullLabel(k)}) — עכשיו תואמות להצעה.`);
       agg = buildAgg();
     });
 
@@ -704,9 +876,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
       if (e.rowIdxs.length === 1) {
         next[e.rowIdxs[0]].ordered_qty = qQty;
-        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
+        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${fullLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
       } else {
-        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
+        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${fullLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
       }
     });
 
@@ -714,23 +886,25 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
-      const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+      const [, d, p, s] = k.split('|');
+      const qi = (quoteItems || []).find((x: any) => specKey(x.product_name, x.dn_size, x.pn, x.sn) === k);
       next.push({
         id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
         unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
       });
-      report.push(`⚠ שורה ${next.length} (חדשה): נוסף מפרט ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
+      report.push(`⚠ שורה ${next.length} (חדשה): נוסף ${fullLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
-    // 4. zero-qty leftovers not in the quote
+    // 4. extras — keyed rows that are not in the approved quote are removed
+    // (the customer never ordered them); rows without a DN key are kept.
     for (let idx = next.length - 1; idx >= 0; idx--) {
       const r = next[idx];
-      const k = specKey(r.dn, r.pn, r.sn);
-      if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
+      if (k && !quoteAgg.has(k)) {
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
-        report.push(`שורה ${idx + 1}: הוסרה (${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
+        const qty = Number(r.ordered_qty) || 0;
+        report.push(`שורה ${idx + 1}: הוסרה — ${fullLabel(k)}${qty ? ` בכמות ${qty.toLocaleString()}` : ''} לא קיים בהצעה המאושרת.`);
       }
     }
 
@@ -826,22 +1000,54 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               <p className="text-sm font-bold text-warning mb-2">
                 <Icon name="warning" size={16} /> אנומליה מול ההצעה שהלקוח אישר{quoteNumber ? <> (<span dir="ltr">{quoteNumber}</span>)</> : ''}
               </p>
-              <div className="space-y-1 text-[13px] text-content-body">
+              <div className="space-y-1.5 text-[13px] text-content-body">
                 {comparison.mismatches.map((m) => (
-                  <p key={m.k}>
-                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
-                  </p>
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixMismatch(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> תקן
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {comparison.missing.map((m) => (
-                  <p key={m.k}>
-                    <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
-                  </p>
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixMissing(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> תקן
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {comparison.extras.map((m) => (
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהזמנת הרכש ({m.poQty.toLocaleString()}) אך <span className="font-semibold">לא קיים</span> בהצעה המאושרת
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixExtra(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> הסר
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] text-content-muted">המשבצת החורגת מסומנת בכתום בטבלה (כמות, PN/SN חסרים וכו') — אפשר לתקן ישירות שם; הסימון נעלם ברגע שהפער נסגר.</p>
               {canEdit && (
-                <button onClick={autoFixAnomalies} className="mt-3 text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
-                  <Icon name="wrench" size={14} /> תקן אנומליה אוטומטית
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button onClick={refreshCheck} className="text-[13px] font-semibold bg-white text-content-body border border-line-strong px-3 py-1.5 rounded-lg hover:bg-neutral-50">
+                    <Icon name="refresh" size={14} /> רענן בדיקה
+                  </button>
+                  <button onClick={autoFixAnomalies} className="text-[13px] font-semibold bg-white text-warning border border-warning px-3 py-1.5 rounded-lg hover:bg-warning-soft">
+                    <Icon name="wrench" size={14} /> תקן את כל האנומליות
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -865,24 +1071,25 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   <th className="font-medium py-1.5 px-2 w-20">כמות</th>
                   <th className="font-medium py-1.5 px-2 w-24">מחיר יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-24">סה״כ</th>
-                  {canEdit && <th className="w-8"></th>}
+                  {canEdit && <th className="w-14"></th>}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
                   <tr key={r.id || `new-${idx}`} className="border-t border-line-subtle">
                     <td className="py-1 px-2 text-neutral-400">{idx + 1}</td>
-                    <td className="py-1 px-2"><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'description')}`}><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'dn')}`}><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'pn')}`}><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'sn')}`}><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'ordered_qty')}`}><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'unit_price')}`}><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
-                      <td className="py-1 px-1 text-center">
-                        <button onClick={() => removeRow(idx)} className="text-danger hover:opacity-70" title="מחק שורה"><Icon name="close" size={14} /></button>
+                      <td className="py-1 px-1 text-center whitespace-nowrap">
+                        <button onClick={() => duplicateRow(idx)} className="text-neutral-400 hover:text-primary ms-1" title="שכפל שורה"><Icon name="copy" size={14} /></button>
+                        <button onClick={() => removeRow(idx)} className="text-danger hover:opacity-70 ms-1" title="מחק שורה"><Icon name="close" size={14} /></button>
                       </td>
                     )}
                   </tr>

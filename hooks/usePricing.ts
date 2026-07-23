@@ -105,9 +105,11 @@ export interface UsePricingReturn {
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   addEditingItem: (defaults?: any) => void;
   removeEditingItem: (idx: number) => void;
+  duplicateEditingItem: (idx: number) => void;
   reorderEditingItems: (from: number, to: number) => void;
   addCostItem: () => void;
   removeCostItem: (idx: number) => void;
+  duplicateCostItem: (idx: number) => void;
   reorderCostItems: (from: number, to: number) => void;
   toggleArchiveCostInput: (ciId: string) => Promise<void>;
   uploadAttachment: (quoteId: string, file: File) => Promise<void>;
@@ -1391,6 +1393,18 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // Duplicate a quote line right below its source. The copy is a NEW row (no
+  // id) — replace_quote_items rebuilds all rows on save, so it just persists.
+  function duplicateEditingItem(idx: number) {
+    setEditingItems((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev;
+      const { id, created_at, ...copy } = prev[idx];
+      const next = prev.slice();
+      next.splice(idx + 1, 0, { ...copy });
+      return next;
+    });
+  }
+
   // Reorder a quote line by drag. sort_order is (re)assigned by array index on
   // save, so moving the item in the array is all that's needed to persist.
   function reorderEditingItems(from: number, to: number) {
@@ -1418,6 +1432,18 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   function removeCostItem(idx: number) {
     setEditingCostItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  // Duplicate a cost line right below its source — stripped of id so
+  // saveCostInputItems INSERTs it as a new row.
+  function duplicateCostItem(idx: number) {
+    setEditingCostItems((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev;
+      const { id, created_at, ...copy } = prev[idx];
+      const next = prev.slice();
+      next.splice(idx + 1, 0, { ...copy });
+      return next;
+    });
   }
 
   // Reorder a cost line by drag — same persistence logic as reorderEditingItems.
@@ -1459,7 +1485,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
-    addEditingItem, removeEditingItem, reorderEditingItems, addCostItem, removeCostItem, reorderCostItems,
+    addEditingItem, removeEditingItem, duplicateEditingItem, reorderEditingItems, addCostItem, removeCostItem, duplicateCostItem, reorderCostItems,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,
   };
 }
