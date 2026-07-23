@@ -501,15 +501,37 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   })();
   const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
 
-  // Row indices that participate in an anomaly — painted warning-orange in the
-  // table itself. Derived live from the same comparison, so a manual edit that
-  // closes a gap clears the highlight immediately.
-  const anomalyRowIdxs = (() => {
-    const s = new Set<number>();
-    if (!comparison) return s;
-    comparison.mismatches.forEach((m) => comparison.poAgg.get(m.k)?.rowIdxs.forEach((i) => s.add(i)));
-    return s;
+  // Anomalous CELLS (rowIdx → fields) — painted warning-orange in the table:
+  // quantity mismatch → the כמות cell; a missing approved spec whose match is a
+  // row with blank PN/SN → those blank cells. Derived live from the same
+  // comparison, so a manual edit that closes a gap clears the highlight.
+  const anomalyCells = (() => {
+    const m = new Map<number, Set<string>>();
+    if (!comparison || !quoteAgg) return m;
+    const mark = (idx: number, field: string) => {
+      if (!m.has(idx)) m.set(idx, new Set());
+      m.get(idx)!.add(field);
+    };
+    comparison.mismatches.forEach((mm) =>
+      comparison.poAgg.get(mm.k)?.rowIdxs.forEach((i) => mark(i, 'ordered_qty')));
+    comparison.missing.forEach((ms) => {
+      const [d, p, s] = ms.k.split('|');
+      comparison.poAgg.forEach((e, pk) => {
+        if (quoteAgg.has(pk)) return;
+        const [pd, pp, ps] = pk.split('|');
+        if (pd !== d) return;
+        if (pp !== '' && pp !== String(p)) return;
+        if (ps !== '' && ps !== String(s)) return;
+        e.rowIdxs.forEach((i) => {
+          if (pp === '' && p) mark(i, 'pn');
+          if (ps === '' && s) mark(i, 'sn');
+        });
+      });
+    });
+    return m;
   })();
+  const cellCls = (idx: number, field: string) =>
+    anomalyCells.get(idx)?.has(field) ? ' bg-warning-soft' : '';
 
   // ---- per-anomaly fixes (same logic as the auto-fix steps, one spec at a time) ----
   function fixMismatch(k: string) {
@@ -950,7 +972,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-content-muted">השורות החורגות מסומנות בכתום בטבלה — אפשר גם לתקן אותן שם ידנית; הסימון נעלם ברגע שהפער נסגר.</p>
+              <p className="mt-2 text-[11px] text-content-muted">המשבצת החורגת מסומנת בכתום בטבלה (כמות, PN/SN חסרים וכו') — אפשר לתקן ישירות שם; הסימון נעלם ברגע שהפער נסגר.</p>
               {canEdit && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button onClick={refreshCheck} className="text-[13px] font-semibold bg-white text-content-body border border-line-strong px-3 py-1.5 rounded-lg hover:bg-neutral-50">
@@ -988,15 +1010,15 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
-                  <tr key={r.id || `new-${idx}`} className={`border-t border-line-subtle ${anomalyRowIdxs.has(idx) ? 'bg-warning-soft' : ''}`}>
+                  <tr key={r.id || `new-${idx}`} className="border-t border-line-subtle">
                     <td className="py-1 px-2 text-neutral-400">{idx + 1}</td>
                     <td className="py-1 px-2"><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'dn')}`}><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'pn')}`}><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'sn')}`}><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
-                    <td className="py-1 px-2"><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'ordered_qty')}`}><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'unit_price')}`}><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
                       <td className="py-1 px-1 text-center whitespace-nowrap">
