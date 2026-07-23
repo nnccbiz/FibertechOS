@@ -234,7 +234,8 @@ export default function NewProjectPage() {
         } catch { /* skip a failed drawing */ }
       }
 
-      router.push('/');
+      // Land on the new project's page, not the dashboard.
+      router.push(`/projects/${project.id}`);
     } catch (err: any) {
       console.error('Error saving project:', err);
       setError(err.message || 'שגיאה בשמירת הפרויקט');

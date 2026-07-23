@@ -176,7 +176,10 @@ export async function POST(req: NextRequest) {
     0,
   );
 
-  // 7. Create the draft order + its items.
+  // 7. Create the draft order + its items. PO number mirrors the approved
+  //    quote's number with HM → PO (same convention as the manual createPO in
+  //    /procurement and customer orders' HM → HZ).
+  const poNumber = quote.quote_number ? quote.quote_number.replace(/^HM/, 'PO') : null;
   const { data: order, error: oErr } = await admin
     .from('import_orders')
     .insert({
@@ -185,6 +188,7 @@ export async function POST(req: NextRequest) {
       is_stock: false,
       project_name: projectName,
       supplier_id: supplierId,
+      po_number: poNumber,
       currency,
       payment_terms: paymentTerms,
       total_amount: totalAmount,
