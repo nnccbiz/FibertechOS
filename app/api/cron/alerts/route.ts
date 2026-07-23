@@ -14,6 +14,12 @@
  *      escalates weekly (dedup key carries the overdue-week bucket)
  *   8b. customer invoice due within 3 days (heads-up before the deadline)
  *   8c. collection follow-up: a logged next_action_date arrived
+ *   9a. billing trigger — advance: quote signed with "מקדמה X%", no advance invoice
+ *   9b. billing trigger — port arrival: shipment arrived on a port-anchored deal
+ *       (goods detail from packing lines)
+ *   9c. billing trigger — delivery: certificate signed, no invoice yet (goods
+ *       detail from the certificate's items snapshot)
+ *   10. supplier payment due within 7d (one-shot) / overdue (weekly escalation)
  *
  * Runs with the service-role admin client (it writes alerts across modules and
  * is not a model-driven write). Protected by CRON_SECRET: Vercel automatically
@@ -27,6 +33,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { effectiveBillingAnchor, effectiveAdvancePct, summarizeGoods } from '@/lib/billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -247,6 +254,134 @@ export async function GET(req: NextRequest) {
       project_id: inv.project_id || null,
       message: `📞 תזכורת גבייה לחשבונית ${inv.invoice_number || ''}: "${(a.summary || '').slice(0, 80)}" — הגיע מועד הפעולה הבאה (/finance/collections).`,
     });
+  }
+
+  // ==========================================================================
+  // Billing-trigger engine (rules 9a-9c) — WHEN to bill the customer, derived
+  // from the signed quote's payment terms (override: quotes.billing_trigger /
+  // billing_advance_pct). The invoice itself is issued in the external
+  // accounting software; these alerts make sure no billing moment is missed.
+  // ==========================================================================
+
+  // Rule 9a — advance billing: quote signed with "מקדמה X%" in its terms and
+  // no advance invoice opened yet.
+  const { data: signedQuotes } = await admin
+    .from('quotes')
+    .select('id, quote_number, project_id, total_amount, payment_terms, billing_trigger, billing_advance_pct, projects(name)')
+    .eq('status', 'signed');
+  const signedIds = (signedQuotes || []).map((q: any) => q.id);
+  const { data: advInvs } = signedIds.length
+    ? await admin.from('customer_invoices').select('quote_id').eq('invoice_type', 'advance').in('quote_id', signedIds)
+    : { data: [] as any[] };
+  const hasAdvance = new Set((advInvs || []).map((r: any) => r.quote_id));
+  for (const q of signedQuotes || []) {
+    const pct = effectiveAdvancePct(q);
+    if (!pct || hasAdvance.has(q.id)) continue;
+    const amount = Math.round(((Number(q.total_amount) || 0) * pct) / 100);
+    candidates.push({
+      type: `cron:billing_advance:${q.id}`,
+      project_id: q.project_id || null,
+      message: `💳 חיוב מקדמה: הצעה ${q.quote_number || ''}${projName(q) ? ` (${projName(q)})` : ''} נחתמה עם מקדמה ${pct}% — להוציא חשבונית מקדמה${amount ? ` על כ-${amount.toLocaleString()} ₪` : ''} ולפתוח אותה למעקב (/finance/collections).`,
+    });
+  }
+
+  // Quote lookup for rules 9b/9c — order id → its quote row.
+  const { data: allOrders } = await admin
+    .from('import_orders')
+    .select('id, quote_id, project_id, project_name');
+  const orderById: Record<string, any> = {};
+  (allOrders || []).forEach((o: any) => { orderById[o.id] = o; });
+  const quoteById: Record<string, any> = {};
+  (signedQuotes || []).forEach((q: any) => { quoteById[q.id] = q; });
+
+  // Rule 9b — port-arrival billing: shipment arrived (status, or ETA passed as
+  // a fallback for unupdated statuses) on a deal whose terms anchor billing to
+  // arrival. Goods detail comes from the shipment's packing lines.
+  const { data: shipsForBilling } = await admin
+    .from('import_shipments')
+    .select('id, bl_number, status, eta');
+  const arrivedShips = (shipsForBilling || []).filter((s: any) =>
+    ['arrived', 'customs', 'delivered'].includes(s.status) || (s.eta && s.eta < ymd(now)));
+  if (arrivedShips.length) {
+    const shipIds = arrivedShips.map((s: any) => s.id);
+    const { data: conts } = await admin.from('import_containers').select('id, shipment_id').in('shipment_id', shipIds);
+    const contShip: Record<string, string> = {};
+    (conts || []).forEach((c: any) => { contShip[c.id] = c.shipment_id; });
+    const contIds = Object.keys(contShip);
+    const { data: plines } = contIds.length
+      ? await admin.from('import_packing_lines').select('container_id, import_order_id, dn, shipped_qty, unit, description').in('container_id', contIds)
+      : { data: [] as any[] };
+    // Group lines per (shipment, order)
+    const groups: Record<string, { shipmentId: string; orderId: string; lines: any[] }> = {};
+    (plines || []).forEach((l: any) => {
+      const shipId = contShip[l.container_id];
+      if (!shipId || !l.import_order_id) return;
+      const key = `${shipId}:${l.import_order_id}`;
+      (groups[key] = groups[key] || { shipmentId: shipId, orderId: l.import_order_id, lines: [] }).lines.push(l);
+    });
+    for (const g of Object.values(groups)) {
+      const order = orderById[g.orderId];
+      const quote = order?.quote_id ? quoteById[order.quote_id] : null;
+      if (!quote || effectiveBillingAnchor(quote) !== 'port_arrival') continue;
+      const ship = arrivedShips.find((s: any) => s.id === g.shipmentId);
+      const goods = summarizeGoods(g.lines.map((l: any) => ({ dn: l.dn, qty: l.shipped_qty, unit: l.unit, description: l.description })));
+      candidates.push({
+        type: `cron:billing_port:${g.shipmentId}:${g.orderId}`,
+        project_id: order?.project_id || null,
+        message: `🚢 חיוב עם הגעה לנמל: משלוח ${ship?.bl_number || ''}${order?.project_name ? ` (${order.project_name})` : ''} הגיע — לפי תנאי התשלום יש לחייב את הלקוח על: ${goods || 'ראה פירוט מכולות ביבוא'}. פתיחת חשבונית: /finance/collections.`,
+      });
+    }
+  }
+
+  // Rule 9c — delivery billing: a SIGNED delivery certificate with no invoice
+  // yet, on a deal anchored to delivery (the default). Fires immediately on
+  // signature (rule 5 keeps nagging 7d after הועבר להנה"ח).
+  const { data: signedDeliveries } = await admin
+    .from('import_customer_deliveries')
+    .select('id, project_id, import_order_id, delivery_note_number, customer_name, items, quantity_summary')
+    .eq('signed', true)
+    .eq('invoice_issued', false)
+    .is('customer_invoice_id', null);
+  for (const d of signedDeliveries || []) {
+    const order = d.import_order_id ? orderById[d.import_order_id] : null;
+    const quote = order?.quote_id ? quoteById[order.quote_id] : null;
+    if (quote && effectiveBillingAnchor(quote) !== 'delivery') continue;
+    const goods = summarizeGoods(d.items as any[]) || d.quantity_summary || '';
+    candidates.push({
+      type: `cron:billing_delivery:${d.id}`,
+      project_id: d.project_id || null,
+      message: `🧾 לחייב לקוח: תעודת משלוח ${d.delivery_note_number || ''}${d.customer_name ? ` (${d.customer_name})` : ''} נחתמה — להוציא חשבונית על: ${goods || 'ראה פירוט בתעודה'}. סימון "חשבונית הופקה" במסך /deliveries יפתח אותה למעקב גבייה.`,
+    });
+  }
+
+  // Rule 10 — supplier payments: due within 7 days (one-shot) / overdue
+  // (escalates weekly, like the customer side).
+  const { data: supInvs } = await admin
+    .from('supplier_invoice_balances')
+    .select('id, invoice_no, import_order_id, currency, balance, payment_due_date')
+    .in('payment_status', ['open', 'partially_paid'])
+    .not('payment_due_date', 'is', null);
+  const fmtCur = (n: number, cur: string) => {
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n || 0); }
+    catch { return `${(n || 0).toLocaleString()} ${cur || ''}`; }
+  };
+  for (const inv of supInvs || []) {
+    const order = inv.import_order_id ? orderById[inv.import_order_id] : null;
+    const label = `${inv.invoice_no || ''}${order?.project_name ? ` (${order.project_name})` : ''}`;
+    if (inv.payment_due_date < ymd(now)) {
+      const week = Math.floor(daysSince(inv.payment_due_date) / 7);
+      candidates.push({
+        type: `cron:supplier_overdue:${inv.id}:w${week}`,
+        project_id: order?.project_id || null,
+        message: `🏦 תשלום לספק בפיגור: חשבונית ${label} על ${fmtCur(Number(inv.balance), inv.currency)} עברה את מועד הפירעון ${heDate(inv.payment_due_date)} (/finance/suppliers).`,
+      });
+    } else if (inv.payment_due_date <= ymd(shift(7))) {
+      candidates.push({
+        type: `cron:supplier_due:${inv.id}`,
+        project_id: order?.project_id || null,
+        message: `🏦 תשלום לספק מתקרב: חשבונית ${label} על ${fmtCur(Number(inv.balance), inv.currency)} לפירעון ב-${heDate(inv.payment_due_date)} (/finance/suppliers).`,
+      });
+    }
   }
 
   // De-dup against every cron alert ever created (resolved or not).
