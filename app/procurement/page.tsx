@@ -517,9 +517,22 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!p) missing.push({ k, quoteQty: qQty });
       else if (Math.abs(p.qty - qQty) > 0.001) mismatches.push({ k, quoteQty: qQty, poQty: p.qty });
     });
-    return { mismatches, missing, poAgg };
+    // Extras — specs in the PO that the customer never approved. A row whose
+    // blank PN/SN makes it a completion candidate of a missing spec is NOT an
+    // extra (it surfaces via `missing` + the PN/SN cell highlight).
+    const extras: { k: string; poQty: number; rowIdxs: number[] }[] = [];
+    poAgg.forEach((e, k) => {
+      if (quoteAgg.has(k)) return;
+      const [f, d, p, s] = k.split('|');
+      const isCandidate = (p === '' || s === '') && missing.some((ms) => {
+        const [mf, md, mp, msn] = ms.k.split('|');
+        return mf === f && md === d && (p === '' || p === mp) && (s === '' || s === msn);
+      });
+      if (!isCandidate) extras.push({ k, poQty: e.qty, rowIdxs: e.rowIdxs });
+    });
+    return { mismatches, missing, extras, poAgg };
   })();
-  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0);
+  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0 || comparison.extras.length > 0);
 
   // Anomalous CELLS (rowIdx → fields) — painted warning-orange in the table:
   // quantity mismatch → the כמות cell; a missing approved spec whose match is a
@@ -534,6 +547,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     };
     comparison.mismatches.forEach((mm) =>
       comparison.poAgg.get(mm.k)?.rowIdxs.forEach((i) => mark(i, 'ordered_qty')));
+    // An extra item's anomaly is its very existence → mark the description cell.
+    comparison.extras.forEach((ex) => ex.rowIdxs.forEach((i) => mark(i, 'description')));
     comparison.missing.forEach((ms) => {
       const [f, d, p, s] = ms.k.split('|');
       comparison.poAgg.forEach((e, pk) => {
@@ -602,6 +617,18 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     }]);
   }
 
+  // Remove an extra item (exists in the PO, absent from the approved quote).
+  function fixExtra(k: string) {
+    if (!comparison) return;
+    const e = comparison.poAgg.get(k);
+    if (!e) return;
+    if (!confirm(`להסיר מהזמנת הרכש את ${famLabel(k)} ${specLabel(k)} (${e.rowIdxs.length === 1 ? 'שורה אחת' : `${e.rowIdxs.length} שורות`})? הפריט לא קיים בהצעה המאושרת.`)) return;
+    const idxSet = new Set(e.rowIdxs);
+    const ids = e.rowIdxs.map((i) => rows[i]?.id).filter(Boolean);
+    if (ids.length) setDeletedRowIds((d) => [...d, ...ids]);
+    setRows((prev) => prev.filter((_, i) => !idxSet.has(i)));
+  }
+
   // Re-fetch the approved quote and re-run the check against the current rows
   // (the panel is live anyway — this also picks up quote changes + gives a verdict).
   async function refreshCheck() {
@@ -626,6 +653,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       const pv = pAgg.get(k);
       if (pv == null || Math.abs(pv - q) > 0.001) gaps++;
     });
+    pAgg.forEach((_, k) => { if (!qAgg.has(k)) gaps++; });
     alert(gaps === 0
       ? '✓ הבדיקה עברה — הזמנת הרכש תואמת להצעה המאושרת. זכור לשמור.'
       : `נבדק מחדש: נותרו ${gaps} פערים מול ההצעה — השורות מסומנות בכתום.`);
@@ -863,14 +891,16 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       report.push(`⚠ שורה ${next.length} (חדשה): נוסף ${famLabel(k)} ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
-    // 4. zero-qty leftovers not in the quote
+    // 4. extras — keyed rows that are not in the approved quote are removed
+    // (the customer never ordered them); rows without a DN key are kept.
     for (let idx = next.length - 1; idx >= 0; idx--) {
       const r = next[idx];
       const k = specKey(r.description, r.dn, r.pn, r.sn);
-      if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
+      if (k && !quoteAgg.has(k)) {
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
-        report.push(`שורה ${idx + 1}: הוסרה (${famLabel(k)} ${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
+        const qty = Number(r.ordered_qty) || 0;
+        report.push(`שורה ${idx + 1}: הוסרה — ${famLabel(k)} ${specLabel(k)}${qty ? ` בכמות ${qty.toLocaleString()}` : ''} לא קיים בהצעה המאושרת.`);
       }
     }
 
@@ -991,6 +1021,18 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     )}
                   </div>
                 ))}
+                {comparison.extras.map((m) => (
+                  <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהזמנת הרכש ({m.poQty.toLocaleString()}) אך <span className="font-semibold">לא קיים</span> בהצעה המאושרת
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixExtra(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> הסר
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
               <p className="mt-2 text-[11px] text-content-muted">המשבצת החורגת מסומנת בכתום בטבלה (כמות, PN/SN חסרים וכו') — אפשר לתקן ישירות שם; הסימון נעלם ברגע שהפער נסגר.</p>
               {canEdit && (
@@ -1032,7 +1074,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {rows.map((r, idx) => (
                   <tr key={r.id || `new-${idx}`} className="border-t border-line-subtle">
                     <td className="py-1 px-2 text-neutral-400">{idx + 1}</td>
-                    <td className="py-1 px-2"><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'description')}`}><input value={r.description || ''} onChange={(e) => setRow(idx, 'description', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'dn')}`}><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'pn')}`}><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'sn')}`}><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
