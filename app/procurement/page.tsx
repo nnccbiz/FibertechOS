@@ -453,17 +453,37 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return () => { cancelled = true; };
   }, [expanded, po.quote_id]);
 
-  // Item identity = DN|PN|SN (numbers only; missing spec → '').
-  const specKey = (dn: any, pn: any, sn: any) => {
+  // Product family — part of the item identity, so a pipe, a rocker and a
+  // coupling that share DN/PN/SN don't merge into one "spec" (real bug: rocker
+  // 20m + pipe 718.7m read as one 738.7m line). Keyword-based → robust to
+  // wording/language differences between quote items and supplier descriptions.
+  const productFamily = (name: any): string => {
+    const t = String(name || '').toLowerCase();
+    if (/rocker|רוקר|short\s*pipe|צינור קצר/.test(t)) return 'rocker';
+    if (/wall\s*coupling|מצמד קיר|מחבר קיר/.test(t)) return 'wall_coupling';
+    if (/coupling|מצמד|מחבר|reka/.test(t)) return 'coupling';
+    if (/elbow|bend|ברך/.test(t)) return 'elbow';
+    if (/flange|אוגן/.test(t)) return 'flange';
+    if (/reducer|מעבר|קונוס/.test(t)) return 'reducer';
+    return 'pipe';
+  };
+  const FAMILY_LABELS: Record<string, string> = {
+    pipe: 'צינור', rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
+    elbow: 'ברך', flange: 'אוגן', reducer: 'מעבר',
+  };
+
+  // Item identity = family|DN|PN|SN (numbers only; missing spec → '').
+  const specKey = (name: any, dn: any, pn: any, sn: any) => {
     const n = (v: any) => { const x = parseInt(String(v ?? '').replace(/\D/g, ''), 10); return isNaN(x) ? '' : x; };
     const d = n(dn);
     if (d === '') return null;
-    return `${d}|${n(pn)}|${n(sn)}`;
+    return `${productFamily(name)}|${d}|${n(pn)}|${n(sn)}`;
   };
   const specLabel = (k: string) => {
-    const [d, p, s] = k.split('|');
+    const [, d, p, s] = k.split('|');
     return `DN${d}${p ? ` PN${p}` : ''}${s ? ` SN${Number(s).toLocaleString('en-US')}` : ''}`;
   };
+  const famLabel = (k: string) => FAMILY_LABELS[k.split('|')[0]] || '';
 
   // Aggregate quote quantities per spec, compare against the live PO rows.
   // Overlapping specs with different totals = anomaly; specs the customer
@@ -472,7 +492,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteItems?.length) return null;
     const m = new Map<string, number>();
     quoteItems.forEach((qi) => {
-      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
       if (!k) return;
       m.set(k, (m.get(k) || 0) + (Number(qi.quantity) || 0));
     });
@@ -483,7 +503,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!quoteAgg || !form) return null;
     const poAgg = new Map<string, { qty: number; rowIdxs: number[] }>();
     rows.forEach((r, idx) => {
-      const k = specKey(r.dn, r.pn, r.sn);
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
       if (!k) return;
       const e = poAgg.get(k) || { qty: 0, rowIdxs: [] };
       e.qty += Number(r.ordered_qty) || 0;
@@ -515,11 +535,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     comparison.mismatches.forEach((mm) =>
       comparison.poAgg.get(mm.k)?.rowIdxs.forEach((i) => mark(i, 'ordered_qty')));
     comparison.missing.forEach((ms) => {
-      const [d, p, s] = ms.k.split('|');
+      const [f, d, p, s] = ms.k.split('|');
       comparison.poAgg.forEach((e, pk) => {
         if (quoteAgg.has(pk)) return;
-        const [pd, pp, ps] = pk.split('|');
-        if (pd !== d) return;
+        const [pf, pd, pp, ps] = pk.split('|');
+        if (pf !== f || pd !== d) return;
         if (pp !== '' && pp !== String(p)) return;
         if (ps !== '' && ps !== String(s)) return;
         e.rowIdxs.forEach((i) => {
@@ -542,20 +562,20 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (e.rowIdxs.length === 1) {
       setRow(e.rowIdxs[0], 'ordered_qty', qQty);
     } else {
-      alert(`יש כמה שורות לאותו מפרט (${specLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
+      alert(`יש כמה שורות לאותו מפרט (${famLabel(k)} ${specLabel(k)}) — עדכן את הכמויות ידנית כך שיסתכמו ל-${qQty.toLocaleString()} כמו בהצעה.`);
     }
   }
 
   function fixMissing(k: string) {
     if (!quoteAgg || !comparison) return;
     const qQty = quoteAgg.get(k) || 0;
-    const [d, p, s] = k.split('|');
+    const [f, d, p, s] = k.split('|');
     // First try completing blank PN/SN on an unambiguous existing row.
     const agg = comparison.poAgg;
     const candidates = Array.from(agg.keys()).filter((pk) => {
       if (quoteAgg.has(pk)) return false;
-      const [pd, pp, ps] = pk.split('|');
-      if (pd !== d) return false;
+      const [pf, pd, pp, ps] = pk.split('|');
+      if (pf !== f || pd !== d) return false;
       if (pp !== '' && pp !== p) return false;
       if (ps !== '' && ps !== s) return false;
       return pp === '' || ps === '';
@@ -575,7 +595,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       return;
     }
     // Otherwise add the approved spec as a new row (supplier price pending).
-    const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+    const qi = (quoteItems || []).find((x: any) => specKey(x.product_name, x.dn_size, x.pn, x.sn) === k);
     setRows((prev) => [...prev, {
       id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
       unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: prev.length,
@@ -593,12 +613,12 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     setQuoteItems(data || []);
     const qAgg = new Map<string, number>();
     (data || []).forEach((qi: any) => {
-      const k = specKey(qi.dn_size, qi.pn, qi.sn);
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
       if (k) qAgg.set(k, (qAgg.get(k) || 0) + (Number(qi.quantity) || 0));
     });
     const pAgg = new Map<string, number>();
     rows.forEach((r) => {
-      const k = specKey(r.dn, r.pn, r.sn);
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
       if (k) pAgg.set(k, (pAgg.get(k) || 0) + (Number(r.ordered_qty) || 0));
     });
     let gaps = 0;
@@ -627,7 +647,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
             applied++;
           }
         } else if (Math.abs(p.qty - qQty) > 0.001) {
-          skipped.push(specLabel(k));
+          skipped.push(`${famLabel(k)} ${specLabel(k)}`);
         }
       });
       return next;
@@ -782,7 +802,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     const buildAgg = () => {
       const m = new Map<string, { qty: number; rowIdxs: number[] }>();
       next.forEach((r, idx) => {
-        const k = specKey(r.dn, r.pn, r.sn);
+        const k = specKey(r.description, r.dn, r.pn, r.sn);
         if (!k) return;
         const e = m.get(k) || { qty: 0, rowIdxs: [] };
         e.qty += Number(r.ordered_qty) || 0;
@@ -796,11 +816,11 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     let agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
+      const [f, d, p, s] = k.split('|');
       const candidates = Array.from(agg.keys()).filter((pk) => {
         if (quoteAgg.has(pk)) return false;
-        const [pd, pp, ps] = pk.split('|');
-        if (pd !== d) return false;
+        const [pf, pd, pp, ps] = pk.split('|');
+        if (pf !== f || pd !== d) return false;
         if (pp !== '' && pp !== p) return false;
         if (ps !== '' && ps !== s) return false;
         return pp === '' || ps === '';
@@ -813,7 +833,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
         if (!String(next[idx].pn || '').trim() && p) next[idx].pn = p;
         if (!String(next[idx].sn || '').trim() && s) next[idx].sn = s;
       });
-      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${specLabel(k)}) — עכשיו תואמות להצעה.`);
+      report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${famLabel(k)} ${specLabel(k)}) — עכשיו תואמות להצעה.`);
       agg = buildAgg();
     });
 
@@ -824,9 +844,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (!e || Math.abs(e.qty - qQty) <= 0.001) return;
       if (e.rowIdxs.length === 1) {
         next[e.rowIdxs[0]].ordered_qty = qQty;
-        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
+        report.push(`שורה ${e.rowIdxs[0] + 1}: כמות ${famLabel(k)} ${specLabel(k)} עודכנה ל-${qQty.toLocaleString()} לפי ההצעה.`);
       } else {
-        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
+        report.push(`⚠ שורות ${e.rowIdxs.map((i) => i + 1).join(', ')} (${famLabel(k)} ${specLabel(k)}): כמה שורות לאותו מפרט — עדכן כמות ידנית (בהצעה ${qQty.toLocaleString()}).`);
       }
     });
 
@@ -834,23 +854,23 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     agg = buildAgg();
     quoteAgg.forEach((qQty, k) => {
       if (agg.has(k)) return;
-      const [d, p, s] = k.split('|');
-      const qi = (quoteItems || []).find((x: any) => specKey(x.dn_size, x.pn, x.sn) === k);
+      const [, d, p, s] = k.split('|');
+      const qi = (quoteItems || []).find((x: any) => specKey(x.product_name, x.dn_size, x.pn, x.sn) === k);
       next.push({
         id: null, description: qi?.product_name || `GRP Pipe DN${d}`, dn: d, pn: p, sn: s,
         unit: qi?.unit || 'מטר', ordered_qty: qQty, unit_price: 0, sort_order: next.length,
       });
-      report.push(`⚠ שורה ${next.length} (חדשה): נוסף מפרט ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
+      report.push(`⚠ שורה ${next.length} (חדשה): נוסף ${famLabel(k)} ${specLabel(k)} בכמות ${qQty.toLocaleString()} — יש להזין מחיר ספק.`);
     });
 
     // 4. zero-qty leftovers not in the quote
     for (let idx = next.length - 1; idx >= 0; idx--) {
       const r = next[idx];
-      const k = specKey(r.dn, r.pn, r.sn);
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
       if (k && !quoteAgg.has(k) && (Number(r.ordered_qty) || 0) === 0) {
         if (r.id) delIds.push(r.id);
         next.splice(idx, 1);
-        report.push(`שורה ${idx + 1}: הוסרה (${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
+        report.push(`שורה ${idx + 1}: הוסרה (${famLabel(k)} ${specLabel(k)} בכמות 0, לא קיימת בהצעה).`);
       }
     }
 
@@ -950,7 +970,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.mismatches.map((m) => (
                   <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="m-0">
-                      <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
+                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — בהצעה המאושרת: <span className="font-semibold">{m.quoteQty.toLocaleString()}</span> · בהזמנת הרכש: <span className="font-semibold">{m.poQty.toLocaleString()}</span>
                     </p>
                     {canEdit && (
                       <button onClick={() => fixMismatch(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
@@ -962,7 +982,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 {comparison.missing.map((m) => (
                   <div key={m.k} className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="m-0">
-                      <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
+                      <span className="font-semibold">{famLabel(m.k)}</span> <span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — קיים בהצעה המאושרת ({m.quoteQty.toLocaleString()}) אך <span className="font-semibold">חסר</span> בהזמנת הרכש
                     </p>
                     {canEdit && (
                       <button onClick={() => fixMissing(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
