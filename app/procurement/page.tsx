@@ -471,7 +471,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return 'pipe';
   };
   const FAMILY_LABELS: Record<string, string> = {
-    pipe: 'צינור', rocker: 'רוקר', coupling: 'מצמד', wall_coupling: 'מצמד קיר',
+    pipe: 'צינור', rocker: 'רוקר', coupling: 'מחבר', wall_coupling: 'מחבר קיר',
     elbow: 'ברך', flange: 'אוגן', reducer: 'מעבר',
   };
 
