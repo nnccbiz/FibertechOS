@@ -146,6 +146,10 @@ export default function DeliveriesPage() {
       const { data: p } = await supabase.from('projects').select('customer_id').eq('id', invFor.project_id).single();
       customerId = p?.customer_id || null;
     }
+    // Carry the certificate's goods detail onto the invoice (feeds proforma/records).
+    const lines = Array.isArray(invFor.items)
+      ? invFor.items.map((it: any) => ({ description: it.description || '', qty: Number(it.qty) || 0, unit: it.unit || '', unit_price: 0 }))
+      : null;
     const { data: inv, error: invErr } = await supabase.from('customer_invoices').insert({
       invoice_number: invForm.invoice_number.trim(),
       customer_id: customerId,
@@ -156,6 +160,7 @@ export default function DeliveriesPage() {
       issued_at: todayYmd(),
       payment_terms: invForm.payment_terms.trim() || null,
       payment_due_date: invForm.payment_due_date || null,
+      lines: lines?.length ? lines : null,
       created_by: user?.id || null,
     }).select('id').single();
     if (invErr || !inv) { setInvSaving(false); setInvError(invErr?.message || 'שגיאה ביצירת החשבונית'); return; }

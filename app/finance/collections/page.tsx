@@ -7,8 +7,9 @@
  * a DB trigger keeps invoice status in sync). Requires import:view; actions
  * need import:edit. Amounts are ILS incl. explicit VAT line.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import ProformaDocument, { type ProformaDocumentHandle } from '@/components/finance/ProformaDocument';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import Icon from '@/components/ui/Icon';
 import SectionTabs from '@/components/ui/SectionTabs';
@@ -23,7 +24,7 @@ import { paymentDueDate } from '@/lib/inventory';
 const VAT_RATE = 0.18;
 
 const TYPE_LABELS: Record<string, string> = {
-  delivery: 'אספקה', advance: 'מקדמה', milestone: 'אבן דרך', final: 'חשבון סופי', other: 'אחר',
+  delivery: 'אספקה', advance: 'מקדמה', milestone: 'אבן דרך', final: 'חשבון סופי', proforma: 'פרופורמה', other: 'אחר',
 };
 const METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'העברה בנקאית', check: 'צ׳ק', credit: 'אשראי', cash: 'מזומן', other: 'אחר',
@@ -81,6 +82,7 @@ const emptyInvoiceForm = {
   payment_terms: '',
   payment_due_date: '',
   notes: '',
+  lines: [] as { description: string; qty: string; unit: string; unit_price: string }[],
 };
 
 export default function CollectionsPage() {
@@ -98,6 +100,19 @@ export default function CollectionsPage() {
   const [filter, setFilter] = useState<Filter>('open');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // ?project=<id> filter (read from location to avoid a Suspense boundary).
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('project');
+    if (p) setProjectFilter(p);
+  }, []);
+
+  // Uploaded SAP invoice file + proforma document modal
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadFor, setUploadFor] = useState<any | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [docFor, setDocFor] = useState<any | null>(null);
+  const proformaRef = useRef<ProformaDocumentHandle>(null);
 
   // Modals
   const [invoiceForm, setInvoiceForm] = useState<typeof emptyInvoiceForm | null>(null);
@@ -165,12 +180,13 @@ export default function CollectionsPage() {
   }, [openInvoices]);
 
   const filtered = useMemo(() => invoices.filter((i) => {
+    if (projectFilter && i.project_id !== projectFilter) return false;
     if (filter === 'open') return isOpen(i);
     if (filter === 'overdue') return isOpen(i) && overdueDays(i.payment_due_date) > 0;
     if (filter === 'paid') return i.status === 'paid';
     if (filter === 'cancelled') return i.status === 'cancelled';
     return true;
-  }), [invoices, filter]);
+  }), [invoices, filter, projectFilter]);
 
   // Group by customer (fallback: project's name as a pseudo-group, then "ללא שיוך").
   const groups = useMemo(() => {
@@ -214,7 +230,13 @@ export default function CollectionsPage() {
       payment_terms: i.payment_terms || '',
       payment_due_date: i.payment_due_date || '',
       notes: i.notes || '',
+      lines: Array.isArray(i.lines)
+        ? i.lines.map((l: any) => ({ description: l.description || '', qty: String(l.qty ?? ''), unit: l.unit || '', unit_price: String(l.unit_price ?? '') }))
+        : [],
     });
+  }
+  function sumLines(lines: { qty: string; unit_price: string }[]) {
+    return Math.round(lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unit_price) || 0), 0) * 100) / 100;
   }
   function setAmountWithVat(v: string) {
     setInvoiceForm((f) => f && ({ ...f, amount: v, vat_amount: v === '' ? '' : String(Math.round(Number(v) * VAT_RATE * 100) / 100) }));
@@ -223,8 +245,17 @@ export default function CollectionsPage() {
     if (!invoiceForm) return;
     setSaving(true); setError(null);
     const { data: { user } } = await supabase.auth.getUser();
+    // Proforma gets an automatic PF-YYYY-NNN number on creation.
+    let invoiceNumber = invoiceForm.invoice_number.trim();
+    if (!invoiceForm.id && invoiceForm.invoice_type === 'proforma' && !invoiceNumber) {
+      const { data: num } = await supabase.rpc('next_doc_number', { p_kind: 'PF' });
+      if (num) invoiceNumber = String(num);
+    }
+    const cleanLines = invoiceForm.lines
+      .filter((l) => l.description.trim() || Number(l.qty) || Number(l.unit_price))
+      .map((l) => ({ description: l.description.trim(), qty: Number(l.qty) || 0, unit: l.unit.trim(), unit_price: Number(l.unit_price) || 0 }));
     const payload: any = {
-      invoice_number: invoiceForm.invoice_number.trim() || null,
+      invoice_number: invoiceNumber || null,
       invoice_type: invoiceForm.invoice_type,
       customer_id: invoiceForm.customer_id || null,
       project_id: invoiceForm.project_id || null,
@@ -234,6 +265,7 @@ export default function CollectionsPage() {
       payment_terms: invoiceForm.payment_terms.trim() || null,
       payment_due_date: invoiceForm.payment_due_date || null,
       notes: invoiceForm.notes.trim() || null,
+      lines: cleanLines.length ? cleanLines : null,
     };
     let err;
     if (invoiceForm.id) {
@@ -314,6 +346,35 @@ export default function CollectionsPage() {
     load();
   }
 
+  // ---------- uploaded SAP invoice file ----------
+  function startUpload(i: any) {
+    setUploadFor(i);
+    fileInputRef.current?.click();
+  }
+  async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null; // snapshot BEFORE clearing (FileList trap)
+    e.target.value = '';
+    if (!file || !uploadFor) return;
+    setUploading(true);
+    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+    const path = `finance/${uploadFor.id}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+    if (upErr) { setUploading(false); alert(`העלאת הקובץ נכשלה: ${upErr.message}`); return; }
+    await supabase.from('customer_invoices')
+      .update({ file_path: path, updated_at: new Date().toISOString() })
+      .eq('id', uploadFor.id);
+    setUploading(false);
+    setUploadFor(null);
+    load();
+  }
+  // Safari-safe: open the tab synchronously, set the signed URL after await.
+  async function openFile(path: string) {
+    const w = window.open('about:blank', '_blank');
+    const { data: s } = await supabase.storage.from('project-files').createSignedUrl(path, 300);
+    if (s?.signedUrl) { if (w) w.location.href = s.signedUrl; else window.location.href = s.signedUrl; }
+    else w?.close();
+  }
+
   const FILTERS: { key: Filter; label: string }[] = [
     { key: 'open', label: `פתוחות (${counts.open})` },
     { key: 'overdue', label: `בפיגור (${counts.overdue})` },
@@ -372,13 +433,19 @@ export default function CollectionsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
         {FILTERS.map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             className={`text-[12px] px-3 py-1.5 rounded-full border ${filter === f.key ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}>
             {f.label}
           </button>
         ))}
+        {projectFilter && (
+          <span className="text-[12px] px-3 py-1.5 rounded-full bg-azure-100 text-azure-600 font-semibold flex items-center gap-1.5">
+            פרויקט: {projectName[projectFilter] || '—'}
+            <button onClick={() => { setProjectFilter(null); window.history.replaceState(null, '', '/finance/collections'); }} className="hover:opacity-70" title="נקה סינון">✕</button>
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -447,13 +514,20 @@ export default function CollectionsPage() {
                             </span>
                           )}
                         </div>
-                        {canEdit && (
-                          <div className="flex flex-wrap items-center gap-3 text-[12px]">
-                            {open && <button onClick={() => openPayment(i)} className="font-semibold text-success hover:underline"><Icon name="payment" size={12} /> רישום תקבול</button>}
-                            {open && <button onClick={() => openActivity(i)} className="font-semibold text-azure-600 hover:underline"><Icon name="chat" size={12} /> תיעוד גבייה</button>}
-                            <button onClick={() => openEditInvoice(i)} className="text-primary hover:underline"><Icon name="edit" size={12} /> עריכה</button>
-                          </div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-3 text-[12px]">
+                          {canEdit && open && <button onClick={() => openPayment(i)} className="font-semibold text-success hover:underline"><Icon name="payment" size={12} /> רישום תקבול</button>}
+                          {canEdit && open && <button onClick={() => openActivity(i)} className="font-semibold text-azure-600 hover:underline"><Icon name="chat" size={12} /> תיעוד גבייה</button>}
+                          {i.invoice_type === 'proforma' && (
+                            <button onClick={() => setDocFor(i)} className="font-semibold text-primary hover:underline"><Icon name="file" size={12} /> מסמך פרופורמה</button>
+                          )}
+                          {i.file_path && <button onClick={() => openFile(i.file_path)} className="text-primary hover:underline"><Icon name="attach" size={12} /> צפה בחשבונית</button>}
+                          {canEdit && (
+                            <button onClick={() => startUpload(i)} disabled={uploading} className="text-content-muted hover:text-primary hover:underline">
+                              <Icon name="attach" size={12} /> {uploading && uploadFor?.id === i.id ? 'מעלה…' : i.file_path ? 'החלף קובץ' : 'העלה קובץ חשבונית'}
+                            </button>
+                          )}
+                          {canEdit && <button onClick={() => openEditInvoice(i)} className="text-primary hover:underline"><Icon name="edit" size={12} /> עריכה</button>}
+                        </div>
                       </div>
                       {isExpanded && acts.length > 0 && (
                         <div className="mt-3 bg-neutral-50 rounded-lg p-3 space-y-2">
@@ -534,6 +608,48 @@ export default function CollectionsPage() {
             <Field label="מועד תשלום (לגבייה)">
               <Input dir="ltr" type="date" value={invoiceForm.payment_due_date} onChange={(e) => setInvoiceForm({ ...invoiceForm, payment_due_date: e.target.value })} />
             </Field>
+            {/* Line detail — feeds the proforma A4 document; optional for other types */}
+            <div className="sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <span className="text-sm font-medium text-content-body">פירוט שורות{invoiceForm.invoice_type === 'proforma' ? ' (יוצג במסמך הפרופורמה)' : ''}</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" type="button"
+                    onClick={() => setInvoiceForm({ ...invoiceForm, lines: [...invoiceForm.lines, { description: '', qty: '', unit: 'מטר', unit_price: '' }] })}>
+                    + שורה
+                  </Button>
+                  {invoiceForm.lines.length > 0 && (
+                    <Button variant="secondary" size="sm" type="button"
+                      onClick={() => {
+                        const amt = sumLines(invoiceForm.lines);
+                        setInvoiceForm({ ...invoiceForm, amount: String(amt), vat_amount: String(Math.round(amt * VAT_RATE * 100) / 100) });
+                      }}>
+                      סכם שורות ← סכום
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {invoiceForm.lines.length > 0 && (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-[1fr_70px_70px_95px_24px] gap-1 text-[11px] text-content-muted px-1">
+                    <span>תיאור</span><span>כמות</span><span>יח׳</span><span>מחיר יח׳ ₪</span><span></span>
+                  </div>
+                  {invoiceForm.lines.map((l, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_70px_70px_95px_24px] gap-1 items-center">
+                      <input value={l.description} onChange={(e) => setInvoiceForm({ ...invoiceForm, lines: invoiceForm.lines.map((x, i2) => i2 === idx ? { ...x, description: e.target.value } : x) })}
+                        className="border border-line-subtle rounded px-2 py-1 text-[12px]" dir="ltr" />
+                      <input type="number" value={l.qty} onChange={(e) => setInvoiceForm({ ...invoiceForm, lines: invoiceForm.lines.map((x, i2) => i2 === idx ? { ...x, qty: e.target.value } : x) })}
+                        className="border border-line-subtle rounded px-2 py-1 text-[12px]" dir="ltr" />
+                      <input value={l.unit} onChange={(e) => setInvoiceForm({ ...invoiceForm, lines: invoiceForm.lines.map((x, i2) => i2 === idx ? { ...x, unit: e.target.value } : x) })}
+                        className="border border-line-subtle rounded px-2 py-1 text-[12px]" />
+                      <input type="number" value={l.unit_price} onChange={(e) => setInvoiceForm({ ...invoiceForm, lines: invoiceForm.lines.map((x, i2) => i2 === idx ? { ...x, unit_price: e.target.value } : x) })}
+                        className="border border-line-subtle rounded px-2 py-1 text-[12px]" dir="ltr" />
+                      <button onClick={() => setInvoiceForm({ ...invoiceForm, lines: invoiceForm.lines.filter((_, i2) => i2 !== idx) })}
+                        className="text-danger text-lg" title="מחק שורה">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="sm:col-span-2">
               <Field label="הערות">
                 <Textarea rows={2} value={invoiceForm.notes} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} />
@@ -617,6 +733,26 @@ export default function CollectionsPage() {
             </Field>
             {error && <p className="sm:col-span-2 text-sm text-danger">{error}</p>}
           </div>
+        )}
+      </Modal>
+
+      {/* hidden picker for the SAP invoice file */}
+      <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={handleFileChosen} />
+
+      {/* proforma A4 document */}
+      <Modal open={!!docFor} onClose={() => setDocFor(null)} size="xl"
+        title={`חשבונית פרופורמה ${docFor?.invoice_number || ''}`}
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setDocFor(null)}>סגור</Button>
+          <Button size="sm" onClick={() => proformaRef.current?.downloadPdf()}><Icon name="file" size={14} /> הורד PDF</Button>
+        </>}>
+        {docFor && (
+          <ProformaDocument
+            ref={proformaRef}
+            invoice={docFor}
+            customerName={docFor.customer_id ? clientName[docFor.customer_id] : null}
+            projectName={docFor.project_id ? projectName[docFor.project_id] : null}
+          />
         )}
       </Modal>
     </div>

@@ -9,6 +9,7 @@ import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import PricingSection from '@/components/projects/PricingSection';
 import ImportPanel from '@/components/projects/ImportPanel';
 import ProjectPOCard from '@/components/procurement/ProjectPOCard';
+import ProjectFinanceCard from '@/components/projects/ProjectFinanceCard';
 import CustomerForm from '@/components/customers/CustomerForm';
 import CompanyAutocomplete from '@/components/projects/CompanyAutocomplete';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -1309,6 +1310,9 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
         {/* Purchase orders — created in /procurement, tracked in /import */}
         <ProjectPOCard projectId={params.id as string} />
+
+        {/* כספים — חשבוניות הפרויקט ויתרות (מוצג רק עם הרשאת import) */}
+        <ProjectFinanceCard projectId={params.id as string} />
         {/* Import — documents & orders linked to this project */}
         <ImportPanel projectId={params.id as string} />
         {/* Export email modal */}
