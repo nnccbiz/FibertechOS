@@ -1344,15 +1344,15 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[977px]">
-          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
+        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_52px_62px_52px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[1081px]">
+          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
           return (
           <div key={idx}>
           <div
-            className={`grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 min-w-[977px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
+            className={`grid grid-cols-[18px_1fr_55px_46px_60px_52px_62px_52px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 min-w-[1081px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
             {...dnd.rowProps(idx)}
           >
             <DragHandle {...dnd.handleProps(idx)} />
@@ -1360,7 +1360,30 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
             <input type="number" value={item.sn ?? ''} onChange={(e) => p.updateItem(idx, 'sn', e.target.value)} placeholder={specFromProject.sn != null ? String(specFromProject.sn) : 'SN'} title="קשיחות (פסקל) — נמשכת מהמפרט לפי DN, ניתנת לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
-            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (למשל 5.7)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
+            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} title="כמות כללית (מטרים / יחידות)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
+            {(() => {
+              const len = parseFloat(item.length_m) || 0;
+              const qty = parseFloat(item.quantity) || 0;
+              const units = len > 0 ? qty / len : 0;
+              const rounded = Math.round(units * 100) / 100;
+              const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+              return (
+                <input
+                  type="number"
+                  value={len > 0 && qty > 0 ? rounded : ''}
+                  disabled={!(len > 0)}
+                  onChange={(e) => {
+                    const u = parseFloat(e.target.value) || 0;
+                    p.updateItem(idx, 'quantity', Math.round(u * len * 100) / 100);
+                  }}
+                  placeholder={len > 0 ? '' : '—'}
+                  title={frac ? 'שברי יחידות — הכמות הכללית אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות (עריכה מעדכנת את הכמות הכללית)'}
+                  className={`border rounded px-1 py-1 text-[12px] min-w-0 text-center ${frac ? 'border-danger text-danger font-bold bg-danger-soft' : 'border-line-subtle'} ${len > 0 ? '' : 'bg-neutral-50 text-neutral-300'}`}
+                  dir="ltr"
+                />
+              );
+            })()}
             <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
