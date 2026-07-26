@@ -425,7 +425,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות (SN)</th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">אורך יח׳</th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">יחידות</th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(No. of Units)</span></th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידה</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה</th>
           {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">הנחה</th>}

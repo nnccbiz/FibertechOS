@@ -21,6 +21,21 @@ export function itemCategory(productName?: string): 'pipe' | 'accessory' {
   return 'accessory';
 }
 
+/**
+ * Default unit length (meters) by product type:
+ *   regular pipe → 5.7 · rocker → 2 × DN (the roker formula, DN/1000×2).
+ * Returns null when no sensible default exists (fittings etc.). Only used to
+ * FILL an empty length_m — a user-entered value is never overwritten.
+ */
+export function defaultLengthM(productName?: string, dnSize?: any): number | null {
+  const n = (productName || '').toLowerCase();
+  const dn = parseInt(String(dnSize ?? '').replace(/\D/g, ''), 10);
+  if (/rocker|רוקר/.test(n)) return dn > 0 ? Math.round((dn / 1000) * 2 * 100) / 100 : null;
+  if (/short|קצר/.test(n)) return null;
+  if (/pipe|צינור|צנרת/.test(n)) return 5.7;
+  return null;
+}
+
 export interface UsePricingReturn {
   // Data
   costInputs: any[];
@@ -926,7 +941,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     const pr = q?.default_profit_pct ?? 25;
     setEditingQuote(quoteId);
     setEditingItems(items.length > 0
-      ? items.map((i) => ({ ...i }))
+      ? items.map((i) => ({ ...i, length_m: i.length_m ?? defaultLengthM(i.product_name, i.dn_size) }))
       : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, overheads_pct: oh, profit_pct: pr, discount_pct: 0, unit_price: 0, total_price: 0, notes: '' }]
     );
   }
@@ -939,6 +954,13 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingItems((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
+      // Auto-fill the unit length from the product type (pipe 5.7 / rocker 2×DN)
+      // whenever it's still empty — never overwrite a value the user typed.
+      if ((field === 'product_name' || field === 'dn_size') &&
+          (next[idx].length_m == null || next[idx].length_m === '')) {
+        const def = defaultLengthM(next[idx].product_name, next[idx].dn_size);
+        if (def != null) next[idx].length_m = def;
+      }
       if (['quantity', 'cost_price', 'overheads_pct', 'profit_pct', 'unit_price', 'discount_pct'].includes(field)) {
         const cost = parseFloat(next[idx].cost_price) || 0;
         const oh = parseFloat(next[idx].overheads_pct) || 0;
@@ -1215,6 +1237,26 @@ export function usePricing(projectId: string): UsePricingReturn {
 
   async function updateQuoteStatus(quoteId: string, status: string, extra?: Record<string, any>) {
     const q = quotes.find((x) => x.id === quoteId);
+    // Issue gate: a quote cannot go out with a line whose total quantity is not
+    // a whole multiple of its unit length (fractional units — marked red in the
+    // editor). Fix the quantity or the unit length first.
+    if (status === 'sent') {
+      const its = quoteItems[quoteId] || [];
+      const offenders = its
+        .map((i, idx) => {
+          const len = parseFloat(i.length_m) || 0;
+          const qty = parseFloat(i.quantity) || 0;
+          const units = len > 0 ? qty / len : 0;
+          return len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001
+            ? `שורה ${idx + 1} (${i.product_name || ''}): ${qty} ÷ ${len} = ${Math.round(units * 100) / 100} יחידות`
+            : null;
+        })
+        .filter(Boolean);
+      if (offenders.length) {
+        alert(`לא ניתן להוציא את ההצעה — יש שורות עם שברי יחידות (הכמות אינה כפולה שלמה של אורך היחידה):\n\n${offenders.join('\n')}\n\nעדכן את הכמות או את אורך היחידה בעורך הפריטים.`);
+        return;
+      }
+    }
     const now = new Date().toISOString();
     const patch: any = { status, updated_at: now, ...(extra || {}) };
     // Freeze the printed quote date the first time it's issued — updated_at keeps
