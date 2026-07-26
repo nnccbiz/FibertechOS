@@ -154,6 +154,8 @@ FibertechOS/
 
 ### Pricing Engine
 - **Gross-margin formula**: `Selling = Cost * (1 + overheads%) * (1 + profit%)`.
+- **Whole-shekel unit prices (2026-07-26)**: `calcSellingPrice` rounds the computed unit price UP to the next whole shekel (`Math.ceil`); line totals = printed price × qty, so the customer-facing document always adds up exactly. A manually typed unit price is kept as typed. Totals render with up to 2 decimals (`formatCurrency2` in QuoteDocument + PricingSection).
+- **Unit length & units count (2026-07-26)**: `quote_items.length_m` drives a computed "יחידות" column (qty ÷ length) in the editor, the read-only table and the quote document (headers carry English sublabels: DN / m / pipe # / Qty / ₪; length always shows one decimal). Editing units back-calculates qty (commit on blur/Enter). Defaults fill only an EMPTY length_m: regular pipe → 5.7, rocker → 2×DN (`defaultLengthM` in usePricing). Fractional units render red, and `updateQuoteStatus` BLOCKS issuing (status='sent') while any line has fractional units.
 - **Full cost chain**: Supplier foreign price -> exchange rate -> ILS cost -> overheads -> profit -> selling price.
 - **Item types**: `pipe_with_coupling`, `pipe_bare`, `coupling`, `wall_coupling`, `roker`, `elbow`, `flange`, `reducer`, `other`.
 - **Roker calculation**: Special formula based on DN diameter: `rokerLength = (DN / 1000) * 2`.

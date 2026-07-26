@@ -67,6 +67,11 @@ function fmtSn(sn: string) {
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
+// Totals show agorot when they exist (up to 2 decimals) — the line total is
+// printed-unit-price × quantity, e.g. 252 × 718.7 = ₪181,112.4.
+function formatCurrency2(v: number) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+}
 
 // Shared footer identity lines — used by BOTH the quote pages and the
 // attachment (drawings/specs) pages so every page's footer is identical.
@@ -419,15 +424,17 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       <thead>
         <tr className="bg-navy-700">
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700 w-8">#</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">תיאור פריט</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">קוטר</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">לחץ (PN)</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות (SN)</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידה</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700 w-[24%]">תיאור פריט</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">קוטר<br /><span className="font-normal text-[10px]">(DN)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">לחץ<br /><span className="font-normal text-[10px]">(PN)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות<br /><span className="font-normal text-[10px]">(SN)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">אורך יח׳<br /><span className="font-normal text-[10px]">(m)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות<br /><span className="font-normal text-[10px]">(Qty)</span></th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידת מחיר</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה<br /><span className="font-normal text-[10px]">(₪)</span></th>
           {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">הנחה</th>}
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ<br /><span className="font-normal text-[10px]">(₪)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -443,13 +450,28 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               <td className="py-2 px-3 border border-line-subtle text-content-muted">{item.dn_size || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  if (len <= 0) return '—';
+                  // Always show a decimal digit, even for whole numbers (1 → 1.0).
+                  return Number.isInteger(len) ? len.toFixed(1) : len;
+                })()}
+              </td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  const qty = parseFloat(item.quantity) || 0;
+                  return len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : '—';
+                })()}
+              </td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{item.quantity}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{item.unit}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
               {hasAnyDiscount && (
                 <td className="py-2 px-3 border border-line-subtle text-center text-content-body">{disc > 0 ? `${disc}%` : '0%'}</td>
               )}
-              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency2(parseFloat(item.total_price) || 0)}</td>
             </tr>
           );
         })}
@@ -465,25 +487,25 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
             <>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-content-body">סכום לפני הנחה</span>
-                <span className="text-content-body">{formatCurrency(totalAfterLineDisc)}</span>
+                <span className="text-content-body">{formatCurrency2(totalAfterLineDisc)}</span>
               </div>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-warning">הנחה {globalDisc}%</span>
-                <span className="text-warning">-{formatCurrency(totalAfterLineDisc - finalTotal)}</span>
+                <span className="text-warning">-{formatCurrency2(totalAfterLineDisc - finalTotal)}</span>
               </div>
             </>
           )}
           <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
             <span className="text-content-body">סכום ביניים</span>
-            <span className="text-content-body">{formatCurrency(finalTotal)}</span>
+            <span className="text-content-body">{formatCurrency2(finalTotal)}</span>
           </div>
           <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
             <span className="text-content-body">מע&quot;מ 18%</span>
-            <span className="text-content-body">{formatCurrency(vatAmount)}</span>
+            <span className="text-content-body">{formatCurrency2(vatAmount)}</span>
           </div>
           <div className="flex justify-between px-4 py-2.5 bg-navy-700">
             <span className="font-bold text-white">סה&quot;כ לתשלום</span>
-            <span className="font-bold text-white">{formatCurrency(totalWithVat)}</span>
+            <span className="font-bold text-white">{formatCurrency2(totalWithVat)}</span>
           </div>
         </div>
       </div>

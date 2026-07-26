@@ -32,6 +32,10 @@ import Icon, { type IconName } from '@/components/ui/Icon';
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
+// Line totals keep their agorot (printed unit price × quantity, e.g. 181,112.4).
+function formatCurrency2(v: number) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+}
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -1344,15 +1348,15 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[977px]">
-          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span>כמות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
+        <div className="grid grid-cols-[18px_minmax(130px,1fr)_58px_50px_64px_56px_70px_58px_52px_74px_58px_54px_84px_54px_92px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[1120px]">
+          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
           return (
           <div key={idx}>
           <div
-            className={`grid grid-cols-[18px_1fr_55px_46px_60px_62px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 min-w-[977px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
+            className={`grid grid-cols-[18px_minmax(130px,1fr)_58px_50px_64px_56px_70px_58px_52px_74px_58px_54px_84px_54px_92px_26px_46px] gap-1 min-w-[1120px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
             {...dnd.rowProps(idx)}
           >
             <DragHandle {...dnd.handleProps(idx)} />
@@ -1360,14 +1364,45 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.pn ?? ''} onChange={(e) => p.updateItem(idx, 'pn', e.target.value)} placeholder={specFromProject.pn != null ? String(specFromProject.pn) : 'PN'} title="לחץ עבודה (בר) — נמשך מהמפרט לפי DN, ניתן לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
             <input type="number" value={item.sn ?? ''} onChange={(e) => p.updateItem(idx, 'sn', e.target.value)} placeholder={specFromProject.sn != null ? String(specFromProject.sn) : 'SN'} title="קשיחות (פסקל) — נמשכת מהמפרט לפי DN, ניתנת לעריכה" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
-            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
+            <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (למשל 5.7)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
+            <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} title="כמות כללית (מטרים / יחידות)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
+            {(() => {
+              const len = parseFloat(item.length_m) || 0;
+              const qty = parseFloat(item.quantity) || 0;
+              const units = len > 0 ? qty / len : 0;
+              const rounded = Math.round(units * 100) / 100;
+              const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+              const commit = (raw: string) => {
+                const u = parseFloat(raw);
+                if (!isNaN(u) && u >= 0 && len > 0) {
+                  p.updateItem(idx, 'quantity', Math.round(u * len * 100) / 100);
+                }
+              };
+              return (
+                <input
+                  // Free typing; committed on blur/Enter. The key remounts the
+                  // field with the fresh derived value when qty/length change
+                  // from outside (typing in the quantity field etc.).
+                  key={`units-${item.length_m}-${item.quantity}`}
+                  type="number"
+                  defaultValue={len > 0 && qty > 0 ? rounded : ''}
+                  disabled={!(len > 0)}
+                  onBlur={(e) => commit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  placeholder={len > 0 ? '' : '—'}
+                  title={frac ? 'שברי יחידות — הכמות הכללית אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — הקלד ועבור שדה (או Enter) לעדכון הכמות הכללית'}
+                  className={`border rounded px-1 py-1 text-[12px] min-w-0 text-center ${frac ? 'border-danger text-danger font-bold bg-danger-soft' : 'border-line-subtle'} ${len > 0 ? '' : 'bg-neutral-50 text-neutral-300'}`}
+                  dir="ltr"
+                />
+              );
+            })()}
             <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateItem(idx, 'unit', e.target.value)} className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100" />
             <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 bg-warning-soft" />
-            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate" dir="ltr">{formatCurrency2(parseFloat(item.total_price) || 0)}</span>
             <button
               onClick={() => {
                 const turningOn = !item.requires_production;
@@ -1439,17 +1474,19 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   }, 0);
   const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  const colCount = hasAnyDiscount ? 12 : 11;
+  const colCount = hasAnyDiscount ? 14 : 13;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line-subtle">
-      <table className="w-full text-sm border-collapse" style={{ minWidth: 780 }}>
+      <table className="w-full text-sm border-collapse" style={{ minWidth: 900 }}>
         <colgroup>
           <col />
           <col style={{ width: '52px' }} />
           <col style={{ width: '56px' }} />
           <col style={{ width: '72px' }} />
+          <col style={{ width: '58px' }} />
           <col style={{ width: '90px' }} />
+          <col style={{ width: '56px' }} />
           <col style={{ width: '76px' }} />
           <col style={{ width: '62px' }} />
           <col style={{ width: '52px' }} />
@@ -1464,7 +1501,9 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">קוטר</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">לחץ (PN)</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">קשיחות (SN)</th>
+            <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle" title="אורך יחידה במטרים">אורך יח׳</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">כמות</th>
+            <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle" title="כמות ÷ אורך יחידה">יחידות</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">עלות</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">תקורות%</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">רווח%</th>
@@ -1510,13 +1549,23 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                   <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{spec.pn || '—'}</td>
                   <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{fmtSn(spec.sn) || '—'}</td>
                 </>); })()}
-                <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{item.quantity} {item.unit}</td>
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  const lenTxt = len > 0 ? (Number.isInteger(len) ? len.toFixed(1) : String(len)) : '—';
+                  const units = len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
+                  const frac = units != null && Math.abs(units - Math.round(units)) > 0.001;
+                  return (<>
+                    <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap" dir="ltr">{lenTxt}</td>
+                    <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{item.quantity} {item.unit}</td>
+                    <td className={`py-2 px-1 text-[12px] text-center border-r border-line-subtle whitespace-nowrap ${frac ? 'text-danger font-bold bg-danger-soft' : 'text-content-body'}`} dir="ltr" title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : undefined}>{units ?? '—'}</td>
+                  </>);
+                })()}
                 <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(cost)}</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.overheads_pct}%</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.profit_pct}%</td>
                 <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(unit)}</td>
                 {hasAnyDiscount && <td className="py-2 px-1 text-warning text-[12px] font-medium text-center border-r border-line-subtle whitespace-nowrap">{disc > 0 ? `${disc}%` : '—'}</td>}
-                <td className="py-2 px-1 font-semibold text-content-strong text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(tot)}</td>
+                <td className="py-2 px-1 font-semibold text-content-strong text-[12px] border-r border-line-subtle whitespace-nowrap" dir="ltr">{formatCurrency2(tot)}</td>
                 <td className="py-2 text-center">
                   <span title={tooltip} className="cursor-help text-neutral-300 hover:text-primary text-[13px]"><Icon name="info" size={14} /></span>
                 </td>
@@ -1529,21 +1578,21 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <tr className="border-t border-line-subtle bg-neutral-50">
               <td colSpan={colCount - 2} className="py-1.5 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1.5 px-1 text-right text-[12px] text-content-muted border-r border-line-subtle">סה״כ לפני הנחה</td>
-              <td className="py-1.5 px-1 text-[12px] text-content-muted whitespace-nowrap">{formatCurrency(subtotalBeforeDisc)}</td>
+              <td className="py-1.5 px-1 text-[12px] text-content-muted whitespace-nowrap">{formatCurrency2(subtotalBeforeDisc)}</td>
             </tr>
           )}
           {hasAnyDiscount && (
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחות שורה</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency(subtotalBeforeDisc - totalAfterLineDisc)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(subtotalBeforeDisc - totalAfterLineDisc)}</td>
             </tr>
           )}
           {globalDisc > 0 && (
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחה כללית {globalDisc}%</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency(totalAfterLineDisc - finalTotal)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(totalAfterLineDisc - finalTotal)}</td>
             </tr>
           )}
           <tr className="border-t-2 border-line-subtle bg-neutral-50">
@@ -1556,7 +1605,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
               )}
             </td>
             <td colSpan={colCount - 7} className="py-2 px-1 text-right font-bold text-content-body">סה״כ מכירה</td>
-            <td className="py-2 px-1 font-bold text-primary text-[13px] whitespace-nowrap">{formatCurrency(finalTotal)}</td>
+            <td className="py-2 px-1 font-bold text-primary text-[13px] whitespace-nowrap">{formatCurrency2(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
         </tfoot>
