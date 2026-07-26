@@ -32,6 +32,10 @@ import Icon, { type IconName } from '@/components/ui/Icon';
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
+// Line totals keep their agorot (printed unit price × quantity, e.g. 181,112.4).
+function formatCurrency2(v: number) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+}
 
 function formatDate(d: string | null) {
   if (!d) return '';
@@ -1344,7 +1348,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <span className="text-[11px] text-neutral-400">(צינור קצר/רוקר נכלל באביזרים)</span>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-[18px_1fr_55px_46px_60px_52px_62px_52px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[1081px]">
+        <div className="grid grid-cols-[18px_minmax(130px,1fr)_58px_50px_64px_56px_70px_58px_52px_74px_58px_54px_84px_54px_92px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[1120px]">
           <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
@@ -1352,7 +1356,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
           return (
           <div key={idx}>
           <div
-            className={`grid grid-cols-[18px_1fr_55px_46px_60px_52px_62px_52px_50px_70px_55px_50px_75px_50px_75px_26px_46px] gap-1 min-w-[1081px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
+            className={`grid grid-cols-[18px_minmax(130px,1fr)_58px_50px_64px_56px_70px_58px_52px_74px_58px_54px_84px_54px_92px_26px_46px] gap-1 min-w-[1120px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-primary ring-inset bg-primary-50' : ''}`}
             {...dnd.rowProps(idx)}
           >
             <DragHandle {...dnd.handleProps(idx)} />
@@ -1398,7 +1402,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100" />
             <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 bg-warning-soft" />
-            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate">{formatCurrency(parseFloat(item.total_price) || 0)}</span>
+            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate" dir="ltr">{formatCurrency2(parseFloat(item.total_price) || 0)}</span>
             <button
               onClick={() => {
                 const turningOn = !item.requires_production;
