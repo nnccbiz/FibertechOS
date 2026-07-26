@@ -450,7 +450,14 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               <td className="py-2 px-3 border border-line-subtle text-content-muted">{item.dn_size || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
-              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">{parseFloat(item.length_m) > 0 ? parseFloat(item.length_m) : '—'}</td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  if (len <= 0) return '—';
+                  // Always show a decimal digit, even for whole numbers (1 → 1.0).
+                  return Number.isInteger(len) ? len.toFixed(1) : len;
+                })()}
+              </td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
                   const len = parseFloat(item.length_m) || 0;
