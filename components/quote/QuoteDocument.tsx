@@ -420,13 +420,13 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
         <tr className="bg-navy-700">
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700 w-8">#</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700 w-[24%]">תיאור פריט</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">קוטר</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">קוטר<br /><span className="font-normal text-[10px]">(DN)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">לחץ (PN)</th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות (SN)</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">אורך יח׳</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(No. of Units)</span></th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידה</th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">אורך יח׳<br /><span className="font-normal text-[10px]">(m)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות<br /><span className="font-normal text-[10px]">(Qty)</span></th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידת מחיר</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה</th>
           {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">הנחה</th>}
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ</th>
@@ -445,8 +445,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               <td className="py-2 px-3 border border-line-subtle text-content-muted">{item.dn_size || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).pn || '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{fmtSn(parsePipeSpec(item.product_name, { pn: item.pn, sn: item.sn }).sn) || '—'}</td>
-              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">{parseFloat(item.length_m) > 0 ? `${parseFloat(item.length_m)} מ'` : '—'}</td>
-              <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{item.quantity}</td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">{parseFloat(item.length_m) > 0 ? parseFloat(item.length_m) : '—'}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
                   const len = parseFloat(item.length_m) || 0;
@@ -454,6 +453,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
                   return len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : '—';
                 })()}
               </td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{item.quantity}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{item.unit}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
               {hasAnyDiscount && (
