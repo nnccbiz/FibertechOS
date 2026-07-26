@@ -1368,17 +1368,25 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
               const units = len > 0 ? qty / len : 0;
               const rounded = Math.round(units * 100) / 100;
               const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+              const commit = (raw: string) => {
+                const u = parseFloat(raw);
+                if (!isNaN(u) && u >= 0 && len > 0) {
+                  p.updateItem(idx, 'quantity', Math.round(u * len * 100) / 100);
+                }
+              };
               return (
                 <input
+                  // Free typing; committed on blur/Enter. The key remounts the
+                  // field with the fresh derived value when qty/length change
+                  // from outside (typing in the quantity field etc.).
+                  key={`units-${item.length_m}-${item.quantity}`}
                   type="number"
-                  value={len > 0 && qty > 0 ? rounded : ''}
+                  defaultValue={len > 0 && qty > 0 ? rounded : ''}
                   disabled={!(len > 0)}
-                  onChange={(e) => {
-                    const u = parseFloat(e.target.value) || 0;
-                    p.updateItem(idx, 'quantity', Math.round(u * len * 100) / 100);
-                  }}
+                  onBlur={(e) => commit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                   placeholder={len > 0 ? '' : '—'}
-                  title={frac ? 'שברי יחידות — הכמות הכללית אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות (עריכה מעדכנת את הכמות הכללית)'}
+                  title={frac ? 'שברי יחידות — הכמות הכללית אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — הקלד ועבור שדה (או Enter) לעדכון הכמות הכללית'}
                   className={`border rounded px-1 py-1 text-[12px] min-w-0 text-center ${frac ? 'border-danger text-danger font-bold bg-danger-soft' : 'border-line-subtle'} ${len > 0 ? '' : 'bg-neutral-50 text-neutral-300'}`}
                   dir="ltr"
                 />
