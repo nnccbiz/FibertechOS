@@ -67,6 +67,11 @@ function fmtSn(sn: string) {
 function formatCurrency(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
 }
+// Totals show agorot when they exist (up to 2 decimals) — the line total is
+// printed-unit-price × quantity, e.g. 252 × 718.7 = ₪181,112.4.
+function formatCurrency2(v: number) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+}
 
 // Shared footer identity lines — used by BOTH the quote pages and the
 // attachment (drawings/specs) pages so every page's footer is identical.
@@ -459,7 +464,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               {hasAnyDiscount && (
                 <td className="py-2 px-3 border border-line-subtle text-center text-content-body">{disc > 0 ? `${disc}%` : '0%'}</td>
               )}
-              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency(parseFloat(item.total_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency2(parseFloat(item.total_price) || 0)}</td>
             </tr>
           );
         })}
@@ -475,25 +480,25 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
             <>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-content-body">סכום לפני הנחה</span>
-                <span className="text-content-body">{formatCurrency(totalAfterLineDisc)}</span>
+                <span className="text-content-body">{formatCurrency2(totalAfterLineDisc)}</span>
               </div>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-warning">הנחה {globalDisc}%</span>
-                <span className="text-warning">-{formatCurrency(totalAfterLineDisc - finalTotal)}</span>
+                <span className="text-warning">-{formatCurrency2(totalAfterLineDisc - finalTotal)}</span>
               </div>
             </>
           )}
           <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
             <span className="text-content-body">סכום ביניים</span>
-            <span className="text-content-body">{formatCurrency(finalTotal)}</span>
+            <span className="text-content-body">{formatCurrency2(finalTotal)}</span>
           </div>
           <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
             <span className="text-content-body">מע&quot;מ 18%</span>
-            <span className="text-content-body">{formatCurrency(vatAmount)}</span>
+            <span className="text-content-body">{formatCurrency2(vatAmount)}</span>
           </div>
           <div className="flex justify-between px-4 py-2.5 bg-navy-700">
             <span className="font-bold text-white">סה&quot;כ לתשלום</span>
-            <span className="font-bold text-white">{formatCurrency(totalWithVat)}</span>
+            <span className="font-bold text-white">{formatCurrency2(totalWithVat)}</span>
           </div>
         </div>
       </div>
