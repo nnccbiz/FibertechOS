@@ -426,8 +426,8 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700 w-8">#</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700 w-[24%]">תיאור פריט</th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">קוטר<br /><span className="font-normal text-[10px]">(DN)</span></th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">לחץ (PN)</th>
-          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות (SN)</th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">לחץ<br /><span className="font-normal text-[10px]">(PN)</span></th>
+          <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">קשיחות<br /><span className="font-normal text-[10px]">(SN)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">אורך יח׳<br /><span className="font-normal text-[10px]">(m)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות<br /><span className="font-normal text-[10px]">(Qty)</span></th>
