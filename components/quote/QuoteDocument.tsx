@@ -427,9 +427,9 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות<br /><span className="font-normal text-[10px]">(Qty)</span></th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידת מחיר</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה<br /><span className="font-normal text-[10px]">(₪)</span></th>
           {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">הנחה</th>}
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ</th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ<br /><span className="font-normal text-[10px]">(₪)</span></th>
         </tr>
       </thead>
       <tbody>
