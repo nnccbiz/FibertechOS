@@ -284,10 +284,15 @@ export function calcAccessoryCost(input: AccessoryCostInput): AccessoryCostResul
  * Overheads are a markup on cost; profit is a gross margin "from below"
  * (selling = costWithOverheads / (1 − profit%)).
  * Used by the quote item editor.
+ *
+ * The result is rounded UP to the next whole shekel (business rule, 2026-07-26):
+ * the unit price the customer sees on the quote is always a round figure, and
+ * line totals are computed from that printed price — so printed unit price ×
+ * quantity always equals the printed total exactly.
  */
 export function calcSellingPrice(costILS: number, overheadsPct: number, profitPct: number): number {
   const withOverheads = costILS * (1 + overheadsPct / 100);
-  return round2(applyProfitMargin(withOverheads, profitPct));
+  return Math.ceil(round2(applyProfitMargin(withOverheads, profitPct)));
 }
 
 // =========================================================
