@@ -1474,17 +1474,19 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   }, 0);
   const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
   const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
-  const colCount = hasAnyDiscount ? 12 : 11;
+  const colCount = hasAnyDiscount ? 14 : 13;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line-subtle">
-      <table className="w-full text-sm border-collapse" style={{ minWidth: 780 }}>
+      <table className="w-full text-sm border-collapse" style={{ minWidth: 900 }}>
         <colgroup>
           <col />
           <col style={{ width: '52px' }} />
           <col style={{ width: '56px' }} />
           <col style={{ width: '72px' }} />
+          <col style={{ width: '58px' }} />
           <col style={{ width: '90px' }} />
+          <col style={{ width: '56px' }} />
           <col style={{ width: '76px' }} />
           <col style={{ width: '62px' }} />
           <col style={{ width: '52px' }} />
@@ -1499,7 +1501,9 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">קוטר</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">לחץ (PN)</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">קשיחות (SN)</th>
+            <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle" title="אורך יחידה במטרים">אורך יח׳</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">כמות</th>
+            <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle" title="כמות ÷ אורך יחידה">יחידות</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">עלות</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">תקורות%</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">רווח%</th>
@@ -1545,7 +1549,17 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                   <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{spec.pn || '—'}</td>
                   <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{fmtSn(spec.sn) || '—'}</td>
                 </>); })()}
-                <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{item.quantity} {item.unit}</td>
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  const lenTxt = len > 0 ? (Number.isInteger(len) ? len.toFixed(1) : String(len)) : '—';
+                  const units = len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
+                  const frac = units != null && Math.abs(units - Math.round(units)) > 0.001;
+                  return (<>
+                    <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap" dir="ltr">{lenTxt}</td>
+                    <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{item.quantity} {item.unit}</td>
+                    <td className={`py-2 px-1 text-[12px] text-center border-r border-line-subtle whitespace-nowrap ${frac ? 'text-danger font-bold bg-danger-soft' : 'text-content-body'}`} dir="ltr" title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : undefined}>{units ?? '—'}</td>
+                  </>);
+                })()}
                 <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(cost)}</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.overheads_pct}%</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.profit_pct}%</td>
