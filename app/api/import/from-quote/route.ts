@@ -157,6 +157,7 @@ export async function POST(req: NextRequest) {
       unit: it.unit || 'M',
       ordered_qty: Number(it.quantity) || 0,
       unit_price: Number(it.original_price) || 0,
+      length_m: it.length_m != null ? Number(it.length_m) : null,
       sort_order: idx,
     }));
 

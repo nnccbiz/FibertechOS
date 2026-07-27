@@ -15,6 +15,7 @@ import SectionTabs from '@/components/ui/SectionTabs';
 import { LOGISTICS_TABS } from '@/lib/nav';
 import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 import { storageKey, pdfPagesToDataUrls } from '@/lib/po-attachments';
+import { defaultLengthM } from '@/hooks/usePricing';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS'];
 
@@ -269,6 +270,7 @@ export default function ProcurementPage() {
         unit: it.unit || null,
         ordered_qty: Number(it.quantity) || 0,
         unit_price: unitPrice(it),
+        length_m: it.length_m != null ? Number(it.length_m) : defaultLengthM(it.product_name, it.dn_size, it.item_type),
         sort_order: idx,
       })));
       if (itemsErr) alert(`ההזמנה נוצרה אך שורותיה לא נשמרו: ${itemsErr.message}`);
@@ -767,10 +769,20 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   const supplier = suppliers.find((s: any) => s.id === (form?.supplier_id || po.supplier_id)) || po.suppliers || null;
 
   function setRow(idx: number, key: string, val: any) {
-    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: val } : r)));
+    setRows((prev) => prev.map((r, i) => {
+      if (i !== idx) return r;
+      const next = { ...r, [key]: val };
+      // Auto-fill unit length by product type (pipe 5.7 / roker 2×DN) — only
+      // while the field is empty, never over a typed value.
+      if ((key === 'description' || key === 'dn') && (next.length_m == null || next.length_m === '')) {
+        const def = defaultLengthM(next.description, next.dn);
+        if (def != null) next.length_m = def;
+      }
+      return next;
+    }));
   }
   function addRow() {
-    setRows((prev) => [...prev, { id: null, description: '', dn: '', pn: '', sn: '', unit: 'יח׳', ordered_qty: 1, unit_price: 0, sort_order: prev.length }]);
+    setRows((prev) => [...prev, { id: null, description: '', dn: '', pn: '', sn: '', unit: 'יח׳', ordered_qty: 1, unit_price: 0, length_m: null, sort_order: prev.length }]);
   }
   function removeRow(idx: number) {
     setRows((prev) => {
@@ -823,6 +835,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
           unit: r.unit || null,
           ordered_qty: Number(r.ordered_qty) || 0,
           unit_price: Number(r.unit_price) || 0,
+          length_m: r.length_m != null && r.length_m !== '' ? Number(r.length_m) : null,
           line_no: i + 1, sort_order: i,
         };
         if (r.id) {
@@ -1161,8 +1174,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   <th className="font-medium py-1.5 px-2 w-16">DN</th>
                   <th className="font-medium py-1.5 px-2 w-14">PN</th>
                   <th className="font-medium py-1.5 px-2 w-16">SN</th>
+                  <th className="font-medium py-1.5 px-2 w-16" title="אורך יחידה במטרים">אורך יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-14">יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-20">כמות</th>
+                  <th className="font-medium py-1.5 px-2 w-16" title="כמות ÷ אורך יחידה">יחידות</th>
                   <th className="font-medium py-1.5 px-2 w-24">מחיר יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-24">סה״כ</th>
                   {canEdit && <th className="w-14"></th>}
@@ -1176,8 +1191,26 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     <td className={`py-1 px-2${cellCls(idx, 'dn')}`}><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'pn')}`}><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'sn')}`}><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className="py-1 px-2"><input type="number" value={r.length_m ?? ''} onChange={(e) => setRow(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים" className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'ordered_qty')}`}><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    {(() => {
+                      const len = parseFloat(r.length_m) || 0;
+                      const qty = parseFloat(r.ordered_qty) || 0;
+                      const units = len > 0 ? qty / len : 0;
+                      const rounded = Math.round(units * 100) / 100;
+                      const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+                      return (
+                        <td className="py-1 px-2">
+                          <input key={`pu-${r.length_m}-${r.ordered_qty}`} type="number" defaultValue={len > 0 && qty > 0 ? rounded : ''} disabled={!canEdit || !(len > 0)}
+                            onBlur={(e) => { const u = parseFloat(e.target.value); if (!isNaN(u) && u >= 0 && len > 0) setRow(idx, 'ordered_qty', Math.round(u * len * 100) / 100); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            placeholder={len > 0 ? '' : '—'}
+                            title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — Enter/יציאה מהשדה מעדכן את הכמות'}
+                            className={`${cellInp} text-center ${frac ? 'text-danger font-bold bg-danger-soft border-danger' : ''}`} dir="ltr" />
+                        </td>
+                      );
+                    })()}
                     <td className={`py-1 px-2${cellCls(idx, 'unit_price')}`}><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
@@ -1191,7 +1224,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-line-subtle bg-neutral-50">
-                  <td colSpan={8} className="py-2 px-2 text-sm font-bold text-content-body">סה״כ להזמנה</td>
+                  <td colSpan={10} className="py-2 px-2 text-sm font-bold text-content-body">סה״כ להזמנה</td>
                   <td className="py-2 px-2 text-sm font-bold text-content-strong whitespace-nowrap" dir="ltr">{money(total, currency)}</td>
                   {canEdit && <td></td>}
                 </tr>
