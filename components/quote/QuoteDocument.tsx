@@ -72,6 +72,14 @@ function formatCurrency(v: number) {
 function formatCurrency2(v: number) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
 }
+// Table cells show bare numbers — the (₪) lives in the column header; the
+// currency symbol appears only in the summary box.
+function formatNum0(v: number) {
+  return new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(v);
+}
+function formatNum2(v: number) {
+  return new Intl.NumberFormat('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+}
 
 // Shared footer identity lines — used by BOTH the quote pages and the
 // attachment (drawings/specs) pages so every page's footer is identical.
@@ -469,11 +477,11 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               </td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{item.quantity}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{item.unit}</td>
-              <td className="py-2 px-3 border border-line-subtle text-content-body">{formatCurrency(parseFloat(item.unit_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body" dir="ltr">{formatNum0(parseFloat(item.unit_price) || 0)}</td>
               {hasAnyDiscount && (
                 <td className="py-2 px-3 border border-line-subtle text-center text-content-body">{disc > 0 ? `${disc}%` : '0%'}</td>
               )}
-              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong">{formatCurrency2(parseFloat(item.total_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong" dir="ltr">{formatNum2(parseFloat(item.total_price) || 0)}</td>
             </tr>
           );
         })}
