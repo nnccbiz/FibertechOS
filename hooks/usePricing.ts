@@ -27,10 +27,10 @@ export function itemCategory(productName?: string): 'pipe' | 'accessory' {
  * Returns null when no sensible default exists (fittings etc.). Only used to
  * FILL an empty length_m — a user-entered value is never overwritten.
  */
-export function defaultLengthM(productName?: string, dnSize?: any): number | null {
-  const n = (productName || '').toLowerCase();
+export function defaultLengthM(productName?: string, dnSize?: any, itemType?: string | null): number | null {
+  const n = `${productName || ''} ${itemType || ''}`.toLowerCase();
   const dn = parseInt(String(dnSize ?? '').replace(/\D/g, ''), 10);
-  if (/rocker|רוקר/.test(n)) return dn > 0 ? Math.round((dn / 1000) * 2 * 100) / 100 : null;
+  if (/rocker|roker|רוקר/.test(n)) return dn > 0 ? Math.round((dn / 1000) * 2 * 100) / 100 : null;
   if (/short|קצר/.test(n)) return null;
   if (/pipe|צינור|צנרת/.test(n)) return 5.7;
   return null;
@@ -524,8 +524,8 @@ export function usePricing(projectId: string): UsePricingReturn {
     const citems = costInputItems[ciId] || [];
     setEditingCostInput(ciId);
     setEditingCostItems(citems.length > 0
-      ? citems.map((i: any) => ({ ...i }))
-      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0, original_price: 0, original_currency: ci?.currency || 'USD', item_type: '' }]
+      ? citems.map((i: any) => ({ ...i, length_m: i.length_m ?? defaultLengthM(i.product_name, i.dn_size, i.item_type) }))
+      : [{ product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0, original_price: 0, original_currency: ci?.currency || 'USD', item_type: '', length_m: null }]
     );
   }
 
@@ -537,6 +537,13 @@ export function usePricing(projectId: string): UsePricingReturn {
     setEditingCostItems((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: val };
+      // Auto-fill the unit length by product type (pipe 5.7 / roker 2×DN) —
+      // only when the field is still empty, never over a typed value.
+      if ((field === 'product_name' || field === 'dn_size' || field === 'item_type') &&
+          (next[idx].length_m == null || next[idx].length_m === '')) {
+        const def = defaultLengthM(next[idx].product_name, next[idx].dn_size, next[idx].item_type);
+        if (def != null) next[idx].length_m = def;
+      }
       const ci = costInputs.find((c) => c.id === editingCostInput);
       // Effective currency (single source of truth) — header if foreign, else the
       // items' original_currency (handles ci.currency=ILS mistagged after a
@@ -1467,7 +1474,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       const currency = effectiveCurrency(ci, prev);
       return [...prev, {
         product_name: '', dn_size: '', quantity: 0, unit: 'מטר', cost_price: 0, total_cost: 0,
-        original_price: 0, original_currency: currency, item_type: '',
+        original_price: 0, original_currency: currency, item_type: '', length_m: null,
       }];
     });
   }

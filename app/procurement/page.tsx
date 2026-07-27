@@ -15,6 +15,7 @@ import SectionTabs from '@/components/ui/SectionTabs';
 import { LOGISTICS_TABS } from '@/lib/nav';
 import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 import { storageKey, pdfPagesToDataUrls } from '@/lib/po-attachments';
+import { defaultLengthM } from '@/hooks/usePricing';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS'];
 
@@ -269,6 +270,7 @@ export default function ProcurementPage() {
         unit: it.unit || null,
         ordered_qty: Number(it.quantity) || 0,
         unit_price: unitPrice(it),
+        length_m: it.length_m != null ? Number(it.length_m) : defaultLengthM(it.product_name, it.dn_size, it.item_type),
         sort_order: idx,
       })));
       if (itemsErr) alert(`ההזמנה נוצרה אך שורותיה לא נשמרו: ${itemsErr.message}`);
@@ -448,7 +450,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     (async () => {
       const { data } = await supabase
         .from('quote_items')
-        .select('product_name, dn_size, pn, sn, quantity, unit')
+        .select('product_name, dn_size, pn, sn, quantity, unit, length_m')
         .eq('quote_id', po.quote_id);
       if (!cancelled) setQuoteItems(data || []);
     })();
@@ -573,6 +575,22 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     return m.size ? m : null;
   })();
 
+  // Unit length per approved spec — null when the quote has no length or holds
+  // inconsistent lengths for the same spec (then the length check is skipped).
+  const quoteLens = (() => {
+    if (!quoteItems?.length) return null;
+    const m = new Map<string, number | null>();
+    quoteItems.forEach((qi: any) => {
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
+      if (!k) return;
+      const len = parseFloat(qi.length_m);
+      const val = isNaN(len) || len <= 0 ? null : len;
+      if (!m.has(k)) m.set(k, val);
+      else if (m.get(k) !== val) m.set(k, null);
+    });
+    return m;
+  })();
+
   const comparison = (() => {
     if (!quoteAgg || !form) return null;
     const poAgg = new Map<string, { qty: number; rowIdxs: number[] }>();
@@ -604,9 +622,20 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       });
       if (!isCandidate) extras.push({ k, poQty: e.qty, rowIdxs: e.rowIdxs });
     });
-    return { mismatches, missing, extras, poAgg };
+    // Unit-length drift vs the approved quote (per offending row).
+    const lengthMismatches: { k: string; quoteLen: number; rowIdxs: number[] }[] = [];
+    if (quoteLens) {
+      poAgg.forEach((e, k) => {
+        if (!quoteAgg.has(k)) return;
+        const ql = quoteLens.get(k);
+        if (ql == null) return;
+        const bad = e.rowIdxs.filter((i) => Math.abs((parseFloat(rows[i]?.length_m) || 0) - ql) > 0.001);
+        if (bad.length) lengthMismatches.push({ k, quoteLen: ql, rowIdxs: bad });
+      });
+    }
+    return { mismatches, missing, extras, lengthMismatches, poAgg };
   })();
-  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0 || comparison.extras.length > 0);
+  const hasAnomaly = !!comparison && (comparison.mismatches.length > 0 || comparison.missing.length > 0 || comparison.extras.length > 0 || comparison.lengthMismatches.length > 0);
 
   // Anomalous CELLS (rowIdx → fields) — painted warning-orange in the table:
   // quantity mismatch → the כמות cell; a missing approved spec whose match is a
@@ -623,6 +652,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       comparison.poAgg.get(mm.k)?.rowIdxs.forEach((i) => mark(i, 'ordered_qty')));
     // An extra item's anomaly is its very existence → mark the description cell.
     comparison.extras.forEach((ex) => ex.rowIdxs.forEach((i) => mark(i, 'description')));
+    comparison.lengthMismatches.forEach((lm) => lm.rowIdxs.forEach((i) => mark(i, 'length_m')));
     comparison.missing.forEach((ms) => {
       const [f, d, p, s] = ms.k.split('|');
       comparison.poAgg.forEach((e, pk) => {
@@ -691,6 +721,15 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     }]);
   }
 
+  // Align a row's unit length to the approved quote's length for that spec.
+  function fixLength(k: string) {
+    if (!comparison || !quoteLens) return;
+    const ql = quoteLens.get(k);
+    const lm = comparison.lengthMismatches.find((x) => x.k === k);
+    if (ql == null || !lm) return;
+    setRows((prev) => prev.map((r, i) => (lm.rowIdxs.includes(i) ? { ...r, length_m: ql } : r)));
+  }
+
   // Remove an extra item (exists in the PO, absent from the approved quote).
   function fixExtra(k: string) {
     if (!comparison) return;
@@ -709,7 +748,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     if (!po.quote_id) return;
     const { data } = await supabase
       .from('quote_items')
-      .select('product_name, dn_size, pn, sn, quantity, unit')
+      .select('product_name, dn_size, pn, sn, quantity, unit, length_m')
       .eq('quote_id', po.quote_id);
     setQuoteItems(data || []);
     const qAgg = new Map<string, number>();
@@ -728,6 +767,25 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       if (pv == null || Math.abs(pv - q) > 0.001) gaps++;
     });
     pAgg.forEach((_, k) => { if (!qAgg.has(k)) gaps++; });
+    // Length drift counts as a gap too.
+    const qLens = new Map<string, number | null>();
+    (data || []).forEach((qi: any) => {
+      const k = specKey(qi.product_name, qi.dn_size, qi.pn, qi.sn);
+      if (!k) return;
+      const len = parseFloat(qi.length_m);
+      const val = isNaN(len) || len <= 0 ? null : len;
+      if (!qLens.has(k)) qLens.set(k, val);
+      else if (qLens.get(k) !== val) qLens.set(k, null);
+    });
+    const lenGapKeys = new Set<string>();
+    rows.forEach((r) => {
+      const k = specKey(r.description, r.dn, r.pn, r.sn);
+      if (!k || !qAgg.has(k)) return;
+      const ql = qLens.get(k);
+      if (ql == null) return;
+      if (Math.abs((parseFloat(r.length_m) || 0) - ql) > 0.001) lenGapKeys.add(k);
+    });
+    gaps += lenGapKeys.size;
     alert(gaps === 0
       ? '✓ הבדיקה עברה — הזמנת הרכש תואמת להצעה המאושרת. זכור לשמור.'
       : `נבדק מחדש: נותרו ${gaps} פערים מול ההצעה — השורות מסומנות בכתום.`);
@@ -767,10 +825,20 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   const supplier = suppliers.find((s: any) => s.id === (form?.supplier_id || po.supplier_id)) || po.suppliers || null;
 
   function setRow(idx: number, key: string, val: any) {
-    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: val } : r)));
+    setRows((prev) => prev.map((r, i) => {
+      if (i !== idx) return r;
+      const next = { ...r, [key]: val };
+      // Auto-fill unit length by product type (pipe 5.7 / roker 2×DN) — only
+      // while the field is empty, never over a typed value.
+      if ((key === 'description' || key === 'dn') && (next.length_m == null || next.length_m === '')) {
+        const def = defaultLengthM(next.description, next.dn);
+        if (def != null) next.length_m = def;
+      }
+      return next;
+    }));
   }
   function addRow() {
-    setRows((prev) => [...prev, { id: null, description: '', dn: '', pn: '', sn: '', unit: 'יח׳', ordered_qty: 1, unit_price: 0, sort_order: prev.length }]);
+    setRows((prev) => [...prev, { id: null, description: '', dn: '', pn: '', sn: '', unit: 'יח׳', ordered_qty: 1, unit_price: 0, length_m: null, sort_order: prev.length }]);
   }
   function removeRow(idx: number) {
     setRows((prev) => {
@@ -823,6 +891,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
           unit: r.unit || null,
           ordered_qty: Number(r.ordered_qty) || 0,
           unit_price: Number(r.unit_price) || 0,
+          length_m: r.length_m != null && r.length_m !== '' ? Number(r.length_m) : null,
           line_no: i + 1, sort_order: i,
         };
         if (r.id) {
@@ -939,6 +1008,21 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
       report.push(`שורות ${fixedRows.map((i) => i + 1).join(', ')}: הושלמו PN/SN חסרים (${fullLabel(k)}) — עכשיו תואמות להצעה.`);
       agg = buildAgg();
     });
+
+    // 1.5 unit-length alignment to the approved quote
+    if (quoteLens) {
+      agg = buildAgg();
+      quoteLens.forEach((ql, k) => {
+        if (ql == null) return;
+        const e = agg.get(k);
+        if (!e || !quoteAgg.has(k)) return;
+        const bad = e.rowIdxs.filter((i) => Math.abs((parseFloat(next[i]?.length_m) || 0) - ql) > 0.001);
+        if (bad.length) {
+          bad.forEach((i) => { next[i].length_m = ql; });
+          report.push(`שורות ${bad.map((i) => i + 1).join(', ')}: אורך היחידה עודכן ל-${ql} מ׳ לפי ההצעה המאושרת (${fullLabel(k)}).`);
+        }
+      });
+    }
 
     // 2. quantity alignment
     agg = buildAgg();
@@ -1131,6 +1215,18 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     )}
                   </div>
                 ))}
+                {(comparison.lengthMismatches || []).map((m) => (
+                  <div key={`len-${m.k}`} className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="m-0">
+                      {famLabel(m.k) && <span className="font-semibold">{famLabel(m.k)} </span>}<span className="font-semibold" dir="ltr">{specLabel(m.k)}</span> — אורך יחידה בהצעה המאושרת: <span className="font-semibold" dir="ltr">{Number.isInteger(m.quoteLen) ? m.quoteLen.toFixed(1) : m.quoteLen}</span> מ׳ · בהזמנת הרכש שונה
+                    </p>
+                    {canEdit && (
+                      <button onClick={() => fixLength(m.k)} className="text-[12px] font-semibold bg-white text-warning border border-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft whitespace-nowrap">
+                        <Icon name="wrench" size={12} /> תקן
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
               <p className="mt-2 text-[11px] text-content-muted">המשבצת החורגת מסומנת בכתום בטבלה (כמות, PN/SN חסרים וכו') — אפשר לתקן ישירות שם; הסימון נעלם ברגע שהפער נסגר.</p>
               {canEdit && (
@@ -1161,8 +1257,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                   <th className="font-medium py-1.5 px-2 w-16">DN</th>
                   <th className="font-medium py-1.5 px-2 w-14">PN</th>
                   <th className="font-medium py-1.5 px-2 w-16">SN</th>
+                  <th className="font-medium py-1.5 px-2 w-16" title="אורך יחידה במטרים">אורך יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-14">יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-20">כמות</th>
+                  <th className="font-medium py-1.5 px-2 w-16" title="כמות ÷ אורך יחידה">יחידות</th>
                   <th className="font-medium py-1.5 px-2 w-24">מחיר יח׳</th>
                   <th className="font-medium py-1.5 px-2 w-24">סה״כ</th>
                   {canEdit && <th className="w-14"></th>}
@@ -1176,8 +1274,26 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     <td className={`py-1 px-2${cellCls(idx, 'dn')}`}><input value={r.dn || ''} onChange={(e) => setRow(idx, 'dn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'pn')}`}><input value={r.pn || ''} onChange={(e) => setRow(idx, 'pn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'sn')}`}><input value={r.sn || ''} onChange={(e) => setRow(idx, 'sn', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    <td className={`py-1 px-2${cellCls(idx, 'length_m')}`}><input type="number" value={r.length_m ?? ''} onChange={(e) => setRow(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים" className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'ordered_qty')}`}><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
+                    {(() => {
+                      const len = parseFloat(r.length_m) || 0;
+                      const qty = parseFloat(r.ordered_qty) || 0;
+                      const units = len > 0 ? qty / len : 0;
+                      const rounded = Math.round(units * 100) / 100;
+                      const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+                      return (
+                        <td className="py-1 px-2">
+                          <input key={`pu-${r.length_m}-${r.ordered_qty}`} type="number" defaultValue={len > 0 && qty > 0 ? rounded : ''} disabled={!canEdit || !(len > 0)}
+                            onBlur={(e) => { const u = parseFloat(e.target.value); if (!isNaN(u) && u >= 0 && len > 0) setRow(idx, 'ordered_qty', Math.round(u * len * 100) / 100); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            placeholder={len > 0 ? '' : '—'}
+                            title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — Enter/יציאה מהשדה מעדכן את הכמות'}
+                            className={`${cellInp} text-center ${frac ? 'text-danger font-bold bg-danger-soft border-danger' : ''}`} dir="ltr" />
+                        </td>
+                      );
+                    })()}
                     <td className={`py-1 px-2${cellCls(idx, 'unit_price')}`}><input type="number" step="0.01" value={r.unit_price ?? ''} onChange={(e) => setRow(idx, 'unit_price', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     <td className="py-1 px-2 font-semibold text-content-strong whitespace-nowrap" dir="ltr">{money((Number(r.unit_price) || 0) * (Number(r.ordered_qty) || 0), currency)}</td>
                     {canEdit && (
@@ -1191,7 +1307,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-line-subtle bg-neutral-50">
-                  <td colSpan={8} className="py-2 px-2 text-sm font-bold text-content-body">סה״כ להזמנה</td>
+                  <td colSpan={10} className="py-2 px-2 text-sm font-bold text-content-body">סה״כ להזמנה</td>
                   <td className="py-2 px-2 text-sm font-bold text-content-strong whitespace-nowrap" dir="ltr">{money(total, currency)}</td>
                   {canEdit && <td></td>}
                 </tr>

@@ -284,7 +284,9 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">DN</th>
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">PN</th>
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">SN</th>
+          <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">{L('אורך יח׳', 'Unit L')}<br /><span className="font-normal text-[10px]">(m)</span></th>
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">{L('כמות', 'Qty')}</th>
+          <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">{L('יחידות', 'Units')}<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
           <th className="text-center py-2.5 px-2 font-semibold text-white border border-navy-700">{L('יח׳', 'Unit')}</th>
           <th className={`${en ? 'text-left' : 'text-right'} py-2.5 px-3 font-semibold text-white border border-navy-700`}>{L('מחיר יח׳', 'Unit Price')}</th>
           <th className={`${en ? 'text-left' : 'text-right'} py-2.5 px-3 font-semibold text-white border border-navy-700`}>{L('סה״כ', 'Total')}</th>
@@ -300,8 +302,21 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
               <td className={`py-2 px-3 border border-line-subtle text-content-strong font-medium ${en ? 'text-left' : 'text-right'}`}><span dir="ltr">{it.description || '—'}</span></td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.dn || '—'}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.pn || '—'}</td>
-              <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{fmtSn(it.sn)}</td>
+              <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">
+                {(() => {
+                  const len = Number(it.length_m) || 0;
+                  if (len <= 0) return '—';
+                  return Number.isInteger(len) ? len.toFixed(1) : len;
+                })()}
+              </td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{Number(it.ordered_qty) || 0}</td>
+              <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">
+                {(() => {
+                  const len = Number(it.length_m) || 0;
+                  const qty = Number(it.ordered_qty) || 0;
+                  return len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : '—';
+                })()}
+              </td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center">{unitLabel(it.unit)}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body" dir="ltr">{money(Number(it.unit_price) || 0, currency)}</td>
               <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong" dir="ltr">{money(lineTotal, currency)}</td>

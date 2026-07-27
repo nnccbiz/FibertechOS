@@ -557,16 +557,32 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
       <div className="overflow-x-auto">
         {isForex ? (
           <>
-            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[778px]">
-              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
+            <div className="grid grid-cols-[18px_1fr_115px_70px_56px_80px_58px_70px_80px_60px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[900px]">
+              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>מחיר {sym}</span><span>שער</span><span>מחיר ₪</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_60px_80px_52px] gap-1 min-w-[778px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_56px_80px_58px_70px_80px_60px_80px_52px] gap-1 min-w-[900px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
                 <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
+                <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateCostItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (צינור 5.7 / רוקר 2×קוטר)" className="border border-line-subtle rounded px-2 py-1.5 text-sm text-center" dir="ltr" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  const qty = parseFloat(item.quantity) || 0;
+                  const units = len > 0 ? qty / len : 0;
+                  const rounded = Math.round(units * 100) / 100;
+                  const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+                  return (
+                    <input key={`cu-${item.length_m}-${item.quantity}`} type="number" defaultValue={len > 0 && qty > 0 ? rounded : ''} disabled={!(len > 0)}
+                      onBlur={(e) => { const u = parseFloat(e.target.value); if (!isNaN(u) && u >= 0 && len > 0) p.updateCostItem(idx, 'quantity', Math.round(u * len * 100) / 100); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      placeholder={len > 0 ? '' : '—'}
+                      title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — Enter/יציאה מהשדה מעדכן את הכמות'}
+                      className={`border rounded px-1 py-1.5 text-sm text-center ${frac ? 'border-danger text-danger font-bold bg-danger-soft' : 'border-line-subtle'} ${len > 0 ? '' : 'bg-neutral-50 text-neutral-300'}`} dir="ltr" />
+                  );
+                })()}
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.original_price || ''} onChange={(e) => p.updateCostItem(idx, 'original_price', e.target.value)} placeholder={sym} className="border border-line-subtle rounded px-2 py-1.5 text-sm bg-warning-soft" dir="ltr" />
                 <span className="flex items-center text-[11px] text-neutral-400 px-1">{parseFloat(ci.exchange_rate || p.exchangeRates[displayCurrency]?.rate || 0).toFixed(2)}</span>
@@ -580,19 +596,35 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
           </>
         ) : (
           <>
-            <div className="grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[718px]">
-              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span>כמות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
+            <div className="grid grid-cols-[18px_1fr_115px_70px_56px_80px_58px_70px_80px_80px_52px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[840px]">
+              <span></span><span>מוצר</span><span>סוג</span><span>קוטר</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>מחיר עלות</span><span>סה״כ</span><span></span>
             </div>
             {p.editingCostItems.map((item: any, idx: number) => (
-              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_80px_70px_80px_80px_52px] gap-1 min-w-[718px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
+              <div key={idx} className={`grid grid-cols-[18px_1fr_115px_70px_56px_80px_58px_70px_80px_80px_52px] gap-1 min-w-[840px] rounded ${dnd.overIdx === idx ? 'ring-2 ring-warning ring-inset bg-warning-soft' : ''}`} {...dnd.rowProps(idx)}>
                 <DragHandle {...dnd.handleProps(idx)} />
                 <AutoTextarea value={item.product_name} onChange={(v) => p.updateCostItem(idx, 'product_name', v)} placeholder="שם מוצר" className="border border-line-subtle rounded px-2 py-1.5 text-sm w-full" />
                 <MultiTypeSelect value={item.item_type || ''} onChange={(v) => p.updateCostItem(idx, 'item_type', v)} />
                 <input type="text" value={item.dn_size || ''} onChange={(e) => p.updateCostItem(idx, 'dn_size', e.target.value)} placeholder="DN" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
+                <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateCostItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (צינור 5.7 / רוקר 2×קוטר)" className="border border-line-subtle rounded px-2 py-1.5 text-sm text-center" dir="ltr" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
+                {(() => {
+                  const len = parseFloat(item.length_m) || 0;
+                  const qty = parseFloat(item.quantity) || 0;
+                  const units = len > 0 ? qty / len : 0;
+                  const rounded = Math.round(units * 100) / 100;
+                  const frac = len > 0 && qty > 0 && Math.abs(units - Math.round(units)) > 0.001;
+                  return (
+                    <input key={`cu-${item.length_m}-${item.quantity}`} type="number" defaultValue={len > 0 && qty > 0 ? rounded : ''} disabled={!(len > 0)}
+                      onBlur={(e) => { const u = parseFloat(e.target.value); if (!isNaN(u) && u >= 0 && len > 0) p.updateCostItem(idx, 'quantity', Math.round(u * len * 100) / 100); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      placeholder={len > 0 ? '' : '—'}
+                      title={frac ? 'שברי יחידות — הכמות אינה כפולה שלמה של אורך היחידה' : 'מספר יחידות — Enter/יציאה מהשדה מעדכן את הכמות'}
+                      className={`border rounded px-1 py-1.5 text-sm text-center ${frac ? 'border-danger text-danger font-bold bg-danger-soft' : 'border-line-subtle'} ${len > 0 ? '' : 'bg-neutral-50 text-neutral-300'}`} dir="ltr" />
+                  );
+                })()}
                 <input type="text" value={item.unit || 'מטר'} onChange={(e) => p.updateCostItem(idx, 'unit', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateCostItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
-                <span className="flex items-center text-sm font-medium text-content-body px-1">{formatCurrency(parseFloat(item.total_cost) || 0)}</span>
+                <span className="flex items-center text-sm font-medium text-content-body px-1" dir="ltr">{formatCurrency2(parseFloat(item.total_cost) || 0)}</span>
                 <div className="flex items-center justify-center gap-1">
                   <button onClick={() => p.duplicateCostItem(idx)} title="שכפל שורה" className="text-neutral-400 hover:text-primary"><Icon name="copy" size={14} /></button>
                   <button onClick={() => p.removeCostItem(idx)} title="מחק שורה" className="text-danger hover:text-danger text-lg">×</button>
@@ -623,12 +655,14 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
 function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]; ciTotal: number; isForex: boolean; sym: string; ci: any }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse" style={{ minWidth: isForex ? 660 : 560 }}>
+      <table className="w-full text-sm border-collapse" style={{ minWidth: isForex ? 780 : 680 }}>
         <thead><tr className="border-b border-line-subtle">
-          <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 pr-1 w-[40%]">מוצר</th>
+          <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 pr-1 w-[34%]">מוצר</th>
           <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">סוג</th>
           <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">קוטר</th>
+          <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap" title="אורך יחידה במטרים">אורך יח׳</th>
           <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">כמות</th>
+          <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap" title="כמות ÷ אורך יחידה">יחידות</th>
           {isForex && <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">מחיר {sym}</th>}
           <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">מחיר ₪</th>
           <th className="text-right text-[11px] text-content-muted font-medium pb-1.5 px-2 whitespace-nowrap">סה״כ ₪</th>
@@ -640,16 +674,27 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
               <td className="py-1.5 pr-1 text-content-body leading-snug break-words text-right" dir="rtl">{item.product_name}</td>
               <td className="py-1.5 px-2 text-[11px] text-content-muted whitespace-nowrap">{typeLabel}</td>
               <td className="py-1.5 px-2 text-content-muted whitespace-nowrap">{item.dn_size || '—'}</td>
-              <td className="py-1.5 px-2 text-content-muted whitespace-nowrap">{item.quantity} {item.unit}</td>
+              {(() => {
+                const len = parseFloat(item.length_m) || 0;
+                const qty = parseFloat(item.quantity) || 0;
+                const lenTxt = len > 0 ? (Number.isInteger(len) ? len.toFixed(1) : String(len)) : '—';
+                const units = len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
+                const frac = units != null && Math.abs(units - Math.round(units)) > 0.001;
+                return (<>
+                  <td className="py-1.5 px-2 text-content-muted whitespace-nowrap text-center" dir="ltr">{lenTxt}</td>
+                  <td className="py-1.5 px-2 text-content-muted whitespace-nowrap">{item.quantity} {item.unit}</td>
+                  <td className={`py-1.5 px-2 whitespace-nowrap text-center ${frac ? 'text-danger font-bold bg-danger-soft' : 'text-content-muted'}`} dir="ltr" title={frac ? 'שברי יחידות' : undefined}>{units ?? '—'}</td>
+                </>);
+              })()}
               {isForex && <td className="py-1.5 px-2 text-content-muted whitespace-nowrap text-right" dir="ltr">{sym}{parseFloat(item.original_price || 0).toFixed(2)}</td>}
               <td className="py-1.5 px-2 text-content-muted whitespace-nowrap text-right" dir="ltr">{formatCurrency(item.cost_price)}</td>
-              <td className="py-1.5 px-2 font-medium text-content-body whitespace-nowrap text-right" dir="ltr">{formatCurrency(item.total_cost)}</td>
+              <td className="py-1.5 px-2 font-medium text-content-body whitespace-nowrap text-right" dir="ltr">{formatCurrency2(item.total_cost)}</td>
             </tr>
           );
         })}</tbody>
         <tfoot><tr className="border-t border-line-subtle">
-          <td colSpan={isForex ? 5 : 4} className="py-2 pr-1 font-bold text-content-body">סה״כ עלות</td>
-          <td colSpan={2} className="py-2 px-2 font-bold text-content-body whitespace-nowrap text-right" dir="ltr">{formatCurrency(ciTotal)}</td>
+          <td colSpan={isForex ? 7 : 6} className="py-2 pr-1 font-bold text-content-body">סה״כ עלות</td>
+          <td colSpan={2} className="py-2 px-2 font-bold text-content-body whitespace-nowrap text-right" dir="ltr">{formatCurrency2(ciTotal)}</td>
         </tr></tfoot>
       </table>
     </div>
