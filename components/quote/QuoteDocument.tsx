@@ -255,8 +255,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('he-IL') : '';
   const hasAnyDiscount = items.some((i) => (parseFloat(i.discount_pct) || 0) > 0);
 
-  const vatAmount = Math.round(finalTotal * 0.18);
-  const totalWithVat = finalTotal + vatAmount;
+  // VAT keeps its agorot (2 decimals) — rounding it to whole shekels made the
+  // printed grand total disagree with סכום ביניים + מע"מ.
+  const vatAmount = Math.round(finalTotal * 0.18 * 100) / 100;
+  const totalWithVat = Math.round((finalTotal + vatAmount) * 100) / 100;
 
   // ---- Pagination (estimate fallback; measured pass refines it) ----
   const USABLE_H = 248, HEADER_H = 78, THEAD_H = 10, CONT_LABEL_H = 9;
