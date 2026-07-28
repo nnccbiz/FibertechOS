@@ -163,6 +163,8 @@ export default function ProcurementPage() {
   const [creatingPO, setCreatingPO] = useState<string | null>(null);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
   const [showSent, setShowSent] = useState(false);
+  const [cancelledPOs, setCancelledPOs] = useState<any[]>([]);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   async function load() {
     const [ordRes, supRes, projRes, custOrdRes, exemptRes, sqRes] = await Promise.all([
@@ -174,9 +176,10 @@ export default function ProcurementPage() {
       supabase.from('quotes').select('id, project_id, quote_number, client_name, total_amount, currency, cost_input_id, sent_at, updated_at').eq('status', 'signed').order('updated_at', { ascending: false }),
     ]);
     const orders = ordRes.data || [];
-    const drafts = orders.filter((o: any) => !o.po_sent_at);
+    const drafts = orders.filter((o: any) => !o.po_sent_at && o.status !== 'cancelled');
     setDraftPOs(drafts);
-    setSentPOs(orders.filter((o: any) => o.po_sent_at));
+    setSentPOs(orders.filter((o: any) => o.po_sent_at && o.status !== 'cancelled'));
+    setCancelledPOs(orders.filter((o: any) => o.status === 'cancelled'));
     setAllOrderQuoteIds(new Set(orders.map((o: any) => o.quote_id).filter(Boolean)));
     setExemptQuoteIds(new Set((exemptRes.data || []).map((e: any) => e.quote_id)));
     setSuppliers(supRes.data || []);
@@ -405,6 +408,43 @@ export default function ProcurementPage() {
           )
         )}
       </section>
+
+      {/* Cancelled POs — kept for the record with the reason */}
+      {cancelledPOs.length > 0 && (
+        <section className="mt-6">
+          <button onClick={() => setShowCancelled(!showCancelled)} className="text-lg font-bold text-content-body mb-3 flex items-center gap-2 hover:text-primary">
+            <Icon name="close" size={20} /> הזמנות שבוטלו ({cancelledPOs.length}) <Icon name={showCancelled ? 'caretUp' : 'caretDown'} size={14} />
+          </button>
+          {showCancelled && (
+            <div className="bg-white rounded-xl border border-line-subtle overflow-hidden">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="bg-neutral-50 text-neutral-400 text-[11px] text-right">
+                    <th className="font-medium py-2 px-3">מס׳ הזמנה</th>
+                    <th className="font-medium py-2 px-3">ספק</th>
+                    <th className="font-medium py-2 px-3">פרויקט</th>
+                    <th className="font-medium py-2 px-3">סכום</th>
+                    <th className="font-medium py-2 px-3">בוטלה</th>
+                    <th className="font-medium py-2 px-3">סיבת הביטול</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cancelledPOs.map((po) => (
+                    <tr key={po.id} className="border-t border-line-subtle text-content-muted">
+                      <td className="py-2 px-3 font-mono" dir="ltr">{po.po_number || po.supplier_order_no || '—'}</td>
+                      <td className="py-2 px-3" dir="ltr">{po.suppliers?.name || '—'}</td>
+                      <td className="py-2 px-3">{po.project_name || projNameById[po.project_id] || '—'}</td>
+                      <td className="py-2 px-3">{money(po.total_amount, po.currency || 'ILS')}</td>
+                      <td className="py-2 px-3">{fmtDate(po.cancelled_at)}</td>
+                      <td className="py-2 px-3 text-danger">{po.cancel_reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -1069,6 +1109,23 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
     alert(`בוצע תיקון (בדוק את השורות ולחץ שמור):\n\n${report.join('\n')}`);
   }
 
+  // Cancel — the audited alternative to deletion: the PO stays on the books
+  // with who/when/why (e.g. a signed quote that turned out to be a mistake).
+  async function cancelPO() {
+    const reason = prompt(`ביטול הזמנת רכש ${po.po_number || ''} — מה סיבת הביטול?`);
+    if (reason === null) return;
+    if (!reason.trim()) { alert('חובה לציין סיבת ביטול.'); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('import_orders').update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: user?.id || null,
+      cancel_reason: reason.trim(),
+    }).eq('id', po.id);
+    if (error) { alert(`הביטול נכשל: ${error.message}`); return; }
+    await onUpdate();
+  }
+
   async function deletePO() {
     if (!confirm(`למחוק את הזמנת רכש ${po.po_number || ''}? פעולה זו אינה הפיכה.`)) return;
     await supabase.from('import_order_items').delete().eq('import_order_id', po.id);
@@ -1348,6 +1405,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
               <button onClick={() => setShowPdf(true)} className="text-[13px] font-semibold bg-primary-50 text-primary px-4 py-2 rounded-lg hover:bg-primary-100">
                 <Icon name="pdf" size={14} /> תצוגת PDF
               </button>
+            )}
+            {canEdit && (
+              <button onClick={cancelPO} className="text-[13px] text-danger hover:underline"><Icon name="close" size={14} /> בטל הזמנה</button>
             )}
             {canDelete && (
               <button onClick={deletePO} className="text-[13px] text-danger hover:underline"><Icon name="delete" size={14} /> מחק</button>

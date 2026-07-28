@@ -36,6 +36,7 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   partially_received: { label: 'התקבלה חלקית', color: 'bg-warning-soft text-warning' },
   received: { label: 'התקבלה', color: 'bg-success-soft text-success' },
   closed: { label: 'נסגרה', color: 'bg-neutral-100 text-content-muted' },
+  cancelled: { label: 'בוטלה', color: 'bg-danger-soft text-danger' },
 };
 const ORDER_STATUS_KEYS = Object.keys(ORDER_STATUS);
 
@@ -375,7 +376,17 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   }
 
   async function setStatus(s: string) {
-    await supabase.from('import_orders').update({ status: s, updated_at: new Date().toISOString() }).eq('id', order.id);
+    const patch: any = { status: s, updated_at: new Date().toISOString() };
+    if (s === 'cancelled') {
+      const reason = prompt(`ביטול הזמנה ${order.po_number || order.supplier_order_no || ''} — מה סיבת הביטול?`);
+      if (reason === null) return;
+      if (!reason.trim()) { alert('חובה לציין סיבת ביטול.'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      patch.cancelled_at = new Date().toISOString();
+      patch.cancelled_by = user?.id || null;
+      patch.cancel_reason = reason.trim();
+    }
+    await supabase.from('import_orders').update(patch).eq('id', order.id);
     onUpdate();
   }
   // תפ"י release: Nitzan reviewed the auto-seeded draft and hands it to planning.
@@ -408,6 +419,9 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-mono text-neutral-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+            {order.status === 'cancelled' && order.cancel_reason && (
+              <span className="text-[11px] text-danger" title={`בוטלה ${fmtDate(order.cancelled_at)}`}>סיבה: {order.cancel_reason}</span>
+            )}
             {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">מלאי</span>}
             {order.origin === 'auto_from_quote' && order.status === 'draft' && (
               <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">ממתין לשחרור תפ"י</span>
