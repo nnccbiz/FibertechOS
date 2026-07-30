@@ -196,6 +196,7 @@ function Info({ label, value }: { label: string; value?: any }) {
 // /procurement), so Nurit can see exactly what went out to the supplier.
 function POViewButton({ order, items, projectName, className }: { order: any; items: any[]; projectName?: string | null; className?: string }) {
   const [show, setShow] = useState(false);
+  const [pdfLang, setPdfLang] = useState<'he' | 'en' | null>(null);
   const pdfRef = useRef<PODocumentHandle>(null);
   return (
     <>
@@ -208,6 +209,15 @@ function POViewButton({ order, items, projectName, className }: { order: any; it
             <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
               <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
               <div className="flex items-center gap-2">
+                {(() => {
+                  const effLang = pdfLang ?? ((order.currency || 'ILS') !== 'ILS' ? 'en' : 'he');
+                  return (
+                    <div className="flex bg-neutral-100 rounded-lg p-0.5" title="שפת המסמך (ברירת מחדל לפי המטבע)">
+                      <button onClick={() => setPdfLang('he')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'he' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>עברית</button>
+                      <button onClick={() => setPdfLang('en')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'en' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>English</button>
+                    </div>
+                  );
+                })()}
                 <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
                   <Icon name="download" size={14} /> הורד PDF
                 </button>
@@ -220,7 +230,9 @@ function POViewButton({ order, items, projectName, className }: { order: any; it
                 order={order}
                 items={items}
                 supplier={order.suppliers || null}
-                projectName={projectName || order.project_name || order.projects?.name || null}
+                projectName={order.project_name || projectName || null}
+                projectNameHe={projectName || order.projects?.name || null}
+                lang={pdfLang}
               />
             </div>
           </div>

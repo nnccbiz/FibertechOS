@@ -234,6 +234,14 @@ export default function ProcurementPage() {
           supplierId = ns?.id || null;
         }
       }
+      // Race guard: the auto-draft from signing may have been created after this
+      // screen loaded — re-check fresh so we never mint a duplicate PO.
+      const { data: existingPO } = await supabase.from('import_orders').select('id').eq('quote_id', q.id).limit(1).maybeSingle();
+      if (existingPO) {
+        alert('כבר קיימת הזמנת רכש להצעה זו (כנראה נוצרה אוטומטית בחתימה) — המסך יתרענן.');
+        await load();
+        return;
+      }
       const { data: custOrder } = await supabase.from('orders').select('id, ms_number').eq('quote_id', q.id).maybeSingle();
       // PO number mirrors the approved quote's number with HM → PO
       // (same convention as customer orders' HM → HZ); RPC fallback otherwise.
@@ -396,7 +404,7 @@ export default function ProcurementPage() {
                     <tr key={po.id} className="border-t border-line-subtle hover:bg-neutral-50">
                       <td className="py-2 px-3 font-mono text-content-muted" dir="ltr">{po.po_number || po.supplier_order_no || '—'}</td>
                       <td className="py-2 px-3 text-content-body" dir="ltr">{po.suppliers?.name || '—'}</td>
-                      <td className="py-2 px-3 text-content-body">{po.project_name || projNameById[po.project_id] || '—'}</td>
+                      <td className="py-2 px-3 text-content-body">{projNameById[po.project_id] || po.project_name || '—'}</td>
                       <td className="py-2 px-3 text-content-body">{money(po.total_amount, po.currency || 'ILS')}</td>
                       <td className="py-2 px-3 text-content-muted">{fmtDate(po.po_sent_at)}</td>
                       <td className="py-2 px-3 text-left"><a href="/import" className="text-[12px] text-primary hover:underline">מעקב ביבוא ←</a></td>
@@ -433,7 +441,7 @@ export default function ProcurementPage() {
                     <tr key={po.id} className="border-t border-line-subtle text-content-muted">
                       <td className="py-2 px-3 font-mono" dir="ltr">{po.po_number || po.supplier_order_no || '—'}</td>
                       <td className="py-2 px-3" dir="ltr">{po.suppliers?.name || '—'}</td>
-                      <td className="py-2 px-3">{po.project_name || projNameById[po.project_id] || '—'}</td>
+                      <td className="py-2 px-3">{projNameById[po.project_id] || po.project_name || '—'}</td>
                       <td className="py-2 px-3">{money(po.total_amount, po.currency || 'ILS')}</td>
                       <td className="py-2 px-3">{fmtDate(po.cancelled_at)}</td>
                       <td className="py-2 px-3 text-danger">{po.cancel_reason || '—'}</td>
@@ -461,6 +469,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
+  const [pdfLang, setPdfLang] = useState<'he' | 'en' | null>(null);
   const [translateFields, setTranslateFields] = useState<TranslateField[] | null>(null);
   const pdfRef = useRef<PODocumentHandle>(null);
 
@@ -1146,7 +1155,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
           <span className="text-[12px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">בהכנה</span>
           {po.origin === 'auto_from_quote' && <span className="text-[11px] text-neutral-400">נוצרה אוטומטית מחתימה</span>}
           <span className="text-sm text-content-body">{supplier?.name || 'ללא ספק'}</span>
-          <span className="text-sm text-content-muted">{po.project_name || projNameById[po.project_id] || ''}</span>
+          <span className="text-sm text-content-muted">{projNameById[po.project_id] || po.project_name || ''}</span>
           {po.quote_id && msByQuote[po.quote_id] && <span className="text-[11px] font-mono text-content-muted" dir="ltr">מ"ס {msByQuote[po.quote_id]}</span>}
         </span>
         <span className="flex items-center gap-3">
@@ -1480,6 +1489,15 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
             <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
               <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{po.po_number || ''}</span></p>
               <div className="flex items-center gap-2">
+                {(() => {
+                  const effLang = pdfLang ?? (((form?.currency ?? po.currency) || 'ILS') !== 'ILS' ? 'en' : 'he');
+                  return (
+                    <div className="flex bg-neutral-100 rounded-lg p-0.5" title="שפת המסמך (ברירת מחדל לפי המטבע)">
+                      <button onClick={() => setPdfLang('he')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'he' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>עברית</button>
+                      <button onClick={() => setPdfLang('en')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'en' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>English</button>
+                    </div>
+                  );
+                })()}
                 <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
                   <Icon name="download" size={14} /> הורד PDF
                 </button>
@@ -1492,8 +1510,10 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 order={{ ...po, ...(form || {}) }}
                 items={form ? rows : items}
                 supplier={supplier}
-                projectName={(form?.project_name ?? po.project_name) || projNameById[po.project_id] || null}
+                projectName={(form?.project_name ?? po.project_name) || null}
+                projectNameHe={projNameById[po.project_id] || null}
                 msNumber={po.quote_id ? msByQuote[po.quote_id] || null : null}
+                lang={pdfLang}
               />
             </div>
           </div>
