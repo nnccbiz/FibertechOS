@@ -201,7 +201,10 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const unitLabel = (u: string | null | undefined) => {
     if (!u) return '—';
     if (!en) return u;
-    const map: Record<string, string> = { 'יח׳': 'pcs', "יח'": 'pcs', 'יח': 'pcs', 'מטר': 'm', 'מ׳': 'm', "מ'": 'm', 'קומפלט': 'set' };
+    const map: Record<string, string> = {
+      'יח׳': 'pcs', "יח'": 'pcs', 'יח': 'pcs', 'יחידה': 'pcs', 'יחידות': 'pcs',
+      'מטר': 'm', 'מטרים': 'm', 'מ׳': 'm', "מ'": 'm', 'קומפלט': 'set', 'סט': 'set',
+    };
     return map[u.trim()] || u;
   };
   const total = items.reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.ordered_qty) || 0), 0);
