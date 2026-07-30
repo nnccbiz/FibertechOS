@@ -302,6 +302,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
               <td className={`py-2 px-3 border border-line-subtle text-content-strong font-medium ${en ? 'text-left' : 'text-right'}`}><span dir="ltr">{it.description || '—'}</span></td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.dn || '—'}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.pn || '—'}</td>
+              <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{fmtSn(it.sn)}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
                   const len = Number(it.length_m) || 0;
