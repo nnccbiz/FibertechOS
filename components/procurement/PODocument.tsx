@@ -15,7 +15,11 @@ export interface PODocumentData {
   items: any[];             // import_order_items rows (sorted)
   supplier: any | null;     // suppliers row
   projectName?: string | null;
+  /** The project's Hebrew name (projects.name) — used when rendering in Hebrew. */
+  projectNameHe?: string | null;
   msNumber?: string | null; // linked customer order מ"ס
+  /** Language override: default follows the currency (foreign → English). */
+  lang?: 'he' | 'en' | null;
 }
 
 export interface PODocumentHandle {
@@ -42,7 +46,7 @@ function money(v: number, currency: string) {
 type POPage = { itemIdxs: number[]; blocks: ('totals' | 'sign')[] };
 
 const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocument(
-  { order, items, supplier, projectName, msNumber },
+  { order, items, supplier, projectName, projectNameHe, msNumber, lang },
   ref,
 ) {
   const outerRef = useRef<HTMLDivElement>(null);
@@ -173,7 +177,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
       // Default file name: "הזמנת רכש <project> <date>" (he-IL date uses dots —
       // filename-safe).
       const dateStr = (order.order_date ? new Date(order.order_date) : new Date()).toLocaleDateString('he-IL');
-      const defaultName = ['הזמנת רכש', projectName || order.project_name || order.po_number || '', dateStr].filter(Boolean).join(' ');
+      const defaultName = [en ? 'Purchase Order' : 'הזמנת רכש', docProjectName || order.po_number || '', dateStr].filter(Boolean).join(' ');
       a.download = `${(fileName || defaultName).replace(/[\\/:*?"<>|]/g, '')}.pdf`;
       document.body.appendChild(a);
       a.click();
@@ -185,12 +189,18 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
     }
   }
 
-  useImperativeHandle(ref, () => ({ downloadPdf: handleDownloadPdf }), [order, items]);
+  useImperativeHandle(ref, () => ({ downloadPdf: handleDownloadPdf }), [order, items, lang]);
 
   const currency = order.currency || 'ILS';
   // Foreign-currency PO goes to a foreign supplier → the whole document is
-  // English + LTR. ILS (domestic) stays Hebrew + RTL.
-  const en = currency !== 'ILS';
+  // English + LTR; ILS (domestic) stays Hebrew + RTL. The lang prop (viewer
+  // toggle) overrides the currency default.
+  const en = lang ? lang === 'en' : currency !== 'ILS';
+  // Project name follows the document language: English docs prefer the PO's
+  // (translated) project_name, Hebrew docs prefer the project's real name.
+  const docProjectName = en
+    ? (projectName || order.project_name || projectNameHe || null)
+    : (projectNameHe || projectName || order.project_name || null);
   const L = (he: string, enText: string) => (en ? enText : he);
   const dir = en ? 'ltr' : 'rtl';
   // English date reads "19 July 2026" (day, full month name, year).
@@ -201,7 +211,10 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
   const unitLabel = (u: string | null | undefined) => {
     if (!u) return '—';
     if (!en) return u;
-    const map: Record<string, string> = { 'יח׳': 'pcs', "יח'": 'pcs', 'יח': 'pcs', 'מטר': 'm', 'מ׳': 'm', "מ'": 'm', 'קומפלט': 'set' };
+    const map: Record<string, string> = {
+      'יח׳': 'pcs', "יח'": 'pcs', 'יח': 'pcs', 'יחידה': 'pcs', 'יחידות': 'pcs',
+      'מטר': 'm', 'מטרים': 'm', 'מ׳': 'm', "מ'": 'm', 'קומפלט': 'set', 'סט': 'set',
+    };
     return map[u.trim()] || u;
   };
   const total = items.reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.ordered_qty) || 0), 0);
@@ -265,7 +278,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
         </div>
         <div className={accent}>
           <h3 className="text-sm font-bold text-navy-700 mb-2">{L('פרטי ההזמנה', 'Order Details')}</h3>
-          {projectName && <p className="text-sm text-content-body">{L('פרויקט:', 'Project:')} <span className="font-semibold">{projectName}</span></p>}
+          {docProjectName && <p className="text-sm text-content-body">{L('פרויקט:', 'Project:')} <span className="font-semibold">{docProjectName}</span></p>}
           <p className="text-sm text-content-body">{L('מטבע:', 'Currency:')} <span dir="ltr">{currency}</span></p>
           {order.incoterms && <p className="text-sm text-content-body">{L('תנאי סחר:', 'Incoterms:')} <span dir="ltr">{order.incoterms}</span></p>}
           {order.delivery_date && <p className="text-sm text-content-body">{L('מועד אספקה:', 'Delivery Date:')} <span className="font-semibold">{fmtDocDate(new Date(order.delivery_date))}</span></p>}
@@ -302,6 +315,7 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
               <td className={`py-2 px-3 border border-line-subtle text-content-strong font-medium ${en ? 'text-left' : 'text-right'}`}><span dir="ltr">{it.description || '—'}</span></td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.dn || '—'}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{it.pn || '—'}</td>
+              <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{fmtSn(it.sn)}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
                   const len = Number(it.length_m) || 0;

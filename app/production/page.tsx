@@ -30,6 +30,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   in_production: { label: 'בייצור', color: 'bg-primary-50 text-primary' },
   delivered: { label: 'סופק', color: 'bg-success-soft text-success' },
   completed: { label: 'הושלם', color: 'bg-neutral-100 text-content-body' },
+  cancelled: { label: 'בוטלה', color: 'bg-danger-soft text-danger' },
 };
 
 const STEPS = [
@@ -129,8 +130,8 @@ export default function ProductionPage() {
     );
   }
 
-  const activeOrders = orders.filter((o) => o.status !== 'completed');
-  const completedOrders = orders.filter((o) => o.status === 'completed');
+  const activeOrders = orders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled');
+  const completedOrders = orders.filter((o) => o.status === 'completed' || o.status === 'cancelled');
 
   return (
     <div className="p-6 max-w-6xl mx-auto" dir="rtl">
@@ -169,7 +170,7 @@ export default function ProductionPage() {
             onClick={() => setShowCompleted(!showCompleted)}
             className="text-lg font-bold text-content-body mb-3 flex items-center gap-2 hover:text-primary"
           >
-            הזמנות שהושלמו ({completedOrders.length})
+            הזמנות שהושלמו / בוטלו ({completedOrders.length})
             <Icon name={showCompleted ? 'caretUp' : 'caretDown'} size={16} />
           </button>
           {showCompleted && (
@@ -192,7 +193,7 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
   const impSt = imp ? (IMPORT_STATUS_LABEL[imp.status] || { label: imp.status, color: 'bg-neutral-100 text-content-body' }) : null;
   const project = order.projects;
   const quote = order.quotes;
-  const isOverdue = order.deadline && new Date(order.deadline) < new Date() && order.status !== 'completed' && order.status !== 'delivered';
+  const isOverdue = order.deadline && new Date(order.deadline) < new Date() && order.status !== 'completed' && order.status !== 'delivered' && order.status !== 'cancelled';
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -232,6 +233,24 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   }
 
+  // Documented cancellation — the deal (signed quote) turned out wrong; the
+  // order stays on the books with who/when/why. Docs are kept.
+  async function handleCancel() {
+    const reason = prompt(`ביטול הזמנה ${order.order_number || order.ms_number || ''} — מה סיבת הביטול?`);
+    if (reason === null) return;
+    if (!reason.trim()) { alert('חובה לציין סיבת ביטול.'); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('orders').update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: user?.id || null,
+      cancel_reason: reason.trim(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', order.id);
+    if (error) { alert(`הביטול נכשל: ${error.message}`); return; }
+    onUpdate();
+  }
+
   async function handleReset() {
     if (!confirm('לאפס את ההזמנה לסטטוס ממתין? כל המסמכים שהועלו יימחקו.')) return;
     for (const doc of docs) {
@@ -251,6 +270,9 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
             <span className="text-sm font-mono text-neutral-400">{order.order_number}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
             {isOverdue && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger"><Icon name="warning" size={14} /> באיחור</span>}
+            {order.status === 'cancelled' && order.cancel_reason && (
+              <span className="text-[11px] text-danger" title={`בוטלה ${formatDate(order.cancelled_at)}`}>סיבה: {order.cancel_reason}</span>
+            )}
             {impSt && (
               <a href="/import" className="no-underline" title="הזמנת היבוא המקושרת (לפי הצעה)">
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${impSt.color}`}>
@@ -369,6 +391,15 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
                 className="flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-danger-soft text-danger border border-danger hover:bg-danger-soft transition-colors mr-auto"
               >
                 <Icon name="refresh" size={14} /> איפוס
+              </button>
+            )}
+            {order.status !== 'cancelled' && order.status !== 'completed' && (
+              <button
+                onClick={handleCancel}
+                title="ביטול מתועד — ההזמנה נשארת ברישום עם סיבת הביטול"
+                className={`flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg text-danger border border-danger hover:bg-danger-soft transition-colors ${currentIdx > 0 ? '' : 'mr-auto'}`}
+              >
+                <Icon name="close" size={14} /> בטל הזמנה
               </button>
             )}
           </div>

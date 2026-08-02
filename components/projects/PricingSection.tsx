@@ -257,6 +257,7 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   in_production: { label: 'בייצור', color: 'bg-primary-50 text-primary' },
   delivered: { label: 'סופק', color: 'bg-success-soft text-success' },
   completed: { label: 'הושלם', color: 'bg-neutral-100 text-content-body' },
+  cancelled: { label: 'בוטלה', color: 'bg-danger-soft text-danger' },
 };
 
 export default function PricingSection({ projectId, attachmentVersion = 0 }: { projectId: string; attachmentVersion?: number }) {
@@ -1856,6 +1857,9 @@ function OrdersTab({ p, projectId }: { p: ReturnType<typeof usePricing>; project
               <div className="flex items-center gap-3">
                 <span className="text-sm font-mono text-neutral-400">{ord.order_number}</span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ost.color}`}>{ost.label}</span>
+                {ord.status === 'cancelled' && ord.cancel_reason && (
+                  <span className="text-[11px] text-danger">סיבה: {ord.cancel_reason}</span>
+                )}
               </div>
               <span className="text-sm font-bold text-content-body">{formatCurrency(ord.total_amount || 0)}</span>
             </div>

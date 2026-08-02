@@ -288,7 +288,7 @@ export async function GET(req: NextRequest) {
   // Quote lookup for rules 9b/9c — order id → its quote row.
   const { data: allOrders } = await admin
     .from('import_orders')
-    .select('id, quote_id, project_id, project_name');
+    .select('id, quote_id, project_id, project_name, status');
   const orderById: Record<string, any> = {};
   (allOrders || []).forEach((o: any) => { orderById[o.id] = o; });
   const quoteById: Record<string, any> = {};
@@ -321,6 +321,7 @@ export async function GET(req: NextRequest) {
     });
     for (const g of Object.values(groups)) {
       const order = orderById[g.orderId];
+      if (!order || order.status === 'cancelled') continue;
       const quote = order?.quote_id ? quoteById[order.quote_id] : null;
       if (!quote || effectiveBillingAnchor(quote) !== 'port_arrival') continue;
       const ship = arrivedShips.find((s: any) => s.id === g.shipmentId);

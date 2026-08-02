@@ -36,6 +36,7 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   partially_received: { label: 'התקבלה חלקית', color: 'bg-warning-soft text-warning' },
   received: { label: 'התקבלה', color: 'bg-success-soft text-success' },
   closed: { label: 'נסגרה', color: 'bg-neutral-100 text-content-muted' },
+  cancelled: { label: 'בוטלה', color: 'bg-danger-soft text-danger' },
 };
 const ORDER_STATUS_KEYS = Object.keys(ORDER_STATUS);
 
@@ -195,6 +196,7 @@ function Info({ label, value }: { label: string; value?: any }) {
 // /procurement), so Nurit can see exactly what went out to the supplier.
 function POViewButton({ order, items, projectName, className }: { order: any; items: any[]; projectName?: string | null; className?: string }) {
   const [show, setShow] = useState(false);
+  const [pdfLang, setPdfLang] = useState<'he' | 'en' | null>(null);
   const pdfRef = useRef<PODocumentHandle>(null);
   return (
     <>
@@ -207,6 +209,15 @@ function POViewButton({ order, items, projectName, className }: { order: any; it
             <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
               <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
               <div className="flex items-center gap-2">
+                {(() => {
+                  const effLang = pdfLang ?? ((order.currency || 'ILS') !== 'ILS' ? 'en' : 'he');
+                  return (
+                    <div className="flex bg-neutral-100 rounded-lg p-0.5" title="שפת המסמך (ברירת מחדל לפי המטבע)">
+                      <button onClick={() => setPdfLang('he')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'he' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>עברית</button>
+                      <button onClick={() => setPdfLang('en')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'en' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>English</button>
+                    </div>
+                  );
+                })()}
                 <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
                   <Icon name="download" size={14} /> הורד PDF
                 </button>
@@ -219,7 +230,9 @@ function POViewButton({ order, items, projectName, className }: { order: any; it
                 order={order}
                 items={items}
                 supplier={order.suppliers || null}
-                projectName={projectName || order.project_name || order.projects?.name || null}
+                projectName={order.project_name || projectName || null}
+                projectNameHe={projectName || order.projects?.name || null}
+                lang={pdfLang}
               />
             </div>
           </div>
@@ -375,7 +388,17 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   }
 
   async function setStatus(s: string) {
-    await supabase.from('import_orders').update({ status: s, updated_at: new Date().toISOString() }).eq('id', order.id);
+    const patch: any = { status: s, updated_at: new Date().toISOString() };
+    if (s === 'cancelled') {
+      const reason = prompt(`ביטול הזמנה ${order.po_number || order.supplier_order_no || ''} — מה סיבת הביטול?`);
+      if (reason === null) return;
+      if (!reason.trim()) { alert('חובה לציין סיבת ביטול.'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      patch.cancelled_at = new Date().toISOString();
+      patch.cancelled_by = user?.id || null;
+      patch.cancel_reason = reason.trim();
+    }
+    await supabase.from('import_orders').update(patch).eq('id', order.id);
     onUpdate();
   }
   // תפ"י release: Nitzan reviewed the auto-seeded draft and hands it to planning.
@@ -408,6 +431,9 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-mono text-neutral-400" dir="ltr">{order.po_number || order.supplier_order_no || '—'}</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+            {order.status === 'cancelled' && order.cancel_reason && (
+              <span className="text-[11px] text-danger" title={`בוטלה ${fmtDate(order.cancelled_at)}`}>סיבה: {order.cancel_reason}</span>
+            )}
             {order.is_stock && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning">מלאי</span>}
             {order.origin === 'auto_from_quote' && order.status === 'draft' && (
               <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-neutral-100 text-content-muted">ממתין לשחרור תפ"י</span>
