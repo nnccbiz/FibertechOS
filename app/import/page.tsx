@@ -93,7 +93,7 @@ export default function ImportPage() {
 
   async function load() {
     const [o, it, sh, co, pk, inv, coa, doc, cd, sup, proj] = await Promise.all([
-      supabase.from('import_orders').select('*, suppliers(name), projects(name, client_name)').order('created_at', { ascending: false }),
+      supabase.from('import_orders').select('*, suppliers(name), projects(name)').order('created_at', { ascending: false }),
       supabase.from('import_order_items').select('*').order('sort_order'),
       supabase.from('import_shipments').select('*, suppliers(name)').order('created_at', { ascending: false }),
       supabase.from('import_containers').select('*').order('created_at'),
@@ -103,7 +103,7 @@ export default function ImportPage() {
       supabase.from('import_documents').select('*').order('created_at'),
       supabase.from('import_customer_deliveries').select('*').order('created_at'),
       supabase.from('suppliers').select('id, name').order('name'),
-      supabase.from('projects').select('id, name, client_name').order('name'),
+      supabase.from('projects').select('id, name').order('name'),
     ]);
     const { data: exemptions } = await supabase.from('import_quote_exemptions').select('quote_id, reason');
     const [{ data: receipts }, { data: receiptLines }] = await Promise.all([
@@ -493,7 +493,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <Info label="ספק" value={order.suppliers?.name} />
-          <Info label="פרויקט" value={order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name)} />
+          <Info label="פרויקט" value={order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name)} />
           <Info label="הזמנת ספק" value={order.supplier_order_no} />
           <Info label="Incoterms" value={order.incoterms} />
         </div>
@@ -610,7 +610,7 @@ function RelationshipMap({ order, data }: any) {
   }
 
   const projectHref = order.project_id ? `/projects/${order.project_id}` : null;
-  const projectLabel = order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name || 'ללא פרויקט');
+  const projectLabel = order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || 'ללא פרויקט');
 
   return (
     <div className="text-[13px]">
@@ -1062,7 +1062,7 @@ function NewOrderModal({ data, onClose, onCreated }: any) {
       <Field label="הזמנת ספק (Sales Order)"><input value={f.supplier_order_no} onChange={(e) => setF({ ...f, supplier_order_no: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
       <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-content-body">יבוא למלאי (ללא פרויקט)</span></label>
-      {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name || p.client_name}</option>)}</select></Field>}
+      {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
       <Field label="שם פרויקט אצל הספק" full><input value={f.project_name} onChange={(e) => setF({ ...f, project_name: e.target.value })} className={inp} placeholder="IL - Electra - Matash Stage 4" /></Field>
       <Field label="מטבע"><select value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })} className={inp}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
       <Field label="סכום"><input type="number" value={f.total_amount} onChange={(e) => setF({ ...f, total_amount: e.target.value })} className={inp} /></Field>

@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
   if (quote.project_id) {
     const { data: proj } = await admin
       .from('projects')
-      .select('name, client_name')
+      .select('name')
       .eq('id', quote.project_id)
       .maybeSingle();
-    projectName = proj?.name || proj?.client_name || null;
+    projectName = proj?.name || null;
   }
 
   // 5. GATE — an import draft is seeded ONLY when the quote's pricing basis is an

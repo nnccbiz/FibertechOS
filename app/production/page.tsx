@@ -64,7 +64,7 @@ export default function ProductionPage() {
   async function loadData() {
     const { data: ordersData } = await supabase
       .from('orders')
-      .select('*, quotes(*), projects(name, client_name, location)')
+      .select('*, quotes(*), projects(name, city)')
       .order('created_at', { ascending: false });
 
     if (ordersData) {
@@ -288,7 +288,7 @@ function OrderCard({ order, docs, cross, onUpdate }: { order: any; docs: any[]; 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <div>
             <p className="text-[11px] text-neutral-400 mb-0.5">לקוח</p>
-            <p className="text-sm font-semibold text-content-body">{project?.client_name || quote?.client_name || '—'}</p>
+            <p className="text-sm font-semibold text-content-body">{quote?.client_name || '—'}</p>
           </div>
           <div>
             <p className="text-[11px] text-neutral-400 mb-0.5">פרויקט</p>
