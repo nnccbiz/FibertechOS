@@ -7,7 +7,7 @@ import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
-import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
@@ -1924,9 +1924,9 @@ function OrderDocs({ orderId, projectId }: { orderId: string; projectId: string 
   async function upload(file: File) {
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${projectId}/orders/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'order', entity_id: orderId, project_id: projectId,

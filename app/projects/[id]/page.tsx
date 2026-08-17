@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
-import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import PricingSection from '@/components/projects/PricingSection';
 import ImportPanel from '@/components/projects/ImportPanel';
 import ProjectPOCard from '@/components/procurement/ProjectPOCard';
@@ -55,20 +55,6 @@ const DOC_ACCEPT: Record<string, string> = {
 // Drawings = any project attachment that isn't one of the other known types.
 const DOC_NON_DRAWING_TYPES = ['spec', 'completion_report', 'warranty_cert', 'pricing_doc', 'order_confirmation', 'project_doc', 'correspondence', 'field_report', 'photo', 'supplier_quote'];
 
-// Storage keys must stay ASCII — an iPad/Mail drag can hand over a file whose
-// name has no Latin extension (Hebrew name, no dot), and a raw
-// `name.split('.').pop()` would put Hebrew into the storage key → "Invalid key".
-const EXT_BY_MIME: Record<string, string> = {
-  'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/heic': 'heic', 'image/heif': 'heic',
-  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-  'message/rfc822': 'eml',
-};
-function safeExt(file: File): string {
-  const m = file.name.match(/\.([A-Za-z0-9]{1,8})$/);
-  if (m) return m[1].toLowerCase();
-  return EXT_BY_MIME[file.type] || 'bin';
-}
 // Safari on iPad sometimes reports an empty file.type — recover the MIME from
 // the extension so the Gemini drawing_meta call doesn't get a blank mimeType.
 const EXT_BY_MIME_REVERSE: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', heic: 'image/heic' };

@@ -37,3 +37,18 @@ export async function materializeFiles(files: File[]): Promise<{ stable: File[];
 }
 
 export const EMPTY_DROP_HINT = 'באייפד: פתח קודם את הקובץ במייל (כדי שיירד למכשיר) ונסה שוב, או שמור אותו ב"קבצים" והעלה משם.';
+
+// Storage keys must stay ASCII — a file named in Hebrew with no Latin
+// extension would otherwise put Hebrew into the storage key → "Invalid key".
+export const EXT_BY_MIME: Record<string, string> = {
+  'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/heic': 'heic', 'image/heif': 'heic',
+  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'message/rfc822': 'eml',
+};
+
+export function safeExt(file: File): string {
+  const m = file.name.match(/\.([A-Za-z0-9]{1,8})$/);
+  if (m) return m[1].toLowerCase();
+  return EXT_BY_MIME[file.type] || 'bin';
+}
