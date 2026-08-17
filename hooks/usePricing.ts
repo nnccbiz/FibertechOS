@@ -76,7 +76,7 @@ export interface UsePricingReturn {
   // Actions
   createCostInput: () => Promise<void>;
   duplicateCostInput: (ciId: string) => Promise<void>;
-  parseCostFile: (fileList: FileList, costInputId: string) => Promise<void>;
+  parseCostFile: (fileList: FileList | File[], costInputId: string) => Promise<void>;
   updateCostItem: (idx: number, field: string, val: any) => void;
   saveCostInputItems: (costInputId: string) => Promise<void>;
   startEditCostInput: (ciId: string) => void;
@@ -611,7 +611,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     }
   }
 
-  async function parseCostFile(fileList: FileList, costInputId: string) {
+  async function parseCostFile(fileList: FileList | File[], costInputId: string) {
     setParsingCostFile(true);
     // Snapshot the FileList into a stable array IMMEDIATELY (before any await).
     // The <input onChange> clears the input with `e.target.value = ''` right

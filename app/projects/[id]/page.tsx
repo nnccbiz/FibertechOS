@@ -54,6 +54,38 @@ const DOC_ACCEPT: Record<string, string> = {
 // Drawings = any project attachment that isn't one of the other known types.
 const DOC_NON_DRAWING_TYPES = ['spec', 'completion_report', 'warranty_cert', 'pricing_doc', 'order_confirmation', 'project_doc', 'correspondence', 'field_report', 'photo', 'supplier_quote'];
 
+// Storage keys must stay ASCII — an iPad/Mail drag can hand over a file whose
+// name has no Latin extension (Hebrew name, no dot), and a raw
+// `name.split('.').pop()` would put Hebrew into the storage key → "Invalid key".
+const EXT_BY_MIME: Record<string, string> = {
+  'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/heic': 'heic', 'image/heif': 'heic',
+  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'message/rfc822': 'eml',
+};
+function safeExt(file: File): string {
+  const m = file.name.match(/\.([A-Za-z0-9]{1,8})$/);
+  if (m) return m[1].toLowerCase();
+  return EXT_BY_MIME[file.type] || 'bin';
+}
+// Safari on iPad sometimes reports an empty file.type — recover the MIME from
+// the extension so the Gemini drawing_meta call doesn't get a blank mimeType.
+const EXT_BY_MIME_REVERSE: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', heic: 'image/heic' };
+// Collect dropped files: iPad/Safari cross-app drags (e.g. from Mail) sometimes
+// populate dataTransfer.items but leave dataTransfer.files empty — read both,
+// synchronously, before any await.
+function filesFromDrop(dt: DataTransfer | null): File[] {
+  if (!dt) return [];
+  let files = Array.from(dt.files || []);
+  if (!files.length && dt.items) {
+    files = Array.from(dt.items)
+      .filter((it) => it.kind === 'file')
+      .map((it) => it.getAsFile())
+      .filter(Boolean) as File[];
+  }
+  return files;
+}
+
 interface EditableFieldProps {
   label: string;
   value: string;
@@ -259,9 +291,9 @@ export default function ProjectDetailPage() {
     setUploadingDrawing(true);
     try {
       const id = params.id as string;
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${id}/drawings/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { data: att, error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'project', entity_id: id, project_id: id,
@@ -275,7 +307,7 @@ export default function ProjectDetailPage() {
         const base64 = await fileToBase64(file);
         const res = await fetch('/api/ai', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type, name: file.name }] }),
+          body: JSON.stringify({ mode: 'drawing_meta', files: [{ base64, mimeType: file.type || EXT_BY_MIME_REVERSE[safeExt(file)] || 'application/pdf', name: file.name }] }),
         });
         const meta = await res.json();
         detected = meta?.drawing_number || '';
@@ -305,9 +337,9 @@ export default function ProjectDetailPage() {
     setUploadingSpec(true);
     try {
       const id = params.id as string;
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${id}/specs/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'project', entity_id: id, project_id: id,
@@ -328,9 +360,9 @@ export default function ProjectDetailPage() {
     setUploadingDoc(true);
     try {
       const id = params.id as string;
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${id}/docs/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'project', entity_id: id, project_id: id,
@@ -358,9 +390,9 @@ export default function ProjectDetailPage() {
     setUploadingClosure(true);
     try {
       const id = params.id as string;
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${id}/closure/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'project', entity_id: id, project_id: id,
@@ -1237,7 +1269,11 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             docDragDepth.current = 0;
             setDocDragOver(false);
             if (!e.dataTransfer?.types?.includes('Files')) return;
-            const files = Array.from(e.dataTransfer?.files || []);
+            const files = filesFromDrop(e.dataTransfer);
+            if (!files.length) {
+              alert('הגרירה לא העבירה קובץ. באייפד: פתח קודם את הקובץ במייל (כדי שיירד למכשיר) ונסה שוב, או שמור אותו ב"קבצים" וגרור/העלה משם.');
+              return;
+            }
             for (const f of files) { await dispatchDocUpload(f); }
           }}
         >

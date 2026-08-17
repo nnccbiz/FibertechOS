@@ -421,8 +421,17 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
     e.preventDefault();
     dragDepth.current = 0;
     setDragOver(false);
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) p.parseCostFile(files, ci.id);
+    // iPad/Safari cross-app drags (e.g. from Mail) sometimes populate items
+    // but leave dataTransfer.files empty — read both, synchronously.
+    let files: File[] = Array.from(e.dataTransfer?.files || []);
+    if (!files.length && e.dataTransfer?.items) {
+      files = Array.from(e.dataTransfer.items)
+        .filter((it) => it.kind === 'file')
+        .map((it) => it.getAsFile())
+        .filter(Boolean) as File[];
+    }
+    if (files.length > 0) p.parseCostFile(files, ci.id);
+    else alert('הגרירה לא העבירה קובץ. באייפד: פתח קודם את הקובץ במייל ונסה שוב, או שמור אותו ב"קבצים" והעלה משם.');
   }
 
   return (
