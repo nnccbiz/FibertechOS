@@ -388,6 +388,8 @@ export default function ProjectDetailPage() {
   async function setDrawingNumber(attId: string, drawingNumber: string) {
     await supabase.from('attachments').update({ drawing_number: drawingNumber || null }).eq('id', attId);
     setProjectAttachments((prev) => prev.map((a) => a.id === attId ? { ...a, drawing_number: drawingNumber } : a));
+    // The quote-card linking checkboxes show this label too — refresh them.
+    setAttachmentVersion((v) => v + 1);
   }
 
   async function deleteProjectDrawing(attId: string) {
@@ -1302,8 +1304,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                       <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? 'image' : 'attach'} size={14} /> {att.file_name}
                     </button>
                     {docTab === 'drawing' && (
-                      <label className="text-[11px] text-neutral-400 flex items-center gap-1">מס׳ שרטוט:
-                        <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }} placeholder="—" className="w-24 border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="ltr" />
+                      <label className="text-[11px] text-neutral-400 flex items-center gap-1">שרטוט:
+                        <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }} placeholder="—" className="w-56 max-w-full border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="auto" />
                       </label>
                     )}
                     <span className="text-[10px] text-neutral-400 whitespace-nowrap">{att.created_at ? new Date(att.created_at).toLocaleDateString('he-IL') : ''}</span>
