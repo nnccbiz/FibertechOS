@@ -23,6 +23,8 @@ interface DashboardData {
   leads: any[];
   teamMembers: any[];
   shipments: any[];
+  monthlyBreakdown: { id: string; name: string; amount: number }[];
+  importDraftOrders: any[];
   kpi: {
     activeProjects: number;
     monthlyRevenue: number;
@@ -48,6 +50,7 @@ export default function DashboardPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [reportCopied, setReportCopied] = useState(false);
+  const [kpiDetail, setKpiDetail] = useState<'projects' | 'invoices' | 'alerts' | 'importDrafts' | 'shipments' | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -66,7 +69,7 @@ export default function DashboardPage() {
           // without the relevant module permission — that's fine, show 0.
           supabase.from('import_shipments').select('id, vessel_name, bl_number, eta, status').in('status', ['booked', 'sailing']),
           supabase.from('quotes').select('id, status').in('status', ['draft', 'sent']),
-          supabase.from('import_orders').select('id').eq('status', 'draft'),
+          supabase.from('import_orders').select('id, order_number, supplier, project_id').eq('status', 'draft'),
         ]);
 
         if (projectsRes.error) throw projectsRes.error;
@@ -109,15 +112,20 @@ export default function DashboardPage() {
         const detMap: Record<string, string> = {};
         details.forEach((d: any) => { if (d.delivery_months_list) detMap[d.project_id] = d.delivery_months_list; });
 
-        const monthlyRevenue = projects.reduce((sum, p) => {
-          if (['הסתיים', 'בוטל'].includes(p.realization_status)) return sum;
+        // Per-project breakdown of this month's expected billing (drives the
+        // KPI value AND the tile's floating detail list).
+        const monthlyBreakdown: { id: string; name: string; amount: number }[] = [];
+        projects.forEach((p) => {
+          if (['הסתיים', 'בוטל'].includes(p.realization_status)) return;
           const monthsList = detMap[p.id];
-          if (!monthsList) return sum;
+          if (!monthsList) return;
           const entries = monthsList.split(',').filter(Boolean);
-          if (!entries.includes(thisMonthKey)) return sum;
+          if (!entries.includes(thisMonthKey)) return;
           const totalMonths = entries.length;
-          return sum + (p.order_value || 0) / totalMonths;
-        }, 0);
+          monthlyBreakdown.push({ id: p.id, name: p.name, amount: (p.order_value || 0) / totalMonths });
+        });
+        monthlyBreakdown.sort((a, b) => b.amount - a.amount);
+        const monthlyRevenue = monthlyBreakdown.reduce((sum, m) => sum + m.amount, 0);
 
         const shipments = shipmentsRes.data || [];
 
@@ -128,6 +136,8 @@ export default function DashboardPage() {
           leads,
           teamMembers,
           shipments,
+          monthlyBreakdown,
+          importDraftOrders: importDraftsRes.data || [],
           kpi: {
             activeProjects: activeProjects.length,
             monthlyRevenue,
@@ -342,6 +352,7 @@ export default function DashboardPage() {
       value: data?.kpi.activeProjects ?? '—',
       icon: 'projects' as const,
       color: '#15427e',
+      onClick: () => setKpiDetail('projects'),
     },
     {
       title: `חשבוניות ${MONTH_NAMES[new Date().getMonth() + 1]}`,
@@ -350,32 +361,90 @@ export default function DashboardPage() {
         : '—',
       icon: 'money' as const,
       color: '#1e8a5a',
+      onClick: () => setKpiDetail('invoices'),
     },
     {
       title: 'התראות פתוחות',
       value: data?.kpi.openAlerts ?? '—',
       icon: 'warning' as const,
       color: '#c0392b',
+      onClick: () => setKpiDetail('alerts'),
     },
     {
       title: 'הצעות מחיר פתוחות',
       value: data?.kpi.openQuotes ?? '—',
       icon: 'note' as const,
       color: '#1a73b8',
+      onClick: () => {
+        document.getElementById('open-quotes-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
     },
     {
       title: 'טיוטות יבוא לבדיקה',
       value: data?.kpi.importDrafts ?? '—',
       icon: 'ship' as const,
       color: '#c9821a',
+      onClick: () => setKpiDetail('importDrafts'),
     },
     {
       title: 'משלוחים בדרך',
       value: data?.kpi.shipmentsEnRoute ?? '—',
       icon: 'ship' as const,
       color: '#2aa7c4',
+      onClick: () => setKpiDetail('shipments'),
     },
   ];
+
+  // Rows for the floating KPI detail card — one shape for all tiles.
+  const KPI_DETAIL_TITLES: Record<string, string> = {
+    projects: 'פרויקטים פעילים',
+    invoices: `חשבוניות ${MONTH_NAMES[new Date().getMonth() + 1]}`,
+    alerts: 'התראות פתוחות',
+    importDrafts: 'טיוטות יבוא לבדיקה',
+    shipments: 'משלוחים בדרך',
+  };
+
+  const kpiDetailRows: { id: string; label: string; sub?: string; value?: string; href?: string }[] = (() => {
+    if (!data || !kpiDetail) return [];
+    switch (kpiDetail) {
+      case 'projects':
+        return [...data.projects]
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'))
+          .map((p) => ({ id: p.id, label: p.name, sub: p.developer_name || undefined, href: `/projects/${p.id}` }));
+      case 'invoices':
+        return data.monthlyBreakdown.map((m) => ({
+          id: m.id,
+          label: m.name,
+          value: formatILS(Math.round(m.amount)),
+          href: `/finance/collections?project=${m.id}`,
+        }));
+      case 'alerts':
+        return data.alerts
+          .filter((a) => !a.is_resolved)
+          .map((a) => ({
+            id: a.id,
+            label: a.message,
+            sub: a.project_id ? data.projectNames[a.project_id] : undefined,
+            href: a.project_id ? `/projects/${a.project_id}` : undefined,
+          }));
+      case 'importDrafts':
+        return data.importDraftOrders.map((o) => ({
+          id: o.id,
+          label: o.order_number || 'טיוטת יבוא',
+          sub: [o.supplier, o.project_id ? data.projectNames[o.project_id] : null].filter(Boolean).join(' · ') || undefined,
+          href: '/procurement',
+        }));
+      case 'shipments':
+        return data.shipments.map((s) => ({
+          id: s.id,
+          label: s.vessel_name || s.bl_number || 'משלוח',
+          sub: `${s.status === 'sailing' ? 'בהפלגה' : 'שוריין'}${s.eta ? ` · ETA ${new Date(s.eta).toLocaleDateString('he-IL')}` : ''}`,
+          href: '/import',
+        }));
+      default:
+        return [];
+    }
+  })();
 
   return (
     <div className="min-h-screen" dir="rtl">
@@ -459,7 +528,7 @@ export default function DashboardPage() {
               <div className="animate-fade-in-up-delay-2">
                 <ProjectsTable projects={data?.projects || []} loading={loading} />
               </div>
-              <div className="animate-fade-in-up-delay-2">
+              <div id="open-quotes-section" className="animate-fade-in-up-delay-2 scroll-mt-24">
                 <OpenQuotesWidget />
               </div>
               <div className="animate-fade-in-up-delay-3">
@@ -530,6 +599,58 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* KPI floating detail */}
+        {kpiDetail && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-20 md:pt-28 px-4" onClick={() => setKpiDetail(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="px-5 py-3.5 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-bold text-content-body">
+                  {KPI_DETAIL_TITLES[kpiDetail]}
+                  <span className="text-sm font-normal text-neutral-400 mr-2">({kpiDetailRows.length})</span>
+                </h3>
+                <button onClick={() => setKpiDetail(null)} className="text-neutral-400 hover:text-content-body">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+              {kpiDetail === 'invoices' && (
+                <p className="px-5 pt-2 text-[12px] text-content-muted flex-shrink-0">
+                  תחזית חיוב לפי חודשי אספקה — לחיצה פותחת את מעקב הגבייה של הפרויקט
+                </p>
+              )}
+              <div className="px-3 py-3 overflow-y-auto flex-1 space-y-1">
+                {kpiDetailRows.length === 0 ? (
+                  <p className="text-sm text-neutral-400 text-center py-6">אין נתונים להצגה</p>
+                ) : (
+                  kpiDetailRows.map((row) => {
+                    const inner = (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-content-strong truncate">{row.label}</p>
+                          {row.sub && <p className="text-[12px] text-neutral-400 truncate">{row.sub}</p>}
+                        </div>
+                        {row.value && <span className="text-sm font-bold text-success flex-shrink-0">{row.value}</span>}
+                      </div>
+                    );
+                    return row.href ? (
+                      <button
+                        key={row.id}
+                        onClick={() => { setKpiDetail(null); router.push(row.href!); }}
+                        className="w-full text-right px-3 py-2.5 rounded-lg hover:bg-azure-100 transition-colors"
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <div key={row.id} className="px-3 py-2.5 rounded-lg">
+                        {inner}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick update modal */}
         {showQuickUpdate && (

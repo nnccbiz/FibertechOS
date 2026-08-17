@@ -7,6 +7,7 @@ import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
+import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
@@ -416,13 +417,20 @@ function CostInputCard({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> })
     dragDepth.current = Math.max(0, dragDepth.current - 1);
     if (dragDepth.current === 0) setDragOver(false);
   }
-  function onDrop(e: React.DragEvent) {
+  async function onDrop(e: React.DragEvent) {
     if (!canDropToRoxy) return;
     e.preventDefault();
     dragDepth.current = 0;
     setDragOver(false);
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) p.parseCostFile(files, ci.id);
+    const files = filesFromDrop(e.dataTransfer);
+    if (!files.length) {
+      alert(`הגרירה לא העבירה קובץ. ${EMPTY_DROP_HINT}`);
+      return;
+    }
+    // Read the bytes NOW — WebKit invalidates cross-app drag blobs fast.
+    const { stable, empty } = await materializeFiles(files);
+    if (empty.length) alert(`הקבצים הבאים הגיעו ריקים מהגרירה: ${empty.join(', ')}. ${EMPTY_DROP_HINT}`);
+    if (stable.length) p.parseCostFile(stable, ci.id);
   }
 
   return (

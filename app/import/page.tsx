@@ -93,7 +93,7 @@ export default function ImportPage() {
 
   async function load() {
     const [o, it, sh, co, pk, inv, coa, doc, cd, sup, proj] = await Promise.all([
-      supabase.from('import_orders').select('*, suppliers(name), projects(name, client_name)').order('created_at', { ascending: false }),
+      supabase.from('import_orders').select('*, suppliers(name), projects(name)').order('created_at', { ascending: false }),
       supabase.from('import_order_items').select('*').order('sort_order'),
       supabase.from('import_shipments').select('*, suppliers(name)').order('created_at', { ascending: false }),
       supabase.from('import_containers').select('*').order('created_at'),
@@ -103,7 +103,7 @@ export default function ImportPage() {
       supabase.from('import_documents').select('*').order('created_at'),
       supabase.from('import_customer_deliveries').select('*').order('created_at'),
       supabase.from('suppliers').select('id, name').order('name'),
-      supabase.from('projects').select('id, name, client_name').order('name'),
+      supabase.from('projects').select('id, name').order('name'),
     ]);
     const { data: exemptions } = await supabase.from('import_quote_exemptions').select('quote_id, reason');
     const [{ data: receipts }, { data: receiptLines }] = await Promise.all([
@@ -115,6 +115,25 @@ export default function ImportPage() {
       .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
       .eq('status', 'signed')
       .order('updated_at', { ascending: false });
+
+    // Quotes that back a live (non-cancelled) PO but are no longer signed —
+    // e.g. the signature was revoked and a new revision awaits re-signing.
+    // Without this the whole row (and its import-status chip) vanishes from
+    // the approved-quotes sheet even though the PO is already with the supplier.
+    const signedIds = new Set((sq || []).map((q: any) => q.id));
+    const unsignedPoQuoteIds = Array.from(new Set(
+      (o.data || [])
+        .filter((x: any) => x.quote_id && x.status !== 'cancelled' && !signedIds.has(x.quote_id))
+        .map((x: any) => x.quote_id)
+    )) as string[];
+    let orderQuotes: any[] = [];
+    if (unsignedPoQuoteIds.length) {
+      const { data: oq } = await supabase
+        .from('quotes')
+        .select('id, project_id, quote_number, client_name, total_amount, currency, status, sent_at, updated_at, created_at')
+        .in('id', unsignedPoQuoteIds);
+      orderQuotes = oq || [];
+    }
 
     // Cross-module link: the production side for these import orders' quotes
     // (RLS-siloed → via a server route). Non-fatal.
@@ -135,7 +154,7 @@ export default function ImportPage() {
       procurementOrders: allOrders.filter((x: any) => !x.po_sent_at),
       items: it.data || [], shipments: sh.data || [], containers: co.data || [],
       packing: pk.data || [], invoices: inv.data || [], coa: coa.data || [], docs: doc.data || [],
-      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], exemptions: exemptions || [], receipts: receipts || [], receiptLines: receiptLines || [], cross,
+      custDeliv: cd.data || [], suppliers: sup.data || [], projects: proj.data || [], signedQuotes: sq || [], orderQuotes, exemptions: exemptions || [], receipts: receipts || [], receiptLines: receiptLines || [], cross,
     });
     setLoading(false);
   }
@@ -262,11 +281,22 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
   (data.exemptions || []).forEach((e: any) => { exemptByQuote[e.quote_id] = e.reason || ''; });
   const projNameById: Record<string, string> = {};
   (data.projects || []).forEach((p: any) => { projNameById[p.id] = p.name; });
-  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q), procurement: procurementFor(q), exempt: exemptByQuote[q.id] !== undefined }));
+  const rows = data.signedQuotes.map((q: any) => ({ q, order: orderFor(q), procurement: procurementFor(q), exempt: exemptByQuote[q.id] !== undefined, resign: false }));
+  // A quote whose signature was revoked but whose PO is already live keeps its
+  // row (chip: awaiting re-signing) — unless a signed quote already claims the
+  // same order (e.g. the new revision was signed), which would duplicate it.
+  const matchedOrderIds = new Set(rows.map((r: any) => r.order?.id).filter(Boolean));
+  const matchedProcIds = new Set(rows.map((r: any) => r.procurement?.id).filter(Boolean));
+  const resignRows = (data.orderQuotes || [])
+    .map((q: any) => ({ q, order: orderFor(q), procurement: procurementFor(q), exempt: exemptByQuote[q.id] !== undefined, resign: true }))
+    .filter((r: any) =>
+      (r.order && r.order.status !== 'cancelled' && !matchedOrderIds.has(r.order.id))
+      || (!r.order && r.procurement && !matchedProcIds.has(r.procurement.id)));
+  const allRows = [...rows, ...resignRows];
   // Exempt quotes (internal / ILS / marked manually) are not "pending import".
   const pendingCount = rows.filter((r: any) => !r.order && !r.procurement && !r.exempt).length;
-  const shown = rows.filter((r: any) =>
-    filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.procurement && !r.exempt) : !!r.order);
+  const shown = allRows.filter((r: any) =>
+    filter === 'all' ? true : filter === 'pending' ? (!r.order && !r.procurement && !r.exempt && !r.resign) : !!r.order);
 
   async function toggleExempt(q: any, exempt: boolean) {
     if (exempt) {
@@ -301,7 +331,7 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
               </tr>
             </thead>
             <tbody>
-              {shown.map(({ q, order, procurement, exempt }: any) => {
+              {shown.map(({ q, order, procurement, exempt, resign }: any) => {
                 const st = order ? (ORDER_STATUS[order.status] || ORDER_STATUS.open) : null;
                 return (
                   <tr key={q.id} className="border-t border-line-subtle hover:bg-neutral-50">
@@ -313,7 +343,11 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                     </td>
                     <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
                     <td className="py-2 px-3 text-content-body">{money(q.total_amount, q.currency || 'ILS')}</td>
-                    <td className="py-2 px-3 text-content-muted">{fmtDate(q.sent_at || q.updated_at)}</td>
+                    <td className="py-2 px-3 text-content-muted">
+                      {resign
+                        ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning whitespace-nowrap">ממתין לחתימה מחודשת</span>
+                        : fmtDate(q.sent_at || q.updated_at)}
+                    </td>
                     <td className="py-2 px-3">
                       {order && st
                         ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
@@ -459,7 +493,7 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <Info label="ספק" value={order.suppliers?.name} />
-          <Info label="פרויקט" value={order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name)} />
+          <Info label="פרויקט" value={order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name)} />
           <Info label="הזמנת ספק" value={order.supplier_order_no} />
           <Info label="Incoterms" value={order.incoterms} />
         </div>
@@ -576,7 +610,7 @@ function RelationshipMap({ order, data }: any) {
   }
 
   const projectHref = order.project_id ? `/projects/${order.project_id}` : null;
-  const projectLabel = order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || order.projects?.client_name || 'ללא פרויקט');
+  const projectLabel = order.is_stock ? 'מלאי' : (order.project_name || order.projects?.name || 'ללא פרויקט');
 
   return (
     <div className="text-[13px]">
@@ -1028,7 +1062,7 @@ function NewOrderModal({ data, onClose, onCreated }: any) {
       <Field label="הזמנת ספק (Sales Order)"><input value={f.supplier_order_no} onChange={(e) => setF({ ...f, supplier_order_no: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
       <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-content-body">יבוא למלאי (ללא פרויקט)</span></label>
-      {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name || p.client_name}</option>)}</select></Field>}
+      {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
       <Field label="שם פרויקט אצל הספק" full><input value={f.project_name} onChange={(e) => setF({ ...f, project_name: e.target.value })} className={inp} placeholder="IL - Electra - Matash Stage 4" /></Field>
       <Field label="מטבע"><select value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })} className={inp}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
       <Field label="סכום"><input type="number" value={f.total_amount} onChange={(e) => setF({ ...f, total_amount: e.target.value })} className={inp} /></Field>

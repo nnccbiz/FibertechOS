@@ -8,9 +8,10 @@ interface KpiCardProps {
   icon: IconName;
   color: string;
   loading?: boolean;
+  onClick?: () => void;
 }
 
-export default function KpiCard({ title, value, icon, color, loading }: KpiCardProps) {
+export default function KpiCard({ title, value, icon, color, loading, onClick }: KpiCardProps) {
   if (loading) {
     return (
       <div className="bg-white rounded-xl border border-line-subtle p-4">
@@ -26,7 +27,10 @@ export default function KpiCard({ title, value, icon, color, loading }: KpiCardP
   }
 
   return (
-    <div className="bg-white rounded-xl border border-line-subtle p-4 hover:shadow-md transition-shadow">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl border border-line-subtle p-4 hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer hover:border-line-strong active:scale-[0.99]' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm text-content-muted font-medium">{title}</p>

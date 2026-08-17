@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     admin.from('project_details').select('*').eq('project_id', pid).maybeSingle(),
     admin.from('pipe_specs').select('*').eq('project_id', pid).order('created_at'),
     admin.from('project_contacts').select('*').eq('project_id', pid),
-    admin.from('projects').select('name, client_name, location').eq('id', pid).maybeSingle(),
+    admin.from('projects').select('name, city').eq('id', pid).maybeSingle(),
   ]);
 
   // 4. Sign each drawing/spec path so the client can open it synchronously.
