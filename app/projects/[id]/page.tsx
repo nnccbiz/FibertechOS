@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MONTH_NAMES } from '@/lib/revenue';
 import StatusTracker from '@/components/projects/StatusTracker';
 import { DISCLAIMER_TEMPLATES, DISCLAIMER_TYPES } from '@/lib/disclaimers';
+import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import PricingSection from '@/components/projects/PricingSection';
 import ImportPanel from '@/components/projects/ImportPanel';
 import ProjectPOCard from '@/components/procurement/ProjectPOCard';
@@ -71,20 +72,6 @@ function safeExt(file: File): string {
 // Safari on iPad sometimes reports an empty file.type — recover the MIME from
 // the extension so the Gemini drawing_meta call doesn't get a blank mimeType.
 const EXT_BY_MIME_REVERSE: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', heic: 'image/heic' };
-// Collect dropped files: iPad/Safari cross-app drags (e.g. from Mail) sometimes
-// populate dataTransfer.items but leave dataTransfer.files empty — read both,
-// synchronously, before any await.
-function filesFromDrop(dt: DataTransfer | null): File[] {
-  if (!dt) return [];
-  let files = Array.from(dt.files || []);
-  if (!files.length && dt.items) {
-    files = Array.from(dt.items)
-      .filter((it) => it.kind === 'file')
-      .map((it) => it.getAsFile())
-      .filter(Boolean) as File[];
-  }
-  return files;
-}
 
 interface EditableFieldProps {
   label: string;
@@ -1271,10 +1258,13 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
             if (!e.dataTransfer?.types?.includes('Files')) return;
             const files = filesFromDrop(e.dataTransfer);
             if (!files.length) {
-              alert('הגרירה לא העבירה קובץ. באייפד: פתח קודם את הקובץ במייל (כדי שיירד למכשיר) ונסה שוב, או שמור אותו ב"קבצים" וגרור/העלה משם.');
+              alert(`הגרירה לא העבירה קובץ. ${EMPTY_DROP_HINT}`);
               return;
             }
-            for (const f of files) { await dispatchDocUpload(f); }
+            // Read the bytes NOW — WebKit invalidates cross-app drag blobs fast.
+            const { stable, empty } = await materializeFiles(files);
+            if (empty.length) alert(`הקבצים הבאים הגיעו ריקים מהגרירה: ${empty.join(', ')}. ${EMPTY_DROP_HINT}`);
+            for (const f of stable) { await dispatchDocUpload(f); }
           }}
         >
           {docDragOver && (
