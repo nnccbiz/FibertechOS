@@ -20,6 +20,7 @@ import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Field } from '@/components/ui/Field';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { paymentDueDate } from '@/lib/inventory';
+import { safeExt } from '@/lib/dropped-files';
 
 const VAT_RATE = 0.18;
 
@@ -356,9 +357,9 @@ export default function CollectionsPage() {
     e.target.value = '';
     if (!file || !uploadFor) return;
     setUploading(true);
-    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+    const ext = safeExt(file);
     const path = `finance/${uploadFor.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+    const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
     if (upErr) { setUploading(false); alert(`העלאת הקובץ נכשלה: ${upErr.message}`); return; }
     await supabase.from('customer_invoices')
       .update({ file_path: path, updated_at: new Date().toISOString() })

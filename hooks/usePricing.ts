@@ -7,6 +7,7 @@ import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency } from '@/lib/pricing';
 import { parseExcelBOQ } from '@/lib/boq-parser';
+import { safeExt } from '@/lib/dropped-files';
 
 // Default payment terms, pre-filled on new records and editable everywhere.
 export const DEFAULT_COST_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 60 יום לאחר מועד הפקת החשבונית.';
@@ -249,9 +250,9 @@ export function usePricing(projectId: string): UsePricingReturn {
   async function uploadAttachment(quoteId: string, file: File) {
     setUploadingFile(true);
     try {
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${projectId}/${quoteId}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: uploadErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (uploadErr) { alert(`שגיאת העלאה: ${uploadErr.message}`); return; }
       const { data: att, error: insertErr } = await supabase.from('attachments').insert({
         entity_type: 'quote', entity_id: quoteId, project_id: projectId,

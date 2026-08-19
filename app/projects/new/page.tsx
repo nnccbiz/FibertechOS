@@ -8,6 +8,7 @@ import ContactsInput, { ProjectContact } from '@/components/projects/ContactsInp
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import PipeSpecsInput, { PipeSpec } from '@/components/projects/PipeSpecsInput';
 import Icon from '@/components/ui/Icon';
+import { safeExt } from '@/lib/dropped-files';
 
 const INSTALLATION_TYPES = ['חפירה פתוחה', 'השחלה בשרוול', 'דחיקה'];
 const PROJECT_TYPES = ['ביוב', 'מים', 'ניקוז', 'השקיה', 'תשתית', 'אחר'];
@@ -204,9 +205,9 @@ export default function NewProjectPage() {
       // 5. Upload drawings (with AI number detection)
       for (const file of pendingDrawings) {
         try {
-          const ext = file.name.split('.').pop() || 'file';
+          const ext = safeExt(file);
           const path = `${project.id}/drawings/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+          const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
           if (upErr) continue;
           const { data: att } = await supabase.from('attachments').insert({
             entity_type: 'project', entity_id: project.id, project_id: project.id,

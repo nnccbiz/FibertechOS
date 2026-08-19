@@ -7,7 +7,7 @@ import { DISCLAIMER_TYPES } from '@/lib/disclaimers';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
-import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
@@ -1132,8 +1132,8 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                       <input type="checkbox" checked={on} onChange={() => p.toggleQuoteDrawing(q.id, d.id)} />
                       {isSpec
                         ? <span className="font-medium text-warning"><Icon name="spec" size={14} /> מפרט</span>
-                        : <span dir="ltr" className="font-medium"><Icon name="drawings" size={14} /> {d.drawing_number || '?'}</span>}
-                      <span className="text-neutral-400 truncate max-w-[160px]">{d.file_name}</span>
+                        : <span dir="auto" className="font-medium"><Icon name="drawings" size={14} /> {d.drawing_number || '?'}</span>}
+                      {(!d.drawing_number || isSpec) && <span className="text-neutral-400 truncate max-w-[160px]" dir="ltr">{d.file_name}</span>}
                     </label>
                   );
                 })}
@@ -1924,9 +1924,9 @@ function OrderDocs({ orderId, projectId }: { orderId: string; projectId: string 
   async function upload(file: File) {
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop() || 'file';
+      const ext = safeExt(file);
       const path = `${projectId}/orders/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { contentType: file.type || 'application/octet-stream' });
       if (upErr) { alert(`שגיאת העלאה: ${upErr.message}`); return; }
       const { error: insErr } = await supabase.from('attachments').insert({
         entity_type: 'order', entity_id: orderId, project_id: projectId,
