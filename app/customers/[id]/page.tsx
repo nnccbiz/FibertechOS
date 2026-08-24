@@ -84,7 +84,7 @@ export default function CustomerDetailPage() {
   const [quoteContactNames, setQuoteContactNames] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<{ id: string; name: string; status: string | null }[]>([]);
   const [openBalance, setOpenBalance] = useState<{ open: number; overdue: number; count: number } | null>(null);
-  const [projectContacts, setProjectContacts] = useState<{ id: string; project: string; role: string | null; name: string; company: string | null; phone: string | null; email: string | null }[]>([]);
+  const [projectContacts, setProjectContacts] = useState<{ id: string; project: string; role: string | null; name: string; company: string | null; phone: string | null; email: string | null; client_contact_id: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -177,7 +177,7 @@ export default function CustomerDetailPage() {
         });
         setProjectContacts(mine.map((pc: any) => ({
           id: pc.id, project: projMap[pc.project_id] || '', role: pc.role, name: pc.name,
-          company: pc.company, phone: pc.phone, email: pc.email,
+          company: pc.company, phone: pc.phone, email: pc.email, client_contact_id: pc.client_contact_id || null,
         })));
       } else {
         setProjectContacts([]);
@@ -274,54 +274,55 @@ export default function CustomerDetailPage() {
           </div>
         )}
 
-        {contacts.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-line-subtle">
-            <h3 className="text-[12px] font-semibold text-neutral-400 mb-2">אנשי קשר</h3>
-            <div className="flex flex-wrap gap-3">
-              {contacts.map((ct) => (
-                <div key={ct.id} className="text-sm bg-neutral-50 rounded-lg px-3 py-2">
-                  <span className="font-medium text-content-body">{ct.name}</span>
-                  {ct.role && <span className="text-neutral-400"> · {ct.role}</span>}
-                  {ct.phone && <span className="text-content-muted block text-[12px]" dir="ltr">{ct.phone}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Contacts from linked projects (read-only) */}
-      {projectContacts.length > 0 && (
-        <div className="bg-white border border-line-subtle rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-bold text-content-muted mb-3">אנשי קשר מהפרויקטים</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line-subtle text-[12px] text-content-muted">
-                  <th className="text-right font-medium pb-2 pr-1">שם</th>
-                  <th className="text-right font-medium pb-2">תפקיד</th>
-                  <th className="text-right font-medium pb-2">חברה</th>
-                  <th className="text-right font-medium pb-2">טלפון</th>
-                  <th className="text-right font-medium pb-2">מייל</th>
-                  <th className="text-right font-medium pb-2">פרויקט</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectContacts.map((pc) => (
-                  <tr key={pc.id} className="border-b border-line-subtle">
-                    <td className="py-2 pr-1 font-medium text-content-strong">{pc.name}</td>
-                    <td className="py-2 text-content-body">{pc.role || '—'}</td>
-                    <td className="py-2 text-content-body">{pc.company || '—'}</td>
-                    <td className="py-2 text-content-muted" dir="ltr">{pc.phone || '—'}</td>
-                    <td className="py-2 text-content-muted" dir="ltr">{pc.email || '—'}</td>
-                    <td className="py-2 text-neutral-400">{pc.project || '—'}</td>
+      {/* One unified contacts card: every master contact (client_contacts),
+          annotated with the projects it's attached to, plus legacy
+          project-only contacts (company-matched, never linked). */}
+      {(() => {
+        const merged = [
+          ...contacts.map((ct) => ({
+            key: `cc-${ct.id}`, name: ct.name, role: ct.role, phone: ct.phone, email: ct.email,
+            projects: Array.from(new Set(projectContacts.filter((pc) => pc.client_contact_id === ct.id).map((pc) => pc.project).filter(Boolean))),
+          })),
+          ...projectContacts
+            .filter((pc) => !pc.client_contact_id && !contacts.some((c) => (c.name || '').trim() === (pc.name || '').trim()))
+            .map((pc) => ({
+              key: `pc-${pc.id}`, name: pc.name, role: pc.role, phone: pc.phone, email: pc.email,
+              projects: pc.project ? [pc.project] : [],
+            })),
+        ];
+        if (merged.length === 0) return null;
+        return (
+          <div className="bg-white border border-line-subtle rounded-xl p-5 mb-5">
+            <h2 className="text-sm font-bold text-content-muted mb-3">אנשי קשר</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line-subtle text-[12px] text-content-muted">
+                    <th className="text-right font-medium pb-2 pr-1">שם</th>
+                    <th className="text-right font-medium pb-2">תפקיד</th>
+                    <th className="text-right font-medium pb-2">טלפון</th>
+                    <th className="text-right font-medium pb-2">מייל</th>
+                    <th className="text-right font-medium pb-2">פרויקטים</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {merged.map((ct) => (
+                    <tr key={ct.key} className="border-b border-line-subtle">
+                      <td className="py-2 pr-1 font-medium text-content-strong">{ct.name}</td>
+                      <td className="py-2 text-content-body">{ct.role || '—'}</td>
+                      <td className="py-2 text-content-muted" dir="ltr">{ct.phone || '—'}</td>
+                      <td className="py-2 text-content-muted" dir="ltr">{ct.email || '—'}</td>
+                      <td className="py-2 text-neutral-400">{ct.projects.length ? ct.projects.join(', ') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Quote history */}
       <h2 className="text-lg font-bold text-content-strong mb-2">היסטוריית הצעות מחיר</h2>
