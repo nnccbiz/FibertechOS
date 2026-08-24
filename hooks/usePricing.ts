@@ -8,6 +8,7 @@ import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency } from '@/lib/pricing';
 import { parseExcelBOQ } from '@/lib/boq-parser';
 import { safeExt } from '@/lib/dropped-files';
+import { buildFieldWorksSection, hasFieldWorksSection } from '@/lib/field-works-terms';
 
 // Default payment terms, pre-filled on new records and editable everywhere.
 export const DEFAULT_COST_PAYMENT_TERMS = 'שוטף 30% מקדמה, יתרה 60 יום לאחר מועד הפקת החשבונית.';
@@ -96,6 +97,7 @@ export interface UsePricingReturn {
   setQuoteCostInput: (quoteId: string, costInputId: string) => Promise<void>;
   setQuoteContractTemplate: (quoteId: string, templateId: string) => Promise<void>;
   setQuoteContractOverrides: (quoteId: string, overrides: any) => Promise<void>;
+  toggleFieldWorksTerms: (quoteId: string, on: boolean) => Promise<void>;
   fetchTemplateContent: (templateId: string) => Promise<any>;
   refreshContractTemplates: () => Promise<void>;
   refreshProjectDrawings: () => Promise<void>;
@@ -1154,6 +1156,34 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, contract_overrides: overrides } : q));
   }
 
+  // Toggle the field-works addon section ("עבודות שטח באתר הלקוח") on a quote:
+  // resolve the quote's current sections (overrides > template > code fallback),
+  // append/remove the addon section, and store the result as contract_overrides
+  // — so the preview, the public page and the issue-time snapshot all see it.
+  async function toggleFieldWorksTerms(quoteId: string, on: boolean) {
+    const q = quotes.find((x) => x.id === quoteId);
+    if (!q) return;
+    let sections: any[] = Array.isArray(q.contract_overrides) && q.contract_overrides.length ? q.contract_overrides : [];
+    if (!sections.length) {
+      if (q.contract_template_id) {
+        const tpl = await fetchTemplateContent(q.contract_template_id);
+        sections = tpl?.content || [];
+      } else {
+        sections = CONTRACT_SECTIONS.map((s: any) => ({ title: s.title, clauses: s.clauses.map((c: any) => ({ ...c })) }));
+      }
+    }
+    let next: any[];
+    if (on) {
+      if (hasFieldWorksSection(sections)) return;
+      const maxNum = Math.max(0, ...sections.flatMap((s: any) => (s.clauses || []).map((c: any) => Number(c.num) || 0)));
+      next = [...sections, buildFieldWorksSection(maxNum + 1)];
+    } else {
+      next = sections.filter((s: any) => !hasFieldWorksSection([s]));
+      if (!hasFieldWorksSection(sections)) return;
+    }
+    await setQuoteContractOverrides(quoteId, next);
+  }
+
   // Fetch a template's full content (the list cache only holds id/name).
   async function fetchTemplateContent(templateId: string) {
     const { data, error } = await supabase.from('contract_term_templates').select('*').eq('id', templateId).single();
@@ -1531,7 +1561,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     createCostInput, duplicateCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
     contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
-    contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
+    contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, toggleFieldWorksTerms, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
     cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
