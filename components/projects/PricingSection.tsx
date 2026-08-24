@@ -8,6 +8,8 @@ import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
 import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import { isFieldWorksOn } from '@/lib/field-works-terms';
+import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
@@ -1043,13 +1045,14 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     })]} />
                 </span>
               )}
-              {q.status === 'draft' && p.contractTemplates.length > 0 && (
+              {q.status === 'draft' && (
                 <span className="flex items-center gap-1 text-[12px] text-content-muted">
                   <Icon name="contract" size={16} /> תנאי הסכם:
-                  <SearchableSelect value={q.contract_template_id || ''} onChange={(v) => p.setQuoteContractTemplate(q.id, v)} className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] min-w-[170px]"
-                    placeholder="תבנית"
-                    options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
                   <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-primary-50 text-primary px-2 py-0.5 rounded-lg hover:bg-primary-100"><Icon name="edit" size={14} /> ערוך להצעה זו</button>
+                  <label className="flex items-center gap-1 text-[11px] text-content-body cursor-pointer whitespace-nowrap" title="מוסיף לתנאי ההסכם פרק סעיפים לעבודות שטח באתר הלקוח">
+                    <input type="checkbox" checked={isFieldWorksOn(q.contract_overrides)} onChange={(e) => p.toggleFieldWorksTerms(q.id, e.target.checked)} />
+                    תוספת עבודות שטח
+                  </label>
                   {q.contract_overrides && (
                     <button onClick={() => { if (confirm('לשחזר את התנאים מהתבנית ולמחוק את העריכה הייעודית?')) p.setQuoteContractOverrides(q.id, null); }} className="text-[11px] bg-warning-soft text-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft"><Icon name="refresh" size={14} /> שחזר מהתבנית</button>
                   )}
@@ -1270,7 +1273,8 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
         const tpl = await p.fetchTemplateContent(q.contract_template_id);
         setSections(tpl?.content || []);
       } else {
-        setSections([]);
+        // No template linked — edit the standard fallback (what the preview shows).
+        setSections(CONTRACT_SECTIONS.map((s) => ({ title: s.title, clauses: s.clauses.map((c) => ({ ...c })) })));
       }
     })();
   }, [q.id]); // eslint-disable-line react-hooks/exhaustive-deps
