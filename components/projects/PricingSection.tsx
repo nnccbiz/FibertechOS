@@ -8,7 +8,7 @@ import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 import { detectBillingAnchor, effectiveAdvancePct, BILLING_ANCHOR_LABELS } from '@/lib/billing';
 import { createClient } from '@/lib/supabase/client';
 import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
-import { hasFieldWorksSection } from '@/lib/field-works-terms';
+import { isFieldWorksOn } from '@/lib/field-works-terms';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
@@ -1052,7 +1052,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     options={p.contractTemplates.map((t: any) => ({ value: t.id, label: `${t.name}${t.is_default ? ' (ברירת מחדל)' : ''}` }))} />
                   <button onClick={() => setEditTermsQuoteId(q.id)} className="text-[11px] bg-primary-50 text-primary px-2 py-0.5 rounded-lg hover:bg-primary-100"><Icon name="edit" size={14} /> ערוך להצעה זו</button>
                   <label className="flex items-center gap-1 text-[11px] text-content-body cursor-pointer whitespace-nowrap" title="מוסיף לתנאי ההסכם פרק סעיפים לעבודות שטח באתר הלקוח">
-                    <input type="checkbox" checked={hasFieldWorksSection(q.contract_overrides)} onChange={(e) => p.toggleFieldWorksTerms(q.id, e.target.checked)} />
+                    <input type="checkbox" checked={isFieldWorksOn(q.contract_overrides)} onChange={(e) => p.toggleFieldWorksTerms(q.id, e.target.checked)} />
                     תוספת עבודות שטח
                   </label>
                   {q.contract_overrides && (
