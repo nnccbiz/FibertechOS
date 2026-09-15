@@ -115,6 +115,7 @@ export interface UsePricingReturn {
   updateQuoteStatus: (quoteId: string, status: string, extra?: Record<string, any>) => Promise<void>;
   deleteQuote: (quoteId: string) => Promise<void>;
   updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
+  updateDiscountAmount: (quoteId: string, amount: number) => Promise<void>;
   refreshDisclaimer: (quoteId: string) => Promise<void>;
   updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
   updateDeliveryTime: (quoteId: string, text: string) => Promise<void>;
@@ -863,7 +864,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       default_overheads_pct: oh,
       default_profit_pct: pr,
       payment_terms: newQuote.payment_terms, disclaimer_type: newQuote.disclaimer_type,
-      disclaimer_text: disclaimer, global_discount_pct: 0, total_amount: 0, total_cost: 0, notes: newQuote.notes,
+      disclaimer_text: disclaimer, global_discount_pct: 0, discount_amount: 0, total_amount: 0, total_cost: 0, notes: newQuote.notes,
       delivery_time: DEFAULT_DELIVERY_TIME,
     }).select().single();
     if (error) { alert(`שגיאה: ${error.message}`); return; }
@@ -917,7 +918,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       cost_input_id: src.cost_input_id || null,
       default_overheads_pct: src.default_overheads_pct, default_profit_pct: src.default_profit_pct,
       payment_terms: src.payment_terms, disclaimer_type: src.disclaimer_type, disclaimer_text: src.disclaimer_text,
-      global_discount_pct: src.global_discount_pct || 0, total_amount: src.total_amount || 0, total_cost: src.total_cost || 0,
+      global_discount_pct: src.global_discount_pct || 0, discount_amount: src.discount_amount || 0, total_amount: src.total_amount || 0, total_cost: src.total_cost || 0,
       notes: src.notes, delivery_time: src.delivery_time,
       // Carry the contract terms over so the duplicate starts identical.
       contract_template_id: src.contract_template_id || null,
@@ -1419,6 +1420,12 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, global_discount_pct: pct } : q));
   }
 
+  // Fixed-amount discount (₪) — applied AFTER the percentage discount.
+  async function updateDiscountAmount(quoteId: string, amount: number) {
+    await supabase.from('quotes').update({ discount_amount: amount, updated_at: new Date().toISOString() }).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, discount_amount: amount } : q));
+  }
+
   async function refreshDisclaimer(quoteId: string) {
     const q = quotes.find((x) => x.id === quoteId);
     if (!q) return;
@@ -1556,7 +1563,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, toggleFieldWorksTerms, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, updateDiscountAmount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, duplicateEditingItem, reorderEditingItems, addCostItem, removeCostItem, duplicateCostItem, reorderCostItems,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,
   };

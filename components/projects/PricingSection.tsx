@@ -1099,6 +1099,8 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 <span>הנחה כללית:</span>
                 <input type="number" value={q.global_discount_pct || ''} onChange={(e) => p.updateGlobalDiscount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" className="w-14 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" />
                 <span>%</span>
+                <input type="number" value={q.discount_amount || ''} onChange={(e) => p.updateDiscountAmount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" title="הנחת סכום — מוחלת אחרי הנחת האחוזים" className="w-20 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" dir="ltr" />
+                <span>₪</span>
               </div>
             )}
 
@@ -1525,13 +1527,15 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   const forexSym = forexCurrency ? CURRENCY_SYMBOLS[forexCurrency] : '';
   const hasAnyDiscount = items.some((i: any) => parseFloat(i.discount_pct) > 0);
   const globalDisc = parseFloat(q.global_discount_pct) || 0;
+  const discAmount = parseFloat(q.discount_amount) || 0;
   const subtotalBeforeDisc = items.reduce((s: number, i: any) => {
     const qty = parseFloat(i.quantity) || 0;
     const up = parseFloat(i.unit_price) || 0;
     return s + qty * up;
   }, 0);
   const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
-  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
   const colCount = hasAnyDiscount ? 14 : 13;
 
   return (
@@ -1632,7 +1636,7 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
           })}
         </tbody>
         <tfoot>
-          {(hasAnyDiscount || globalDisc > 0) && (
+          {(hasAnyDiscount || globalDisc > 0 || discAmount > 0) && (
             <tr className="border-t border-line-subtle bg-neutral-50">
               <td colSpan={colCount - 2} className="py-1.5 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1.5 px-1 text-right text-[12px] text-content-muted border-r border-line-subtle">סה״כ לפני הנחה</td>
@@ -1650,7 +1654,14 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחה כללית {globalDisc}%</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(totalAfterLineDisc - finalTotal)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(totalAfterLineDisc - afterPctDisc)}</td>
+            </tr>
+          )}
+          {discAmount > 0 && (
+            <tr className="bg-warning-soft">
+              <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
+              <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחת סכום</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(afterPctDisc - finalTotal)}</td>
             </tr>
           )}
           <tr className="border-t-2 border-line-subtle bg-neutral-50">

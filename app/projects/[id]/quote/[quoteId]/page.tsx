@@ -179,8 +179,10 @@ export default function QuotePreviewPage() {
   }
 
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
+  const discAmount = parseFloat(quote.discount_amount) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
-  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
 
   const emailSubjectRaw = `${quote.client_name || ''} | ${project.name || ''} | הצעת מחיר ${quote.quote_number} — פיברטק`;
   const emailBodyRaw = `שלום,\n\nמצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\n\nבברכה,\nפיברטק תעשיות צנרת וכימיקלים בע״מ`;
