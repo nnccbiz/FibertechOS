@@ -1303,8 +1303,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
                     <button onClick={() => openDrawing(att.file_url)} className="text-primary hover:underline truncate flex-1 text-right min-w-0">
                       <Icon name={att.file_name.endsWith('.pdf') ? 'pdf' : att.file_name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? 'image' : 'attach'} size={14} /> {att.file_name}
                     </button>
-                    {docTab === 'drawing' && (
-                      <label className="text-[11px] text-neutral-400 flex items-center gap-1">שרטוט:
+                    {(docTab === 'drawing' || docTab === 'spec') && (
+                      <label className="text-[11px] text-neutral-400 flex items-center gap-1">{docTab === 'drawing' ? 'שרטוט:' : 'מפרט:'}
                         <input type="text" defaultValue={att.drawing_number || ''} onBlur={(e) => { if (e.target.value !== (att.drawing_number || '')) setDrawingNumber(att.id, e.target.value.trim()); }} placeholder="—" className="w-56 max-w-full border border-line-subtle rounded px-2 py-1 text-[12px] text-content-body" dir="auto" />
                       </label>
                     )}

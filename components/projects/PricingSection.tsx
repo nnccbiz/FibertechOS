@@ -1134,9 +1134,9 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     <label key={d.id} className="flex items-center gap-1.5 text-[12px] text-content-body cursor-pointer">
                       <input type="checkbox" checked={on} onChange={() => p.toggleQuoteDrawing(q.id, d.id)} />
                       {isSpec
-                        ? <span className="font-medium text-warning"><Icon name="spec" size={14} /> מפרט</span>
+                        ? <span dir="auto" className="font-medium text-warning"><Icon name="spec" size={14} /> {d.drawing_number || 'מפרט'}</span>
                         : <span dir="auto" className="font-medium"><Icon name="drawings" size={14} /> {d.drawing_number || '?'}</span>}
-                      {(!d.drawing_number || isSpec) && <span className="text-neutral-400 truncate max-w-[160px]" dir="ltr">{d.file_name}</span>}
+                      {!d.drawing_number && <span className="text-neutral-400" dir="ltr">{d.file_name}</span>}
                     </label>
                   );
                 })}
