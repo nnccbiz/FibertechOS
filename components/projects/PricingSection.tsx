@@ -1094,7 +1094,7 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
 
             <div className="grow" />
 
-            {!isEditing && items.length > 0 && (
+            {items.length > 0 && (
               <div className="flex items-center gap-1 text-[12px] text-content-muted">
                 <span>הנחה כללית:</span>
                 <input type="number" value={q.global_discount_pct || ''} onChange={(e) => p.updateGlobalDiscount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" className="w-14 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" />
