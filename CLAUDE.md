@@ -162,6 +162,7 @@ FibertechOS/
 - **Quote tiers**: `planner_estimate`, `contractor_pre_tender`, `contractor_final`.
 - **Margin validation**: Warns on items with margin < 10% or > 60%, or zero cost.
 - **Bulk profit control**: In the quote items editor, one profit % can be applied across a category at once — pipes, accessories, or all. Short pipes/rokers count as accessories (`itemCategory()` in `usePricing.ts`).
+- **Quote-level discounts (2026-09-15)**: `quotes.global_discount_pct` (%) + `quotes.discount_amount` (₪, migration `20260915_001`) — the ₪ discount is applied AFTER the % discount: subtotal → pct → amount → VAT. Both inputs sit on the quote card row; summary lines render in QuoteItemsDisplay + QuoteDocument (PDF/public) only when > 0. `duplicateQuote` carries both.
 - **Row duplication**: every line editor (quote items, cost-input items, PO lines) has a duplicate button next to delete — inserts an id-stripped copy right below the source; persisted as a new row on save.
 
 ### AI Integration (Roxy)

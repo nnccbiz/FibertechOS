@@ -254,8 +254,11 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   useImperativeHandle(ref, () => ({ downloadPdf: handleDownloadPdf, getPdfBase64: generatePdfBase64 }), [quote, measuredPages]);
 
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
+  const discAmount = parseFloat(quote.discount_amount) || 0;
   const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
-  const finalTotal = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
+  const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
+  const hasQuoteDiscount = globalDisc > 0 || discAmount > 0;
   const quoteDateSource = quote.status === 'draft'
     ? new Date()
     : new Date(quote.sent_at || quote.updated_at || Date.now());
@@ -302,7 +305,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     | { kind: 'sign'; h: number };
 
   const trailing: TBlock[] = [];
-  trailing.push({ kind: 'summary', key: 'totals', h: globalDisc > 0 ? 52 : 42 });
+  trailing.push({ kind: 'summary', key: 'totals', h: hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42 });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
   const currencyNote = currencyPegNote(costCurrency);
   if (quote.disclaimer_text || currencyNote) {
@@ -493,16 +496,24 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     totals: (
       <div key="totals" className="flex justify-end mb-6">
         <div className="border border-line-subtle w-64 text-sm">
-          {globalDisc > 0 && (
+          {hasQuoteDiscount && (
             <>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-content-body">סכום לפני הנחה</span>
                 <span className="text-content-body">{formatCurrency2(totalAfterLineDisc)}</span>
               </div>
-              <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
-                <span className="text-warning">הנחה {globalDisc}%</span>
-                <span className="text-warning">-{formatCurrency2(totalAfterLineDisc - finalTotal)}</span>
-              </div>
+              {globalDisc > 0 && (
+                <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                  <span className="text-warning">הנחה {globalDisc}%</span>
+                  <span className="text-warning">-{formatCurrency2(totalAfterLineDisc - afterPctDisc)}</span>
+                </div>
+              )}
+              {discAmount > 0 && (
+                <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                  <span className="text-warning">הנחה</span>
+                  <span className="text-warning">-{formatCurrency2(afterPctDisc - finalTotal)}</span>
+                </div>
+              )}
             </>
           )}
           <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
