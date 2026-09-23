@@ -316,11 +316,11 @@ export type ItemType =
 /**
  * Item types whose QUANTITY is a length in metres, so "units" (qty ÷ unit
  * length) is meaningful and a fractional result is a real error.
- * Everything else — elbow, חיוץ, מצוף, flange… — is counted in pieces: such a
- * part may well carry a length, but each one is still a single unit, so
- * dividing its quantity by that length is meaningless.
+ * Everything else — elbow, חיוץ, מצוף, נזיר צף, flange… — is counted in
+ * pieces: such a part may well carry a length, but each one is still a single
+ * unit, so dividing its quantity by that length is meaningless.
  */
-const LENGTH_BASED_TYPES = new Set<string>(['pipe_with_coupling', 'pipe_bare', 'roker', 'floating_roker']);
+const LENGTH_BASED_TYPES = new Set<string>(['pipe_with_coupling', 'pipe_bare', 'roker']);
 
 export function isLengthBased(itemType?: string | null, productName?: string): boolean {
   // item_type is a comma-separated multi-select; any length-based pick wins.
