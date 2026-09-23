@@ -980,6 +980,12 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const isExpanded = p.expandedQuote === q.id;
   const isEditing = p.editingQuote === q.id;
   const items = p.quoteItems[q.id] || [];
+  // Quote currency (edge case) — ILS unless the user picked USD/EUR, in which
+  // case a BoI rate is locked on the quote and the customer document is
+  // presented in that currency. Internal pricing stays in ILS either way.
+  const quoteCurrency = (q.currency || 'ILS').toUpperCase();
+  const isForeignQuote = quoteCurrency !== 'ILS' && (parseFloat(q.fx_rate) || 0) > 0;
+  const quoteCurSym = isForeignQuote ? (CURRENCY_SYMBOLS[quoteCurrency] || quoteCurrency) : '₪';
   const [editTermsQuoteId, setEditTermsQuoteId] = useState<string | null>(null);
   const [showReject, setShowReject] = useState(false);
 
@@ -1058,6 +1064,35 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                   )}
                 </span>
               )}
+              {/* Quote currency — edge case. ILS by default; picking USD/EUR
+                  locks today's BoI rate and the customer document is presented
+                  in that currency (0% VAT). Internal pricing stays in ILS. */}
+              {q.status === 'draft' && (
+                <span className="flex items-center gap-1 text-[12px] text-content-muted">
+                  <Icon name="money" size={16} /> מטבע ההצעה:
+                  <select
+                    value={quoteCurrency}
+                    onChange={(e) => p.setQuoteCurrency(q.id, e.target.value)}
+                    className="border border-line-subtle rounded-lg px-2 py-1 text-[12px] bg-white"
+                  >
+                    <option value="ILS">₪ שקל</option>
+                    <option value="USD">$ דולר</option>
+                    <option value="EUR">€ אירו</option>
+                  </select>
+                  {isForeignQuote && (
+                    <>
+                      <span className="text-[11px] bg-azure-100 text-azure-600 px-2 py-0.5 rounded-lg whitespace-nowrap" dir="ltr">
+                        1 {quoteCurrency} = {(parseFloat(q.fx_rate) || 0).toFixed(4)} ₪
+                      </span>
+                      {q.fx_rate_date && (
+                        <span className="text-[11px] text-neutral-400 whitespace-nowrap">{new Date(q.fx_rate_date).toLocaleDateString('he-IL')}</span>
+                      )}
+                      <button onClick={() => p.refreshQuoteFxRate(q.id)} title="עדכן לשער בנק ישראל של היום" className="text-[11px] bg-warning-soft text-warning px-2 py-0.5 rounded-lg hover:bg-warning-soft"><Icon name="refresh" size={14} /> עדכן שער</button>
+                      <span className="text-[11px] text-neutral-400 whitespace-nowrap">· מע״מ 0% (יצוא)</span>
+                    </>
+                  )}
+                </span>
+              )}
             </div>
           )}
 
@@ -1099,8 +1134,8 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                 <span>הנחה כללית:</span>
                 <input type="number" value={q.global_discount_pct || ''} onChange={(e) => p.updateGlobalDiscount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" className="w-14 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" />
                 <span>%</span>
-                <input type="number" value={q.discount_amount || ''} onChange={(e) => p.updateDiscountAmount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" title="הנחת סכום — מוחלת אחרי הנחת האחוזים" className="w-20 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" dir="ltr" />
-                <span>₪</span>
+                <input type="number" value={q.discount_amount || ''} onChange={(e) => p.updateDiscountAmount(q.id, parseFloat(e.target.value) || 0)} placeholder="0" title={`הנחת סכום ב${quoteCurSym} — מוחלת אחרי הנחת האחוזים`} className="w-20 border border-line-subtle rounded px-1.5 py-0.5 text-[12px] text-center bg-warning-soft" dir="ltr" />
+                <span>{quoteCurSym}</span>
               </div>
             )}
 
@@ -1374,6 +1409,19 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
 function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
   const [bulkProfit, setBulkProfit] = useState('');
   const dnd = useRowDnd(p.reorderEditingItems);
+  // Foreign-currency quote: selling prices are EDITED in the quote's currency
+  // (converted at the locked rate) while ILS stays the stored source of truth —
+  // so the user can round a converted price to a clean figure. Cost columns
+  // stay ILS (that's what they really are).
+  const editCur = (q.currency || 'ILS').toUpperCase();
+  const editRate = editCur !== 'ILS' ? (parseFloat(q.fx_rate) || 0) : 0;
+  const isFx = editRate > 0;
+  const editSym = isFx ? (CURRENCY_SYMBOLS[editCur] || editCur) : '₪';
+  const toCur = (ils: number) => isFx ? Math.round((ils / editRate) * 100) / 100 : ils;
+  const toIls = (cur: number) => isFx ? Math.round(cur * editRate * 100) / 100 : cur;
+  const fmtCur = (v: number) => new Intl.NumberFormat('he-IL', {
+    style: 'currency', currency: isFx ? editCur : 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(v);
   const subtotal = p.editingItems.reduce((s, i) => {
     const qty = parseFloat(i.quantity) || 0;
     const up = parseFloat(i.unit_price) || 0;
@@ -1409,7 +1457,7 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
       </div>
       <div className="overflow-x-auto">
         <div className="grid grid-cols-[18px_minmax(130px,1fr)_58px_50px_64px_56px_70px_58px_52px_74px_58px_54px_84px_54px_92px_26px_46px] gap-1 text-[11px] font-semibold text-content-muted px-1 min-w-[1120px]">
-          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span>מחיר מכירה</span><span>הנחה%</span><span>סה״כ</span><span title="ייצור בישראל">🏭</span><span></span>
+          <span></span><span>מוצר</span><span>קוטר</span><span>לחץ PN</span><span>קשיחות SN</span><span title="אורך יחידה במטרים">אורך יח׳</span><span>כמות</span><span title="כמות ÷ אורך יחידה">יחידות</span><span>יחידה</span><span>עלות ₪</span><span>תקורות%</span><span>רווח%</span><span className={isFx ? 'text-azure-600' : ''}>מחיר מכירה {editSym}</span><span>הנחה%</span><span className={isFx ? 'text-azure-600' : ''}>סה״כ {editSym}</span><span title="ייצור בישראל">🏭</span><span></span>
         </div>
         {p.editingItems.map((item, idx) => {
           const specFromProject = p.resolvePnSn(item.dn_size);
@@ -1460,9 +1508,29 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="number" value={item.cost_price || ''} onChange={(e) => p.updateItem(idx, 'cost_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.overheads_pct ?? ''} onChange={(e) => p.updateItem(idx, 'overheads_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             <input type="number" value={item.profit_pct ?? ''} onChange={(e) => p.updateItem(idx, 'profit_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
-            <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100" />
+            {isFx ? (
+              // Free typing in the quote currency; committed (→ ILS) on blur or
+              // Enter. The key remounts the field when the stored ILS price or
+              // the locked rate changes from outside (bulk profit, rate update).
+              <input
+                key={`up-${idx}-${item.unit_price}-${editRate}`}
+                type="number"
+                defaultValue={item.unit_price ? toCur(parseFloat(item.unit_price) || 0) : ''}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  p.updateItem(idx, 'unit_price', isNaN(v) ? '' : toIls(v));
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                placeholder={editSym}
+                title={`מחיר יחידה ב${editSym} — נשמר בשקלים לפי השער הנעול (1 ${editCur} = ${editRate.toFixed(4)} ₪)`}
+                className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100"
+                dir="ltr"
+              />
+            ) : (
+              <input type="number" value={item.unit_price || ''} onChange={(e) => p.updateItem(idx, 'unit_price', e.target.value)} placeholder="₪" className="border border-line-subtle rounded px-1.5 py-1 text-[12px] min-w-0 bg-azure-100" />
+            )}
             <input type="number" value={item.discount_pct || ''} onChange={(e) => p.updateItem(idx, 'discount_pct', e.target.value)} placeholder="%" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 bg-warning-soft" />
-            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate" dir="ltr">{formatCurrency2(parseFloat(item.total_price) || 0)}</span>
+            <span className="flex items-center text-[12px] font-medium text-content-body px-0.5 min-w-0 truncate" dir="ltr">{fmtCur(toCur(parseFloat(item.total_price) || 0))}</span>
             <button
               onClick={() => {
                 const turningOn = !item.requires_production;
@@ -1505,8 +1573,9 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
         <button onClick={() => p.addEditingItem()} className="text-[12px] text-primary hover:underline">+ הוסף שורה</button>
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-neutral-400">עלות: {formatCurrency(totalCost)}</span>
-          {hasAnyDiscount && <span className="text-[12px] text-neutral-400">לפני הנחה: {formatCurrency(subtotal)}</span>}
-          <span className="text-sm font-bold text-content-body">מכירה: {formatCurrency(totalAfterDisc)}</span>
+          {hasAnyDiscount && <span className="text-[12px] text-neutral-400">לפני הנחה: {fmtCur(toCur(subtotal))}</span>}
+          <span className="text-sm font-bold text-content-body">מכירה: {fmtCur(toCur(totalAfterDisc))}</span>
+          {isFx && <span className="text-[11px] text-azure-600 whitespace-nowrap" dir="ltr">1 {editCur} = {editRate.toFixed(4)} ₪</span>}
           {totalCost > 0 && (
             <span className="text-[12px] font-semibold text-success bg-success-soft border border-success rounded px-2 py-0.5 whitespace-nowrap" title="אחוז ההפרש בין מחיר המכירה לעלות הישירה">
               פער מהעלות: +{diffPct.toFixed(1)}%
@@ -1528,12 +1597,31 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
   const hasAnyDiscount = items.some((i: any) => parseFloat(i.discount_pct) > 0);
   const globalDisc = parseFloat(q.global_discount_pct) || 0;
   const discAmount = parseFloat(q.discount_amount) || 0;
+  // Foreign-currency quote: selling prices are shown in the quote's currency at
+  // the locked rate (cost columns stay ILS — that's what they really are).
+  const quoteCur = (q.currency || 'ILS').toUpperCase();
+  const fxQuoteRate = quoteCur !== 'ILS' ? (parseFloat(q.fx_rate) || 0) : 0;
+  const dispSym = fxQuoteRate > 0 ? (CURRENCY_SYMBOLS[quoteCur] || quoteCur) : '₪';
+  const dispCur = (ils: number) => fxQuoteRate > 0 ? Math.round((ils / fxQuoteRate) * 100) / 100 : ils;
+  const dispMoney = (v: number) => new Intl.NumberFormat('he-IL', {
+    style: 'currency', currency: fxQuoteRate > 0 ? quoteCur : 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(v);
+  // In a foreign-currency quote the totals are built from the PRINTED unit
+  // price (ILS ÷ rate, 2 decimals) exactly like the customer document, so the
+  // table and the PDF always agree. ILS quotes keep the existing arithmetic.
   const subtotalBeforeDisc = items.reduce((s: number, i: any) => {
     const qty = parseFloat(i.quantity) || 0;
-    const up = parseFloat(i.unit_price) || 0;
+    const up = dispCur(parseFloat(i.unit_price) || 0);
     return s + qty * up;
   }, 0);
-  const totalAfterLineDisc = parseFloat(q.total_amount) || 0;
+  const totalAfterLineDisc = fxQuoteRate > 0
+    ? Math.round(items.reduce((s: number, i: any) => {
+        const unit = dispCur(parseFloat(i.unit_price) || 0);
+        const gross = unit * (parseFloat(i.quantity) || 0);
+        const d = parseFloat(i.discount_pct) || 0;
+        return s + Math.round((d > 0 ? gross * (1 - d / 100) : gross) * 100) / 100;
+      }, 0) * 100) / 100
+    : parseFloat(q.total_amount) || 0;
   const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
   const colCount = hasAnyDiscount ? 14 : 13;
@@ -1569,9 +1657,9 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">עלות</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">תקורות%</th>
             <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">רווח%</th>
-            <th className="text-right text-[11px] text-content-muted font-semibold py-2 px-1 border-r border-line-subtle">מחיר מכירה</th>
+            <th className={`text-right text-[11px] font-semibold py-2 px-1 border-r border-line-subtle ${fxQuoteRate > 0 ? 'text-azure-600' : 'text-content-muted'}`}>מחיר מכירה {dispSym}</th>
             {hasAnyDiscount && <th className="text-right text-[11px] text-warning font-semibold py-2 px-1 border-r border-line-subtle">הנחה%</th>}
-            <th className="text-right text-[11px] text-content-body font-semibold py-2 px-1 border-r border-line-subtle">סה״כ</th>
+            <th className={`text-right text-[11px] font-semibold py-2 px-1 border-r border-line-subtle ${fxQuoteRate > 0 ? 'text-azure-600' : 'text-content-body'}`}>סה״כ {dispSym}</th>
             <th className="py-2 w-6"></th>
           </tr>
         </thead>
@@ -1625,9 +1713,9 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                 <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(cost)}</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.overheads_pct}%</td>
                 <td className="py-2 px-1 text-content-muted text-[12px] text-center border-r border-line-subtle whitespace-nowrap">{item.profit_pct}%</td>
-                <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap">{formatCurrency(unit)}</td>
+                <td className="py-2 px-1 text-content-body text-[12px] border-r border-line-subtle whitespace-nowrap" dir="ltr">{dispMoney(dispCur(unit))}</td>
                 {hasAnyDiscount && <td className="py-2 px-1 text-warning text-[12px] font-medium text-center border-r border-line-subtle whitespace-nowrap">{disc > 0 ? `${disc}%` : '—'}</td>}
-                <td className="py-2 px-1 font-semibold text-content-strong text-[12px] border-r border-line-subtle whitespace-nowrap" dir="ltr">{formatCurrency2(tot)}</td>
+                <td className="py-2 px-1 font-semibold text-content-strong text-[12px] border-r border-line-subtle whitespace-nowrap" dir="ltr">{dispMoney(dispCur(tot))}</td>
                 <td className="py-2 text-center">
                   <span title={tooltip} className="cursor-help text-neutral-300 hover:text-primary text-[13px]"><Icon name="info" size={14} /></span>
                 </td>
@@ -1640,28 +1728,28 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
             <tr className="border-t border-line-subtle bg-neutral-50">
               <td colSpan={colCount - 2} className="py-1.5 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1.5 px-1 text-right text-[12px] text-content-muted border-r border-line-subtle">סה״כ לפני הנחה</td>
-              <td className="py-1.5 px-1 text-[12px] text-content-muted whitespace-nowrap">{formatCurrency2(subtotalBeforeDisc)}</td>
+              <td className="py-1.5 px-1 text-[12px] text-content-muted whitespace-nowrap">{dispMoney(subtotalBeforeDisc)}</td>
             </tr>
           )}
           {hasAnyDiscount && (
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחות שורה</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(subtotalBeforeDisc - totalAfterLineDisc)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{dispMoney(subtotalBeforeDisc - totalAfterLineDisc)}</td>
             </tr>
           )}
           {globalDisc > 0 && (
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחה כללית {globalDisc}%</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(totalAfterLineDisc - afterPctDisc)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{dispMoney(totalAfterLineDisc - afterPctDisc)}</td>
             </tr>
           )}
           {discAmount > 0 && (
             <tr className="bg-warning-soft">
               <td colSpan={colCount - 2} className="py-1 px-2 text-left text-[12px] text-neutral-400"></td>
               <td className="py-1 px-1 text-right text-[12px] text-warning border-r border-line-subtle">הנחת סכום</td>
-              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{formatCurrency2(afterPctDisc - finalTotal)}</td>
+              <td className="py-1 px-1 text-[12px] text-warning whitespace-nowrap">-{dispMoney(afterPctDisc - finalTotal)}</td>
             </tr>
           )}
           <tr className="border-t-2 border-line-subtle bg-neutral-50">
@@ -1669,14 +1757,29 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
               עלות: {formatCurrency(q.total_cost || 0)}
               {(q.total_cost || 0) > 0 && (
                 <span className="mr-2 font-semibold text-success" title="אחוז ההפרש בין מחיר המכירה לעלות הישירה">
-                  · פער מהעלות +{(((finalTotal - q.total_cost) / q.total_cost) * 100).toFixed(1)}%
+                  {/* compare like-for-like: the sale total back in ILS */}
+                  · פער מהעלות +{((((fxQuoteRate > 0 ? finalTotal * fxQuoteRate : finalTotal) - q.total_cost) / q.total_cost) * 100).toFixed(1)}%
                 </span>
               )}
             </td>
             <td colSpan={colCount - 7} className="py-2 px-1 text-right font-bold text-content-body">סה״כ מכירה</td>
-            <td className="py-2 px-1 font-bold text-primary text-[13px] whitespace-nowrap">{formatCurrency2(finalTotal)}</td>
+            <td className="py-2 px-1 font-bold text-primary text-[13px] whitespace-nowrap">{dispMoney(finalTotal)}</td>
             <td className="py-2"></td>
           </tr>
+          {/* Foreign-currency quote — the ILS equivalent of the sale, for the
+              internal read (the columns above are in the quote's currency). */}
+          {fxQuoteRate > 0 && (
+            <tr className="bg-azure-100">
+              <td colSpan={5} className="py-1.5 px-2 text-right text-[11px] text-azure-600" dir="ltr">
+                1 {quoteCur} = {fxQuoteRate.toFixed(4)} ₪
+              </td>
+              <td colSpan={colCount - 7} className="py-1.5 px-1 text-right text-[12px] font-semibold text-azure-600">שווי בשקלים</td>
+              <td className="py-1.5 px-1 font-bold text-azure-600 text-[13px] whitespace-nowrap">
+                {formatCurrency2(Math.round(finalTotal * fxQuoteRate * 100) / 100)}
+              </td>
+              <td className="py-1.5"></td>
+            </tr>
+          )}
         </tfoot>
       </table>
       <div className="mt-3">

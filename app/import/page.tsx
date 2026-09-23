@@ -342,7 +342,9 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                         : '—'}
                     </td>
                     <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
-                    <td className="py-2 px-3 text-content-body">{money(q.total_amount, q.currency || 'ILS')}</td>
+                    {/* total_amount is always ILS — quotes.currency only drives
+                        how the customer-facing document is presented. */}
+                    <td className="py-2 px-3 text-content-body">{money(q.total_amount, 'ILS')}</td>
                     <td className="py-2 px-3 text-content-muted">
                       {resign
                         ? <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning whitespace-nowrap">ממתין לחתימה מחודשת</span>

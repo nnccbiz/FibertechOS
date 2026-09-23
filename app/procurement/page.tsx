@@ -335,7 +335,9 @@ export default function ProcurementPage() {
                       {q.project_id ? <a href={`/projects/${q.project_id}`} className="text-primary hover:underline">{projNameById[q.project_id] || '—'}</a> : '—'}
                     </td>
                     <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
-                    <td className="py-2 px-3 text-content-body">{money(q.total_amount, q.currency || 'ILS')}</td>
+                    {/* total_amount is always ILS — quotes.currency only drives
+                        how the customer-facing document is presented. */}
+                    <td className="py-2 px-3 text-content-body">{money(q.total_amount, 'ILS')}</td>
                     <td className="py-2 px-3 text-left">
                       {canEdit && (
                         <button

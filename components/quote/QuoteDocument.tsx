@@ -19,6 +19,7 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { parsePipeSpec } from '@/lib/pricing';
+import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 
 type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
 
@@ -58,22 +59,22 @@ function currencyPegNote(currency: string | null | undefined): string | null {
   return null;
 }
 
+const CURRENCY_NAMES_HE: Record<string, string> = {
+  USD: 'דולר אמריקאי (USD)',
+  EUR: 'אירו (EUR)',
+  GBP: 'ליש"ט (GBP)',
+};
+
 function fmtSn(sn: string) {
   if (!sn) return '';
   const n = parseInt(sn, 10);
   return isNaN(n) ? sn : n.toLocaleString('en-US');
 }
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
-}
-// Totals show agorot when they exist (up to 2 decimals) — the line total is
-// printed-unit-price × quantity, e.g. 252 × 718.7 = ₪181,112.4.
-function formatCurrency2(v: number) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
-}
-// Table cells show bare numbers — the (₪) lives in the column header; the
-// currency symbol appears only in the summary box.
+// Money in the summary box is formatted per quote currency by `fmtMoney`
+// inside the component (ILS by default; USD/EUR for a foreign-currency quote).
+// Table cells show bare numbers — the currency symbol lives in the column
+// header; the symbol appears only in the summary box.
 function formatNum0(v: number) {
   return new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(v);
 }
@@ -253,9 +254,34 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
 
   useImperativeHandle(ref, () => ({ downloadPdf: handleDownloadPdf, getPdfBase64: generatePdfBase64 }), [quote, measuredPages]);
 
+  // --- Quote currency -------------------------------------------------------
+  // Internal pricing is always ILS. An edge-case quote issued in USD/EUR carries
+  // a rate locked on the quote (quotes.fx_rate, BoI): every money value is
+  // converted at it, the printed unit price (2 decimals) is the source of truth
+  // for line totals — the same rule the whole-shekel ILS pricing follows — and
+  // VAT is 0% (export). Falls back to ILS if a rate is somehow missing.
+  const docCurrency = (quote.currency || 'ILS').toUpperCase();
+  const fxRate = parseFloat(quote.fx_rate) || 0;
+  const isForeign = docCurrency !== 'ILS' && fxRate > 0;
+  const curSym = isForeign ? (CURRENCY_SYMBOLS[docCurrency] || docCurrency) : '₪';
+  const toDoc = (ils: number) => isForeign ? Math.round((ils / fxRate) * 100) / 100 : ils;
+  const fmtMoney = (v: number) => new Intl.NumberFormat('he-IL', {
+    style: 'currency', currency: isForeign ? docCurrency : 'ILS',
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(v);
+  const lineUnit = (item: any) => toDoc(parseFloat(item.unit_price) || 0);
+  const lineTotal = (item: any) => {
+    if (!isForeign) return parseFloat(item.total_price) || 0;
+    const qty = parseFloat(item.quantity) || 0;
+    const disc = parseFloat(item.discount_pct) || 0;
+    const gross = lineUnit(item) * qty;
+    return Math.round((disc > 0 ? gross * (1 - disc / 100) : gross) * 100) / 100;
+  };
+
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
+  // The fixed discount is denominated in the quote's own currency.
   const discAmount = parseFloat(quote.discount_amount) || 0;
-  const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const totalAfterLineDisc = Math.round(items.reduce((s, i) => s + lineTotal(i), 0) * 100) / 100;
   const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
   const hasQuoteDiscount = globalDisc > 0 || discAmount > 0;
@@ -267,8 +293,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   const hasAnyDiscount = items.some((i) => (parseFloat(i.discount_pct) || 0) > 0);
 
   // VAT keeps its agorot (2 decimals) — rounding it to whole shekels made the
-  // printed grand total disagree with סכום ביניים + מע"מ.
-  const vatAmount = Math.round(finalTotal * 0.18 * 100) / 100;
+  // printed grand total disagree with סכום ביניים + מע"מ. A foreign-currency
+  // quote is an export sale — 0%.
+  const vatPct = isForeign ? 0 : 18;
+  const vatAmount = Math.round(finalTotal * (vatPct / 100) * 100) / 100;
   const totalWithVat = Math.round((finalTotal + vatAmount) * 100) / 100;
 
   // ---- Pagination (estimate fallback; measured pass refines it) ----
@@ -305,9 +333,13 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     | { kind: 'sign'; h: number };
 
   const trailing: TBlock[] = [];
-  trailing.push({ kind: 'summary', key: 'totals', h: hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42 });
+  trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
-  const currencyNote = currencyPegNote(costCurrency);
+  // A quote already denominated in a foreign currency needs no peg sentence
+  // (that note is about ILS prices pegged to a rate) — it gets the rate note.
+  const currencyNote = isForeign
+    ? `המחירים בהצעה זו נקובים ב${CURRENCY_NAMES_HE[docCurrency] || docCurrency} ואינם כוללים מע"מ (עסקת יצוא). שער ההמרה: 1 ${docCurrency} = ${fxRate.toFixed(4)} ₪ (שער בנק ישראל${quote.fx_rate_date ? `, ${new Date(quote.fx_rate_date).toLocaleDateString('he-IL')}` : ''}).`
+    : currencyPegNote(costCurrency);
   if (quote.disclaimer_text || currencyNote) {
     const totalLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
     trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil(totalLen / 90) * 4.5 });
@@ -445,9 +477,9 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">מספר יחידות<br /><span className="font-normal text-[10px]">(pipe #)</span></th>
           <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">כמות<br /><span className="font-normal text-[10px]">(Qty)</span></th>
           <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">יחידת מחיר</th>
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה<br /><span className="font-normal text-[10px]">(₪)</span></th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">מחיר ליחידה<br /><span className="font-normal text-[10px]">({curSym})</span></th>
           {hasAnyDiscount && <th className="text-center py-2.5 px-3 font-semibold text-white border border-navy-700">הנחה</th>}
-          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ<br /><span className="font-normal text-[10px]">(₪)</span></th>
+          <th className="text-right py-2.5 px-3 font-semibold text-white border border-navy-700">סה״כ<br /><span className="font-normal text-[10px]">({curSym})</span></th>
         </tr>
       </thead>
       <tbody>
@@ -480,11 +512,11 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               </td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center">{item.quantity}</td>
               <td className="py-2 px-3 border border-line-subtle text-content-body">{item.unit}</td>
-              <td className="py-2 px-3 border border-line-subtle text-content-body" dir="ltr">{formatNum0(parseFloat(item.unit_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle text-content-body" dir="ltr">{isForeign ? formatNum2(lineUnit(item)) : formatNum0(lineUnit(item))}</td>
               {hasAnyDiscount && (
                 <td className="py-2 px-3 border border-line-subtle text-center text-content-body">{disc > 0 ? `${disc}%` : '0%'}</td>
               )}
-              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong" dir="ltr">{formatNum2(parseFloat(item.total_price) || 0)}</td>
+              <td className="py-2 px-3 border border-line-subtle font-semibold text-content-strong" dir="ltr">{formatNum2(lineTotal(item))}</td>
             </tr>
           );
         })}
@@ -500,33 +532,39 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
             <>
               <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                 <span className="text-content-body">סכום לפני הנחה</span>
-                <span className="text-content-body">{formatCurrency2(totalAfterLineDisc)}</span>
+                <span className="text-content-body">{fmtMoney(totalAfterLineDisc)}</span>
               </div>
               {globalDisc > 0 && (
                 <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                   <span className="text-warning">הנחה {globalDisc}%</span>
-                  <span className="text-warning">-{formatCurrency2(totalAfterLineDisc - afterPctDisc)}</span>
+                  <span className="text-warning">-{fmtMoney(totalAfterLineDisc - afterPctDisc)}</span>
                 </div>
               )}
               {discAmount > 0 && (
                 <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
                   <span className="text-warning">הנחה</span>
-                  <span className="text-warning">-{formatCurrency2(afterPctDisc - finalTotal)}</span>
+                  <span className="text-warning">-{fmtMoney(afterPctDisc - finalTotal)}</span>
                 </div>
               )}
             </>
           )}
-          <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
-            <span className="text-content-body">סכום ביניים</span>
-            <span className="text-content-body">{formatCurrency2(finalTotal)}</span>
-          </div>
-          <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
-            <span className="text-content-body">מע&quot;מ 18%</span>
-            <span className="text-content-body">{formatCurrency2(vatAmount)}</span>
-          </div>
+          {/* A foreign-currency quote is an export sale — the VAT line is
+              dropped entirely, not shown as 0%. */}
+          {!isForeign && (
+            <>
+              <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                <span className="text-content-body">סכום ביניים</span>
+                <span className="text-content-body">{fmtMoney(finalTotal)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                <span className="text-content-body">מע&quot;מ {vatPct}%</span>
+                <span className="text-content-body">{fmtMoney(vatAmount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between px-4 py-2.5 bg-navy-700">
             <span className="font-bold text-white">סה&quot;כ לתשלום</span>
-            <span className="font-bold text-white">{formatCurrency2(totalWithVat)}</span>
+            <span className="font-bold text-white">{fmtMoney(totalWithVat)}</span>
           </div>
         </div>
       </div>

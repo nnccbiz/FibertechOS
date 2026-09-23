@@ -116,6 +116,8 @@ export interface UsePricingReturn {
   deleteQuote: (quoteId: string) => Promise<void>;
   updateGlobalDiscount: (quoteId: string, pct: number) => Promise<void>;
   updateDiscountAmount: (quoteId: string, amount: number) => Promise<void>;
+  setQuoteCurrency: (quoteId: string, currency: string) => Promise<void>;
+  refreshQuoteFxRate: (quoteId: string) => Promise<void>;
   refreshDisclaimer: (quoteId: string) => Promise<void>;
   updateDisclaimerText: (quoteId: string, text: string) => Promise<void>;
   updateDeliveryTime: (quoteId: string, text: string) => Promise<void>;
@@ -919,6 +921,7 @@ export function usePricing(projectId: string): UsePricingReturn {
       default_overheads_pct: src.default_overheads_pct, default_profit_pct: src.default_profit_pct,
       payment_terms: src.payment_terms, disclaimer_type: src.disclaimer_type, disclaimer_text: src.disclaimer_text,
       global_discount_pct: src.global_discount_pct || 0, discount_amount: src.discount_amount || 0, total_amount: src.total_amount || 0, total_cost: src.total_cost || 0,
+      currency: src.currency || 'ILS', fx_rate: src.fx_rate || null, fx_rate_date: src.fx_rate_date || null,
       notes: src.notes, delivery_time: src.delivery_time,
       // Carry the contract terms over so the duplicate starts identical.
       contract_template_id: src.contract_template_id || null,
@@ -1287,6 +1290,12 @@ export function usePricing(projectId: string): UsePricingReturn {
         alert(`לא ניתן להוציא את ההצעה — יש שורות עם שברי יחידות (הכמות אינה כפולה שלמה של אורך היחידה):\n\n${offenders.join('\n')}\n\nעדכן את הכמות או את אורך היחידה בעורך הפריטים.`);
         return;
       }
+      // A foreign-currency quote must carry the locked rate it is priced at.
+      const cur = (q?.currency || 'ILS').toUpperCase();
+      if (cur !== 'ILS' && !(parseFloat(q?.fx_rate) > 0)) {
+        alert(`לא ניתן להוציא את ההצעה — חסר שער חליפין ל-${cur}. בחר מחדש את מטבע ההצעה כדי לנעול את השער.`);
+        return;
+      }
     }
     const now = new Date().toISOString();
     const patch: any = { status, updated_at: now, ...(extra || {}) };
@@ -1420,10 +1429,43 @@ export function usePricing(projectId: string): UsePricingReturn {
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, global_discount_pct: pct } : q));
   }
 
-  // Fixed-amount discount (₪) — applied AFTER the percentage discount.
+  // Fixed-amount discount — denominated in the quote's own currency, applied
+  // AFTER the percentage discount.
   async function updateDiscountAmount(quoteId: string, amount: number) {
     await supabase.from('quotes').update({ discount_amount: amount, updated_at: new Date().toISOString() }).eq('id', quoteId);
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, discount_amount: amount } : q));
+  }
+
+  // Quote currency (edge case — normally ILS). Internal pricing stays in ILS;
+  // picking USD/EUR only locks the BoI rate used to present the customer-facing
+  // document in that currency. Locked at pick time so an issued quote's prices
+  // never drift; refreshable while the quote is still a draft.
+  async function setQuoteCurrency(quoteId: string, currency: string) {
+    const cur = (currency || 'ILS').toUpperCase();
+    if (cur === 'ILS') {
+      await supabase.from('quotes').update({ currency: 'ILS', fx_rate: null, fx_rate_date: null, updated_at: new Date().toISOString() }).eq('id', quoteId);
+      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, currency: 'ILS', fx_rate: null, fx_rate_date: null } : q));
+      return;
+    }
+    let info: ExchangeRateInfo;
+    try {
+      info = await fetchExchangeRate(cur as 'USD' | 'EUR' | 'GBP');
+    } catch {
+      alert(`לא ניתן למשוך את שער ה-${cur} מבנק ישראל. נסה שוב בעוד רגע.`);
+      return;
+    }
+    const patch = { currency: cur, fx_rate: info.rate, fx_rate_date: info.date?.slice(0, 10) || null, updated_at: new Date().toISOString() };
+    await supabase.from('quotes').update(patch).eq('id', quoteId);
+    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, ...patch } : q));
+  }
+
+  // Re-lock a draft quote's rate to today's BoI rate.
+  async function refreshQuoteFxRate(quoteId: string) {
+    const q = quotes.find((x) => x.id === quoteId);
+    const cur = (q?.currency || 'ILS').toUpperCase();
+    if (!q || cur === 'ILS') return;
+    if (!confirm(`לעדכן את שער ה-${cur} לשער בנק ישראל של היום? מחירי ההצעה ללקוח ישתנו בהתאם.`)) return;
+    await setQuoteCurrency(quoteId, cur);
   }
 
   async function refreshDisclaimer(quoteId: string) {
@@ -1563,7 +1605,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, toggleFieldWorksTerms, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,
-    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, updateDiscountAmount, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
+    cancelEditQuote, updateQuoteStatus, deleteQuote, updateGlobalDiscount, updateDiscountAmount, setQuoteCurrency, refreshQuoteFxRate, refreshDisclaimer, updateDisclaimerText, updateDeliveryTime, updatePaymentTerms, setQuoteField, updateOrderStatus,
     addEditingItem, removeEditingItem, duplicateEditingItem, reorderEditingItems, addCostItem, removeCostItem, duplicateCostItem, reorderCostItems,
     toggleArchiveCostInput, uploadAttachment, deleteAttachment, uploadCostInputAttachment, deleteCostInput,
   };
