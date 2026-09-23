@@ -7,8 +7,8 @@ import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import Icon from '@/components/ui/Icon';
 import QuoteDocument, { type QuoteAttachmentPage, type QuoteDocumentHandle } from '@/components/quote/QuoteDocument';
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(v);
+function formatCurrency(v: number, currency = 'ILS') {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v);
 }
 
 async function renderPdfToPages(attId: string, fileName: string, fileType: string | null, drawingNumber: string | null, blob: Blob): Promise<QuoteAttachmentPage[]> {
@@ -178,9 +178,22 @@ export default function QuotePreviewPage() {
     );
   }
 
+  // Mirrors QuoteDocument: a foreign-currency quote converts each line at the
+  // rate locked on the quote, so the shared total matches the printed document.
+  const docCurrency = (quote.currency || 'ILS').toUpperCase();
+  const fxRate = parseFloat(quote.fx_rate) || 0;
+  const isForeign = docCurrency !== 'ILS' && fxRate > 0;
+  const lineTotal = (i: any) => {
+    if (!isForeign) return parseFloat(i.total_price) || 0;
+    const unit = Math.round(((parseFloat(i.unit_price) || 0) / fxRate) * 100) / 100;
+    const gross = unit * (parseFloat(i.quantity) || 0);
+    const disc = parseFloat(i.discount_pct) || 0;
+    return Math.round((disc > 0 ? gross * (1 - disc / 100) : gross) * 100) / 100;
+  };
+
   const globalDisc = parseFloat(quote.global_discount_pct) || 0;
   const discAmount = parseFloat(quote.discount_amount) || 0;
-  const totalAfterLineDisc = items.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0);
+  const totalAfterLineDisc = Math.round(items.reduce((s, i) => s + lineTotal(i), 0) * 100) / 100;
   const afterPctDisc = globalDisc > 0 ? Math.round(totalAfterLineDisc * (1 - globalDisc / 100) * 100) / 100 : totalAfterLineDisc;
   const finalTotal = discAmount > 0 ? Math.max(0, Math.round((afterPctDisc - discAmount) * 100) / 100) : afterPctDisc;
 
@@ -220,7 +233,7 @@ export default function QuotePreviewPage() {
     const w = window.open('', '_blank');
     try {
       const shareLink = await createShareLink();
-      const text = `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal)}${shareLink ? `\nלצפייה: ${shareLink}` : ''}`;
+      const text = `שלום, מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\nסה״כ: ${formatCurrency(finalTotal, isForeign ? docCurrency : 'ILS')}${shareLink ? `\nלצפייה: ${shareLink}` : ''}`;
       const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
       if (w) w.location.href = url; else window.location.href = url;
     } catch {

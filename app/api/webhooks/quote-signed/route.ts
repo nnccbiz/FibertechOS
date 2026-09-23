@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
     summary: [
       `הצעת מחיר ${quote.quote_number} נחתמה.`,
       `פרויקט: ${quote.projects?.project_name} (${quote.projects?.project_number})`,
-      `סכום: ${quote.currency} ${quote.total_amount?.toLocaleString()}`,
+      // total_amount is always ILS; quote.currency is the document's presentation currency.
+      `סכום: ₪${quote.total_amount?.toLocaleString()}${quote.currency && quote.currency !== 'ILS' ? ` (ההצעה הוצאה ב-${quote.currency})` : ''}`,
       `נחתם ע״י: ${quote.signed_by}`,
       `תאריך: ${new Date(quote.signed_at).toLocaleDateString('he-IL')}`,
     ].join('\n'),
