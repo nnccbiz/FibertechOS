@@ -310,7 +310,27 @@ export type ItemType =
   | 'elbow'
   | 'flange'
   | 'reducer'
+  | 'spacer'
   | 'other';
+
+/**
+ * Item types whose QUANTITY is a length in metres, so "units" (qty ÷ unit
+ * length) is meaningful and a fractional result is a real error.
+ * Everything else — elbow, חיוץ, מצוף, flange… — is counted in pieces: such a
+ * part may well carry a length, but each one is still a single unit, so
+ * dividing its quantity by that length is meaningless.
+ */
+const LENGTH_BASED_TYPES = new Set<string>(['pipe_with_coupling', 'pipe_bare', 'roker', 'floating_roker']);
+
+export function isLengthBased(itemType?: string | null, productName?: string): boolean {
+  // item_type is a comma-separated multi-select; any length-based pick wins.
+  const types = String(itemType || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (types.length) return types.some((t) => LENGTH_BASED_TYPES.has(t));
+  // Legacy rows with no type: fall back to the product name (same keywords
+  // `defaultLengthM` uses), so nothing that worked before stops working.
+  const n = (productName || '').toLowerCase();
+  return /rocker|roker|רוקר/.test(n) || /pipe|צינור|צנרת/.test(n);
+}
 
 export interface QuoteLineItem {
   item_type?: ItemType;
@@ -388,6 +408,7 @@ const ITEM_CATEGORY: Record<string, string> = {
   elbow:              'ברכיים',
   flange:             'אוגנים',
   reducer:            'מעברים',
+  spacer:             'חיוצים',
   other:              'אחר',
 };
 

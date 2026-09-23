@@ -9,6 +9,7 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { renderAttachedPages, type RenderedAttachedPage } from '@/lib/po-attachments';
+import { isLengthBased } from '@/lib/pricing';
 
 export interface PODocumentData {
   order: any;               // import_orders row
@@ -326,6 +327,8 @@ const PODocument = forwardRef<PODocumentHandle, PODocumentData>(function PODocum
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">{Number(it.ordered_qty) || 0}</td>
               <td className="py-2 px-2 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
+                  // PO lines carry no item_type — classify by the description.
+                  if (!isLengthBased(null, it.description)) return '—';
                   const len = Number(it.length_m) || 0;
                   const qty = Number(it.ordered_qty) || 0;
                   return len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : '—';

@@ -20,6 +20,7 @@ import {
   validateQuoteMargins,
   parsePipeSpec,
   effectiveCurrency,
+  isLengthBased,
   type QuoteLineItem,
   type QuoteLineItemPriced,
 } from '@/lib/pricing';
@@ -126,6 +127,7 @@ const ITEM_TYPES = [
   { value: 'elbow', label: 'קשת' },
   { value: 'flange', label: 'אוגן' },
   { value: 'reducer', label: 'מעבר קטרים' },
+  { value: 'spacer', label: 'חיוץ' },
   { value: 'other', label: 'אחר' },
 ];
 
@@ -580,7 +582,9 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
                 <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateCostItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (צינור 5.7 / רוקר 2×קוטר)" className="border border-line-subtle rounded px-2 py-1.5 text-sm text-center" dir="ltr" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 {(() => {
-                  const len = parseFloat(item.length_m) || 0;
+                  // Units only mean something when the quantity is a length (pipe/rocker);
+                  // a piece-counted part (elbow / חיוץ / מצוף) may carry a length but is 1 unit.
+                  const len = isLengthBased(item.item_type, item.product_name) ? (parseFloat(item.length_m) || 0) : 0;
                   const qty = parseFloat(item.quantity) || 0;
                   const units = len > 0 ? qty / len : 0;
                   const rounded = Math.round(units * 100) / 100;
@@ -619,7 +623,9 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
                 <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateCostItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (צינור 5.7 / רוקר 2×קוטר)" className="border border-line-subtle rounded px-2 py-1.5 text-sm text-center" dir="ltr" />
                 <input type="number" value={item.quantity || ''} onChange={(e) => p.updateCostItem(idx, 'quantity', e.target.value)} className="border border-line-subtle rounded px-2 py-1.5 text-sm" />
                 {(() => {
-                  const len = parseFloat(item.length_m) || 0;
+                  // Units only mean something when the quantity is a length (pipe/rocker);
+                  // a piece-counted part (elbow / חיוץ / מצוף) may carry a length but is 1 unit.
+                  const len = isLengthBased(item.item_type, item.product_name) ? (parseFloat(item.length_m) || 0) : 0;
                   const qty = parseFloat(item.quantity) || 0;
                   const units = len > 0 ? qty / len : 0;
                   const rounded = Math.round(units * 100) / 100;
@@ -689,7 +695,8 @@ function CostItemsDisplay({ citems, ciTotal, isForex, sym, ci }: { citems: any[]
                 const len = parseFloat(item.length_m) || 0;
                 const qty = parseFloat(item.quantity) || 0;
                 const lenTxt = len > 0 ? (Number.isInteger(len) ? len.toFixed(1) : String(len)) : '—';
-                const units = len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
+                // Units only mean something when the quantity is a length (pipe/rocker).
+                const units = isLengthBased(item.item_type, item.product_name) && len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
                 const frac = units != null && Math.abs(units - Math.round(units)) > 0.001;
                 return (<>
                   <td className="py-1.5 px-2 text-content-muted whitespace-nowrap text-center" dir="ltr">{lenTxt}</td>
@@ -1475,7 +1482,9 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
             <input type="number" value={item.length_m ?? ''} onChange={(e) => p.updateItem(idx, 'length_m', e.target.value)} placeholder="מ׳" title="אורך יחידה במטרים (למשל 5.7)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0 text-center" dir="ltr" />
             <input type="number" value={item.quantity || ''} onChange={(e) => p.updateItem(idx, 'quantity', e.target.value)} title="כמות כללית (מטרים / יחידות)" className="border border-line-subtle rounded px-1 py-1 text-[12px] min-w-0" />
             {(() => {
-              const len = parseFloat(item.length_m) || 0;
+              // Units only mean something when the quantity is a length (pipe/rocker);
+              // a piece-counted part (elbow / חיוץ / מצוף) may carry a length but is 1 unit.
+              const len = isLengthBased(item.item_type, item.product_name) ? (parseFloat(item.length_m) || 0) : 0;
               const qty = parseFloat(item.quantity) || 0;
               const units = len > 0 ? qty / len : 0;
               const rounded = Math.round(units * 100) / 100;
@@ -1702,7 +1711,8 @@ function QuoteItemsDisplay({ q, items, p }: { q: any; items: any[]; p: ReturnTyp
                 {(() => {
                   const len = parseFloat(item.length_m) || 0;
                   const lenTxt = len > 0 ? (Number.isInteger(len) ? len.toFixed(1) : String(len)) : '—';
-                  const units = len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
+                  // Units only mean something when the quantity is a length (pipe/rocker).
+                  const units = isLengthBased(item.item_type, item.product_name) && len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : null;
                   const frac = units != null && Math.abs(units - Math.round(units)) > 0.001;
                   return (<>
                     <td className="py-2 px-1 text-content-body text-[12px] text-center border-r border-line-subtle whitespace-nowrap" dir="ltr">{lenTxt}</td>

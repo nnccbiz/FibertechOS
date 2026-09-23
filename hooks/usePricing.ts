@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { fetchExchangeRate, type ExchangeRateInfo } from '@/lib/exchange-rate';
 import { DISCLAIMER_TEMPLATES } from '@/lib/disclaimers';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
-import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency } from '@/lib/pricing';
+import { calcCostPerMeter, calcRokerCostPerMeter, calcSellingPrice, effectiveCurrency, isLengthBased } from '@/lib/pricing';
 import { parseExcelBOQ } from '@/lib/boq-parser';
 import { safeExt } from '@/lib/dropped-files';
 import { applyFieldWorks } from '@/lib/field-works-terms';
@@ -1278,6 +1278,9 @@ export function usePricing(projectId: string): UsePricingReturn {
       const its = quoteItems[quoteId] || [];
       const offenders = its
         .map((i, idx) => {
+          // Piece-counted parts (elbow / חיוץ / מצוף) are exempt — their length
+          // is a spec, not a divisor, so a "fraction" there is not an error.
+          if (!isLengthBased(i.item_type, i.product_name)) return null;
           const len = parseFloat(i.length_m) || 0;
           const qty = parseFloat(i.quantity) || 0;
           const units = len > 0 ? qty / len : 0;

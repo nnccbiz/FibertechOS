@@ -12,6 +12,7 @@ import { usePermissions } from '@/lib/auth/permissions-context';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import Icon from '@/components/ui/Icon';
 import SectionTabs from '@/components/ui/SectionTabs';
+import { isLengthBased } from '@/lib/pricing';
 import { LOGISTICS_TABS } from '@/lib/nav';
 import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
 import { storageKey, pdfPagesToDataUrls } from '@/lib/po-attachments';
@@ -1346,7 +1347,9 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                     <td className="py-1 px-2"><input value={r.unit || ''} onChange={(e) => setRow(idx, 'unit', e.target.value)} className={cellInp} disabled={!canEdit} /></td>
                     <td className={`py-1 px-2${cellCls(idx, 'ordered_qty')}`}><input type="number" value={r.ordered_qty ?? ''} onChange={(e) => setRow(idx, 'ordered_qty', e.target.value)} className={cellInp} dir="ltr" disabled={!canEdit} /></td>
                     {(() => {
-                      const len = parseFloat(r.length_m) || 0;
+                      // PO lines carry no item_type — classify by the description;
+                      // a piece-counted part has no meaningful unit count.
+                      const len = isLengthBased(null, r.description) ? (parseFloat(r.length_m) || 0) : 0;
                       const qty = parseFloat(r.ordered_qty) || 0;
                       const units = len > 0 ? qty / len : 0;
                       const rounded = Math.round(units * 100) / 100;

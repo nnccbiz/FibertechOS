@@ -18,7 +18,7 @@
  *   docRef.current?.downloadPdf('filename')
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { parsePipeSpec } from '@/lib/pricing';
+import { parsePipeSpec, isLengthBased } from '@/lib/pricing';
 import { CURRENCY_SYMBOLS } from '@/lib/exchange-rate';
 
 type CBlock = { type: 'heading' | 'clause'; title?: string; clause?: { num: number; text: string } };
@@ -505,6 +505,9 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               </td>
               <td className="py-2 px-3 border border-line-subtle text-content-body text-center" dir="ltr">
                 {(() => {
+                  // Only a length-based item (pipe / rocker) has a unit count;
+                  // an elbow or חיוץ may carry a length but is a single piece.
+                  if (!isLengthBased(item.item_type, item.product_name)) return '—';
                   const len = parseFloat(item.length_m) || 0;
                   const qty = parseFloat(item.quantity) || 0;
                   return len > 0 && qty > 0 ? Math.round((qty / len) * 100) / 100 : '—';
