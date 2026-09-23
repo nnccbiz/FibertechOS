@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reconcileDocuments, Proposal, ExtractResult } from '@/lib/import-reconcile';
 import { deriveReceivedStatus } from '@/lib/import-status';
+import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import Icon from '@/components/ui/Icon';
+
+// Only these reach Gemini (the extract route rejects anything else).
+const ACCEPTED_RE = /\.(pdf|png|jpe?g)$/i;
 
 const DOC_LABEL: Record<string, string> = {
   email: 'אימייל', order_confirmation: 'אישור הזמנה', proforma_invoice: 'פרופורמה (PI)',
@@ -36,6 +41,11 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
   const [projectId, setProjectId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [err, setErr] = useState('');
+  // Projects the lot belongs to — passed to the extractor as context so Roxy
+  // can recognise our project name inside the supplier's wording.
+  const [hintProjects, setHintProjects] = useState<{ id: string; name: string }[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
 
   // ---- proposal editing helpers ----
   function setHdr(section: 'order' | 'shipment', field: string, value: any) {
@@ -51,21 +61,56 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     setP((prev) => prev ? ({ ...prev, [section]: (prev as any)[section].filter((_: any, i: number) => i !== idx) }) as Proposal : prev);
   }
 
-  function addFiles(list: FileList | null) { if (list) setFiles((prev) => [...prev, ...Array.from(list)]); }
+  // Accepts a FileList (picker) or an array (drag-drop), skipping unsupported
+  // types and duplicates of files already staged.
+  function addFiles(list: FileList | File[] | null) {
+    if (!list) return;
+    const incoming = Array.from(list);
+    const rejected = incoming.filter((f) => !ACCEPTED_RE.test(f.name));
+    const ok = incoming.filter((f) => ACCEPTED_RE.test(f.name));
+    if (rejected.length) setErr(`הקבצים הבאים אינם נתמכים לחילוץ (רק PDF / תמונה): ${rejected.map((f) => f.name).join(', ')}`);
+    else setErr('');
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}|${f.size}`));
+      return [...prev, ...ok.filter((f) => !seen.has(`${f.name}|${f.size}`))];
+    });
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    const dropped = filesFromDrop(e.dataTransfer);
+    if (!dropped.length) { setErr(`הגרירה לא העבירה קובץ. ${EMPTY_DROP_HINT}`); return; }
+    // Read the bytes NOW — WebKit invalidates cross-app drag blobs fast.
+    const { stable, empty } = await materializeFiles(dropped);
+    if (empty.length) setErr(`הקבצים הבאים הגיעו ריקים מהגרירה: ${empty.join(', ')}. ${EMPTY_DROP_HINT}`);
+    if (stable.length) addFiles(stable);
+  }
 
   async function extract() {
     setErr(''); setPhase('extracting');
     try {
       const payload = await Promise.all(files.map(async (f) => ({ name: f.name, mimeType: f.type, base64: await fileToBase64(f) })));
-      const res = await fetch('/api/import/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: payload }) });
+      const res = await fetch('/api/import/extract', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: payload, projectHints: hintProjects.map((h) => h.name).filter(Boolean) }),
+      });
       const json = await res.json();
       if (!res.ok) { setErr(json.error || 'שגיאת חילוץ'); setPhase('pick'); return; }
       const results: ExtractResult[] = json.results || [];
       setRawResults(results);
       const prop = reconcileDocuments(results);
       setP(prop);
-      if (prop.order.project_name) {
-        const m = data.projects.find((pr: any) => (pr.name || '').trim() && prop.order.project_name!.toLowerCase().includes((pr.name || '').toLowerCase().slice(0, 6)));
+      // Link to a system project: a single stated project wins; with several,
+      // match the extracted name against them; otherwise fall back to a fuzzy
+      // match over all projects (previous behaviour).
+      if (hintProjects.length === 1) {
+        setProjectId(hintProjects[0].id);
+      } else if (prop.order.project_name) {
+        const extracted = prop.order.project_name.toLowerCase();
+        const pool = hintProjects.length ? hintProjects : data.projects;
+        const m = pool.find((pr: any) => (pr.name || '').trim() && extracted.includes((pr.name || '').toLowerCase().slice(0, 6)));
         if (m) setProjectId(m.id);
       }
       setPhase('review');
@@ -202,12 +247,68 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
         {phase === 'pick' && (
           <div>
-            <p className="text-[13px] text-content-muted mb-3">גררי או בחרי את כל מסמכי הלוט (חשבונית, BL, תעודות משלוח, COA). רקסי תזהה ותתאים — ותוכלי לערוך הכל לפני שמירה.</p>
-            <label className="block border-2 border-dashed border-line-strong rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-50">
-              <p className="mb-2 text-primary"><Icon name="inbox" size={32} /></p><p className="text-[13px] text-content-body">בחרי קבצים (PDF / תמונה)</p>
-              <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+            <p className="text-[13px] text-content-muted mb-3">גררי או בחרי את כל מסמכי הלוט ביחד (חשבונית, BL, תעודות משלוח, COA). רקסי תזהה ותתאים — ותוכלי לערוך הכל לפני שמירה.</p>
+            <label
+              onDragEnter={(e) => {
+                if (!e.dataTransfer?.types?.includes('Files')) return;
+                e.preventDefault(); dragDepth.current += 1; setDragOver(true);
+              }}
+              onDragOver={(e) => {
+                if (!e.dataTransfer?.types?.includes('Files')) return;
+                e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                dragDepth.current = Math.max(0, dragDepth.current - 1);
+                if (dragDepth.current === 0) setDragOver(false);
+              }}
+              onDrop={onDrop}
+              className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary-50 ring-2 ring-primary-100' : 'border-line-strong hover:border-primary hover:bg-primary-50'}`}
+            >
+              <p className="mb-2 text-primary"><Icon name="inbox" size={32} /></p>
+              <p className="text-[13px] text-content-body">{dragOver ? 'שחררי כאן את כל המסמכים' : 'גררי לכאן כמה מסמכים ביחד, או לחצי לבחירה (PDF / תמונה)'}</p>
+              <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; addFiles(picked); }} />
             </label>
-            {files.length > 0 && <div className="mt-3 space-y-1">{files.map((f, i) => (
+
+            {/* Project context for the extractor — the supplier writes the
+                project name in his own wording; giving Roxy our names lets her
+                match it instead of guessing. */}
+            <div className="mt-3 bg-neutral-50 border border-line-subtle rounded-lg px-3 py-2">
+              <p className="text-[12px] font-semibold text-content-body mb-1.5">
+                <Icon name="projects" size={14} /> לאילו פרויקטים שייכים המסמכים? <span className="font-normal text-neutral-400">(לא חובה — עוזר לרקסי לזהות)</span>
+              </p>
+              <SearchableSelect
+                value=""
+                onChange={(v: string) => {
+                  const pr = data.projects.find((x: any) => x.id === v);
+                  if (pr && !hintProjects.some((h) => h.id === pr.id)) {
+                    setHintProjects([...hintProjects, { id: pr.id, name: pr.name || '' }]);
+                  }
+                }}
+                className="w-full border border-line-subtle rounded-lg px-2 py-1 text-[12px] bg-white"
+                placeholder="+ הוסיפי פרויקט"
+                options={data.projects
+                  .filter((pr: any) => !hintProjects.some((h) => h.id === pr.id))
+                  .map((pr: any) => ({ value: pr.id, label: pr.name }))}
+              />
+              {hintProjects.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {hintProjects.map((h) => (
+                    <span key={h.id} className="inline-flex items-center gap-1 text-[11px] bg-azure-100 text-azure-600 rounded-lg px-2 py-1">
+                      {h.name}
+                      <button onClick={() => setHintProjects(hintProjects.filter((x) => x.id !== h.id))} className="hover:text-danger"><Icon name="close" size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {files.length > 0 && (
+              <div className="flex items-center justify-between mt-3 mb-1">
+                <span className="text-[12px] font-semibold text-content-body">{files.length} קבצים נבחרו</span>
+                <button onClick={() => setFiles([])} className="text-[11px] text-neutral-400 hover:text-danger">נקה הכל</button>
+              </div>
+            )}
+            {files.length > 0 && <div className="space-y-1">{files.map((f, i) => (
               <div key={i} className="flex items-center justify-between text-[12px] bg-neutral-50 rounded px-2 py-1"><span dir="ltr" className="truncate">{f.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></div>
             ))}</div>}
             <div className="flex gap-2 mt-4">
@@ -243,7 +344,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
               <div className="grid grid-cols-2 gap-2">
                 <L l="שייך לפרויקט במערכת">
                   <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1">
-                    <option value="">— מלאי / ללא פרויקט —</option>{data.projects.map((pr: any) => <option key={pr.id} value={pr.id}>{pr.name || pr.client_name}</option>)}
+                    <option value="">— מלאי / ללא פרויקט —</option>{data.projects.map((pr: any) => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
                   </select>
                 </L>
                 <L l="ספק">
