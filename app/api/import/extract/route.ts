@@ -124,7 +124,17 @@ const IMPORT_EXTRACTION_PROMPT = `אתה מחלץ נתונים ממסמך יבו
   }
 }`;
 
-async function extractOne(model: any, file: { base64: string; mimeType: string; name: string }) {
+// Our internal project names for this lot, supplied by the user. Context only:
+// the supplier writes the project in his own wording, and this lets the model
+// recognise it instead of guessing — it must never become a source of data.
+function projectHintBlock(hints: string[]): string {
+  if (!hints.length) return '';
+  return `\n\nהקשר מהמשתמש — המסמכים שייכים לפרויקט/ים הבאים אצלנו:\n${hints.map((h) => `• ${h}`).join('\n')}\n` +
+    `השתמש ברשימה הזו אך ורק כדי לזהות התאמה: אם שם הפרויקט שמופיע במסמך (בניסוח של הספק, בתעתיק או בקיצור) תואם לאחד מהם — החזר ב-project_name את השם **כפי שהוא כתוב במסמך**. ` +
+    `אם שם הפרויקט אינו מופיע במסמך — החזר null. אסור להעתיק שם מהרשימה למסמך שאין בו שם פרויקט, ואסור להסיק מהרשימה שום שדה אחר.`;
+}
+
+async function extractOne(model: any, file: { base64: string; mimeType: string; name: string }, hintBlock = '') {
   const mime = file.mimeType || '';
   const isPdf = mime.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
   const isImage = mime.startsWith('image/');
@@ -134,7 +144,7 @@ async function extractOne(model: any, file: { base64: string; mimeType: string; 
   try {
     const result = await generateWithRetry(model, [
       { inlineData: { data: file.base64, mimeType: isPdf ? 'application/pdf' : mime } },
-      { text: IMPORT_EXTRACTION_PROMPT },
+      { text: IMPORT_EXTRACTION_PROMPT + hintBlock },
     ]);
     const text = result.response.text();
     let data: any;
@@ -198,8 +208,13 @@ export async function POST(request: NextRequest) {
       } as any,
     });
 
+    const projectHints: string[] = Array.isArray(body.projectHints)
+      ? body.projectHints.map((h: any) => String(h || '').trim()).filter(Boolean).slice(0, 20)
+      : [];
+    const hintBlock = projectHintBlock(projectHints);
+
     // Each file is its own grounded extraction; run them concurrently.
-    const results = await Promise.all(files.map((f) => extractOne(model, f)));
+    const results = await Promise.all(files.map((f) => extractOne(model, f, hintBlock)));
     return NextResponse.json({ results });
   } catch (e: any) {
     console.error('[import/extract] error', e);
