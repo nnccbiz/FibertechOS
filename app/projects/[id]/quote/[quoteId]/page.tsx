@@ -50,6 +50,7 @@ export default function QuotePreviewPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'working' | 'done'>('idle');
   const [costCurrency, setCostCurrency] = useState<string | null>(null);
   const [customerTaxId, setCustomerTaxId] = useState<string | null>(null);
 
@@ -226,6 +227,38 @@ export default function QuotePreviewPage() {
     }
   }
 
+  // Copy the public share link so it can be pasted into a reply email.
+  async function handleCopyLink() {
+    setCopyState('working');
+    const linkPromise = createShareLink();
+    // Safari only allows a clipboard write inside the user gesture — it is gone
+    // after the fetch resolves. Handing ClipboardItem the PENDING promise keeps
+    // the write inside the gesture; other browsers fall through to writeText.
+    if (typeof (window as any).ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': linkPromise.then((l) => new Blob([l], { type: 'text/plain' })) }),
+        ]);
+        setCopyState('done');
+        setTimeout(() => setCopyState('idle'), 2500);
+        return;
+      } catch { /* not supported / denied — try the plain path below */ }
+    }
+    try {
+      const link = await linkPromise;
+      if (!link) throw new Error('no link');
+      await navigator.clipboard.writeText(link);
+      setCopyState('done');
+      setTimeout(() => setCopyState('idle'), 2500);
+    } catch {
+      // Clipboard blocked — show the link so it can be copied by hand.
+      setCopyState('idle');
+      const link = await linkPromise.catch(() => '');
+      if (link) window.prompt('העתק את הקישור להצעה:', link);
+      else alert('שגיאה ביצירת הקישור');
+    }
+  }
+
   async function handleWhatsapp() {
     setSendingWa(true);
     // Open the tab synchronously (before the await) so Safari/mobile don't block
@@ -266,6 +299,18 @@ export default function QuotePreviewPage() {
         </button>
         <button onClick={handleDownloadPdf} disabled={generatingPdf} className="bg-azure-100 text-azure-600 text-sm px-4 py-2 rounded-lg hover:bg-azure-100 transition-colors disabled:opacity-50">
           {generatingPdf ? <><Icon name="loading" size={16} /> מייצר...</> : <><Icon name="download" size={16} /> הורד PDF</>}
+        </button>
+        <button
+          onClick={handleCopyLink}
+          disabled={copyState === 'working'}
+          title="מעתיק קישור ציבורי להצעה (תקף 30 יום) — להדבקה בתשובה ללקוח"
+          className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${copyState === 'done' ? 'bg-purple-200 text-purple-800' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+        >
+          {copyState === 'working'
+            ? <><Icon name="loading" size={16} /> מכין...</>
+            : copyState === 'done'
+              ? <><Icon name="confirm" size={16} /> הקישור הועתק</>
+              : <><Icon name="link" size={16} /> העתק לינק</>}
         </button>
         <button onClick={handleEmailWithLink} disabled={sendingLink} className="bg-neutral-100 text-content-body text-sm px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50">
           {sendingLink ? <><Icon name="loading" size={16} /> מכין...</> : <><Icon name="email" size={16} /> שלח לינק להצעה במייל</>}
