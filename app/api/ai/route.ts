@@ -109,6 +109,7 @@ const FILE_EXTRACTION_PROMPT = `אתה מחלץ נתוני תמחור מקובצ
 - "Elbow" / ברך → "elbow"
 - "Flange" / אוגן → "flange"
 - "Reducer" / מעבר → "reducer"
+- "Spacer" / "Casing Spacer" / חיוץ → "spacer"
 - אחרת → "other"
 
 quote_info:

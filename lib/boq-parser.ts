@@ -189,6 +189,7 @@ export function parseExcelBOQ(data: ArrayBuffer | Uint8Array, fileName: string):
         else if (/אוגן|פלנג|flange/i.test(desc)) itemType = 'flange';
         else if (/ברך|כיפוף|elbow/i.test(desc)) itemType = 'elbow';
         else if (/מעבר|reducer/i.test(desc)) itemType = 'reducer';
+        else if (/חיוץ|spacer/i.test(desc)) itemType = 'spacer';
         else if (/wall\s*coupling/i.test(desc)) itemType = 'wall_coupling';
         else if (/מחבר|coupling|reka|אקרובט/i.test(desc)) itemType = 'coupling';
         else if (/rocker|רוקר/i.test(desc)) itemType = 'roker';
