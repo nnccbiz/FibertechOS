@@ -333,12 +333,12 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     | { kind: 'sign'; h: number };
 
   const trailing: TBlock[] = [];
-  trailing.push({ kind: 'summary', key: 'totals', h: hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42 });
+  trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
   // A quote already denominated in a foreign currency needs no peg sentence
   // (that note is about ILS prices pegged to a rate) — it gets the rate note.
   const currencyNote = isForeign
-    ? `המחירים בהצעה זו נקובים ב${CURRENCY_NAMES_HE[docCurrency] || docCurrency} וכוללים מע"מ בשיעור 0% (עסקת יצוא). שער ההמרה: 1 ${docCurrency} = ${fxRate.toFixed(4)} ₪ (שער בנק ישראל${quote.fx_rate_date ? `, ${new Date(quote.fx_rate_date).toLocaleDateString('he-IL')}` : ''}).`
+    ? `המחירים בהצעה זו נקובים ב${CURRENCY_NAMES_HE[docCurrency] || docCurrency} ואינם כוללים מע"מ (עסקת יצוא). שער ההמרה: 1 ${docCurrency} = ${fxRate.toFixed(4)} ₪ (שער בנק ישראל${quote.fx_rate_date ? `, ${new Date(quote.fx_rate_date).toLocaleDateString('he-IL')}` : ''}).`
     : currencyPegNote(costCurrency);
   if (quote.disclaimer_text || currencyNote) {
     const totalLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
@@ -548,14 +548,20 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               )}
             </>
           )}
-          <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
-            <span className="text-content-body">סכום ביניים</span>
-            <span className="text-content-body">{fmtMoney(finalTotal)}</span>
-          </div>
-          <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
-            <span className="text-content-body">מע&quot;מ {vatPct}%{isForeign ? ' (יצוא)' : ''}</span>
-            <span className="text-content-body">{fmtMoney(vatAmount)}</span>
-          </div>
+          {/* A foreign-currency quote is an export sale — the VAT line is
+              dropped entirely, not shown as 0%. */}
+          {!isForeign && (
+            <>
+              <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                <span className="text-content-body">סכום ביניים</span>
+                <span className="text-content-body">{fmtMoney(finalTotal)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2 border-b border-line-subtle">
+                <span className="text-content-body">מע&quot;מ {vatPct}%</span>
+                <span className="text-content-body">{fmtMoney(vatAmount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between px-4 py-2.5 bg-navy-700">
             <span className="font-bold text-white">סה&quot;כ לתשלום</span>
             <span className="font-bold text-white">{fmtMoney(totalWithVat)}</span>
