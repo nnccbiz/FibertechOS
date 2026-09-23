@@ -227,7 +227,14 @@ export default function QuotePreviewPage() {
     }
   }
 
-  // Copy the public share link so it can be pasted into a reply email.
+  // The ready-made message the copy button puts on the clipboard — pasted into
+  // a reply to the customer, whose own signature follows "בברכה,".
+  function shareMessage(link: string) {
+    return `מצורפת הצעת מחיר מספר ${quote.quote_number} עבור פרויקט ${project.name || ''}.\n\n`
+      + `לצפייה בהצעת המחיר:\n${link}\n\nבברכה,`;
+  }
+
+  // Copy that message (with the public share link) for a reply email.
   async function handleCopyLink() {
     setCopyState('working');
     const linkPromise = createShareLink();
@@ -237,7 +244,7 @@ export default function QuotePreviewPage() {
     if (typeof (window as any).ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
       try {
         await navigator.clipboard.write([
-          new ClipboardItem({ 'text/plain': linkPromise.then((l) => new Blob([l], { type: 'text/plain' })) }),
+          new ClipboardItem({ 'text/plain': linkPromise.then((l) => new Blob([shareMessage(l)], { type: 'text/plain' })) }),
         ]);
         setCopyState('done');
         setTimeout(() => setCopyState('idle'), 2500);
@@ -247,14 +254,14 @@ export default function QuotePreviewPage() {
     try {
       const link = await linkPromise;
       if (!link) throw new Error('no link');
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(shareMessage(link));
       setCopyState('done');
       setTimeout(() => setCopyState('idle'), 2500);
     } catch {
-      // Clipboard blocked — show the link so it can be copied by hand.
+      // Clipboard blocked — show the text so it can be copied by hand.
       setCopyState('idle');
       const link = await linkPromise.catch(() => '');
-      if (link) window.prompt('העתק את הקישור להצעה:', link);
+      if (link) window.prompt('העתק את ההודעה:', shareMessage(link));
       else alert('שגיאה ביצירת הקישור');
     }
   }
@@ -303,7 +310,7 @@ export default function QuotePreviewPage() {
         <button
           onClick={handleCopyLink}
           disabled={copyState === 'working'}
-          title="מעתיק קישור ציבורי להצעה (תקף 30 יום) — להדבקה בתשובה ללקוח"
+          title="מעתיק הודעה מוכנה עם הקישור להצעה (תקף 30 יום) — להדבקה בתשובה ללקוח"
           className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${copyState === 'done' ? 'bg-purple-200 text-purple-800' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
         >
           {copyState === 'working'
