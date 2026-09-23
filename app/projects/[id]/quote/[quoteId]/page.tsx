@@ -304,7 +304,7 @@ export default function QuotePreviewPage() {
           onClick={handleCopyLink}
           disabled={copyState === 'working'}
           title="מעתיק קישור ציבורי להצעה (תקף 30 יום) — להדבקה בתשובה ללקוח"
-          className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${copyState === 'done' ? 'bg-success-soft text-success' : 'bg-primary-50 text-primary hover:bg-primary-100'}`}
+          className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${copyState === 'done' ? 'bg-purple-200 text-purple-800' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
         >
           {copyState === 'working'
             ? <><Icon name="loading" size={16} /> מכין...</>
