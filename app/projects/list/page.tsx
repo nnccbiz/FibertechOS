@@ -25,6 +25,7 @@ interface Project {
   delivery_months: number | null;
   order_execution_date: string | null;
   status: string;
+  created_at: string;
   last_updated_at: string;
 }
 
@@ -345,6 +346,7 @@ export default function ProjectsListPage() {
                     <tr className="bg-neutral-50 border-b border-line-subtle">
                       {[
                         { key: 'serial_number', label: '#', align: 'right', sticky: true },
+                        { key: 'created_at', label: 'נפתח', align: 'right' },
                         { key: 'last_updated_at', label: 'עדכון', align: 'right' },
                         { key: 'developer_name', label: 'יזם', align: 'right' },
                         { key: 'planning_office', label: 'משרד תכנון', align: 'right' },
@@ -377,6 +379,11 @@ export default function ProjectsListPage() {
                           className="border-b border-line-subtle hover:bg-azure-100 cursor-pointer transition-colors"
                         >
                           <td className="py-2 px-2 text-neutral-400 sticky right-0 bg-white z-10">{project.serial_number || idx + 1}</td>
+                          <td className="py-2 px-2 text-[12px] text-neutral-400 whitespace-nowrap">
+                            {project.created_at
+                              ? new Date(project.created_at).toLocaleDateString('he-IL')
+                              : '—'}
+                          </td>
                           <td className="py-2 px-2 text-[12px] text-neutral-400 whitespace-nowrap">
                             {project.last_updated_at
                               ? new Date(project.last_updated_at).toLocaleDateString('he-IL')
@@ -544,6 +551,7 @@ export default function ProjectsListPage() {
                         <tr className="bg-neutral-50 border-b border-line-subtle">
                           {[
                             { key: 'serial_number', label: '#', align: 'right', sticky: true },
+                            { key: 'created_at', label: 'נפתח', align: 'right' },
                             { key: 'last_updated_at', label: 'עדכון', align: 'right' },
                             { key: 'developer_name', label: 'יזם', align: 'right' },
                             { key: 'planning_office', label: 'משרד תכנון', align: 'right' },
@@ -571,6 +579,11 @@ export default function ProjectsListPage() {
                             className="border-b border-line-subtle hover:bg-azure-100 cursor-pointer transition-colors bg-neutral-50/50"
                           >
                             <td className="py-2 px-2 text-neutral-400 sticky right-0 bg-white z-10">{project.serial_number || idx + 1}</td>
+                            <td className="py-2 px-2 text-[12px] text-neutral-400 whitespace-nowrap">
+                              {project.created_at
+                                ? new Date(project.created_at).toLocaleDateString('he-IL')
+                                : '—'}
+                            </td>
                             <td className="py-2 px-2 text-[12px] text-neutral-400 whitespace-nowrap">
                               {project.last_updated_at
                                 ? new Date(project.last_updated_at).toLocaleDateString('he-IL')
