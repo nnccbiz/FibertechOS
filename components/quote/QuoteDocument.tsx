@@ -59,12 +59,6 @@ function currencyPegNote(currency: string | null | undefined): string | null {
   return null;
 }
 
-const CURRENCY_NAMES_HE: Record<string, string> = {
-  USD: 'דולר אמריקאי (USD)',
-  EUR: 'אירו (EUR)',
-  GBP: 'ליש"ט (GBP)',
-};
-
 function fmtSn(sn: string) {
   if (!sn) return '';
   const n = parseInt(sn, 10);
@@ -335,11 +329,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   const trailing: TBlock[] = [];
   trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
-  // A quote already denominated in a foreign currency needs no peg sentence
-  // (that note is about ILS prices pegged to a rate) — it gets the rate note.
-  const currencyNote = isForeign
-    ? `המחירים בהצעה זו נקובים ב${CURRENCY_NAMES_HE[docCurrency] || docCurrency} ואינם כוללים מע"מ (עסקת יצוא). שער ההמרה: 1 ${docCurrency} = ${fxRate.toFixed(4)} ₪ (שער בנק ישראל${quote.fx_rate_date ? `, ${new Date(quote.fx_rate_date).toLocaleDateString('he-IL')}` : ''}).`
-    : currencyPegNote(costCurrency);
+  // A quote already denominated in a foreign currency prints no automatic note
+  // at all (the peg sentence is about ILS prices tracking a rate). Anything the
+  // customer should read about currency/VAT goes in the manual disclaimer text.
+  const currencyNote = isForeign ? null : currencyPegNote(costCurrency);
   if (quote.disclaimer_text || currencyNote) {
     const totalLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
     trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil(totalLen / 90) * 4.5 });
