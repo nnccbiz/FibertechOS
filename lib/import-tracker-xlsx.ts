@@ -78,7 +78,8 @@ export async function exportTrackerXlsx(model: TrackerModel, projectName: string
       r[6] = serial(row.invoice?.invoice_date);
       r[7] = row.deliveryNote || null;
       r[8] = row.invoice?.invoice_no || null;
-      r[9] = n(row.invoice?.final_amount ?? row.invoice?.net_value);
+      // A LOT-wide invoice: its value once (first container row), not on every row.
+      r[9] = row.invoiceRepeat ? null : n(row.invoice?.final_amount ?? row.invoice?.net_value);
       r[10] = row.container?.container_number || null;
       columns.forEach((c, k) => { const q = row.qty[c.item.id]; r[itemStart + k] = q ? q : null; });
       if (hasUnmatched) r[unmatchedCol] = row.unmatched || null;

@@ -340,12 +340,21 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                       <Cell canEdit={canEdit} value={row.invoice?.invoice_no || ''} ltr docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_no')} />
                     </td>
                     <td className={td}>
-                      <Cell
-                        canEdit={canEdit} type="number" ltr docId={row.invoiceDocId} onOpen={openDoc}
-                        value={row.invoice ? String(row.invoice.final_amount ?? row.invoice.net_value ?? '') : ''}
-                        display={row.invoice ? money(row.invoice.final_amount ?? row.invoice.net_value, row.invoice.currency || 'USD') : ''}
-                        onSave={cell(row, g, 'invoice_value')}
-                      />
+                      {row.invoiceRepeat ? (
+                        <span className="text-[11px] text-neutral-400" title="חשבונית אחת לכל ה-LOT — הסכום מופיע בשורה הראשונה שלה">כלול למעלה ↑</span>
+                      ) : (
+                        <>
+                          <Cell
+                            canEdit={canEdit} type="number" ltr docId={row.invoiceDocId} onOpen={openDoc}
+                            value={row.invoice ? String(row.invoice.final_amount ?? row.invoice.net_value ?? '') : ''}
+                            display={row.invoice ? money(row.invoice.final_amount ?? row.invoice.net_value, row.invoice.currency || 'USD') : ''}
+                            onSave={cell(row, g, 'invoice_value')}
+                          />
+                          {row.invoiceShared && (row.invoiceSpan || 1) > 1 && (
+                            <div className="text-[10px] text-content-muted">ל-{row.invoiceSpan} מכולות</div>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td className={td}>
                       <Cell canEdit={canEdit} value={row.container?.container_number || ''} ltr width="w-32" docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'container')} />

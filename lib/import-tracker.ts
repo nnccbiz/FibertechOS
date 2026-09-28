@@ -36,6 +36,11 @@ export interface TrackerRow {
   unmatched: number;             // meters not tied to any ordered item
   invoice: any | null;
   invoiceDocId: string | null;
+  // One invoice for a whole LOT (no delivery-note numbers — e.g. Alkhamis):
+  // shown on every container row; its value only on the first (invoiceSpan = rows covered).
+  invoiceShared?: boolean;
+  invoiceRepeat?: boolean;
+  invoiceSpan?: number;
   coa: { coa: any; docId: string | null }[];
 }
 
@@ -161,7 +166,13 @@ export function buildTracker(orders: any[], data: any): TrackerModel {
   const coas = (data.coa || []).filter((c: any) => !c.import_order_id || orderIds.has(c.import_order_id));
   let maxCoa = 0;
   for (const row of rowMap.values()) {
-    const inv = invoices.find((iv: any) => listHas(iv.delivery_notes, row.deliveryNote)) || null;
+    let inv = invoices.find((iv: any) => listHas(iv.delivery_notes, row.deliveryNote)) || null;
+    // No delivery-note number on the row → the LOT's single commercial invoice, if it has exactly one.
+    if (!inv && !row.deliveryNote && row.container?.shipment_id) {
+      const lotInv = invoices.filter((iv: any) => iv.shipment_id === row.container.shipment_id
+        && !['proforma', 'advance'].includes(iv.invoice_type));
+      if (lotInv.length === 1) { inv = lotInv[0]; row.invoiceShared = true; }
+    }
     row.invoice = inv;
     row.invoiceDocId = inv ? findDoc(docs, inv.source_document_id, (d) => /invoice/.test(d.doc_type || ''), inv.invoice_no) : null;
     row.coa = coas
@@ -192,6 +203,16 @@ export function buildTracker(orders: any[], data: any): TrackerModel {
     g.rows.sort((a, b) => rowDate(a).localeCompare(rowDate(b))
       || String(a.invoice?.invoice_no || '').localeCompare(String(b.invoice?.invoice_no || ''))
       || String(a.deliveryNote || '').localeCompare(String(b.deliveryNote || '')));
+  }
+  // A shared invoice's value is printed once (first row), the other rows point up to it.
+  for (const g of groups) {
+    const firstRow: Record<string, TrackerRow> = {};
+    for (const r of g.rows) {
+      if (!r.invoiceShared || !r.invoice) continue;
+      const f = firstRow[r.invoice.id];
+      if (!f) { firstRow[r.invoice.id] = r; r.invoiceSpan = 1; }
+      else { r.invoiceRepeat = true; f.invoiceSpan = (f.invoiceSpan || 1) + 1; }
+    }
   }
   const groupDate = (g: TrackerGroup) => g.rows.map(rowDate).filter(Boolean).sort()[0] || g.shipment?.created_at || '9999';
   groups.sort((a, b) => (a.key === 'none' ? 1 : 0) - (b.key === 'none' ? 1 : 0) || groupDate(a).localeCompare(groupDate(b)));
