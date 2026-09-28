@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
 import POViewModal from '@/components/import/POViewModal';
+import VesselTracker from '@/components/import/VesselTracker';
 import ImportTracker, { toggleItemComplete } from '@/components/import/ImportTracker';
 import DeliveriesPanel from '@/components/import/DeliveriesPanel';
 import ReceiptsPanel from '@/components/import/ReceiptsPanel';
@@ -205,10 +206,10 @@ export default function ImportPage() {
         </div>
       </div>
 
-      {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} canEdit={canEdit} onUpdate={load} />}
+      {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} canEdit={canEdit} onUpdate={load} onOpenTracker={(pid: string) => { setTrackerProject(pid); setView('tracker'); }} />}
       {view === 'orders' && <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
       {view === 'shipments' && <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
-      {view === 'tracker' && <ImportTracker data={data} canEdit={canEdit} onUpdate={load} initialProjectId={trackerProject} />}
+      {view === 'tracker' && <ImportTracker data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} initialProjectId={trackerProject} />}
 
       {showNewOrder && <NewOrderModal data={data} onClose={() => setShowNewOrder(false)} onCreated={() => { setShowNewOrder(false); load(); }} />}
       {showNewShipment && <NewShipmentModal data={data} onClose={() => setShowNewShipment(false)} onCreated={() => { setShowNewShipment(false); load(); }} />}
@@ -237,7 +238,7 @@ function POViewButton({ order, items, projectName, className }: { order: any; it
 // ============================================================
 // Approved-quotes view — every signed quote + its import status
 // ============================================================
-function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
+function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate, onOpenTracker }: any) {
   const supabase = createClient();
   const [filter, setFilter] = useState<'all' | 'pending' | 'ordered'>('all');
 
@@ -311,7 +312,14 @@ function ApprovedQuotesView({ data, onSmartUpload, canEdit, onUpdate }: any) {
                     <td className="py-2 px-3 font-mono text-content-muted" dir="ltr">{q.quote_number || '—'}</td>
                     <td className="py-2 px-3 text-content-body">
                       {q.project_id
-                        ? <a href={`/projects/${q.project_id}`} className="text-primary hover:underline">{projNameById[q.project_id] || '—'}</a>
+                        ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <button onClick={() => onOpenTracker(q.project_id)} className="text-primary hover:underline text-right" title="פתח את טבלת מעקב היבוא של הפרויקט">
+                              {projNameById[q.project_id] || '—'}
+                            </button>
+                            <a href={`/projects/${q.project_id}`} className="text-neutral-400 hover:text-primary" title="לעמוד הפרויקט"><Icon name="external" size={12} /></a>
+                          </span>
+                        )
                         : '—'}
                     </td>
                     <td className="py-2 px-3 text-content-body">{q.client_name || '—'}</td>
@@ -965,74 +973,6 @@ function ContainersSection({ shipment, containers, data, orderName, canEdit, can
 // Ashdod/Haifa. Data via /api/import/vessel-track (Datalastic when
 // configured; external map links always).
 // ============================================================
-function VesselTracker({ vesselName }: { vesselName: string }) {
-  const [state, setState] = useState<any>({ loading: true });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/import/vessel-track?vessel=${encodeURIComponent(vesselName)}`);
-        const json = await res.json();
-        if (!cancelled) setState({ loading: false, ...json });
-      } catch {
-        if (!cancelled) setState({ loading: false, error: 'fetch_failed' });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [vesselName]);
-
-  const v = state.vessel;
-  const fmtWhen = (iso: string | null) => iso ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
-
-  return (
-    <div className="bg-azure-100 border border-azure rounded-lg px-4 py-3 mb-3 text-[13px]">
-      {state.loading ? (
-        <p className="text-azure-600"><Icon name="satellite" size={14} /> מאתר את {vesselName}...</p>
-      ) : v ? (
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="font-semibold text-azure-600" dir="ltr"><Icon name="ship" size={14} /> {v.name}</span>
-            {v.lat != null && (
-              <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer" className="text-azure-600 underline" dir="ltr">
-                {v.lat.toFixed(2)}°, {v.lon.toFixed(2)}°
-              </a>
-            )}
-            {v.speed_kn > 0 && <span className="text-content-body" dir="ltr">{v.speed_kn} kn</span>}
-            {v.destination && <span className="text-content-body">יעד מדווח: <b dir="ltr">{v.destination}</b></span>}
-            {v.reported_eta && <span className="text-content-body">ETA מדווח: {fmtWhen(v.reported_eta)}</span>}
-          </div>
-          {state.ports?.length > 0 && (
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
-              {state.ports.map((p: any) => (
-                <span key={p.key} className="text-content-body">
-                  <Icon name="anchor" size={14} /> {p.name}: <b>{p.distance_nm.toLocaleString()}</b> מייל ימי
-                  {p.eta_date ? <> · הגעה משוערת <b>{fmtWhen(p.eta_date)}</b></> : ' (הספינה עוגנת/איטית)'}
-                </span>
-              ))}
-            </div>
-          )}
-          {v.last_position_at && <p className="text-[11px] text-neutral-400">עדכון מיקום אחרון: {fmtWhen(v.last_position_at)}</p>}
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <p className="text-content-body">
-            {state.configured === false
-              ? 'מעקב חי לא מוגדר (חסר DATALASTIC_API_KEY) — אפשר לפתוח במפה חיצונית:'
-              : `לא נמצא מידע חי על ${vesselName} — נסו במפה חיצונית:`}
-          </p>
-          {state.links && (
-            <p className="flex gap-3">
-              <a href={state.links.vesselfinder} target="_blank" rel="noreferrer" className="text-azure-600 underline">VesselFinder ↗</a>
-              <a href={state.links.marinetraffic} target="_blank" rel="noreferrer" className="text-azure-600 underline">MarineTraffic ↗</a>
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---------- shared bits ----------
 function Chip({ label, active, onClick }: any) {
   return <button onClick={onClick} className={`text-[12px] px-3 py-1.5 rounded-full border ${active ? 'bg-primary text-white border-primary' : 'bg-white text-content-body border-line-subtle hover:bg-neutral-50'}`}>{label}</button>;

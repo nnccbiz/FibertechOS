@@ -80,6 +80,19 @@ function findDoc(docs: any[], id: string | null | undefined, pred: (d: any) => b
   return d?.id || null;
 }
 
+/** Row identity: one row per container × delivery note (a line with neither stands alone). */
+export function rowKeyOf(pl: any): string {
+  return `${pl.container_id || 'none'}|${trimNo(pl.delivery_note_no) || pl.id}`;
+}
+
+/**
+ * A LOT still on its way: not released, not delivered, not closed. Its
+ * expected arrival is shown on the tracker like on the shipments view.
+ */
+export function isFutureLot(s: any | null): boolean {
+  return !!s && !s.released_at && !s.customer_delivery_date && !['delivered', 'closed'].includes(s.status);
+}
+
 export function buildTracker(orders: any[], data: any): TrackerModel {
   const orderIds = new Set(orders.map((o) => o.id));
   const docs: any[] = data.docs || [];
@@ -113,7 +126,7 @@ export function buildTracker(orders: any[], data: any): TrackerModel {
   const shippedByItem: Record<string, number> = {};
   let unmatchedTotal = 0;
   for (const pl of packing) {
-    const key = `${pl.container_id || 'none'}|${trimNo(pl.delivery_note_no) || pl.id}`;
+    const key = rowKeyOf(pl);
     let row = rowMap.get(key);
     if (!row) {
       const container = (data.containers || []).find((c: any) => c.id === pl.container_id) || null;

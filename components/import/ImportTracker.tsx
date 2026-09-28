@@ -3,16 +3,19 @@
 // Per-project import tracker — Nurit's follow-up sheet (ISKOOR sample in
 // docs/דוגמת מעקב יבוא איסכור) as a live screen: a row per container /
 // delivery note grouped by LOT, a column per ordered item, ordered /
-// delivered / to be delivered at the bottom, and what is still missing per
-// order. Every value opens the document it was taken from.
+// delivered / to be delivered at the bottom. Every value opens the document it
+// was taken from; rows can also be added / edited by hand; a LOT still at sea
+// shows its expected arrival and live vessel tracking.
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { buildTracker, SHIPMENT_STATUS_HE, type TrackerGroup } from '@/lib/import-tracker';
+import { buildTracker, isFutureLot, SHIPMENT_STATUS_HE, type TrackerGroup, type TrackerRow } from '@/lib/import-tracker';
 import { exportTrackerXlsx } from '@/lib/import-tracker-xlsx';
-import { deriveReceivedStatus, orderShortfall } from '@/lib/import-status';
+import { deriveReceivedStatus } from '@/lib/import-status';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import POViewModal from '@/components/import/POViewModal';
+import VesselTracker from '@/components/import/VesselTracker';
+import TrackerRowModal from '@/components/import/TrackerRowModal';
 import Icon from '@/components/ui/Icon';
 
 const STOCK = '__stock__';
@@ -53,8 +56,15 @@ export async function toggleItemComplete(item: any, order: any, data: any): Prom
   return null;
 }
 
-export default function ImportTracker({ data, canEdit, onUpdate, initialProjectId }: {
-  data: any; canEdit: boolean; onUpdate: () => void; initialProjectId?: string | null;
+// Days from today to an ISO date (negative = past).
+function daysUntil(iso: string): number {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d).getTime() - t.getTime()) / 864e5);
+}
+
+export default function ImportTracker({ data, canEdit, canDelete, onUpdate, initialProjectId }: {
+  data: any; canEdit: boolean; canDelete?: boolean; onUpdate: () => void; initialProjectId?: string | null;
 }) {
   const supabase = createClient();
   const liveOrders = (data.orders || []).filter((o: any) => o.status !== 'cancelled');
@@ -72,12 +82,21 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
     return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   }, [data]);
 
+  // A project asked for from outside (approved-quotes row / project page) wins
+  // once; afterwards the user's own pick stays across data reloads.
   const [projectId, setProjectId] = useState<string>('');
+  const [userPicked, setUserPicked] = useState(false);
+  const lastInit = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (projectId && projects.some((p) => p.id === projectId)) return;
-    const init = initialProjectId && projects.some((p) => p.id === initialProjectId) ? initialProjectId : null;
-    setProjectId(init || projects.find((p) => p.hasPacking)?.id || projects[0]?.id || '');
+    const valid = (id?: string | null) => !!id && projects.some((p) => p.id === id);
+    const initChanged = initialProjectId !== lastInit.current;
+    lastInit.current = initialProjectId;
+    if (initChanged) setUserPicked(false);
+    const fallback = projects.find((p) => p.hasPacking)?.id || projects[0]?.id || '';
+    setProjectId((cur) => (initChanged && valid(initialProjectId) ? initialProjectId! : valid(cur) ? cur : fallback));
   }, [projects, initialProjectId]);
+  const requestedMissing = !userPicked && !!initialProjectId && !projects.some((p) => p.id === initialProjectId);
+  const requestedName = requestedMissing ? ((data.projects || []).find((p: any) => p.id === initialProjectId)?.name || '') : '';
 
   const orders = useMemo(
     () => liveOrders.filter((o: any) => (projectId === STOCK ? !o.project_id : o.project_id === projectId)),
@@ -89,6 +108,9 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
   const [poView, setPoView] = useState<any | null>(null);
   const [editLot, setEditLot] = useState<TrackerGroup | null>(null);
   const [busyItem, setBusyItem] = useState<string | null>(null);
+  // Row editor: a row to edit, or { row: null, shipmentId } for a new one.
+  const [rowEdit, setRowEdit] = useState<{ row: TrackerRow | null; shipmentId: string | null } | null>(null);
+  const [trackingLot, setTrackingLot] = useState<string | null>(null);
 
   // Safari-safe: open the tab synchronously in the click, point it after the signed URL resolves.
   function openDoc(docId: string | null) {
@@ -116,6 +138,7 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
   if (!projects.length) {
     return <div className="bg-white rounded-xl border border-line-subtle p-8 text-center text-content-muted text-sm">אין עדיין הזמנות יבוא שנשלחו לספק.</div>;
   }
+  const lotShipments = model.groups.map((g) => g.shipment).filter(Boolean);
 
   const { columns, groups, unmatchedTotal } = model;
   const hasUnmatched = unmatchedTotal > 0;
@@ -127,6 +150,8 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
     else orderSpans.push({ order: c.order, label: c.orderLabel, span: 1 });
   }
   const itemsOf = (orderId: string) => (data.items || []).filter((i: any) => i.import_order_id === orderId);
+  const tailCols = 1 + coaCols + (canEdit ? 1 : 0);
+  const totalCols = 11 + columns.length + (hasUnmatched ? 1 : 0) + tailCols;
 
   const th = 'px-2 py-1.5 font-medium text-[11px] text-content-muted whitespace-nowrap border-b border-line-subtle';
   const td = 'px-2 py-1.5 whitespace-nowrap border-b border-line-subtle';
@@ -138,47 +163,34 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
         <span className="text-[13px] font-semibold text-content-body"><Icon name="projects" size={16} /> פרויקט</span>
         <SearchableSelect
           value={projectId}
-          onChange={setProjectId}
+          onChange={(v: string) => { setProjectId(v); setUserPicked(true); }}
           options={projects.map((p) => ({ value: p.id, label: p.name }))}
           className="min-w-[240px] border border-line-subtle rounded-lg px-2 py-1.5 text-[13px] bg-white"
         />
-        <button
-          onClick={() => exportTrackerXlsx(model, projectName)}
-          disabled={!columns.length && !groups.length}
-          className="mr-auto text-[13px] font-semibold bg-success text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-40"
-        >
-          <Icon name="excel" size={16} /> ייצוא לאקסל
-        </button>
+        <div className="mr-auto flex items-center gap-2">
+          {canEdit && orders.length > 0 && (
+            <button
+              onClick={() => setRowEdit({ row: null, shipmentId: lotShipments[lotShipments.length - 1]?.id || null })}
+              className="text-[13px] font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700"
+            >
+              <Icon name="add" size={16} /> הוספת שורה
+            </button>
+          )}
+          <button
+            onClick={() => exportTrackerXlsx(model, projectName)}
+            disabled={!columns.length && !groups.length}
+            className="text-[13px] font-semibold bg-success text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-40"
+          >
+            <Icon name="excel" size={16} /> ייצוא לאקסל
+          </button>
+        </div>
       </div>
 
-      {/* What is still missing, per order */}
-      <div className="grid gap-2 md:grid-cols-2">
-        {orders.map((o: any) => {
-          const rows = orderShortfall(itemsOf(o.id), (data.packing || []).filter((p: any) => p.import_order_id === o.id));
-          const missing = rows.filter((r) => !r.complete);
-          const label = [o.po_number, o.supplier_order_no && `ספק ${o.supplier_order_no}`, o.suppliers?.name].filter(Boolean).join(' · ') || 'הזמנה';
-          return (
-            <div key={o.id} className={`rounded-xl border px-3 py-2.5 ${missing.length ? 'bg-warning-soft border-warning-soft' : 'bg-success-soft border-success-soft'}`}>
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <button onClick={() => setPoView(o)} className="text-[13px] font-semibold text-content-strong hover:underline text-right" dir="ltr">{label}</button>
-                <span className={`text-[11px] font-semibold ${missing.length ? 'text-warning' : 'text-success'}`}>
-                  {rows.length === 0 ? 'אין פריטים בהזמנה' : missing.length ? `חסר להשלמה: ${missing.length} פריטים` : <><Icon name="success" size={12} /> הושלמה מול הספק</>}
-                </span>
-              </div>
-              {missing.length > 0 && (
-                <ul className="text-[12px] text-content-body space-y-0.5">
-                  {missing.map((r) => (
-                    <li key={r.item.id} className="flex justify-between gap-2">
-                      <span className="truncate" title={r.item.description}>{columns.find((c) => c.item.id === r.item.id)?.label || r.item.description}</span>
-                      <span className="font-mono text-warning" dir="ltr">{fmtQ(r.remaining)} / {fmtQ(r.ordered)} {r.item.unit || ''}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {requestedMissing && (
+        <div className="bg-warning-soft text-warning text-[13px] rounded-lg px-3 py-2">
+          <Icon name="info" size={14} /> לפרויקט {requestedName ? `"${requestedName}"` : 'שנבחר'} אין עדיין הזמנת יבוא שנשלחה לספק (הזמנה שעדיין בהכנה נמצאת ברכש), ולכן אין לו טבלת מעקב. מוצג פרויקט אחר.
+        </div>
+      )}
 
       {hasUnmatched && (
         <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">
@@ -197,7 +209,7 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                 <th colSpan={11} className={th} />
                 {columns.map((c) => <th key={c.item.id} className={`${th} text-center`}>{c.lineLabel}</th>)}
                 {hasUnmatched && <th className={th} />}
-                <th colSpan={1 + coaCols} className={th} />
+                <th colSpan={tailCols} className={th} />
               </tr>
               <tr>
                 <th colSpan={11} className={th} />
@@ -205,7 +217,7 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                   <th key={k} colSpan={s.span} className={`${th} text-center text-content-body border-x border-line-subtle`} dir="ltr">{s.label}</th>
                 ))}
                 {hasUnmatched && <th className={th} />}
-                <th colSpan={1 + coaCols} className={th} />
+                <th colSpan={tailCols} className={th} />
               </tr>
               <tr>
                 {['סטטוס', 'LOT', 'BL', 'תאריך שחרור', 'ETA', 'אספקה ללקוח', 'Date of INV', 'DN', 'Invoice no.', 'Invoice value', 'Container no.'].map((h) => (
@@ -215,17 +227,42 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                 {hasUnmatched && <th className={`${th} text-warning`}>לא משויך</th>}
                 <th className={th}>ת.מ רכש</th>
                 {Array.from({ length: coaCols }, (_, k) => <th key={k} className={th}>COA{k + 1}</th>)}
+                {canEdit && <th className={th} />}
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => g.rows.map((row, idx) => {
+              {groups.map((g) => (
+                <Fragment key={g.key}>
+                {g.rows.map((row, idx) => {
                 const s = g.shipment;
                 const span = g.rows.length;
+                const future = isFutureLot(s);
+                const days = s?.eta ? daysUntil(s.eta) : null;
                 return (
                   <tr key={row.key} className={idx === 0 ? 'border-t-2 border-line-strong' : ''}>
                     {idx === 0 && (
                       <>
-                        <td rowSpan={span} className={`${td} align-top font-semibold text-content-body`}>{g.status}</td>
+                        <td rowSpan={span} className={`${td} align-top text-content-body`}>
+                          <div className="font-semibold">{g.status}</div>
+                          {future && (
+                            <div className="mt-1 space-y-0.5 text-[11px] font-normal whitespace-normal min-w-[130px]">
+                              {s.vessel_name && <div className="text-content-muted" dir="ltr"><Icon name="ship" size={12} /> {s.vessel_name}</div>}
+                              <div className={days != null && days < 0 ? 'text-warning font-semibold' : 'text-azure-600 font-semibold'}>
+                                {s.eta
+                                  ? <>הגעה צפויה {fmtD(s.eta)}{days != null && (days > 0 ? ` · בעוד ${days} ימים` : days === 0 ? ' · היום' : ` · עבר ב-${-days} ימים`)}</>
+                                  : 'מועד הגעה לא ידוע'}
+                              </div>
+                              {s.vessel_name && (
+                                <button
+                                  onClick={() => setTrackingLot(trackingLot === g.key ? null : g.key)}
+                                  className={`text-[11px] px-2 py-0.5 rounded-full border ${trackingLot === g.key ? 'bg-azure-600 text-white border-azure-600' : 'bg-azure-100 text-azure-600 border-azure'}`}
+                                >
+                                  <Icon name="satellite" size={12} /> אתר ספינה
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
                         <td rowSpan={span} className={`${td} align-top`}>
                           <div className="flex items-center gap-1">
                             <span className="font-semibold" dir="ltr">{s?.lot_label || (g.key === 'none' ? 'ללא LOT' : '—')}</span>
@@ -270,9 +307,25 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                         </td>
                       );
                     })}
+                    {canEdit && (
+                      <td className={td}>
+                        <button onClick={() => setRowEdit({ row, shipmentId: s?.id || null })} className="text-content-muted hover:text-primary" title="עריכת השורה ידנית">
+                          <Icon name="edit" size={14} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
-              }))}
+                })}
+                {trackingLot === g.key && g.shipment?.vessel_name && (
+                  <tr>
+                    <td colSpan={totalCols} className="px-2 pt-2 border-b border-line-subtle">
+                      <VesselTracker vesselName={g.shipment.vessel_name} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+              ))}
             </tbody>
             <tfoot className="bg-neutral-50">
               <tr className="border-t-2 border-line-strong">
@@ -283,13 +336,13 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                   </td>
                 ))}
                 {hasUnmatched && <td className={td} />}
-                <td colSpan={1 + coaCols} className={td} />
+                <td colSpan={tailCols} className={td} />
               </tr>
               <tr>
                 <td colSpan={11} className={`${td} font-semibold text-left`} dir="ltr">delivered</td>
                 {columns.map((c) => <td key={c.item.id} className={`${td} text-center font-mono`} dir="ltr">{fmtQ(c.shipped)}</td>)}
                 {hasUnmatched && <td className={`${td} text-center font-mono text-warning`} dir="ltr">{fmtQ(unmatchedTotal)}</td>}
-                <td colSpan={1 + coaCols} className={td} />
+                <td colSpan={tailCols} className={td} />
               </tr>
               <tr>
                 <td colSpan={11} className={`${td} font-semibold text-left`} dir="ltr">to be delivered</td>
@@ -312,18 +365,31 @@ export default function ImportTracker({ data, canEdit, onUpdate, initialProjectI
                   </td>
                 ))}
                 {hasUnmatched && <td className={td} />}
-                <td colSpan={1 + coaCols} className={td} />
+                <td colSpan={tailCols} className={td} />
               </tr>
             </tfoot>
           </table>
         )}
       </div>
       <p className="text-[11px] text-neutral-400">
-        ערך בכחול נפתח במסמך המקור שממנו נלקח (תעודת משלוח, חשבונית, BL, COA או הזמנת הרכש). סטטוס, LOT, תאריך שחרור ואספקה ללקוח נקלטים ידנית (<Icon name="edit" size={10} />).
+        ערך בכחול נפתח במסמך המקור שממנו נלקח (תעודת משלוח, חשבונית, BL, COA או הזמנת הרכש); ערך שחור הוזן ידנית. עריכה ידנית: <Icon name="edit" size={10} /> בסוף השורה (תעודה, מכולה, חשבונית, כמויות, COA) או ליד שם ה-LOT (BL, אוניה, ETA, שחרור, אספקה ללקוח).
       </p>
 
       {poView && (
         <POViewModal order={poView} items={itemsOf(poView.id)} projectName={poView.projects?.name || null} onClose={() => setPoView(null)} />
+      )}
+      {rowEdit && (
+        <TrackerRowModal
+          row={rowEdit.row}
+          defaultShipmentId={rowEdit.shipmentId}
+          orders={orders}
+          columns={columns}
+          lotShipments={lotShipments}
+          data={data}
+          canDelete={!!canDelete}
+          onClose={() => setRowEdit(null)}
+          onSaved={() => { setRowEdit(null); onUpdate(); }}
+        />
       )}
       {editLot?.shipment && (
         <LotEditModal shipment={editLot.shipment} onClose={() => setEditLot(null)} onSaved={() => { setEditLot(null); onUpdate(); }} />
@@ -346,7 +412,7 @@ function Val({ docId, onOpen, ltr, children }: { docId: string | null; onOpen: (
 function LotEditModal({ shipment, onClose, onSaved }: { shipment: any; onClose: () => void; onSaved: () => void }) {
   const supabase = createClient();
   const [f, setF] = useState({
-    lot_label: shipment.lot_label || '', bl_number: shipment.bl_number || '', status: shipment.status || 'booked',
+    lot_label: shipment.lot_label || '', bl_number: shipment.bl_number || '', vessel_name: shipment.vessel_name || '', status: shipment.status || 'booked',
     eta: shipment.eta || '', released_at: shipment.released_at || '', customer_delivery_date: shipment.customer_delivery_date || '',
   });
   const [saving, setSaving] = useState(false);
@@ -355,7 +421,7 @@ function LotEditModal({ shipment, onClose, onSaved }: { shipment: any; onClose: 
     setSaving(true);
     const blank = (v: string) => (v.trim() ? v.trim() : null);
     const { error } = await supabase.from('import_shipments').update({
-      lot_label: blank(f.lot_label), bl_number: blank(f.bl_number), status: f.status,
+      lot_label: blank(f.lot_label), bl_number: blank(f.bl_number), vessel_name: blank(f.vessel_name), status: f.status,
       eta: blank(f.eta), released_at: blank(f.released_at), customer_delivery_date: blank(f.customer_delivery_date),
       updated_at: new Date().toISOString(),
     }).eq('id', shipment.id);
@@ -371,6 +437,7 @@ function LotEditModal({ shipment, onClose, onSaved }: { shipment: any; onClose: 
         <div className="grid grid-cols-2 gap-3">
           <label className="block"><span className="text-[11px] text-content-muted">שם LOT</span><input className={inp} dir="ltr" value={f.lot_label} onChange={(e) => set('lot_label', e.target.value)} placeholder="LOT3a" /></label>
           <label className="block"><span className="text-[11px] text-content-muted">BL</span><input className={inp} dir="ltr" value={f.bl_number} onChange={(e) => set('bl_number', e.target.value)} /></label>
+          <label className="block"><span className="text-[11px] text-content-muted">אוניה (למעקב ספינה)</span><input className={inp} dir="ltr" value={f.vessel_name} onChange={(e) => set('vessel_name', e.target.value)} /></label>
           <label className="block"><span className="text-[11px] text-content-muted">סטטוס משלוח</span>
             <select className={inp} value={f.status} onChange={(e) => set('status', e.target.value)}>
               {Object.entries(SHIPMENT_STATUS_HE).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
