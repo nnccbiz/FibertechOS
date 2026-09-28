@@ -112,6 +112,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
   const [poView, setPoView] = useState<any | null>(null);
   const [busyItem, setBusyItem] = useState<string | null>(null);
   const [trackingLot, setTrackingLot] = useState<string | null>(null);
+  // The blank row at the bottom of the sheet — always there to type into.
   const [draft, setDraft] = useState<NewRowDraft | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
 
@@ -161,7 +162,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
     const err = await run(() => createTrackerRow(ctx, model.columns, draft));
     setDraftSaving(false);
     if (err) { alert(err); return; }
-    setDraft(null);
+    setDraft(null); // re-seeded blank below
   }
 
   if (!projects.length) {
@@ -190,9 +191,15 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
   function newDraft(): NewRowDraft {
     return {
       shipmentId: lotShipments[lotShipments.length - 1]?.id || NEW_LOT, newLotLabel: '',
+      status: 'booked', bl_number: '', released_at: '', eta: '', customer_delivery_date: '',
       dn: '', container: '', invoice_date: '', invoice_no: '', invoice_value: '', qty: {}, coa: '',
     };
   }
+  const blankRow = draft || newDraft();
+  const setBlank = (patch: Partial<NewRowDraft>) => setDraft({ ...blankRow, ...patch, qty: { ...blankRow.qty, ...(patch.qty || {}) } });
+  const blankDirty = !!draft;
+  const blankLot = lotShipments.find((s: any) => s.id === blankRow.shipmentId) || null;
+  const blankNewLot = blankRow.shipmentId === NEW_LOT;
 
   return (
     <div className="space-y-4">
@@ -206,11 +213,6 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
           className="min-w-[240px] border border-line-subtle rounded-lg px-2 py-1.5 text-[13px] bg-white"
         />
         <div className="mr-auto flex items-center gap-2">
-          {canEdit && orders.length > 0 && columns.length > 0 && !draft && (
-            <button onClick={() => setDraft(newDraft())} className="text-[13px] font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-700">
-              <Icon name="add" size={16} /> הוספת שורה
-            </button>
-          )}
           <button
             onClick={() => exportTrackerXlsx(model, projectName)}
             disabled={!columns.length && !groups.length}
@@ -406,42 +408,63 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                 </Fragment>
               ))}
 
-              {/* New row — typed straight into the sheet */}
-              {draft && (
+              {/* Blank row — always at the bottom of the sheet; type into it and ✓ adds it */}
+              {canEdit && columns.length > 0 && (
                 <tr className="bg-primary-50 border-t-2 border-primary">
-                  <td className={td}><span className="text-[11px] font-semibold text-primary">שורה חדשה</span></td>
-                  <td className={td} colSpan={5}>
+                  <td className={td}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <button onClick={saveDraft} disabled={draftSaving || !blankDirty} className="text-[11px] font-semibold bg-success text-white px-2 py-1 rounded disabled:opacity-40" title="הוסף את השורה לטבלה">
+                        <Icon name="confirm" size={12} /> {draftSaving ? 'שומר…' : 'הוסף שורה'}
+                      </button>
+                      {blankDirty && (
+                        <button onClick={() => setDraft(null)} disabled={draftSaving} className="text-content-muted hover:text-danger" title="נקה"><Icon name="close" size={14} /></button>
+                      )}
+                    </div>
+                    {blankNewLot
+                      ? <select className={din} value={blankRow.status} onChange={(e) => setBlank({ status: e.target.value })}>
+                          {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      : <span className="text-[11px] text-content-muted">{blankLot ? SHIPMENT_STATUS_HE[blankLot.status] || '' : ''}</span>}
+                  </td>
+                  <td className={td}>
                     <div className="flex items-center gap-1">
-                      <select className={din} value={draft.shipmentId} onChange={(e) => setDraft({ ...draft, shipmentId: e.target.value })}>
+                      <select className={din} value={blankRow.shipmentId} onChange={(e) => setBlank({ shipmentId: e.target.value })} title="לאיזה LOT שייכת השורה">
                         {lotShipments.map((s: any) => <option key={s.id} value={s.id}>{s.lot_label || s.bl_number || 'LOT ללא שם'}</option>)}
-                        <option value="">ללא LOT</option>
                         <option value={NEW_LOT}>+ LOT חדש</option>
+                        <option value="">ללא LOT</option>
                       </select>
-                      {draft.shipmentId === NEW_LOT && (
-                        <input className={`${din} w-20`} dir="ltr" placeholder="LOT5" value={draft.newLotLabel} onChange={(e) => setDraft({ ...draft, newLotLabel: e.target.value })} />
+                      {blankNewLot && (
+                        <input className={`${din} w-20`} dir="ltr" placeholder="שם LOT" value={blankRow.newLotLabel} onChange={(e) => setBlank({ newLotLabel: e.target.value })} />
                       )}
                     </div>
                   </td>
-                  <td className={td}><input type="date" className={din} value={draft.invoice_date} onChange={(e) => setDraft({ ...draft, invoice_date: e.target.value })} /></td>
-                  <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="DN" value={draft.dn} onChange={(e) => setDraft({ ...draft, dn: e.target.value })} /></td>
-                  <td className={td}><input className={`${din} w-24`} dir="ltr" value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} /></td>
-                  <td className={td}><input className={`${din} w-20`} dir="ltr" inputMode="decimal" value={draft.invoice_value} onChange={(e) => setDraft({ ...draft, invoice_value: e.target.value })} /></td>
-                  <td className={td}><input className={`${din} w-28`} dir="ltr" placeholder="מכולה" value={draft.container} onChange={(e) => setDraft({ ...draft, container: e.target.value })} /></td>
+                  {blankNewLot ? (
+                    <>
+                      <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="BL" value={blankRow.bl_number} onChange={(e) => setBlank({ bl_number: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.released_at} onChange={(e) => setBlank({ released_at: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.eta} onChange={(e) => setBlank({ eta: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.customer_delivery_date} onChange={(e) => setBlank({ customer_delivery_date: e.target.value })} /></td>
+                    </>
+                  ) : (
+                    <td className={`${td} text-[11px] text-content-muted`} colSpan={4}>
+                      {blankLot ? 'פרטי ה-LOT נערכים בשורות ה-LOT למעלה' : ''}
+                    </td>
+                  )}
+                  <td className={td}><input type="date" className={din} value={blankRow.invoice_date} onChange={(e) => setBlank({ invoice_date: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="DN" value={blankRow.dn} onChange={(e) => setBlank({ dn: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="Invoice no." value={blankRow.invoice_no} onChange={(e) => setBlank({ invoice_no: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-20`} dir="ltr" inputMode="decimal" placeholder="סכום" value={blankRow.invoice_value} onChange={(e) => setBlank({ invoice_value: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-28`} dir="ltr" placeholder="מכולה" value={blankRow.container} onChange={(e) => setBlank({ container: e.target.value })} /></td>
                   {columns.map((c) => (
                     <td key={c.item.id} className={`${td} text-center`}>
-                      <input className={`${din} w-16 text-center`} dir="ltr" inputMode="decimal" value={draft.qty[c.item.id] || ''} onChange={(e) => setDraft({ ...draft, qty: { ...draft.qty, [c.item.id]: e.target.value } })} />
+                      <input className={`${din} w-16 text-center`} dir="ltr" inputMode="decimal" placeholder="מ׳" value={blankRow.qty[c.item.id] || ''} onChange={(e) => setBlank({ qty: { [c.item.id]: e.target.value } })} />
                     </td>
                   ))}
                   {hasUnmatched && <td className={td} />}
                   <td className={td} />
-                  <td className={td}><input className={`${din} w-20`} dir="ltr" placeholder="COA" value={draft.coa} onChange={(e) => setDraft({ ...draft, coa: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-20`} dir="ltr" placeholder="COA" value={blankRow.coa} onChange={(e) => setBlank({ coa: e.target.value })} /></td>
                   {Array.from({ length: coaCols - 1 }, (_, k) => <td key={k} className={td} />)}
-                  <td className={td}>
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={saveDraft} disabled={draftSaving} className="text-success hover:opacity-80 disabled:opacity-40" title="שמור שורה"><Icon name="confirm" size={16} /></button>
-                      <button onClick={() => setDraft(null)} disabled={draftSaving} className="text-content-muted hover:text-danger" title="ביטול"><Icon name="close" size={16} /></button>
-                    </div>
-                  </td>
+                  <td className={td} />
                 </tr>
               )}
             </tbody>
@@ -490,7 +513,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
         )}
       </div>
       <p className="text-[11px] text-neutral-400">
-        {canEdit ? 'לחיצה על תא פותחת אותו לעריכה — Enter או יציאה מהתא שומרים, Esc מבטל. ' : ''}
+        {canEdit ? 'לחיצה על תא פותחת אותו לעריכה — Enter או יציאה מהתא שומרים, Esc מבטל. שורה חדשה: מקלידים בשורה הכחולה בתחתית ולוחצים "הוסף שורה". ' : ''}
         <Icon name="file" size={10} /> ליד ערך פותח את מסמך המקור שממנו נלקח (תעודת משלוח, חשבונית, BL או COA); ערך בלי אייקון הוזן ידנית. הכמות שהוזמנה ו-ת.מ רכש פותחים את הזמנת הרכש.
       </p>
 
@@ -538,8 +561,10 @@ function Cell({ value, display, type = 'text', options, ltr, width, placeholder,
     busy.current = true; setSaving(true);
     const err = onSave ? await onSave(next) : null;
     busy.current = false; setSaving(false);
-    if (err) { alert('שגיאה בשמירה: ' + err); return; }
+    // Close BEFORE the alert: the dialog steals focus, and a still-open input
+    // would re-save on that blur and loop through the same error.
     cancel();
+    if (err) alert('שגיאה בשמירה: ' + err + '\nהערך לא נשמר.');
   }
 
   if (editing) {
@@ -584,7 +609,7 @@ function Cell({ value, display, type = 'text', options, ltr, width, placeholder,
         title="לחץ לעריכה"
         className={`cursor-pointer rounded px-0.5 hover:bg-primary-50 hover:text-primary inline-block min-w-[2.5rem] min-h-[1.25em] ${shown ? (docId ? 'text-azure' : '') : 'text-neutral-300'}`}
       >
-        {shown || (placeholder ? <span className="text-[11px]">{placeholder}</span> : '')}
+        {shown || <span className="text-[11px]">{placeholder || '—'}</span>}
       </span>
       {docBtn}
     </span>

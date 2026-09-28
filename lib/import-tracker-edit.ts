@@ -201,6 +201,12 @@ export async function saveItemLineNo(supabase: SB, itemId: string, value: string
 export interface NewRowDraft {
   shipmentId: string;      // existing shipment id, '' = no LOT, '__new__' = create
   newLotLabel: string;
+  // LOT fields — used when a new LOT is opened from the blank row
+  status: string;
+  bl_number: string;
+  released_at: string;
+  eta: string;
+  customer_delivery_date: string;
   dn: string;
   container: string;
   invoice_date: string;
@@ -222,7 +228,10 @@ export async function createTrackerRow(ctx: EditCtx, columns: TrackerColumn[], d
 
   let sid: string | null = d.shipmentId && d.shipmentId !== NEW_LOT ? d.shipmentId : null;
   if (d.shipmentId === NEW_LOT) {
-    const { data: s, error } = await supabase.from('import_shipments').insert({ lot_label: blank(d.newLotLabel), status: 'booked' }).select('id').single();
+    const { data: s, error } = await supabase.from('import_shipments').insert({
+      lot_label: blank(d.newLotLabel), status: d.status || 'booked', bl_number: blank(d.bl_number),
+      released_at: blank(d.released_at), eta: blank(d.eta), customer_delivery_date: blank(d.customer_delivery_date),
+    }).select('id').single();
     throwIf(error);
     sid = s!.id;
   }
