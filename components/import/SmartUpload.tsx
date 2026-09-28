@@ -74,6 +74,37 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     [orderChoice, data.items],
   );
 
+  // Paperwork already recorded in the system — shown as a red alert on review
+  // and confirmed again on save (a re-sent email must never slip in silently).
+  const duplicates = useMemo(() => {
+    if (!p) return [] as string[];
+    const out: string[] = [];
+    const when = (d?: string) => (d ? ` (נקלט ${new Date(d).toLocaleDateString('he-IL')})` : '');
+    for (const iv of p.invoices) {
+      const hit = iv.invoice_no && (data.invoices || []).find((x: any) => norm(x.invoice_no || '') === norm(iv.invoice_no));
+      if (hit) out.push(`חשבונית ${iv.invoice_no}${when(hit.created_at)}`);
+    }
+    const bl = p.shipment.bl_number && (data.shipments || []).find((x: any) => norm(x.bl_number || '') === norm(p.shipment.bl_number || ''));
+    if (bl) out.push(`שטר מטען (BL) ${p.shipment.bl_number}${when(bl.created_at)}`);
+    const dns = Array.from(new Set(p.packingLines.map((pl) => (pl.delivery_note_no || '').trim()).filter(Boolean)));
+    for (const dn of dns) {
+      const hit = (data.packing || []).find((x: any) => norm(x.delivery_note_no || '') === norm(dn));
+      if (hit) out.push(`תעודת משלוח ${dn}${when(hit.created_at)}`);
+    }
+    const conts = Array.from(new Set(p.packingLines.map((pl) => (pl.container_number || '').trim()).filter(Boolean)));
+    for (const cn of conts) {
+      const c = (data.containers || []).find((x: any) => norm(x.container_number || '') === norm(cn)
+        && (data.packing || []).some((pl: any) => pl.container_id === x.id));
+      if (c) out.push(`מכולה ${cn} — כבר רשומות לה כמויות${when(c.created_at)}`);
+    }
+    for (const d of p.docs) {
+      if (!d.doc_number) continue;
+      const hit = (data.docs || []).find((x: any) => x.doc_type === d.doc_type && norm(x.doc_number || '') === norm(d.doc_number || ''));
+      if (hit && !out.some((m) => m.includes(d.doc_number!))) out.push(`מסמך ${d.doc_number} (${DOC_LABEL[d.doc_type] || d.doc_type})${when(hit.created_at)}`);
+    }
+    return Array.from(new Set(out));
+  }, [p, data]);
+
   function itemLabel(it: any) {
     const spec = [it.dn && `DN${it.dn}`, it.pn && `PN${it.pn}`, it.sn && `SN${it.sn}`].filter(Boolean).join(' ');
     return `${spec || it.description || '—'} · ${VARIANT_LABEL[pipeVariant(it.description)]} · ${it.ordered_qty ?? 0} ${it.unit || ''}`.trim();
@@ -228,6 +259,10 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
 
   async function save() {
     if (!p) return;
+    if (duplicates.length && !confirm(
+      `שים לב — מסמכים אלה כבר נקלטו במערכת:\n\n• ${duplicates.join('\n• ')}\n\n` +
+      'להמשיך בשמירה? שורות וחשבוניות שכבר קיימות ידולגו, אבל כל מה שחדש במסמכים יתווסף.',
+    )) return;
     setPhase('saving'); setErr('');
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -305,6 +340,11 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
         const owner = dtype === 'bl' ? 'shipment_id' : 'import_order_id';
         const ownerId = dtype === 'bl' ? shipmentId : orderId;
         if (!ownerId) continue;
+        // Same document already on file for this order / LOT → link to it, don't record it twice.
+        const existingDoc = meta.doc_number
+          ? (data.docs || []).find((x: any) => x.doc_type === dtype && x[owner] === ownerId && norm(x.doc_number || '') === norm(meta.doc_number || ''))
+          : null;
+        if (existingDoc) { docIdByName[f.name] = existingDoc.id; continue; }
         // ASCII-only storage key (a Hebrew file name is rejected as "Invalid key").
         const path = `import/${owner}/${ownerId}/${dtype}_${Date.now()}_${idx}.${safeExt(f)}`;
         const { error: upErr } = await supabase.storage.from('project-files').upload(path, f);
@@ -507,6 +547,13 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
         {phase === 'review' && p && (
           <div className="space-y-4">
             <p className="text-[12px] text-content-muted">בדקי וערכי לפי הצורך — אפשר לשנות כל שדה, להוסיף ולמחוק שורות. השמירה רק אחרי אישורך.</p>
+            {duplicates.length > 0 && (
+              <div className="bg-danger-soft text-danger rounded-lg px-3 py-2.5 border-2 border-danger">
+                <p className="text-[13px] font-bold mb-1"><Icon name="warning" size={16} /> נמצאו מסמכים שכבר נקלטו במערכת — ייתכן שזו העלאה כפולה</p>
+                <ul className="text-[12px] list-disc pr-5 space-y-0.5">{duplicates.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                <p className="text-[11px] mt-1">אם אלה אותם מסמכים — לחצי "ביטול". בשמירה תתבקשי לאשר שוב; מה שכבר קיים ידולג.</p>
+              </div>
+            )}
             {p.warnings.length > 0 && <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">{p.warnings.map((w, i) => <div key={i}><Icon name="warning" size={14} /> {w}</div>)}</div>}
 
             <Section title="מסמכים שזוהו">

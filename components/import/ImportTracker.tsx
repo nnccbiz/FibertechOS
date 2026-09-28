@@ -115,6 +115,12 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
   // The blank row at the bottom of the sheet — always there to type into.
   const [draft, setDraft] = useState<NewRowDraft | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
+  // View mode: every value is a link to its source document. Edit mode (button):
+  // cells become editable, new-row / delete / "mark complete" appear; leaving it
+  // brings the links back.
+  const [editMode, setEditMode] = useState(false);
+  const [showNewRow, setShowNewRow] = useState(false);
+  const ed = canEdit && editMode;
 
   const ctx: EditCtx = { supabase, data, orders };
 
@@ -162,7 +168,8 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
     const err = await run(() => createTrackerRow(ctx, model.columns, draft));
     setDraftSaving(false);
     if (err) { alert(err); return; }
-    setDraft(null); // re-seeded blank below
+    setDraft(null);
+    setShowNewRow(false);
   }
 
   if (!projects.length) {
@@ -172,7 +179,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
 
   const { columns, groups, unmatchedTotal } = model;
   const hasUnmatched = unmatchedTotal > 0;
-  const coaCols = Math.max(model.maxCoa, 1) + (canEdit ? 1 : 0); // + one empty COA slot to add into
+  const coaCols = Math.max(model.maxCoa, 1) + (ed ? 1 : 0); // + one empty COA slot to add into
   const orderSpans: { order: any; label: string; span: number }[] = [];
   for (const c of columns) {
     const last = orderSpans[orderSpans.length - 1];
@@ -180,7 +187,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
     else orderSpans.push({ order: c.order, label: c.orderLabel, span: 1 });
   }
   const itemsOf = (orderId: string) => (data.items || []).filter((i: any) => i.import_order_id === orderId);
-  const tailCols = 1 + coaCols + (canEdit ? 1 : 0);
+  const tailCols = 1 + coaCols + (ed ? 1 : 0);
   const totalCols = 11 + columns.length + (hasUnmatched ? 1 : 0) + tailCols;
   const statusOptions = Object.entries(SHIPMENT_STATUS_HE).map(([value, label]) => ({ value, label }));
 
@@ -208,11 +215,24 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
         <span className="text-[13px] font-semibold text-content-body"><Icon name="projects" size={16} /> פרויקט</span>
         <SearchableSelect
           value={projectId}
-          onChange={(v: string) => { setProjectId(v); setUserPicked(true); setDraft(null); }}
+          onChange={(v: string) => { setProjectId(v); setUserPicked(true); setDraft(null); setShowNewRow(false); }}
           options={projects.map((p) => ({ value: p.id, label: p.name }))}
           className="min-w-[240px] border border-line-subtle rounded-lg px-2 py-1.5 text-[13px] bg-white"
         />
         <div className="mr-auto flex items-center gap-2">
+          {ed && columns.length > 0 && !showNewRow && (
+            <button onClick={() => setShowNewRow(true)} className="text-[13px] font-semibold border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary-50">
+              <Icon name="add" size={16} /> שורה חדשה
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => { setEditMode(!editMode); setShowNewRow(false); setDraft(null); }}
+              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg ${editMode ? 'bg-primary text-white hover:bg-primary-700' : 'border border-line-strong text-content-body hover:bg-neutral-50'}`}
+            >
+              <Icon name={editMode ? 'confirm' : 'edit'} size={16} /> {editMode ? 'סיום עריכה' : 'עריכה'}
+            </button>
+          )}
           <button
             onClick={() => exportTrackerXlsx(model, projectName)}
             disabled={!columns.length && !groups.length}
@@ -235,8 +255,14 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
         </div>
       )}
 
+      {ed && (
+        <div className="bg-primary-50 text-primary text-[12px] rounded-lg px-3 py-2">
+          <Icon name="edit" size={14} /> מצב עריכה — לחיצה על תא פותחת אותו לעריכה (Enter או יציאה מהתא שומרים, Esc מבטל). מסמך המקור נפתח מאייקון הקובץ. לסיום לחץ "סיום עריכה".
+        </div>
+      )}
+
       {/* The sheet */}
-      <div className="bg-white rounded-xl border border-line-subtle overflow-x-auto">
+      <div className={`bg-white rounded-xl overflow-x-auto ${ed ? 'border-2 border-primary' : 'border border-line-subtle'}`}>
         {groups.length === 0 && columns.length === 0 ? (
           <p className="text-center text-content-muted text-sm py-10">אין עדיין נתונים לפרויקט זה — העלי את מסמכי הלוט בהעלאה החכמה.</p>
         ) : (
@@ -247,7 +273,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                 {columns.map((c) => (
                   <th key={c.item.id} className={`${th} text-center`}>
                     <Cell
-                      canEdit={canEdit} value={c.item.line_no != null ? String(c.item.line_no) : ''} display={c.lineLabel}
+                      canEdit={ed} value={c.item.line_no != null ? String(c.item.line_no) : ''} display={c.lineLabel}
                       type="number" width="w-14" placeholder="שורה"
                       onSave={(v) => run(() => saveItemLineNo(supabase, c.item.id, v))}
                     />
@@ -272,7 +298,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                 {hasUnmatched && <th className={`${th} text-warning`}>לא משויך</th>}
                 <th className={th}>ת.מ רכש</th>
                 {Array.from({ length: coaCols }, (_, k) => <th key={k} className={th}>COA{k + 1}</th>)}
-                {canEdit && <th className={th} />}
+                {ed && <th className={th} />}
               </tr>
             </thead>
             <tbody>
@@ -289,13 +315,13 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                       <>
                         <td rowSpan={span} className={`${td} align-top text-content-body`}>
                           <div className="font-semibold">
-                            <Cell canEdit={canEdit} type="select" options={statusOptions} value={s?.status || 'booked'} display={g.status || '—'} onSave={lot(g, 'status')} />
+                            <Cell canEdit={ed} type="select" options={statusOptions} value={s?.status || 'booked'} display={g.status || '—'} onSave={lot(g, 'status')} />
                           </div>
                           {future && (
                             <div className="mt-1 space-y-0.5 text-[11px] font-normal whitespace-normal min-w-[130px]">
-                              <div className="text-content-muted flex items-center gap-1">
+                              <div className={`text-content-muted items-center gap-1 ${s.vessel_name || ed ? 'flex' : 'hidden'}`}>
                                 <Icon name="ship" size={12} />
-                                <Cell canEdit={canEdit} value={s.vessel_name || ''} ltr placeholder="+ אוניה" width="w-32" onSave={lot(g, 'vessel_name')} />
+                                <Cell canEdit={ed} value={s.vessel_name || ''} ltr placeholder="+ אוניה" width="w-32" onSave={lot(g, 'vessel_name')} />
                               </div>
                               <div className={days != null && days < 0 ? 'text-warning font-semibold' : 'text-azure-600 font-semibold'}>
                                 {s.eta
@@ -314,30 +340,30 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                           )}
                         </td>
                         <td rowSpan={span} className={`${td} align-top font-semibold`}>
-                          <Cell canEdit={canEdit} value={s?.lot_label || ''} display={s?.lot_label || (g.key === 'none' ? 'ללא LOT' : '')} ltr placeholder="LOT" onSave={lot(g, 'lot_label')} />
+                          <Cell canEdit={ed} value={s?.lot_label || ''} display={s?.lot_label || (g.key === 'none' ? 'ללא LOT' : '')} ltr placeholder="LOT" onSave={lot(g, 'lot_label')} />
                         </td>
                         <td rowSpan={span} className={`${td} align-top`}>
-                          <Cell canEdit={canEdit} value={s?.bl_number || ''} ltr docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'bl_number')} />
+                          <Cell canEdit={ed} value={s?.bl_number || ''} ltr docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'bl_number')} />
                         </td>
                         <td rowSpan={span} className={`${td} align-top`}>
-                          <Cell canEdit={canEdit} type="date" value={s?.released_at || ''} display={fmtD(s?.released_at)} onSave={lot(g, 'released_at')} />
+                          <Cell canEdit={ed} type="date" value={s?.released_at || ''} display={fmtD(s?.released_at)} onSave={lot(g, 'released_at')} />
                         </td>
                         <td rowSpan={span} className={`${td} align-top`}>
-                          <Cell canEdit={canEdit} type="date" value={s?.eta || ''} display={fmtD(s?.eta)} docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'eta')} />
+                          <Cell canEdit={ed} type="date" value={s?.eta || ''} display={fmtD(s?.eta)} docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'eta')} />
                         </td>
                         <td rowSpan={span} className={`${td} align-top`}>
-                          <Cell canEdit={canEdit} type="date" value={s?.customer_delivery_date || ''} display={fmtD(s?.customer_delivery_date)} onSave={lot(g, 'customer_delivery_date')} />
+                          <Cell canEdit={ed} type="date" value={s?.customer_delivery_date || ''} display={fmtD(s?.customer_delivery_date)} onSave={lot(g, 'customer_delivery_date')} />
                         </td>
                       </>
                     )}
                     <td className={td}>
-                      <Cell canEdit={canEdit} type="date" value={row.invoice?.invoice_date || ''} display={fmtD(row.invoice?.invoice_date)} docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_date')} />
+                      <Cell canEdit={ed} type="date" value={row.invoice?.invoice_date || ''} display={fmtD(row.invoice?.invoice_date)} docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_date')} />
                     </td>
                     <td className={td}>
-                      <Cell canEdit={canEdit} value={row.deliveryNote || ''} ltr docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'dn')} />
+                      <Cell canEdit={ed} value={row.deliveryNote || ''} ltr docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'dn')} />
                     </td>
                     <td className={td}>
-                      <Cell canEdit={canEdit} value={row.invoice?.invoice_no || ''} ltr docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_no')} />
+                      <Cell canEdit={ed} value={row.invoice?.invoice_no || ''} ltr docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_no')} />
                     </td>
                     <td className={td}>
                       {row.invoiceRepeat ? (
@@ -345,7 +371,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                       ) : (
                         <>
                           <Cell
-                            canEdit={canEdit} type="number" ltr docId={row.invoiceDocId} onOpen={openDoc}
+                            canEdit={ed} type="number" ltr docId={row.invoiceDocId} onOpen={openDoc}
                             value={row.invoice ? String(row.invoice.final_amount ?? row.invoice.net_value ?? '') : ''}
                             display={row.invoice ? money(row.invoice.final_amount ?? row.invoice.net_value, row.invoice.currency || 'USD') : ''}
                             onSave={cell(row, g, 'invoice_value')}
@@ -357,12 +383,12 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                       )}
                     </td>
                     <td className={td}>
-                      <Cell canEdit={canEdit} value={row.container?.container_number || ''} ltr width="w-32" docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'container')} />
+                      <Cell canEdit={ed} value={row.container?.container_number || ''} ltr width="w-32" docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'container')} />
                     </td>
                     {columns.map((c) => (
                       <td key={c.item.id} className={`${td} text-center font-mono`}>
                         <Cell
-                          canEdit={canEdit} type="number" ltr docId={row.qty[c.item.id] ? row.packingDocId : null} onOpen={openDoc}
+                          canEdit={ed} type="number" ltr docId={row.qty[c.item.id] ? row.packingDocId : null} onOpen={openDoc}
                           value={row.qty[c.item.id] ? String(row.qty[c.item.id]) : ''}
                           display={row.qty[c.item.id] ? fmtQ(row.qty[c.item.id]) : ''}
                           onSave={cell(row, g, `qty:${c.item.id}`)}
@@ -388,14 +414,14 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                       return (
                         <td key={k} className={td}>
                           <Cell
-                            canEdit={canEdit} ltr docId={c?.docId || null} onOpen={openDoc}
+                            canEdit={ed} ltr docId={c?.docId || null} onOpen={openDoc}
                             value={c?.coa.coa_no || ''} display={c ? (c.coa.coa_no || (c.coa.dn ? `DN${c.coa.dn}` : 'COA')) : ''}
                             onSave={cell(row, g, `coa:${k}`)}
                           />
                         </td>
                       );
                     })}
-                    {canEdit && (
+                    {ed && (
                       <td className={td}>
                         {canDelete && (
                           <button onClick={() => removeRow(row)} className="text-neutral-300 hover:text-danger" title="מחיקת השורה">
@@ -418,16 +444,14 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
               ))}
 
               {/* Blank row — always at the bottom of the sheet; type into it and ✓ adds it */}
-              {canEdit && columns.length > 0 && (
+              {ed && showNewRow && columns.length > 0 && (
                 <tr className="bg-primary-50 border-t-2 border-primary">
                   <td className={td}>
                     <div className="flex items-center gap-1.5 mb-1">
                       <button onClick={saveDraft} disabled={draftSaving || !blankDirty} className="text-[11px] font-semibold bg-success text-white px-2 py-1 rounded disabled:opacity-40" title="הוסף את השורה לטבלה">
                         <Icon name="confirm" size={12} /> {draftSaving ? 'שומר…' : 'הוסף שורה'}
                       </button>
-                      {blankDirty && (
-                        <button onClick={() => setDraft(null)} disabled={draftSaving} className="text-content-muted hover:text-danger" title="נקה"><Icon name="close" size={14} /></button>
-                      )}
+                      <button onClick={() => { setDraft(null); setShowNewRow(false); }} disabled={draftSaving} className="text-content-muted hover:text-danger" title="ביטול"><Icon name="close" size={14} /></button>
                     </div>
                     {blankNewLot
                       ? <select className={din} value={blankRow.status} onChange={(e) => setBlank({ status: e.target.value })}>
@@ -503,7 +527,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
                     </div>
                     {c.manual && <div className="text-[10px] text-success">הושלם ידנית</div>}
                     {!c.manual && c.complete && <div className="text-[10px] text-success"><Icon name="success" size={10} /> הושלם</div>}
-                    {canEdit && (c.manual || !c.complete) && (
+                    {ed && (c.manual || !c.complete) && (
                       <button
                         onClick={() => toggleComplete(c.item, c.order)}
                         disabled={busyItem === c.item.id}
@@ -522,7 +546,7 @@ export default function ImportTracker({ data, canEdit, canDelete, onUpdate, init
         )}
       </div>
       <p className="text-[11px] text-neutral-400">
-        {canEdit ? 'לחיצה על תא פותחת אותו לעריכה — Enter או יציאה מהתא שומרים, Esc מבטל. שורה חדשה: מקלידים בשורה הכחולה בתחתית ולוחצים "הוסף שורה". ' : ''}
+        {canEdit && !ed ? 'לעריכת נתונים — כפתור "עריכה" למעלה. ' : ''}
         <Icon name="file" size={10} /> ליד ערך פותח את מסמך המקור שממנו נלקח (תעודת משלוח, חשבונית, BL או COA); ערך בלי אייקון הוזן ידנית. הכמות שהוזמנה ו-ת.מ רכש פותחים את הזמנת הרכש.
       </p>
 
