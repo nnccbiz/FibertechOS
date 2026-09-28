@@ -80,9 +80,13 @@ function findDoc(docs: any[], id: string | null | undefined, pred: (d: any) => b
   return d?.id || null;
 }
 
-/** Row identity: one row per container × delivery note (a line with neither stands alone). */
+/**
+ * Row identity: one row per container × delivery note. A multi-container
+ * packing list has no delivery-note number — its lines group by container; a
+ * line with neither stands alone.
+ */
 export function rowKeyOf(pl: any): string {
-  return `${pl.container_id || 'none'}|${trimNo(pl.delivery_note_no) || pl.id}`;
+  return `${pl.container_id || 'none'}|${trimNo(pl.delivery_note_no) || (pl.container_id ? '' : pl.id)}`;
 }
 
 /**

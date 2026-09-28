@@ -135,15 +135,29 @@ export function reconcileDocuments(results: ExtractResult[]): Proposal {
   for (const r of ok) for (const c of r.data.containers || []) upsertContainer(c);
 
   // ----- packing lines (from packing lists) — the bridge -----
+  // An invoice number is never a delivery-note number (the model sometimes
+  // fills the DN from the document's reference = invoice no).
+  const invoiceNos = new Set(
+    ok.filter((r) => /invoice/.test(r.doc_type || ''))
+      .map((r) => String(r.data.invoice?.invoice_no || '').replace(/\s+/g, '').toUpperCase())
+      .filter(Boolean),
+  );
+  const asDn = (v: any) => {
+    const t = String(v ?? '').trim();
+    return t && !invoiceNos.has(t.replace(/\s+/g, '').toUpperCase()) ? t : null;
+  };
   for (const r of ok) {
     if (r.doc_type !== 'packing_list') continue;
     const pk = r.data.packing || {};
-    const contNum = pk.container_number || null;
-    if (contNum) upsertContainer({ container_number: contNum, pieces: pk.pieces, gross_weight: pk.gross_weight });
+    const docCont = pk.container_number || null;
+    if (docCont) upsertContainer({ container_number: docCont, pieces: pk.pieces, gross_weight: pk.gross_weight });
     for (const it of r.data.items || []) {
       if (isFreight(it.description, it.material_no)) continue;
+      // A multi-container packing list names the container per line.
+      const contNum = it.container_number || docCont;
+      if (it.container_number) upsertContainer({ container_number: it.container_number });
       proposal.packingLines.push({
-        delivery_note_no: pk.delivery_note_no || it.delivery_note_no || r.data.doc_number || null,
+        delivery_note_no: asDn(pk.delivery_note_no) || asDn(it.delivery_note_no) || asDn(r.data.doc_number),
         container_number: contNum,
         material_no: it.material_no ?? null, description: it.description || '',
         dn: it.dn ?? null, pn: it.pn ?? null, sn: it.sn ?? null,

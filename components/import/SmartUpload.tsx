@@ -88,12 +88,38 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     };
   }
 
+  // The documents already recorded on an order? Same supplier invoice no, or
+  // the same BL whose LOT already carries one of our orders.
+  function priorRecordOf(prop: Proposal): { orderId: string; why: string } | null {
+    const live = new Set(liveOrders.map((o: any) => o.id));
+    for (const iv of prop.invoices) {
+      const no = norm(iv.invoice_no || '');
+      if (!no) continue;
+      const hit = (data.invoices || []).find((x: any) => norm(x.invoice_no || '') === no && live.has(x.import_order_id));
+      if (hit) return { orderId: hit.import_order_id, why: `חשבונית ${iv.invoice_no}` };
+    }
+    const bl = norm(prop.shipment.bl_number || '');
+    if (bl) {
+      const ship = (data.shipments || []).find((x: any) => norm(x.bl_number || '') === bl);
+      if (ship) {
+        const byInv = (data.invoices || []).find((x: any) => x.shipment_id === ship.id && live.has(x.import_order_id));
+        const contIds = new Set((data.containers || []).filter((c: any) => c.shipment_id === ship.id).map((c: any) => c.id));
+        const byPack = (data.packing || []).find((pl: any) => contIds.has(pl.container_id) && live.has(pl.import_order_id));
+        const oid = byInv?.import_order_id || byPack?.import_order_id;
+        if (oid) return { orderId: oid, why: `BL ${prop.shipment.bl_number}` };
+      }
+    }
+    return null;
+  }
+
   function defaultOrderFor(prop: Proposal, projId: string): string {
     const so = (prop.order.supplier_order_no || '').trim();
     if (so) {
       const bySo = liveOrders.find((o: any) => (o.supplier_order_no || '').trim() === so);
       if (bySo) return bySo.id;
     }
+    const prior = priorRecordOf(prop);
+    if (prior) return prior.orderId;
     const pool = liveOrders.filter((o: any) => projId && o.project_id === projId);
     return pool.length === 1 ? pool[0].id : '';
   }
@@ -183,6 +209,14 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
       // An existing PO (by the supplier's sales-order no, or the project's only
       // live order) — so the documents land on Nitzan's PO instead of a copy.
       const ordId = defaultOrderFor(prop, projId);
+      // Same invoice / BL already recorded → say so up front (re-sent email, same LOT).
+      const prior = priorRecordOf(prop);
+      if (prior) {
+        const o = liveOrders.find((x: any) => x.id === prior.orderId);
+        const label = [o?.po_number, o?.projects?.name].filter(Boolean).join(' · ') || 'הזמנה קיימת';
+        prop.warnings.unshift(`${prior.why} כבר נקלטו במערכת (${label}) — ייתכן שאלה אותם מסמכים שכבר הועלו. ההעלאה שויכה לאותה הזמנה; שורות שכבר קיימות ידולגו.`);
+        if (!projId && o?.project_id) projId = o.project_id;
+      }
       const matched = autoMatch(prop, ordId);
       setProjectIdRaw(projId);
       setOrderChoiceRaw(ordId);
@@ -288,16 +322,23 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
       // ---- delivery-note lines — skip lines already recorded by an earlier upload ----
       let skipped = 0;
       if (p.packingLines.length) {
+        // Identity of a recorded line: delivery note + container + material + qty
+        // (a multi-container packing list has no delivery-note number).
         const dns = Array.from(new Set(p.packingLines.map((pl) => (pl.delivery_note_no || '').trim()).filter(Boolean)));
-        const { data: prior } = dns.length
-          ? await supabase.from('import_packing_lines').select('delivery_note_no, material_no, shipped_qty').in('delivery_note_no', dns)
-          : { data: [] as any[] };
-        const seen = new Set((prior || []).map((x: any) => `${(x.delivery_note_no || '').trim()}|${(x.material_no || '').trim()}|${Number(x.shipped_qty) || 0}`));
+        const contIds = Array.from(new Set(Object.values(contByNum)));
+        const cols = 'delivery_note_no, container_id, material_no, shipped_qty';
+        const [byDn, byCont] = await Promise.all([
+          dns.length ? supabase.from('import_packing_lines').select(cols).in('delivery_note_no', dns) : Promise.resolve({ data: [] as any[] }),
+          contIds.length ? supabase.from('import_packing_lines').select(cols).in('container_id', contIds) : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const lineKey = (dn: any, cid: any, mat: any, q: any) => `${String(dn || '').trim()}|${cid || ''}|${String(mat || '').trim()}|${Number(q) || 0}`;
+        const seen = new Set([...(byDn.data || []), ...(byCont.data || [])].map((x: any) => lineKey(x.delivery_note_no, x.container_id, x.material_no, x.shipped_qty)));
         const rows: any[] = [];
         const learned: Record<string, string> = {}; // order item id → supplier material no
         for (const pl of p.packingLines) {
-          const key = `${(pl.delivery_note_no || '').trim()}|${(pl.material_no || '').trim()}|${n(pl.shipped_qty) ?? 0}`;
-          if (pl.delivery_note_no && seen.has(key)) { skipped++; continue; }
+          const cid = pl.container_number ? (contByNum[norm(pl.container_number)] || null) : null;
+          const key = lineKey(pl.delivery_note_no, cid, pl.material_no, n(pl.shipped_qty) ?? 0);
+          if ((pl.delivery_note_no || cid) && seen.has(key)) { skipped++; continue; }
           seen.add(key);
           // Existing PO → the user's pick in the review table; new order → match by material/spec.
           const itemId = existingOrder ? (pl.item_id || null) : (matchOrderItem(pl, orderItems || []).id);
