@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePermissions } from '@/lib/auth/permissions-context';
 import SmartUpload from '@/components/import/SmartUpload';
-import PODocument, { type PODocumentHandle } from '@/components/procurement/PODocument';
+import POViewModal from '@/components/import/POViewModal';
+import ImportTracker, { toggleItemComplete } from '@/components/import/ImportTracker';
 import DeliveriesPanel from '@/components/import/DeliveriesPanel';
 import ReceiptsPanel from '@/components/import/ReceiptsPanel';
 import { Button } from '@/components/ui/Button';
-import { receivedForItem, orderCoveragePct } from '@/lib/import-status';
+import { receivedForItem, orderCoveragePct, orderShortfall } from '@/lib/import-status';
 import Icon, { type IconName } from '@/components/ui/Icon';
 import SectionTabs from '@/components/ui/SectionTabs';
 import { LOGISTICS_TABS } from '@/lib/nav';
@@ -81,7 +82,14 @@ export default function ImportPage() {
   const canEdit = canAccess('import', 'edit');
   const canDelete = canAccess('import', 'full');
 
-  const [view, setView] = useState<'quotes' | 'orders' | 'shipments'>('quotes');
+  const [view, setView] = useState<'quotes' | 'orders' | 'shipments' | 'tracker'>('quotes');
+  // Deep link from the project page: /import?view=tracker&project=<id>
+  const [trackerProject, setTrackerProject] = useState<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('view') === 'tracker') setView('tracker');
+    if (q.get('project')) setTrackerProject(q.get('project'));
+  }, []);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({
     orders: [], items: [], shipments: [], containers: [], packing: [],
@@ -180,6 +188,7 @@ export default function ImportPage() {
             <button onClick={() => setView('quotes')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'quotes' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הצעות מאושרות</button>
             <button onClick={() => setView('orders')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'orders' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>הזמנות</button>
             <button onClick={() => setView('shipments')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'shipments' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>משלוחים</button>
+            <button onClick={() => setView('tracker')} className={`text-[13px] px-3 py-1.5 rounded-md ${view === 'tracker' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>מעקב פרויקט</button>
           </div>
           {canEdit && (
             /* Fixed-width slot so the view toggle never shifts when the + button appears */
@@ -199,6 +208,7 @@ export default function ImportPage() {
       {view === 'quotes' && <ApprovedQuotesView data={data} onSmartUpload={() => setShowSmart(true)} canEdit={canEdit} onUpdate={load} />}
       {view === 'orders' && <OrdersView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
       {view === 'shipments' && <ShipmentsView data={data} canEdit={canEdit} canDelete={canDelete} onUpdate={load} />}
+      {view === 'tracker' && <ImportTracker data={data} canEdit={canEdit} onUpdate={load} initialProjectId={trackerProject} />}
 
       {showNewOrder && <NewOrderModal data={data} onClose={() => setShowNewOrder(false)} onCreated={() => { setShowNewOrder(false); load(); }} />}
       {showNewShipment && <NewShipmentModal data={data} onClose={() => setShowNewShipment(false)} onCreated={() => { setShowNewShipment(false); load(); }} />}
@@ -211,52 +221,15 @@ function Info({ label, value }: { label: string; value?: any }) {
   return (<div><p className="text-[11px] text-neutral-400 mb-0.5">{label}</p><p className="text-sm font-semibold text-content-body">{value || '—'}</p></div>);
 }
 
-// "צפה בהזמנת רכש" — read-only branded PO PDF (same document Nitzan sent from
-// /procurement), so Nurit can see exactly what went out to the supplier.
+// "צפה בהזמנת רכש" — opens the read-only PO document (POViewModal).
 function POViewButton({ order, items, projectName, className }: { order: any; items: any[]; projectName?: string | null; className?: string }) {
   const [show, setShow] = useState(false);
-  const [pdfLang, setPdfLang] = useState<'he' | 'en' | null>(null);
-  const pdfRef = useRef<PODocumentHandle>(null);
   return (
     <>
       <button onClick={() => setShow(true)} className={className || 'text-[12px] font-semibold text-primary hover:underline'}>
         <Icon name="pdf" size={14} /> צפה בהזמנת רכש
       </button>
-      {show && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShow(false)}>
-          <div className="bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
-              <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const effLang = pdfLang ?? ((order.currency || 'ILS') !== 'ILS' ? 'en' : 'he');
-                  return (
-                    <div className="flex bg-neutral-100 rounded-lg p-0.5" title="שפת המסמך (ברירת מחדל לפי המטבע)">
-                      <button onClick={() => setPdfLang('he')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'he' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>עברית</button>
-                      <button onClick={() => setPdfLang('en')} className={`text-[12px] px-2.5 py-1 rounded-md ${effLang === 'en' ? 'bg-white shadow-sm font-semibold text-content-strong' : 'text-content-muted'}`}>English</button>
-                    </div>
-                  );
-                })()}
-                <button onClick={() => pdfRef.current?.downloadPdf()} className="text-[13px] font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-700">
-                  <Icon name="download" size={14} /> הורד PDF
-                </button>
-                <button onClick={() => setShow(false)} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
-              </div>
-            </div>
-            <div className="p-4">
-              <PODocument
-                ref={pdfRef}
-                order={order}
-                items={items}
-                supplier={order.suppliers || null}
-                projectName={order.project_name || projectName || null}
-                projectNameHe={projectName || order.projects?.name || null}
-                lang={pdfLang}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {show && <POViewModal order={order} items={items} projectName={projectName} onClose={() => setShow(false)} />}
     </>
   );
 }
@@ -417,10 +390,25 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
   const items = data.items.filter((i: any) => i.import_order_id === order.id);
   const packing = data.packing.filter((p: any) => p.import_order_id === order.id);
   const coverage = packing.length ? orderCoveragePct(items, packing) : null;
+  const shortfall = orderShortfall(items, packing);
+  const missing = shortfall.filter((r) => !r.complete);
+  const [busyItem, setBusyItem] = useState<string | null>(null);
 
   // received qty per item — shared helper (same rule the derived status uses).
   function receivedFor(item: any) {
-    return receivedForItem(item, packing);
+    return receivedForItem(item, packing, items);
+  }
+
+  async function toggleComplete(item: any) {
+    const msg = item.completed_at
+      ? 'לבטל את הסימון "הושלם" לפריט זה? הוא יחזור להיחשב חסר.'
+      : 'לסמן את הפריט כהושלם למרות שהכמות שנשלחה קטנה מהמוזמן?';
+    if (!confirm(msg)) return;
+    setBusyItem(item.id);
+    const err = await toggleItemComplete(item, order, data);
+    setBusyItem(null);
+    if (err) { alert('שגיאה: ' + err); return; }
+    onUpdate();
   }
 
   async function setStatus(s: string) {
@@ -485,6 +473,14 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
                 <Icon name="package" size={14} /> התקבל {coverage}%
               </span>
             )}
+            {packing.length > 0 && shortfall.length > 0 && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${missing.length ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success'}`}
+                title={missing.map((r) => `${r.item.description}: חסר ${Math.round(r.remaining * 1000) / 1000} ${r.item.unit || ''}`).join('\n')}
+              >
+                {missing.length ? `חסר להשלמה: ${missing.length} פריטים` : 'הושלמה מול הספק'}
+              </span>
+            )}
             {prodSt && (
               <a href="/production" className="no-underline" title="הזמנת הייצור המקושרת (לפי הצעה)">
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prodSt.color}`}><Icon name="production" size={14} /> ייצור: {prodSt.label}</span>
@@ -533,12 +529,13 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
                   <thead><tr className="text-neutral-400 text-[11px] text-right">
                     <th className="font-medium py-1">חומר</th><th className="font-medium py-1">תיאור</th>
                     <th className="font-medium py-1">DN</th><th className="font-medium py-1">PN</th><th className="font-medium py-1">SN</th>
-                    <th className="font-medium py-1">הוזמן</th><th className="font-medium py-1">התקבל</th><th className="font-medium py-1">נותר</th><th className="font-medium py-1">מחיר</th>
+                    <th className="font-medium py-1">הוזמן</th><th className="font-medium py-1">התקבל</th><th className="font-medium py-1">נותר</th><th className="font-medium py-1">מחיר</th><th className="font-medium py-1"></th>
                   </tr></thead>
                   <tbody>
                     {items.map((it: any) => {
                       const rec = receivedFor(it); const rem = num(it.ordered_qty) - rec;
                       const pct = it.ordered_qty ? Math.min(100, Math.round((rec / it.ordered_qty) * 100)) : 0;
+                      const full = rem <= 1e-9;
                       return (
                         <tr key={it.id} className="border-t border-line-subtle">
                           <td className="py-1.5 text-content-muted font-mono" dir="ltr">{it.material_no || '—'}</td>
@@ -549,10 +546,18 @@ function OrderCard({ order, data, canEdit, canDelete, onUpdate }: any) {
                           <td className="py-1.5 text-content-muted">{it.ordered_qty} {it.unit}</td>
                           <td className="py-1.5 text-content-body">{rec} {it.unit}</td>
                           <td className="py-1.5">
-                            <span className={rem > 0 ? 'text-warning' : 'text-success'}>{Math.round(rem * 100) / 100}</span>
+                            <span className={full || it.completed_at ? 'text-success' : 'text-warning'}>{Math.round(rem * 1000) / 1000}</span>
+                            {it.completed_at && !full && <span className="text-[10px] text-success mr-1">הושלם ידנית</span>}
                             <div className="w-14 h-1 bg-neutral-100 rounded-full mt-0.5 overflow-hidden"><div className={`h-full ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} /></div>
                           </td>
                           <td className="py-1.5 text-content-muted">{money(it.unit_price, order.currency)}</td>
+                          <td className="py-1.5">
+                            {canEdit && num(it.ordered_qty) > 0 && (it.completed_at || !full) && (
+                              <button onClick={() => toggleComplete(it)} disabled={busyItem === it.id} className="text-[11px] text-primary hover:underline disabled:opacity-40 whitespace-nowrap">
+                                {it.completed_at ? 'בטל סימון' : 'סמן כהושלם'}
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}

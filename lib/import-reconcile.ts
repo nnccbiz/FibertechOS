@@ -29,12 +29,13 @@ export interface Proposal {
     port_discharge: string | null;
     etd: string | null;
     eta: string | null;
+    lot_label?: string | null;
   };
   containers: any[];
   packingLines: any[];
   invoices: any[];
   coa: any[];
-  docs: { name: string; doc_type: string }[];
+  docs: { name: string; doc_type: string; doc_number: string | null }[];
   warnings: string[];
 }
 
@@ -47,6 +48,17 @@ function isFreight(desc?: string, material?: string) {
 }
 function itemKey(it: any) {
   return (it.material_no || '') + '|' + (it.dn || '') + '|' + (it.description || '').slice(0, 30);
+}
+
+// The document's own number — what the tracker links a value back to.
+function docNumber(r: ExtractResult): string | null {
+  const d = r.data || {};
+  const v = r.doc_type === 'packing_list' ? (d.packing?.delivery_note_no || d.doc_number)
+    : r.doc_type === 'bl' ? (d.shipment?.bl_number || d.doc_number)
+    : r.doc_type === 'coa' ? (d.coa?.coa_no || d.doc_number)
+    : /invoice/.test(r.doc_type || '') ? (d.invoice?.invoice_no || d.doc_number)
+    : d.doc_number;
+  return v ? String(v).trim() : null;
 }
 
 export function reconcileDocuments(results: ExtractResult[]): Proposal {
@@ -127,15 +139,18 @@ export function reconcileDocuments(results: ExtractResult[]): Proposal {
     if (r.doc_type !== 'packing_list') continue;
     const pk = r.data.packing || {};
     const contNum = pk.container_number || null;
-    if (contNum) upsertContainer({ container_number: contNum, pieces: pk.pieces });
+    if (contNum) upsertContainer({ container_number: contNum, pieces: pk.pieces, gross_weight: pk.gross_weight });
     for (const it of r.data.items || []) {
       if (isFreight(it.description, it.material_no)) continue;
       proposal.packingLines.push({
-        delivery_note_no: pk.delivery_note_no || it.delivery_note_no || null,
+        delivery_note_no: pk.delivery_note_no || it.delivery_note_no || r.data.doc_number || null,
         container_number: contNum,
-        material_no: it.material_no ?? null, description: it.description || '', dn: it.dn ?? null,
+        material_no: it.material_no ?? null, description: it.description || '',
+        dn: it.dn ?? null, pn: it.pn ?? null, sn: it.sn ?? null,
+        supplier_order_item: it.order_item ?? null,
         shipped_qty: it.qty ?? 0, unit: it.unit || 'M', pieces: it.pieces ?? null,
         loading_date: pk.loading_date || null, discharge_date: pk.discharge_date || null,
+        source_name: r.name,
       });
     }
   }
@@ -158,6 +173,7 @@ export function reconcileDocuments(results: ExtractResult[]): Proposal {
       invoice_date: iv.invoice_date || null, currency: proposal.order.currency || 'USD',
       net_value: iv.net_value ?? null, freight: iv.freight ?? null, down_payment: iv.down_payment ?? null,
       final_amount: iv.final_amount ?? null, delivery_notes: (iv.delivery_notes || []).join(', ') || null,
+      source_name: r.name,
     });
   }
 
@@ -169,11 +185,19 @@ export function reconcileDocuments(results: ExtractResult[]): Proposal {
     proposal.coa.push({
       coa_no: c.coa_no, coa_date: c.coa_date || null, dn: c.dn ?? null, pn: c.pn ?? null, sn: c.sn ?? null,
       delivery_notes: (c.delivery_notes || []).join(', ') || null, passed: c.passed ?? null,
+      source_name: r.name,
     });
   }
 
   // ----- docs -----
-  proposal.docs = ok.map((r) => ({ name: r.name, doc_type: r.doc_type || 'other' }));
+  proposal.docs = ok.map((r) => ({ name: r.name, doc_type: r.doc_type || 'other', doc_number: docNumber(r) }));
+
+  // A delivery note's "Order/Item" (1322250749/000030) names the sales order
+  // even when no invoice / OC is in the batch.
+  if (!proposal.order.supplier_order_no) {
+    const ref = proposal.packingLines.map((pl) => String(pl.supplier_order_item || '').split('/')[0].trim()).find(Boolean);
+    if (ref) proposal.order.supplier_order_no = ref;
+  }
 
   if (!proposal.order.supplier_order_no) warnings.push('לא זוהה מספר הזמנת ספק (Sales Order) — יש לשייך ידנית.');
   return proposal;

@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reconcileDocuments, Proposal, ExtractResult } from '@/lib/import-reconcile';
 import { deriveReceivedStatus } from '@/lib/import-status';
-import { filesFromDrop, materializeFiles, EMPTY_DROP_HINT } from '@/lib/dropped-files';
+import { matchOrderItem, pipeVariant, VARIANT_LABEL } from '@/lib/import-match';
+import { filesFromDrop, materializeFiles, safeExt, EMPTY_DROP_HINT } from '@/lib/dropped-files';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import Icon from '@/components/ui/Icon';
 
@@ -38,8 +39,12 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
   const [phase, setPhase] = useState<'pick' | 'extracting' | 'review' | 'saving'>('pick');
   const [p, setP] = useState<Proposal | null>(null);
   const [rawResults, setRawResults] = useState<ExtractResult[]>([]);
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectIdRaw] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  // '' = open a new order / shipment from the documents; otherwise the id of
+  // the existing PO / LOT the documents belong to.
+  const [orderChoice, setOrderChoiceRaw] = useState('');
+  const [shipmentChoice, setShipmentChoice] = useState('');
   const [err, setErr] = useState('');
   // Projects the lot belongs to — passed to the extractor as context so Roxy
   // can recognise our project name inside the supplier's wording.
@@ -59,6 +64,68 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
   }
   function delRow(section: keyof Proposal, idx: number) {
     setP((prev) => prev ? ({ ...prev, [section]: (prev as any)[section].filter((_: any, i: number) => i !== idx) }) as Proposal : prev);
+  }
+
+  // ---- linking to what already exists ----
+  const liveOrders = (data.orders || []).filter((o: any) => o.status !== 'cancelled');
+  const orderOptions = projectId ? liveOrders.filter((o: any) => o.project_id === projectId) : liveOrders;
+  const chosenItems = useMemo(
+    () => (orderChoice ? (data.items || []).filter((i: any) => i.import_order_id === orderChoice) : []),
+    [orderChoice, data.items],
+  );
+
+  function itemLabel(it: any) {
+    const spec = [it.dn && `DN${it.dn}`, it.pn && `PN${it.pn}`, it.sn && `SN${it.sn}`].filter(Boolean).join(' ');
+    return `${spec || it.description || '—'} · ${VARIANT_LABEL[pipeVariant(it.description)]} · ${it.ordered_qty ?? 0} ${it.unit || ''}`.trim();
+  }
+
+  // Auto-match every delivery-note line to an item of the chosen order.
+  function autoMatch(prop: Proposal, orderId: string): Proposal {
+    const items = orderId ? (data.items || []).filter((i: any) => i.import_order_id === orderId) : [];
+    return {
+      ...prop,
+      packingLines: prop.packingLines.map((pl) => ({ ...pl, item_id: orderId ? (matchOrderItem(pl, items).id || '') : '' })),
+    };
+  }
+
+  function defaultOrderFor(prop: Proposal, projId: string): string {
+    const so = (prop.order.supplier_order_no || '').trim();
+    if (so) {
+      const bySo = liveOrders.find((o: any) => (o.supplier_order_no || '').trim() === so);
+      if (bySo) return bySo.id;
+    }
+    const pool = liveOrders.filter((o: any) => projId && o.project_id === projId);
+    return pool.length === 1 ? pool[0].id : '';
+  }
+
+  // Shipments already carrying this order's containers (its earlier LOTs).
+  function shipmentsOfOrder(orderId: string) {
+    const contIds = new Set((data.packing || []).filter((pl: any) => pl.import_order_id === orderId).map((pl: any) => pl.container_id));
+    const shipIds = new Set((data.containers || []).filter((c: any) => contIds.has(c.id)).map((c: any) => c.shipment_id).filter(Boolean));
+    return (data.shipments || []).filter((s: any) => shipIds.has(s.id));
+  }
+
+  function defaultShipmentFor(prop: Proposal, orderId: string): string {
+    const bl = (prop.shipment.bl_number || '').trim();
+    if (bl) {
+      const byBl = (data.shipments || []).find((s: any) => (s.bl_number || '').trim() === bl);
+      if (byBl) return byBl.id;
+    }
+    const lot = norm(prop.shipment.lot_label || '');
+    if (lot && orderId) {
+      const byLot = shipmentsOfOrder(orderId).find((s: any) => norm(s.lot_label || '') === lot);
+      if (byLot) return byLot.id;
+    }
+    return '';
+  }
+
+  function setOrderChoice(id: string) {
+    setOrderChoiceRaw(id);
+    if (p) { const next = autoMatch(p, id); setP(next); setShipmentChoice(defaultShipmentFor(next, id)); }
+  }
+  function setProjectId(id: string) {
+    setProjectIdRaw(id);
+    if (p) setOrderChoice(defaultOrderFor(p, id));
   }
 
   // Accepts a FileList (picker) or an array (drag-drop), skipping unsupported
@@ -101,18 +168,26 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
       const results: ExtractResult[] = json.results || [];
       setRawResults(results);
       const prop = reconcileDocuments(results);
-      setP(prop);
       // Link to a system project: a single stated project wins; with several,
       // match the extracted name against them; otherwise fall back to a fuzzy
       // match over all projects (previous behaviour).
+      let projId = '';
       if (hintProjects.length === 1) {
-        setProjectId(hintProjects[0].id);
+        projId = hintProjects[0].id;
       } else if (prop.order.project_name) {
         const extracted = prop.order.project_name.toLowerCase();
         const pool = hintProjects.length ? hintProjects : data.projects;
         const m = pool.find((pr: any) => (pr.name || '').trim() && extracted.includes((pr.name || '').toLowerCase().slice(0, 6)));
-        if (m) setProjectId(m.id);
+        if (m) projId = m.id;
       }
+      // An existing PO (by the supplier's sales-order no, or the project's only
+      // live order) — so the documents land on Nitzan's PO instead of a copy.
+      const ordId = defaultOrderFor(prop, projId);
+      const matched = autoMatch(prop, ordId);
+      setProjectIdRaw(projId);
+      setOrderChoiceRaw(ordId);
+      setShipmentChoice(defaultShipmentFor(matched, ordId));
+      setP(matched);
       setPhase('review');
     } catch (e: any) { setErr(e?.message || 'שגיאה'); setPhase('pick'); }
   }
@@ -121,13 +196,20 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
     if (!p) return;
     setPhase('saving'); setErr('');
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const ordersTotal = p.items.reduce((s, it) => s + (Number(it.ordered_qty) || 0) * (Number(it.unit_price) || 0), 0);
 
+      // ---- order: the chosen existing PO, else a new order from the documents ----
       let orderId: string;
-      const existingOrder = p.order.supplier_order_no ? data.orders.find((o: any) => o.supplier_order_no === p.order.supplier_order_no) : null;
+      const existingOrder = orderChoice ? liveOrders.find((o: any) => o.id === orderChoice) : null;
       if (existingOrder) {
         orderId = existingOrder.id;
-        if (projectId && !existingOrder.project_id) await supabase.from('import_orders').update({ project_id: projectId, is_stock: false }).eq('id', orderId);
+        // Remember the supplier's numbers on our PO so the next upload finds it alone.
+        const patch: any = {};
+        if (projectId && !existingOrder.project_id) { patch.project_id = projectId; patch.is_stock = false; }
+        if (p.order.supplier_order_no && !existingOrder.supplier_order_no) patch.supplier_order_no = p.order.supplier_order_no;
+        if (p.order.supplier_project_no && !existingOrder.supplier_project_no) patch.supplier_project_no = p.order.supplier_project_no;
+        if (Object.keys(patch).length) await supabase.from('import_orders').update(patch).eq('id', orderId);
       } else {
         const { data: o, error } = await supabase.from('import_orders').insert({
           supplier_id: supplierId || null, project_id: projectId || null, is_stock: !projectId,
@@ -141,22 +223,26 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
         if (error) throw error;
         orderId = o.id;
         if (p.items.length) {
-          await supabase.from('import_order_items').insert(p.items.map((it, idx) => ({
+          const { error: itErr } = await supabase.from('import_order_items').insert(p.items.map((it, idx) => ({
             import_order_id: orderId, line_no: n(it.line_no), material_no: it.material_no || null, description: it.description || '',
             dn: it.dn || null, pn: it.pn || null, sn: it.sn || null, ordered_qty: n(it.ordered_qty) ?? 0, unit: it.unit || 'M', unit_price: n(it.unit_price), sort_order: idx,
           })));
+          if (itErr) throw itErr;
         }
       }
       const { data: orderItems } = await supabase.from('import_order_items').select('*').eq('import_order_id', orderId);
 
-      let shipmentId: string | null = null;
-      if (p.shipment.bl_number || p.containers.length) {
-        const ex = p.shipment.bl_number ? data.shipments.find((s: any) => s.bl_number === p.shipment.bl_number) : null;
-        if (ex) shipmentId = ex.id;
-        else {
-          const { data: s, error } = await supabase.from('import_shipments').insert({ supplier_id: supplierId || null, ...p.shipment, status: 'arrived' }).select().single();
-          if (error) throw error; shipmentId = s.id;
-        }
+      // ---- shipment (LOT): the chosen one, else a new one when there is anything to hold ----
+      let shipmentId: string | null = shipmentChoice || null;
+      const shipFields: any = Object.fromEntries(Object.entries(p.shipment).map(([k, v]) => [k, v === '' ? null : v]));
+      if (shipmentId) {
+        const ex = (data.shipments || []).find((s: any) => s.id === shipmentId) || {};
+        const patch: any = {};
+        for (const [k, v] of Object.entries(shipFields)) if (v != null && (ex as any)[k] == null) patch[k] = v;
+        if (Object.keys(patch).length) await supabase.from('import_shipments').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', shipmentId);
+      } else if (shipFields.bl_number || shipFields.lot_label || p.containers.length) {
+        const { data: s, error } = await supabase.from('import_shipments').insert({ supplier_id: supplierId || null, ...shipFields, status: 'arrived' }).select().single();
+        if (error) throw error; shipmentId = s.id;
       }
 
       const contByNum: Record<string, string> = {};
@@ -174,24 +260,80 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
         if (error) throw error; contByNum[k] = ins.id; existingConts.push(ins);
       }
 
-      if (p.packingLines.length) {
-        await supabase.from('import_packing_lines').insert(p.packingLines.map((pl) => {
-          const oi = (orderItems || []).find((i: any) => (pl.material_no && i.material_no === pl.material_no) || (pl.dn && i.dn === pl.dn));
-          return {
-            delivery_note_no: pl.delivery_note_no || null, container_id: pl.container_number ? (contByNum[norm(pl.container_number)] || null) : null,
-            import_order_id: orderId, import_order_item_id: oi?.id || null, material_no: pl.material_no || null, description: pl.description || '',
-            dn: pl.dn || null, shipped_qty: n(pl.shipped_qty) ?? 0, unit: pl.unit || 'M', pieces: n(pl.pieces),
-            loading_date: pl.loading_date || null, discharge_date: pl.discharge_date || null,
-          };
-        }));
+      // ---- source files first, so every extracted row can point at its document ----
+      const docMeta: Record<string, { doc_type: string; doc_number: string | null }> =
+        Object.fromEntries(p.docs.map((d) => [d.name, { doc_type: d.doc_type, doc_number: d.doc_number }]));
+      const docIdByName: Record<string, string> = {};
+      const failedUploads: string[] = [];
+      for (const [idx, f] of files.entries()) {
+        const meta = docMeta[f.name] || { doc_type: 'other', doc_number: null };
+        const dtype = meta.doc_type;
+        const owner = dtype === 'bl' ? 'shipment_id' : 'import_order_id';
+        const ownerId = dtype === 'bl' ? shipmentId : orderId;
+        if (!ownerId) continue;
+        // ASCII-only storage key (a Hebrew file name is rejected as "Invalid key").
+        const path = `import/${owner}/${ownerId}/${dtype}_${Date.now()}_${idx}.${safeExt(f)}`;
+        const { error: upErr } = await supabase.storage.from('project-files').upload(path, f);
+        if (upErr) { failedUploads.push(f.name); continue; }
+        const plForDoc = p.packingLines.find((pl) => pl.source_name === f.name && pl.container_number);
+        const { data: docRow, error: docErr } = await supabase.from('import_documents').insert({
+          [owner]: ownerId, doc_type: dtype, doc_number: meta.doc_number, file_name: f.name, file_path: path,
+          container_id: plForDoc ? (contByNum[norm(plForDoc.container_number)] || null) : null,
+          uploaded_by: user?.id || null,
+        }).select('id').single();
+        if (docErr) { failedUploads.push(f.name); continue; }
+        docIdByName[f.name] = docRow.id;
       }
 
-      // Derive receipt status from packing coverage (all items covered → received,
+      // ---- delivery-note lines — skip lines already recorded by an earlier upload ----
+      let skipped = 0;
+      if (p.packingLines.length) {
+        const dns = Array.from(new Set(p.packingLines.map((pl) => (pl.delivery_note_no || '').trim()).filter(Boolean)));
+        const { data: prior } = dns.length
+          ? await supabase.from('import_packing_lines').select('delivery_note_no, material_no, shipped_qty').in('delivery_note_no', dns)
+          : { data: [] as any[] };
+        const seen = new Set((prior || []).map((x: any) => `${(x.delivery_note_no || '').trim()}|${(x.material_no || '').trim()}|${Number(x.shipped_qty) || 0}`));
+        const rows: any[] = [];
+        const learned: Record<string, string> = {}; // order item id → supplier material no
+        for (const pl of p.packingLines) {
+          const key = `${(pl.delivery_note_no || '').trim()}|${(pl.material_no || '').trim()}|${n(pl.shipped_qty) ?? 0}`;
+          if (pl.delivery_note_no && seen.has(key)) { skipped++; continue; }
+          seen.add(key);
+          // Existing PO → the user's pick in the review table; new order → match by material/spec.
+          const itemId = existingOrder ? (pl.item_id || null) : (matchOrderItem(pl, orderItems || []).id);
+          const item = itemId ? (orderItems || []).find((i: any) => i.id === itemId) : null;
+          if (item && !item.material_no && pl.material_no) learned[item.id] = String(pl.material_no).trim();
+          rows.push({
+            delivery_note_no: pl.delivery_note_no || null, container_id: pl.container_number ? (contByNum[norm(pl.container_number)] || null) : null,
+            import_order_id: orderId, import_order_item_id: itemId, material_no: pl.material_no || null, description: pl.description || '',
+            dn: pl.dn || null, shipped_qty: n(pl.shipped_qty) ?? 0, unit: pl.unit || 'M', pieces: n(pl.pieces),
+            loading_date: pl.loading_date || null, discharge_date: pl.discharge_date || null,
+            supplier_order_item: pl.supplier_order_item || null,
+            source_document_id: pl.source_name ? (docIdByName[pl.source_name] || null) : null,
+          });
+        }
+        if (rows.length) {
+          const { error: plErr } = await supabase.from('import_packing_lines').insert(rows);
+          if (plErr) throw plErr;
+        }
+        // Learn: the supplier's material no onto our item, so the next delivery
+        // note of this order matches by material alone.
+        const taken = new Set((orderItems || []).map((i: any) => (i.material_no || '').trim()).filter(Boolean));
+        for (const [id, mat] of Object.entries(learned)) {
+          if (taken.has(mat)) continue;
+          taken.add(mat);
+          await supabase.from('import_order_items').update({ material_no: mat }).eq('id', id);
+          const it = (orderItems || []).find((i: any) => i.id === id);
+          if (it) it.material_no = mat;
+        }
+      }
+
+      // Derive receipt status from packing coverage (all items complete → received,
       // some → partially_received). Manual 'closed' is a terminal override and is
       // never auto-changed; a fully-received order is never downgraded.
       {
         const curStatus = existingOrder?.status || 'in_transit';
-        if (curStatus !== 'closed') {
+        if (curStatus !== 'closed' && curStatus !== 'cancelled') {
           const { data: allPacking } = await supabase.from('import_packing_lines').select('*').eq('import_order_id', orderId);
           const derived = deriveReceivedStatus(orderItems || [], allPacking || []);
           const next = derived === 'received' ? 'received'
@@ -206,32 +348,32 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
       const { data: exInv } = await supabase.from('import_invoices').select('invoice_no').eq('import_order_id', orderId);
       const haveInv = new Set((exInv || []).map((i: any) => i.invoice_no));
       const newInv = p.invoices.filter((iv) => iv.invoice_no && !haveInv.has(iv.invoice_no));
-      if (newInv.length) await supabase.from('import_invoices').insert(newInv.map((iv) => ({
-        import_order_id: orderId, shipment_id: shipmentId, invoice_no: iv.invoice_no, invoice_type: iv.invoice_type || 'commercial',
-        invoice_date: iv.invoice_date || null, currency: iv.currency || p.order.currency || 'USD',
-        net_value: n(iv.net_value), freight: n(iv.freight), down_payment: n(iv.down_payment), final_amount: n(iv.final_amount), delivery_notes: iv.delivery_notes || null,
-      })));
+      if (newInv.length) {
+        const { error: invErr } = await supabase.from('import_invoices').insert(newInv.map((iv) => ({
+          import_order_id: orderId, shipment_id: shipmentId, invoice_no: iv.invoice_no, invoice_type: iv.invoice_type || 'commercial',
+          invoice_date: iv.invoice_date || null, currency: iv.currency || p.order.currency || 'USD',
+          net_value: n(iv.net_value), freight: n(iv.freight), down_payment: n(iv.down_payment), final_amount: n(iv.final_amount), delivery_notes: iv.delivery_notes || null,
+          source_document_id: iv.source_name ? (docIdByName[iv.source_name] || null) : null,
+        })));
+        if (invErr) throw invErr;
+      }
 
       const { data: exCoa } = await supabase.from('import_coa').select('coa_no').eq('import_order_id', orderId);
       const haveCoa = new Set((exCoa || []).map((c: any) => c.coa_no));
       const newCoa = p.coa.filter((c) => c.coa_no && !haveCoa.has(c.coa_no));
-      if (newCoa.length) await supabase.from('import_coa').insert(newCoa.map((c) => ({
-        import_order_id: orderId, coa_no: c.coa_no, coa_date: c.coa_date || null, dn: c.dn || null, pn: c.pn || null, sn: c.sn || null,
-        delivery_notes: c.delivery_notes || null, passed: c.passed,
-      })));
-
-      const typeByName: Record<string, string> = Object.fromEntries(p.docs.map((d) => [d.name, d.doc_type]));
-      for (const f of files) {
-        const dtype = typeByName[f.name] || 'other';
-        const owner = dtype === 'bl' ? 'shipment_id' : 'import_order_id';
-        const ownerId = dtype === 'bl' ? shipmentId : orderId;
-        if (!ownerId) continue;
-        const path = `import/${owner}/${ownerId}/${dtype}_${Date.now()}_${f.name}`;
-        const { error: upErr } = await supabase.storage.from('project-files').upload(path, f);
-        if (upErr) continue;
-        await supabase.from('import_documents').insert({ [owner]: ownerId, doc_type: dtype, file_name: f.name, file_path: path });
+      if (newCoa.length) {
+        const { error: coaErr } = await supabase.from('import_coa').insert(newCoa.map((c) => ({
+          import_order_id: orderId, coa_no: c.coa_no, coa_date: c.coa_date || null, dn: c.dn || null, pn: c.pn || null, sn: c.sn || null,
+          delivery_notes: c.delivery_notes || null, passed: c.passed,
+          source_document_id: c.source_name ? (docIdByName[c.source_name] || null) : null,
+        })));
+        if (coaErr) throw coaErr;
       }
 
+      const notes: string[] = [];
+      if (skipped) notes.push(`${skipped} שורות מתעודות משלוח שכבר נקלטו בעבר דולגו (לא נספרו פעמיים).`);
+      if (failedUploads.length) notes.push(`קבצי מקור שלא נשמרו: ${failedUploads.join(', ')} — הנתונים נשמרו, אך הקישור למסמך חסר.`);
+      if (notes.length) alert(notes.join('\n'));
       onSaved();
     } catch (e: any) { setErr(e?.message || 'שגיאה בשמירה'); setPhase('review'); }
   }
@@ -353,6 +495,23 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                   </select>
                 </L>
               </div>
+              <div className={`mt-2 rounded-lg px-2.5 py-2 border ${orderChoice ? 'bg-success-soft border-success-soft' : 'bg-warning-soft border-warning-soft'}`}>
+                <L l="שייך להזמנת רכש קיימת">
+                  <select value={orderChoice} onChange={(e) => setOrderChoice(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1 bg-white">
+                    <option value="">— הזמנה חדשה מהמסמכים —</option>
+                    {orderOptions.map((o: any) => (
+                      <option key={o.id} value={o.id}>
+                        {[o.po_number, o.supplier_order_no, o.projects?.name, o.suppliers?.name].filter(Boolean).join(' · ') || o.id}
+                      </option>
+                    ))}
+                  </select>
+                </L>
+                <p className={`text-[11px] mt-1 ${orderChoice ? 'text-success' : 'text-warning'}`}>
+                  {orderChoice
+                    ? 'המסמכים יירשמו על הזמנת הרכש הזו, ומספר הזמנת הספק יישמר עליה לזיהוי אוטומטי בהעלאה הבאה.'
+                    : 'לא נבחרה הזמנה קיימת — תיפתח הזמנה חדשה. אם ניצן כבר שלח הזמנת רכש לספק, בחרי אותה כאן כדי שלא תיווצר כפילות.'}
+                </p>
+              </div>
             </Section>
 
             <Section title="פריטים" onAdd={() => addRow('items', { material_no: '', description: '', dn: '', pn: '', sn: '', ordered_qty: '', unit: 'M', unit_price: '' })}>
@@ -374,7 +533,20 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
               </table>
             </Section>
 
-            <Section title="משלוח">
+            <Section title="משלוח (LOT)">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <L l="שייך ל-LOT קיים">
+                  <select value={shipmentChoice} onChange={(e) => setShipmentChoice(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1">
+                    <option value="">— LOT חדש —</option>
+                    {(orderChoice ? shipmentsOfOrder(orderChoice) : []).concat(
+                      (data.shipments || []).filter((s: any) => s.id === shipmentChoice && !(orderChoice && shipmentsOfOrder(orderChoice).some((x: any) => x.id === s.id))),
+                    ).map((s: any) => (
+                      <option key={s.id} value={s.id}>{[s.lot_label, s.bl_number && `BL ${s.bl_number}`, s.vessel_name].filter(Boolean).join(' · ') || 'משלוח ללא פרטים'}</option>
+                    ))}
+                  </select>
+                </L>
+                <L l="שם ה-LOT (כמו בגיליון המעקב)"><I value={p.shipment.lot_label} onChange={(v: any) => setHdr('shipment', 'lot_label', v)} w="w-full" ltr ph="LOT3a" /></L>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <L l="BL / Booking"><I value={p.shipment.bl_number} onChange={(v: any) => setHdr('shipment', 'bl_number', v)} w="w-full" ltr /></L>
                 <L l="חברת ספנות"><I value={p.shipment.carrier} onChange={(v: any) => setHdr('shipment', 'carrier', v)} w="w-full" ltr /></L>
@@ -403,17 +575,30 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
               </table>
             </Section>
 
-            <Section title="תכולה לפי מכולה (תעודות משלוח)" onAdd={() => addRow('packingLines', { delivery_note_no: '', container_number: '', material_no: '', dn: '', shipped_qty: '', unit: 'M', pieces: '' })}>
+            <Section title="תכולה לפי מכולה (תעודות משלוח)" onAdd={() => addRow('packingLines', { delivery_note_no: '', container_number: '', material_no: '', dn: '', shipped_qty: '', unit: 'M', pieces: '', item_id: '' })}>
+              {orderChoice && p.packingLines.some((pl) => !pl.item_id) && (
+                <p className="text-[11px] text-warning mb-1.5"><Icon name="warning" size={12} /> שורות מסומנות בכתום לא שויכו לפריט בהזמנה — בחרי פריט, אחרת הכמות לא תיספר ב"חסר להשלמה".</p>
+              )}
               <table className="w-full text-[12px]">
-                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>ת. משלוח</th><th>מכולה</th><th>חומר</th><th>DN</th><th>כמות</th><th>יח'</th><th></th></tr></thead>
+                <thead><tr className="text-neutral-400 text-[10px] text-right"><th>ת. משלוח</th><th>מכולה</th><th>חומר</th><th>DN</th><th>כמות</th><th>יח'</th><th>פריט בהזמנה</th><th></th></tr></thead>
                 <tbody>{p.packingLines.map((pl, i) => (
-                  <tr key={i} className="border-t border-line-subtle">
+                  <tr key={i} className={`border-t border-line-subtle ${orderChoice && !pl.item_id ? 'bg-warning-soft' : ''}`}>
                     <td><I value={pl.delivery_note_no} onChange={(v: any) => setRow('packingLines', i, 'delivery_note_no', v)} w="w-24" ltr /></td>
                     <td><I value={pl.container_number} onChange={(v: any) => setRow('packingLines', i, 'container_number', v)} w="w-28" ltr /></td>
                     <td><I value={pl.material_no} onChange={(v: any) => setRow('packingLines', i, 'material_no', v)} w="w-16" ltr /></td>
                     <td><I value={pl.dn} onChange={(v: any) => setRow('packingLines', i, 'dn', v)} w="w-12" ltr /></td>
                     <td><I value={pl.shipped_qty} onChange={(v: any) => setRow('packingLines', i, 'shipped_qty', v)} w="w-16" type="number" /></td>
                     <td><I value={pl.unit} onChange={(v: any) => setRow('packingLines', i, 'unit', v)} w="w-10" ltr /></td>
+                    <td>
+                      {orderChoice ? (
+                        <select value={pl.item_id || ''} onChange={(e) => setRow('packingLines', i, 'item_id', e.target.value)}
+                          className={`max-w-[220px] border rounded px-1 py-1 text-[11px] ${pl.item_id ? 'border-line-subtle' : 'border-warning text-warning'}`}
+                          title={pl.description || ''}>
+                          <option value="">— לא משויך —</option>
+                          {chosenItems.map((it: any) => <option key={it.id} value={it.id}>{itemLabel(it)}</option>)}
+                        </select>
+                      ) : <span className="text-[11px] text-neutral-400">לפי מק"ט</span>}
+                    </td>
                     <td><button onClick={() => delRow('packingLines', i)} className="text-danger hover:text-danger"><Icon name="close" size={16} /></button></td>
                   </tr>
                 ))}</tbody>
