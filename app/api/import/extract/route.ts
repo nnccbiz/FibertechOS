@@ -49,22 +49,26 @@ const IMPORT_EXTRACTION_PROMPT = `אתה מחלץ נתונים ממסמך יבו
 זהה תחילה את סוג המסמך (doc_type), ומלא **רק** את החלקים הרלוונטיים אליו:
 - "commercial_invoice" / "proforma_invoice" — Invoice (חשבונית). מלא: doc_number, supplier_name, order, invoice, items.
 - "bl" — Bill of Lading / Waybill (שטר מטען, Maersk/MSC וכו'). מלא: shipment, containers.
-- "packing_list" — Delivery Note / Packing List (תעודת משלוח של Amiblu). מלא: packing, items.
+- "packing_list" — Delivery Note / Packing List / Packing Lists / Loading List / Container List (תעודת משלוח או רשימת אריזה — גם כשהיא מכסה כמה מכולות במסמך אחד). מלא: packing, items, וגם order.supplier_order_no ("Sales Order Number") + order.project_name ("Name of project").
 - "coa" — Inspection / Quality Certificate (תעודת אנליזה). מלא: coa.
 - "order_confirmation" — Order Confirmation (OC). מלא: order, items.
 - "other" — כל דבר אחר.
 
 ⚠️ חוקים קריטיים:
 1. מספרים באירופאי: הספק כותב נקודה כאלף ופסיק כעשרוני. "11.888,70" = 11888.70 ; "210,80" = 210.80. החזר תמיד מספר רגיל (נקודה עשרונית, ללא מפרידי אלפים).
+   כמויות במטרים בתעודת משלוח: "5,700 M" = 5.7 ; "17,097 M" = 17.097 ; "28,500 M" = 28.5 (הפסיק הוא עשרוני — אלה מטרים, לא אלפים).
 2. תאריכים: המר ל-ISO (YYYY-MM-DD). "29.09.2025" → "2025-09-29". אם אין — null.
 3. DN/PN/SN — חלץ verbatim מהתיאור. "DN 1100 / OD 1099 PN 06, SN 20.000" → dn:"1100", pn:"06", sn:"20000". אל תמציא.
 4. description — השאר את הטקסט המקורי באנגלית מילה-במילה (אל תתרגם).
 5. מספרי מסמכים חשובים לקישור — חלץ אותם בדיוק:
    - supplier_order_no = "Ref. order no" / "Sales Order Number" (למשל 1322250535).
-   - delivery_note_no = "Delivery Note" (למשל 1822252491).
+   - delivery_note_no = "Delivery Note" (למשל 1822252491). רק מספר של תעודת משלוח — לעולם לא מספר חשבונית (Invoice / Proforma). אם אין במסמך מספר תעודת משלוח — null.
    - container_number = מספר מכולה (למשל MSKU1238262).
    - bl_number = "B/L No" / "Booking No" (למשל 260373565).
    - invoice_no = מספר החשבונית (למשל 2022253253).
+   - order_item (בכל שורת פריט) = "Order/Item" כפי שכתוב, בלי התאריך (למשל "1322250749/000030").
+7. רשימת אריזה של כמה מכולות במסמך אחד: החזר שורת item נפרדת לכל פריט בכל מכולה, ובכל שורה container_number = המכולה שבה הפריט (למשל אותו DN700 ב-4 מכולות = 4 שורות, כל אחת עם הכמות והמכולה שלה). אל תסכם כמה מכולות לשורה אחת. packing.container_number = null במקרה כזה.
+   - material_no (בכל שורת פריט) = מק"ט החומר שמופיע מעל התיאור (למשל 1461815) — לא הקוד הארוך שמתחתיו.
 6. אם שדה לא קיים במסמך — החזר null (או מערך ריק). אל תכלול ערכים מומצאים.
 
 סכמת ה-JSON (כלול את כל המפתחות; מלא null/[] במה שלא רלוונטי):
@@ -104,14 +108,16 @@ const IMPORT_EXTRACTION_PROMPT = `אתה מחלץ נתונים ממסמך יבו
     { "container_number": string, "seal_number": string|null, "container_type": string|null, "gross_weight": number|null, "pieces": number|null }
   ],
   "items": [
-    { "line_no": number|null, "material_no": string|null, "description": string, "dn": string|null, "pn": string|null, "sn": string|null, "qty": number|null, "unit": string|null, "unit_price": number|null, "delivery_note_no": string|null }
+    { "line_no": number|null, "material_no": string|null, "description": string, "dn": string|null, "pn": string|null, "sn": string|null, "qty": number|null, "unit": string|null, "unit_price": number|null, "delivery_note_no": string|null, "order_item": string|null, "container_number": string|null, "pieces": number|null }
   ],
   "packing": {
     "delivery_note_no": string|null,
     "container_number": string|null,
     "loading_date": string|null,
     "discharge_date": string|null,
-    "pieces": number|null
+    "pieces": number|null,
+    "gross_weight": number|null,
+    "net_weight": number|null
   },
   "coa": {
     "coa_no": string|null,

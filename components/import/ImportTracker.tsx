@@ -1,0 +1,559 @@
+'use client';
+
+// Per-project import tracker — Nurit's follow-up sheet (ISKOOR sample in
+// docs/דוגמת מעקב יבוא איסכור) as a live screen: a row per container /
+// delivery note grouped by LOT, a column per ordered item, ordered /
+// delivered / to be delivered at the bottom. Every value opens the document it
+// was taken from (file icon); every cell is edited in place like the projects
+// list (click → edit → Enter / leaving the cell saves); a LOT still at sea shows
+// its expected arrival and live vessel tracking.
+
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { buildTracker, isFutureLot, SHIPMENT_STATUS_HE, type TrackerGroup, type TrackerRow } from '@/lib/import-tracker';
+import {
+  saveLotField, saveRowField, saveItemLineNo, createTrackerRow, deleteTrackerRow, NEW_LOT,
+  type EditCtx, type LotField, type RowField, type NewRowDraft,
+} from '@/lib/import-tracker-edit';
+import { exportTrackerXlsx } from '@/lib/import-tracker-xlsx';
+import { deriveReceivedStatus } from '@/lib/import-status';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import POViewModal from '@/components/import/POViewModal';
+import VesselTracker from '@/components/import/VesselTracker';
+import Icon from '@/components/ui/Icon';
+import Cell from '@/components/ui/EditableCell';
+
+const STOCK = '__stock__';
+const fmtQ = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 3 });
+const fmtD = (d?: string | null) => (d ? new Date(d).toLocaleDateString('he-IL') : '');
+function money(v: any, currency = 'USD') {
+  const x = parseFloat(v);
+  if (isNaN(x)) return '';
+  try { return new Intl.NumberFormat('he-IL', { style: 'currency', currency, maximumFractionDigits: 2 }).format(x); }
+  catch { return `${x} ${currency}`; }
+}
+
+/**
+ * Mark / unmark an order item complete by hand, then re-derive the order's
+ * receipt status (same rule as SmartUpload; closed / cancelled untouched).
+ */
+export async function toggleItemComplete(item: any, order: any, data: any): Promise<string | null> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const marking = !item.completed_at;
+  const patch = marking
+    ? { completed_at: new Date().toISOString(), completed_by: user?.id || null }
+    : { completed_at: null, completed_by: null };
+  const { error } = await supabase.from('import_order_items').update(patch).eq('id', item.id);
+  if (error) return error.message;
+  if (order && order.status !== 'closed' && order.status !== 'cancelled') {
+    const items = (data.items || []).filter((i: any) => i.import_order_id === order.id)
+      .map((i: any) => (i.id === item.id ? { ...i, ...patch } : i));
+    const packing = (data.packing || []).filter((p: any) => p.import_order_id === order.id);
+    const derived = deriveReceivedStatus(items, packing);
+    const next = derived === 'received' ? 'received'
+      : derived === 'partially_received' ? 'partially_received'
+      : null;
+    if (next && next !== order.status) {
+      await supabase.from('import_orders').update({ status: next, updated_at: new Date().toISOString() }).eq('id', order.id);
+    }
+  }
+  return null;
+}
+
+// Days from today to an ISO date (negative = past).
+function daysUntil(iso: string): number {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d).getTime() - t.getTime()) / 864e5);
+}
+
+export default function ImportTracker({ data, canEdit, canDelete, onUpdate, initialProjectId }: {
+  data: any; canEdit: boolean; canDelete?: boolean; onUpdate: () => void; initialProjectId?: string | null;
+}) {
+  const supabase = createClient();
+  const liveOrders = (data.orders || []).filter((o: any) => o.status !== 'cancelled');
+
+  // Import projects = projects with a live (sent) order; stock orders together.
+  const projects = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; hasPacking: boolean }>();
+    for (const o of liveOrders) {
+      const id = o.project_id || STOCK;
+      const name = o.project_id ? (o.projects?.name || o.project_name || 'פרויקט') : 'מלאי (ללא פרויקט)';
+      const cur = m.get(id) || { id, name, hasPacking: false };
+      if ((data.packing || []).some((p: any) => p.import_order_id === o.id)) cur.hasPacking = true;
+      m.set(id, cur);
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  }, [data]);
+
+  // A project asked for from outside (approved-quotes row / project page) wins
+  // once; afterwards the user's own pick stays across data reloads.
+  const [projectId, setProjectId] = useState<string>('');
+  const [userPicked, setUserPicked] = useState(false);
+  const lastInit = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const valid = (id?: string | null) => !!id && projects.some((p) => p.id === id);
+    const initChanged = initialProjectId !== lastInit.current;
+    lastInit.current = initialProjectId;
+    if (initChanged) setUserPicked(false);
+    const fallback = projects.find((p) => p.hasPacking)?.id || projects[0]?.id || '';
+    setProjectId((cur) => (initChanged && valid(initialProjectId) ? initialProjectId! : valid(cur) ? cur : fallback));
+  }, [projects, initialProjectId]);
+  const requestedMissing = !userPicked && !!initialProjectId && !projects.some((p) => p.id === initialProjectId);
+  const requestedName = requestedMissing ? ((data.projects || []).find((p: any) => p.id === initialProjectId)?.name || '') : '';
+
+  const orders = useMemo(
+    () => liveOrders.filter((o: any) => (projectId === STOCK ? !o.project_id : o.project_id === projectId)),
+    [data, projectId],
+  );
+  const model = useMemo(() => buildTracker(orders, data), [orders, data]);
+  const projectName = projects.find((p) => p.id === projectId)?.name || '';
+
+  const [poView, setPoView] = useState<any | null>(null);
+  const [busyItem, setBusyItem] = useState<string | null>(null);
+  const [trackingLot, setTrackingLot] = useState<string | null>(null);
+  // The blank row at the bottom of the sheet — always there to type into.
+  const [draft, setDraft] = useState<NewRowDraft | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  // View mode: every value is a link to its source document. Edit mode (button):
+  // cells become editable, new-row / delete / "mark complete" appear; leaving it
+  // brings the links back.
+  const [editMode, setEditMode] = useState(false);
+  const [showNewRow, setShowNewRow] = useState(false);
+  const ed = canEdit && editMode;
+
+  const ctx: EditCtx = { supabase, data, orders };
+
+  // Safari-safe: open the tab synchronously in the click, point it after the signed URL resolves.
+  function openDoc(docId: string | null) {
+    const doc = docId ? (data.docs || []).find((d: any) => d.id === docId) : null;
+    if (!doc) return;
+    const w = window.open('about:blank', '_blank');
+    supabase.storage.from('project-files').createSignedUrl(doc.file_path, 600).then(({ data: s }) => {
+      if (s?.signedUrl) { if (w) w.location.href = s.signedUrl; else window.open(s.signedUrl, '_blank'); }
+      else { w?.close(); alert('לא ניתן לפתוח את המסמך'); }
+    });
+  }
+
+  // Every inline save: run, reload on success, hand the error back to the cell.
+  async function run(fn: () => Promise<void>): Promise<string | null> {
+    try { await fn(); onUpdate(); return null; }
+    catch (e: any) { return e?.message || 'שגיאה בשמירה'; }
+  }
+  const lot = (g: TrackerGroup, f: LotField) => (v: string) => run(() => saveLotField(ctx, g, f, v));
+  const cell = (row: TrackerRow, g: TrackerGroup, f: RowField) => (v: string) => run(() => saveRowField(ctx, row, g, model.columns, f, v));
+
+  async function toggleComplete(item: any, order: any) {
+    const msg = item.completed_at
+      ? 'לבטל את הסימון "הושלם" לפריט זה? הוא יחזור להיחשב חסר.'
+      : 'לסמן את הפריט כהושלם למרות שהכמות שנשלחה קטנה מהמוזמן?';
+    if (!confirm(msg)) return;
+    setBusyItem(item.id);
+    const err = await toggleItemComplete(item, order, data);
+    setBusyItem(null);
+    if (err) { alert('שגיאה: ' + err); return; }
+    onUpdate();
+  }
+
+  async function removeRow(row: TrackerRow) {
+    if (!confirm(`למחוק את השורה (תעודה ${row.deliveryNote || '—'} · מכולה ${row.container?.container_number || '—'})? הכמויות שלה יוסרו מהמעקב.`)) return;
+    if (!confirm('בטוח? לא ניתן לשחזר. (החשבונית, ה-COA והמכולה עצמם לא יימחקו.)')) return;
+    const err = await run(() => deleteTrackerRow(ctx, row));
+    if (err) alert('שגיאה במחיקה: ' + err);
+  }
+
+  async function saveDraft() {
+    if (!draft) return;
+    setDraftSaving(true);
+    const err = await run(() => createTrackerRow(ctx, model.columns, draft));
+    setDraftSaving(false);
+    if (err) { alert(err); return; }
+    setDraft(null);
+    setShowNewRow(false);
+  }
+
+  if (!projects.length) {
+    return <div className="bg-white rounded-xl border border-line-subtle p-8 text-center text-content-muted text-sm">אין עדיין הזמנות יבוא שנשלחו לספק.</div>;
+  }
+  const lotShipments = model.groups.map((g) => g.shipment).filter(Boolean);
+
+  const { columns, groups, unmatchedTotal } = model;
+  const hasUnmatched = unmatchedTotal > 0;
+  const coaCols = Math.max(model.maxCoa, 1) + (ed ? 1 : 0); // + one empty COA slot to add into
+  const orderSpans: { order: any; label: string; span: number }[] = [];
+  for (const c of columns) {
+    const last = orderSpans[orderSpans.length - 1];
+    if (last && last.order.id === c.order.id) last.span++;
+    else orderSpans.push({ order: c.order, label: c.orderLabel, span: 1 });
+  }
+  const itemsOf = (orderId: string) => (data.items || []).filter((i: any) => i.import_order_id === orderId);
+  const tailCols = 1 + coaCols + (ed ? 1 : 0);
+  const totalCols = 11 + columns.length + (hasUnmatched ? 1 : 0) + tailCols;
+  const statusOptions = Object.entries(SHIPMENT_STATUS_HE).map(([value, label]) => ({ value, label }));
+
+  const th = 'px-2 py-1.5 font-medium text-[11px] text-content-muted whitespace-nowrap border-b border-line-subtle';
+  const td = 'px-2 py-1.5 whitespace-nowrap border-b border-line-subtle';
+  const din = 'border border-line-subtle rounded px-1 py-0.5 text-[12px] bg-white';
+
+  function newDraft(): NewRowDraft {
+    return {
+      shipmentId: lotShipments[lotShipments.length - 1]?.id || NEW_LOT, newLotLabel: '',
+      status: 'booked', bl_number: '', released_at: '', eta: '', customer_delivery_date: '',
+      dn: '', container: '', invoice_date: '', invoice_no: '', invoice_value: '', qty: {}, coa: '',
+    };
+  }
+  const blankRow = draft || newDraft();
+  const setBlank = (patch: Partial<NewRowDraft>) => setDraft({ ...blankRow, ...patch, qty: { ...blankRow.qty, ...(patch.qty || {}) } });
+  const blankDirty = !!draft;
+  const blankLot = lotShipments.find((s: any) => s.id === blankRow.shipmentId) || null;
+  const blankNewLot = blankRow.shipmentId === NEW_LOT;
+
+  return (
+    <div className="space-y-4">
+      {/* Project picker + actions */}
+      <div className="bg-white rounded-xl border border-line-subtle px-4 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-[13px] font-semibold text-content-body"><Icon name="projects" size={16} /> פרויקט</span>
+        <SearchableSelect
+          value={projectId}
+          onChange={(v: string) => { setProjectId(v); setUserPicked(true); setDraft(null); setShowNewRow(false); }}
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+          className="min-w-[240px] border border-line-subtle rounded-lg px-2 py-1.5 text-[13px] bg-white"
+        />
+        <div className="mr-auto flex items-center gap-2">
+          {ed && columns.length > 0 && !showNewRow && (
+            <button onClick={() => setShowNewRow(true)} className="text-[13px] font-semibold border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary-50">
+              <Icon name="add" size={16} /> שורה חדשה
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => { setEditMode(!editMode); setShowNewRow(false); setDraft(null); }}
+              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg ${editMode ? 'bg-primary text-white hover:bg-primary-700' : 'border border-line-strong text-content-body hover:bg-neutral-50'}`}
+            >
+              <Icon name={editMode ? 'confirm' : 'edit'} size={16} /> {editMode ? 'סיום עריכה' : 'עריכה'}
+            </button>
+          )}
+          <button
+            onClick={() => exportTrackerXlsx(model, projectName)}
+            disabled={!columns.length && !groups.length}
+            className="text-[13px] font-semibold bg-success text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-40"
+          >
+            <Icon name="excel" size={16} /> ייצוא לאקסל
+          </button>
+        </div>
+      </div>
+
+      {requestedMissing && (
+        <div className="bg-warning-soft text-warning text-[13px] rounded-lg px-3 py-2">
+          <Icon name="info" size={14} /> לפרויקט {requestedName ? `"${requestedName}"` : 'שנבחר'} אין עדיין הזמנת יבוא שנשלחה לספק (הזמנה שעדיין בהכנה נמצאת ברכש), ולכן אין לו טבלת מעקב. מוצג פרויקט אחר.
+        </div>
+      )}
+
+      {hasUnmatched && (
+        <div className="bg-warning-soft text-warning text-[12px] rounded-lg px-3 py-2">
+          <Icon name="warning" size={14} /> {fmtQ(unmatchedTotal)} מ׳ בתעודות המשלוח לא שויכו לפריט בהזמנה (עמודת "לא משויך") ולכן אינם נספרים ביתרה. אפשר לשייך אותם בהעלאה החכמה.
+        </div>
+      )}
+
+      {ed && (
+        <div className="bg-primary-50 text-primary text-[12px] rounded-lg px-3 py-2">
+          <Icon name="edit" size={14} /> מצב עריכה — לחיצה על תא פותחת אותו לעריכה (Enter או יציאה מהתא שומרים, Esc מבטל). מסמך המקור נפתח מאייקון הקובץ. לסיום לחץ "סיום עריכה".
+        </div>
+      )}
+
+      {/* The sheet */}
+      <div className={`bg-white rounded-xl overflow-x-auto ${ed ? 'border-2 border-primary' : 'border border-line-subtle'}`}>
+        {groups.length === 0 && columns.length === 0 ? (
+          <p className="text-center text-content-muted text-sm py-10">אין עדיין נתונים לפרויקט זה — העלי את מסמכי הלוט בהעלאה החכמה.</p>
+        ) : (
+          <table className="text-[12px] border-collapse min-w-full">
+            <thead className="bg-neutral-50 text-right">
+              <tr>
+                <th colSpan={11} className={th} />
+                {columns.map((c) => (
+                  <th key={c.item.id} className={`${th} text-center`}>
+                    <Cell
+                      canEdit={ed} value={c.item.line_no != null ? String(c.item.line_no) : ''} display={c.lineLabel}
+                      type="number" width="w-14" placeholder="שורה"
+                      onSave={(v) => run(() => saveItemLineNo(supabase, c.item.id, v))}
+                    />
+                  </th>
+                ))}
+                {hasUnmatched && <th className={th} />}
+                <th colSpan={tailCols} className={th} />
+              </tr>
+              <tr>
+                <th colSpan={11} className={th} />
+                {orderSpans.map((s, k) => (
+                  <th key={k} colSpan={s.span} className={`${th} text-center text-content-body border-x border-line-subtle`} dir="ltr">{s.label}</th>
+                ))}
+                {hasUnmatched && <th className={th} />}
+                <th colSpan={tailCols} className={th} />
+              </tr>
+              <tr>
+                {['סטטוס', 'LOT', 'BL', 'תאריך שחרור', 'ETA', 'אספקה ללקוח', 'Date of INV', 'DN', 'Invoice no.', 'Invoice value', 'Container no.'].map((h) => (
+                  <th key={h} className={th}>{h}</th>
+                ))}
+                {columns.map((c) => <th key={c.item.id} className={`${th} text-center text-content-strong`} dir="ltr" title={c.item.description}>{c.label}</th>)}
+                {hasUnmatched && <th className={`${th} text-warning`}>לא משויך</th>}
+                <th className={th}>ת.מ רכש</th>
+                {Array.from({ length: coaCols }, (_, k) => <th key={k} className={th}>COA{k + 1}</th>)}
+                {ed && <th className={th} />}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <Fragment key={g.key}>
+                {g.rows.map((row, idx) => {
+                const s = g.shipment;
+                const span = g.rows.length;
+                const future = isFutureLot(s);
+                const days = s?.eta ? daysUntil(s.eta) : null;
+                return (
+                  <tr key={row.key} className={idx === 0 ? 'border-t-2 border-line-strong' : ''}>
+                    {idx === 0 && (
+                      <>
+                        <td rowSpan={span} className={`${td} align-top text-content-body`}>
+                          <div className="font-semibold">
+                            <Cell canEdit={ed} type="select" options={statusOptions} value={s?.status || 'booked'} display={g.status || '—'} onSave={lot(g, 'status')} />
+                          </div>
+                          {future && (
+                            <div className="mt-1 space-y-0.5 text-[11px] font-normal whitespace-normal min-w-[130px]">
+                              <div className={`text-content-muted items-center gap-1 ${s.vessel_name || ed ? 'flex' : 'hidden'}`}>
+                                <Icon name="ship" size={12} />
+                                <Cell canEdit={ed} value={s.vessel_name || ''} ltr placeholder="+ אוניה" width="w-32" onSave={lot(g, 'vessel_name')} />
+                              </div>
+                              <div className={days != null && days < 0 ? 'text-warning font-semibold' : 'text-azure-600 font-semibold'}>
+                                {s.eta
+                                  ? <>הגעה צפויה {fmtD(s.eta)}{days != null && (days > 0 ? ` · בעוד ${days} ימים` : days === 0 ? ' · היום' : ` · עבר ב-${-days} ימים`)}</>
+                                  : 'מועד הגעה לא ידוע'}
+                              </div>
+                              {s.vessel_name && (
+                                <button
+                                  onClick={() => setTrackingLot(trackingLot === g.key ? null : g.key)}
+                                  className={`text-[11px] px-2 py-0.5 rounded-full border ${trackingLot === g.key ? 'bg-azure-600 text-white border-azure-600' : 'bg-azure-100 text-azure-600 border-azure'}`}
+                                >
+                                  <Icon name="satellite" size={12} /> אתר ספינה
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td rowSpan={span} className={`${td} align-top font-semibold`}>
+                          <Cell canEdit={ed} value={s?.lot_label || ''} display={s?.lot_label || (g.key === 'none' ? 'ללא LOT' : '')} ltr placeholder="LOT" onSave={lot(g, 'lot_label')} />
+                        </td>
+                        <td rowSpan={span} className={`${td} align-top`}>
+                          <Cell canEdit={ed} value={s?.bl_number || ''} ltr docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'bl_number')} />
+                        </td>
+                        <td rowSpan={span} className={`${td} align-top`}>
+                          <Cell canEdit={ed} type="date" value={s?.released_at || ''} display={fmtD(s?.released_at)} onSave={lot(g, 'released_at')} />
+                        </td>
+                        <td rowSpan={span} className={`${td} align-top`}>
+                          <Cell canEdit={ed} type="date" value={s?.eta || ''} display={fmtD(s?.eta)} docId={g.blDocId} onOpen={openDoc} onSave={lot(g, 'eta')} />
+                        </td>
+                        <td rowSpan={span} className={`${td} align-top`}>
+                          <Cell canEdit={ed} type="date" value={s?.customer_delivery_date || ''} display={fmtD(s?.customer_delivery_date)} onSave={lot(g, 'customer_delivery_date')} />
+                        </td>
+                      </>
+                    )}
+                    <td className={td}>
+                      <Cell canEdit={ed} type="date" value={row.invoice?.invoice_date || ''} display={fmtD(row.invoice?.invoice_date)} docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_date')} />
+                    </td>
+                    <td className={td}>
+                      <Cell canEdit={ed} value={row.deliveryNote || ''} ltr docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'dn')} />
+                    </td>
+                    <td className={td}>
+                      <Cell canEdit={ed} value={row.invoice?.invoice_no || ''} ltr docId={row.invoiceDocId} onOpen={openDoc} onSave={cell(row, g, 'invoice_no')} />
+                    </td>
+                    <td className={td}>
+                      {row.invoiceRepeat ? (
+                        <span className="text-[11px] text-neutral-400" title="חשבונית אחת לכל ה-LOT — הסכום מופיע בשורה הראשונה שלה">כלול למעלה ↑</span>
+                      ) : (
+                        <>
+                          <Cell
+                            canEdit={ed} type="number" ltr docId={row.invoiceDocId} onOpen={openDoc}
+                            value={row.invoice ? String(row.invoice.final_amount ?? row.invoice.net_value ?? '') : ''}
+                            display={row.invoice ? money(row.invoice.final_amount ?? row.invoice.net_value, row.invoice.currency || 'USD') : ''}
+                            onSave={cell(row, g, 'invoice_value')}
+                          />
+                          {row.invoiceShared && (row.invoiceSpan || 1) > 1 && (
+                            <div className="text-[10px] text-content-muted">ל-{row.invoiceSpan} מכולות</div>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td className={td}>
+                      <Cell canEdit={ed} value={row.container?.container_number || ''} ltr width="w-32" docId={row.packingDocId} onOpen={openDoc} onSave={cell(row, g, 'container')} />
+                    </td>
+                    {columns.map((c) => (
+                      <td key={c.item.id} className={`${td} text-center font-mono`}>
+                        <Cell
+                          canEdit={ed} type="number" ltr docId={row.qty[c.item.id] ? row.packingDocId : null} onOpen={openDoc}
+                          value={row.qty[c.item.id] ? String(row.qty[c.item.id]) : ''}
+                          display={row.qty[c.item.id] ? fmtQ(row.qty[c.item.id]) : ''}
+                          onSave={cell(row, g, `qty:${c.item.id}`)}
+                        />
+                      </td>
+                    ))}
+                    {hasUnmatched && (
+                      <td className={`${td} text-center font-mono text-warning`}>
+                        {row.unmatched ? <Cell canEdit={false} value={fmtQ(row.unmatched)} ltr docId={row.packingDocId} onOpen={openDoc} /> : ''}
+                      </td>
+                    )}
+                    <td className={td}>
+                      {row.order && (
+                        <button onClick={() => setPoView(row.order)} className="text-azure hover:underline font-mono" dir="ltr" title="פתח את הזמנת הרכש">
+                          {row.order.po_number || row.order.supplier_order_no || 'PO'}
+                        </button>
+                      )}
+                    </td>
+                    {Array.from({ length: coaCols }, (_, k) => {
+                      const c = row.coa[k];
+                      // Existing certificates are editable; one empty slot after them adds a new one.
+                      if (!c && k !== row.coa.length) return <td key={k} className={td} />;
+                      return (
+                        <td key={k} className={td}>
+                          <Cell
+                            canEdit={ed} ltr docId={c?.docId || null} onOpen={openDoc}
+                            value={c?.coa.coa_no || ''} display={c ? (c.coa.coa_no || (c.coa.dn ? `DN${c.coa.dn}` : 'COA')) : ''}
+                            onSave={cell(row, g, `coa:${k}`)}
+                          />
+                        </td>
+                      );
+                    })}
+                    {ed && (
+                      <td className={td}>
+                        {canDelete && (
+                          <button onClick={() => removeRow(row)} className="text-neutral-300 hover:text-danger" title="מחיקת השורה">
+                            <Icon name="delete" size={14} />
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+                })}
+                {trackingLot === g.key && g.shipment?.vessel_name && (
+                  <tr>
+                    <td colSpan={totalCols} className="px-2 pt-2 border-b border-line-subtle">
+                      <VesselTracker vesselName={g.shipment.vessel_name} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+              ))}
+
+              {/* Blank row — always at the bottom of the sheet; type into it and ✓ adds it */}
+              {ed && showNewRow && columns.length > 0 && (
+                <tr className="bg-primary-50 border-t-2 border-primary">
+                  <td className={td}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <button onClick={saveDraft} disabled={draftSaving || !blankDirty} className="text-[11px] font-semibold bg-success text-white px-2 py-1 rounded disabled:opacity-40" title="הוסף את השורה לטבלה">
+                        <Icon name="confirm" size={12} /> {draftSaving ? 'שומר…' : 'הוסף שורה'}
+                      </button>
+                      <button onClick={() => { setDraft(null); setShowNewRow(false); }} disabled={draftSaving} className="text-content-muted hover:text-danger" title="ביטול"><Icon name="close" size={14} /></button>
+                    </div>
+                    {blankNewLot
+                      ? <select className={din} value={blankRow.status} onChange={(e) => setBlank({ status: e.target.value })}>
+                          {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      : <span className="text-[11px] text-content-muted">{blankLot ? SHIPMENT_STATUS_HE[blankLot.status] || '' : ''}</span>}
+                  </td>
+                  <td className={td}>
+                    <div className="flex items-center gap-1">
+                      <select className={din} value={blankRow.shipmentId} onChange={(e) => setBlank({ shipmentId: e.target.value })} title="לאיזה LOT שייכת השורה">
+                        {lotShipments.map((s: any) => <option key={s.id} value={s.id}>{s.lot_label || s.bl_number || 'LOT ללא שם'}</option>)}
+                        <option value={NEW_LOT}>+ LOT חדש</option>
+                        <option value="">ללא LOT</option>
+                      </select>
+                      {blankNewLot && (
+                        <input className={`${din} w-20`} dir="ltr" placeholder="שם LOT" value={blankRow.newLotLabel} onChange={(e) => setBlank({ newLotLabel: e.target.value })} />
+                      )}
+                    </div>
+                  </td>
+                  {blankNewLot ? (
+                    <>
+                      <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="BL" value={blankRow.bl_number} onChange={(e) => setBlank({ bl_number: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.released_at} onChange={(e) => setBlank({ released_at: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.eta} onChange={(e) => setBlank({ eta: e.target.value })} /></td>
+                      <td className={td}><input type="date" className={din} value={blankRow.customer_delivery_date} onChange={(e) => setBlank({ customer_delivery_date: e.target.value })} /></td>
+                    </>
+                  ) : (
+                    <td className={`${td} text-[11px] text-content-muted`} colSpan={4}>
+                      {blankLot ? 'פרטי ה-LOT נערכים בשורות ה-LOT למעלה' : ''}
+                    </td>
+                  )}
+                  <td className={td}><input type="date" className={din} value={blankRow.invoice_date} onChange={(e) => setBlank({ invoice_date: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="DN" value={blankRow.dn} onChange={(e) => setBlank({ dn: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-24`} dir="ltr" placeholder="Invoice no." value={blankRow.invoice_no} onChange={(e) => setBlank({ invoice_no: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-20`} dir="ltr" inputMode="decimal" placeholder="סכום" value={blankRow.invoice_value} onChange={(e) => setBlank({ invoice_value: e.target.value })} /></td>
+                  <td className={td}><input className={`${din} w-28`} dir="ltr" placeholder="מכולה" value={blankRow.container} onChange={(e) => setBlank({ container: e.target.value })} /></td>
+                  {columns.map((c) => (
+                    <td key={c.item.id} className={`${td} text-center`}>
+                      <input className={`${din} w-16 text-center`} dir="ltr" inputMode="decimal" placeholder="מ׳" value={blankRow.qty[c.item.id] || ''} onChange={(e) => setBlank({ qty: { [c.item.id]: e.target.value } })} />
+                    </td>
+                  ))}
+                  {hasUnmatched && <td className={td} />}
+                  <td className={td} />
+                  <td className={td}><input className={`${din} w-20`} dir="ltr" placeholder="COA" value={blankRow.coa} onChange={(e) => setBlank({ coa: e.target.value })} /></td>
+                  {Array.from({ length: coaCols - 1 }, (_, k) => <td key={k} className={td} />)}
+                  <td className={td} />
+                </tr>
+              )}
+            </tbody>
+            <tfoot className="bg-neutral-50">
+              <tr className="border-t-2 border-line-strong">
+                <td colSpan={11} className={`${td} font-semibold text-left`} dir="ltr">Ordered quantity</td>
+                {columns.map((c) => (
+                  <td key={c.item.id} className={`${td} text-center font-mono`}>
+                    <button onClick={() => setPoView(c.order)} className="text-azure hover:underline" dir="ltr" title="פתח את הזמנת הרכש">{fmtQ(c.ordered)}</button>
+                  </td>
+                ))}
+                {hasUnmatched && <td className={td} />}
+                <td colSpan={tailCols} className={td} />
+              </tr>
+              <tr>
+                <td colSpan={11} className={`${td} font-semibold text-left`} dir="ltr">delivered</td>
+                {columns.map((c) => <td key={c.item.id} className={`${td} text-center font-mono`} dir="ltr">{fmtQ(c.shipped)}</td>)}
+                {hasUnmatched && <td className={`${td} text-center font-mono text-warning`} dir="ltr">{fmtQ(unmatchedTotal)}</td>}
+                <td colSpan={tailCols} className={td} />
+              </tr>
+              <tr>
+                <td colSpan={11} className={`${td} font-semibold text-left`} dir="ltr">to be delivered</td>
+                {columns.map((c) => (
+                  <td key={c.item.id} className={`${td} text-center`}>
+                    <div className={`font-mono font-semibold ${c.complete ? 'text-success' : 'text-warning'}`} dir="ltr">
+                      {c.remaining < 0 ? `+${fmtQ(-c.remaining)}` : fmtQ(c.remaining)}
+                    </div>
+                    {c.manual && <div className="text-[10px] text-success">הושלם ידנית</div>}
+                    {!c.manual && c.complete && <div className="text-[10px] text-success"><Icon name="success" size={10} /> הושלם</div>}
+                    {ed && (c.manual || !c.complete) && (
+                      <button
+                        onClick={() => toggleComplete(c.item, c.order)}
+                        disabled={busyItem === c.item.id}
+                        className="text-[10px] text-primary hover:underline disabled:opacity-40"
+                      >
+                        {c.manual ? 'בטל סימון' : 'סמן כהושלם'}
+                      </button>
+                    )}
+                  </td>
+                ))}
+                {hasUnmatched && <td className={td} />}
+                <td colSpan={tailCols} className={td} />
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </div>
+      <p className="text-[11px] text-neutral-400">
+        {canEdit && !ed ? 'לעריכת נתונים — כפתור "עריכה" למעלה. ' : ''}
+        <Icon name="file" size={10} /> ליד ערך פותח את מסמך המקור שממנו נלקח (תעודת משלוח, חשבונית, BL או COA); ערך בלי אייקון הוזן ידנית. הכמות שהוזמנה ו-ת.מ רכש פותחים את הזמנת הרכש.
+      </p>
+
+      {poView && (
+        <POViewModal order={poView} items={itemsOf(poView.id)} projectName={poView.projects?.name || null} onClose={() => setPoView(null)} />
+      )}
+    </div>
+  );
+}

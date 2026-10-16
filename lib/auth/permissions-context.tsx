@@ -37,7 +37,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) { setIsAdmin(false); setPermissions({}); setLoading(false); }
         return;
       }
 
@@ -61,7 +61,19 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     }
 
     load();
-    return () => { cancelled = true; };
+
+    // The provider lives in AppShell, which is already mounted on /login — and
+    // login navigates client-side (router.push), so the first load ran with no
+    // user and never re-ran: the whole app stayed permission-less (no nav, no
+    // edit rights) until a manual refresh. Reload on every auth change.
+    // Deferred with setTimeout: supabase-js must not be awaited inside this callback.
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        setTimeout(() => { if (!cancelled) load(); }, 0);
+      }
+    });
+
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
   }, []);
 
   function canAccess(module: AppModule, minLevel: PermissionLevel = 'view'): boolean {

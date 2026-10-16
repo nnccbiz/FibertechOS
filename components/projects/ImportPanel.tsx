@@ -49,7 +49,10 @@ export default function ImportPanel({ projectId }: { projectId: string }) {
     <div className="bg-white rounded-2xl border border-line-subtle p-6 mb-6" dir="rtl">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-content-body"><Icon name="import" size={20} /> יבוא</h2>
-        <a href="/import" className="text-[13px] text-primary hover:underline">פתח במודול היבוא <Icon name="external" size={14} /></a>
+        <div className="flex items-center gap-4">
+          <a href={`/import?view=tracker&project=${projectId}`} className="text-[13px] text-primary hover:underline"><Icon name="chart" size={14} /> מעקב יבוא</a>
+          <a href="/import" className="text-[13px] text-primary hover:underline">פתח במודול היבוא <Icon name="external" size={14} /></a>
+        </div>
       </div>
       <div className="space-y-3">
         {orders.map((o) => {
