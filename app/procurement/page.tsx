@@ -93,8 +93,8 @@ function TranslateModal({ fields, onApply, onClose }: {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-[900px] w-full my-8" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-xl max-w-[900px] w-full my-8" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex items-center justify-between px-5 py-3 border-b border-line-subtle">
           <p className="font-bold text-content-strong"><Icon name="ai" size={18} /> תרגום לאנגלית</p>
           <button onClick={onClose} className="text-content-muted hover:text-content-strong px-2"><Icon name="close" size={18} /></button>
@@ -1436,8 +1436,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
 
       {/* Page picker — choose which pages of the signed scan join the PO */}
       {picker && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setPicker(null)}>
-          <div className="bg-white rounded-xl max-w-3xl w-full my-6" onClick={(e) => e.stopPropagation()}>
+        <div className="ft-overlay fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setPicker(null)}>
+          <div className="ft-overlay-card bg-white rounded-xl max-w-3xl w-full my-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle sticky top-0 bg-white rounded-t-xl z-10">
               <div>
                 <p className="font-bold text-content-strong m-0">{picker.label}</p>
@@ -1489,8 +1489,8 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
 
       {/* PDF preview modal */}
       {showPdf && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowPdf(false)}>
-          <div className="bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
+        <div className="ft-overlay fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowPdf(false)}>
+          <div className="ft-overlay-card bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
               <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{po.po_number || ''}</span></p>
               <div className="flex items-center gap-2">

@@ -13,8 +13,8 @@ export default function POViewModal({ order, items, projectName, onClose }: {
   const pdfRef = useRef<PODocumentHandle>(null);
   const effLang = pdfLang ?? ((order.currency || 'ILS') !== 'ILS' ? 'en' : 'he');
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
-      <div className="bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
+    <div className="ft-overlay fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
+      <div className="ft-overlay-card bg-neutral-100 rounded-xl max-w-[850px] w-full my-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 bg-white rounded-t-xl border-b border-line-subtle sticky top-0 z-10">
           <p className="font-bold text-content-strong">הזמנת רכש <span dir="ltr">{order.po_number || order.supplier_order_no || ''}</span></p>
           <div className="flex items-center gap-2">

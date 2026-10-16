@@ -786,8 +786,8 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
       </div>
 
       {showCustomerForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="ft-overlay fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
+          <div className="ft-overlay-card bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
             <CustomerForm
               onCancel={() => setShowCustomerForm(false)}
               onSaved={async (id) => {
@@ -1261,8 +1261,8 @@ function RejectQuoteModal({ q, p, onClose }: { q: any; p: ReturnType<typeof useP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[400px]" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[400px]" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-line-subtle flex items-center justify-between">
           <h3 className="text-base font-bold text-content-strong">סימון הצעה כנדחתה — {q.quote_number}</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={18} /></button>
@@ -1365,8 +1365,8 @@ function ContractTermsModal({ q, p, onClose }: { q: any; p: ReturnType<typeof us
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[95vw] max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[95vw] max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-5 py-3 border-b border-line-subtle flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-content-strong"><Icon name="contract" size={18} /> עריכת תנאי הסכם להצעה {q.quote_number}</h3>

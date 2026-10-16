@@ -390,8 +390,8 @@ function NewEstimateModal({ projects, settings, supabase, estimates, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[480px] max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[480px] max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-line-subtle flex items-center justify-between">
           <h3 className="text-base font-bold text-content-strong">אומדן אביזר חדש</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={18} /></button>
@@ -474,8 +474,8 @@ function SettingsModal({ settingsRows, materials, supabase, onClose, onSaved }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[520px] max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[520px] max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-line-subtle flex items-center justify-between">
           <h3 className="text-base font-bold text-content-strong">תעריפי מפעל ומחירון חומרים</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={18} /></button>

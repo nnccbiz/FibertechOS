@@ -458,8 +458,8 @@ function ShareLinkModal({ delivery, onClose }: any) {
 
 function Modal({ title, children, onClose }: any) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[440px] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[440px] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-line-subtle flex items-center justify-between">
           <h3 className="text-base font-bold text-content-strong">{title}</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={18} /></button>

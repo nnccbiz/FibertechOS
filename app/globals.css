@@ -185,6 +185,33 @@
   animation: popIn var(--dur-fast) var(--ease-out) both;
 }
 
+/* Press feedback for every pressable element: a subtle scale-down so the
+   button visibly "hears" the click. Uses the independent `scale` property so
+   it composes with any existing transform (rotate-45, translate…). */
+button:not(:disabled) {
+  transition-property: scale;
+  transition-duration: var(--dur-press);
+  transition-timing-function: var(--ease-out);
+}
+button:not(:disabled):active {
+  scale: 0.97;
+}
+
+/* Ad-hoc overlay dialogs (the `fixed inset-0` pattern used outside <Modal>):
+   backdrop fades in, the card pops in from the centre — a dialog is not
+   anchored to a trigger, so it stays centred. Enter only. */
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ft-overlay {
+  animation: overlayIn var(--dur-base) var(--ease-out) both;
+}
+.ft-overlay-card {
+  transform-origin: center;
+  animation: popIn var(--dur-base) var(--ease-out) both;
+}
+
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -224,10 +251,14 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
   [class*='animate-fade-in-up-delay-'],
-  .animate-pop-in {
+  .animate-pop-in,
+  .ft-overlay-card {
     animation-name: fadeOnly;
     animation-duration: 150ms;
     animation-delay: 0ms;
+  }
+  button:not(:disabled):active {
+    scale: 1;
   }
   *,
   ::before,

@@ -1057,8 +1057,8 @@ function Field({ label, children, full }: any) {
 }
 function Modal({ title, children, onClose, onSave, saving }: any) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="ft-overlay fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-content-strong mb-4">{title}</h2>
         <div className="grid grid-cols-2 gap-3">{children}</div>
         <div className="flex gap-2 mt-5">

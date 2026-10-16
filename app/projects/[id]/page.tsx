@@ -850,8 +850,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         </section>
 
         {showCustomerForm && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="ft-overlay fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto p-4" onClick={() => setShowCustomerForm(false)}>
+            <div className="ft-overlay-card bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-6" onClick={(e) => e.stopPropagation()}>
               <CustomerForm
                 onCancel={() => setShowCustomerForm(false)}
                 onSaved={async (id) => { setShowCustomerForm(false); await refreshCustomers(); await setProjectCustomer(id); }}
@@ -1331,8 +1331,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
         <ImportPanel projectId={params.id as string} />
         {/* Export email modal */}
         {exportUpdate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExportUpdate(null)}>
+            <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
                 <h3 className="text-lg font-bold text-content-body"><Icon name="send" size={18} /> ייצוא עדכון כמייל</h3>
                 <button onClick={() => setExportUpdate(null)} className="text-neutral-400 hover:text-content-body">
@@ -1439,8 +1439,8 @@ Do NOT return JSON — return plain text only. Write a professional summary.`;
 
       {/* Project export modal */}
       {showProjectExport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProjectExport(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProjectExport(false)}>
+          <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[540px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
               <h3 className="text-lg font-bold text-content-body"><Icon name="send" size={18} /> ייצוא כרטיס פרויקט</h3>
               <button onClick={() => setShowProjectExport(false)} className="text-neutral-400 hover:text-content-body">
