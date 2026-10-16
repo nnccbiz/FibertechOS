@@ -111,7 +111,7 @@ export default function ImportPage() {
       supabase.from('import_coa').select('*').order('coa_date'),
       supabase.from('import_documents').select('*').order('created_at'),
       supabase.from('import_customer_deliveries').select('*').order('created_at'),
-      supabase.from('suppliers').select('id, name').order('name'),
+      supabase.from('suppliers').select('id, name, active').order('name'),
       supabase.from('projects').select('id, name').order('name'),
     ]);
     const { data: exemptions } = await supabase.from('import_quote_exemptions').select('quote_id, reason');
@@ -1007,7 +1007,7 @@ function NewOrderModal({ data, onClose, onCreated }: any) {
     <Modal title="הזמנת יבוא חדשה" onClose={onClose} onSave={create} saving={saving}>
       <Field label="מספר הזמנת רכש (שלנו)"><input value={f.po_number} onChange={(e) => setF({ ...f, po_number: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="הזמנת ספק (Sales Order)"><input value={f.supplier_order_no} onChange={(e) => setF({ ...f, supplier_order_no: e.target.value })} className={inp} dir="ltr" /></Field>
-      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.filter((s: any) => s.active !== false || s.id === f.supplier_id).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
       <label className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={f.is_stock} onChange={(e) => setF({ ...f, is_stock: e.target.checked })} /><span className="text-[13px] text-content-body">יבוא למלאי (ללא פרויקט)</span></label>
       {!f.is_stock && <Field label="פרויקט" full><select value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
       <Field label="שם פרויקט אצל הספק" full><input value={f.project_name} onChange={(e) => setF({ ...f, project_name: e.target.value })} className={inp} placeholder="IL - Electra - Matash Stage 4" /></Field>
@@ -1039,7 +1039,7 @@ function NewShipmentModal({ data, onClose, onCreated }: any) {
   return (
     <Modal title="משלוח חדש" onClose={onClose} onSave={create} saving={saving}>
       <Field label="שטר מטען / Booking"><input value={f.bl_number} onChange={(e) => setF({ ...f, bl_number: e.target.value })} className={inp} dir="ltr" /></Field>
-      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+      <Field label="ספק"><select value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })} className={inp}><option value="">— בחר —</option>{data.suppliers.filter((s: any) => s.active !== false || s.id === f.supplier_id).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
       <Field label="חברת ספנות"><input value={f.carrier} onChange={(e) => setF({ ...f, carrier: e.target.value })} className={inp} placeholder="Maersk" /></Field>
       <Field label="אוניה"><input value={f.vessel_name} onChange={(e) => setF({ ...f, vessel_name: e.target.value })} className={inp} dir="ltr" /></Field>
       <Field label="מס' הפלגה"><input value={f.voyage_no} onChange={(e) => setF({ ...f, voyage_no: e.target.value })} className={inp} dir="ltr" /></Field>

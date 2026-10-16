@@ -170,7 +170,7 @@ export default function ProcurementPage() {
   async function load() {
     const [ordRes, supRes, projRes, custOrdRes, exemptRes, sqRes] = await Promise.all([
       supabase.from('import_orders').select('*, suppliers(id, name, contact_name)').order('created_at', { ascending: false }),
-      supabase.from('suppliers').select('id, name, contact_name, currency').order('name'),
+      supabase.from('suppliers').select('id, name, contact_name, currency, active').order('name'),
       supabase.from('projects').select('id, name').order('name'),
       supabase.from('orders').select('id, quote_id, ms_number'),
       supabase.from('import_quote_exemptions').select('quote_id'),
@@ -1178,7 +1178,7 @@ function POCard({ po, items, suppliers, projNameById, msByQuote, quoteNumber, ex
                 onChange={(v) => setForm({ ...form, supplier_id: v })}
                 className={inp}
                 placeholder="בחר ספק"
-                options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
+                options={suppliers.filter((s: any) => s.active !== false || s.id === (form.supplier_id || po.supplier_id)).map((s: any) => ({ value: s.id, label: s.name }))}
                 disabled={!canEdit}
               />
             </div>

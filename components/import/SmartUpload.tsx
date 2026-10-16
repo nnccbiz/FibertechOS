@@ -579,7 +579,7 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
                 </L>
                 <L l="ספק">
                   <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full text-[12px] border border-line-subtle rounded px-1.5 py-1">
-                    <option value="">— בחר —</option>{data.suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="">— בחר —</option>{data.suppliers.filter((s: any) => s.active !== false || s.id === supplierId).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </L>
               </div>

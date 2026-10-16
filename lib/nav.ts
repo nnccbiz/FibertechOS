@@ -14,12 +14,13 @@ export interface SectionTab {
   module: AppModule;
 }
 
-// לוגיסטיקה — רכש · יבוא · תעודות משלוח · מלאי
+// לוגיסטיקה — רכש · יבוא · תעודות משלוח · מלאי · ספקים
 export const LOGISTICS_TABS: SectionTab[] = [
   { label: 'רכש', href: '/procurement', module: 'import' },
   { label: 'יבוא', href: '/import', module: 'import' },
   { label: 'תעודות משלוח', href: '/deliveries', module: 'import' },
   { label: 'מלאי', href: '/inventory', module: 'inventory' },
+  { label: 'ספקים', href: '/suppliers', module: 'import' },
 ];
 
 // כספים — חשבוניות ללקוח וגבייה · תשלומים לספקים · דוחות ותזרים
