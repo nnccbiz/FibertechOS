@@ -24,7 +24,7 @@ export default function SectionTabs({ tabs }: { tabs: SectionTab[] }) {
           <a
             key={t.href}
             href={t.href}
-            className={`px-4 py-1.5 text-sm rounded-t-lg no-underline whitespace-nowrap transition-colors ${
+            className={`px-4 py-1.5 text-sm rounded-t-lg no-underline whitespace-nowrap transition-colors duration-fast ease-brand ${
               active
                 ? 'bg-primary text-white font-bold'
                 : 'bg-neutral-100 text-content-body hover:bg-neutral-200'

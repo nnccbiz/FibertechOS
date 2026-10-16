@@ -30,7 +30,7 @@ export default function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; above: boolean } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,16 +88,17 @@ export default function SearchableSelect({
     // Vertical: prefer below; flip above when there's not enough space below.
     const spaceBelow = vh - r.bottom - margin;
     const spaceAbove = r.top - margin;
-    const top = spaceBelow >= estHeight || spaceBelow >= spaceAbove
-      ? r.bottom + 4
-      : Math.max(margin, r.top - Math.min(estHeight, spaceAbove) - 4);
+    const above = !(spaceBelow >= estHeight || spaceBelow >= spaceAbove);
+    const top = above
+      ? Math.max(margin, r.top - Math.min(estHeight, spaceAbove) - 4)
+      : r.bottom + 4;
 
     // Horizontal: clamp so the popover stays fully inside the viewport.
     let left = r.left;
     if (left + w > vw - margin) left = Math.max(margin, vw - w - margin);
     if (left < margin) left = margin;
 
-    return { top, left, width: w };
+    return { top, left, width: w, above };
   }
 
   function openMenu() {
@@ -121,14 +122,22 @@ export default function SearchableSelect({
         className={`${className} bg-white flex items-center justify-between gap-1 text-right ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span className={`truncate ${selected ? '' : 'text-neutral-400'}`}>{selected ? selected.label : placeholder}</span>
-        <svg className="w-3.5 h-3.5 text-neutral-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+        <svg
+          className={`w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform duration-fast ease-brand ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        ><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && coords && (
         <div
           ref={popRef}
           dir="rtl"
-          style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
-          className="bg-white border border-line-subtle rounded-lg shadow-xl overflow-hidden"
+          style={{
+            position: 'fixed', top: coords.top, left: coords.left, width: coords.width, maxHeight: 'calc(100vh - 16px)', zIndex: 60,
+            // Grow out of the trigger: the popover is pinned at its left edge, so the
+            // origin is the top-left corner when it opens below, bottom-left when flipped.
+            transformOrigin: coords.above ? 'bottom left' : 'top left',
+          }}
+          className="bg-white border border-line-subtle rounded-lg shadow-xl overflow-hidden animate-pop-in"
         >
           <div className="p-1.5 border-b border-line-subtle">
             <input
@@ -150,7 +159,7 @@ export default function SearchableSelect({
                     type="button"
                     disabled={o.disabled}
                     onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false); }}
-                    className={`w-full text-right px-3 py-1.5 text-[12px] rounded ${o.value === value ? 'bg-primary-50 text-primary font-semibold' : 'text-content-body hover:bg-primary-50'} ${o.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    className={`w-full text-right px-3 py-1.5 text-[12px] rounded transition-colors duration-fast ${o.value === value ? 'bg-primary-50 text-primary font-semibold' : 'text-content-body hover:bg-primary-50'} ${o.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
                     {o.label}
                   </button>

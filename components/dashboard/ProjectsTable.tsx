@@ -99,7 +99,7 @@ export default function ProjectsTable({ projects, loading }: ProjectsTableProps)
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-primary rounded-full transition-all duration-500"
+                            className="h-full bg-primary rounded-full transition-[width] duration-slow ease-brand"
                             style={{ width: `${project.progress_percent}%` }}
                           />
                         </div>

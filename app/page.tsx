@@ -602,8 +602,8 @@ export default function DashboardPage() {
 
         {/* KPI floating detail */}
         {kpiDetail && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-20 md:pt-28 px-4" onClick={() => setKpiDetail(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="ft-overlay fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-20 md:pt-28 px-4" onClick={() => setKpiDetail(null)}>
+            <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-3.5 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
                 <h3 className="text-lg font-bold text-content-body">
                   {KPI_DETAIL_TITLES[kpiDetail]}
@@ -654,8 +654,8 @@ export default function DashboardPage() {
 
         {/* Quick update modal */}
         {showQuickUpdate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuickUpdate(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuickUpdate(false)}>
+            <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
                 <h3 className="text-lg font-bold text-content-body"><Icon name="note" size={20} /> עדכון מהיר לפרויקט</h3>
                 <button onClick={() => setShowQuickUpdate(false)} className="text-neutral-400 hover:text-content-body">
@@ -752,8 +752,8 @@ export default function DashboardPage() {
 
         {/* Management Report Modal */}
         {showReport && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowReport(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="ft-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowReport(false)}>
+            <div className="ft-overlay-card bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="px-5 py-4 border-b border-line-subtle flex items-center justify-between flex-shrink-0">
                 <h3 className="text-lg font-bold text-content-body"><Icon name="chart" size={20} /> דוח הנהלה — {reportData ? `שבוע ${reportData.weekNumber}, ${reportData.weekYear}` : new Date().getFullYear()}</h3>

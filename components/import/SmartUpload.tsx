@@ -460,8 +460,8 @@ export default function SmartUpload({ data, onClose, onSaved }: any) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="ft-overlay fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl" onClick={onClose}>
+      <div className="ft-overlay-card bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-content-strong"><Icon name="zap" size={20} /> העלאה חכמה — מסמכי לוט</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-content-body"><Icon name="close" size={20} /></button>

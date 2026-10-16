@@ -14,9 +14,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: ReactNode;
 }
 
+// Press feedback: a subtle scale-down on :active so the button visibly
+// "hears" the click. Hover colour changes stay on the fast track.
 const base =
   'inline-flex items-center justify-center font-semibold leading-none rounded-md whitespace-nowrap select-none ' +
-  'transition-[background-color,transform,box-shadow] duration-fast ease-brand ' +
+  'transition-[background-color,transform,box-shadow] duration-press ease-brand ' +
+  'active:scale-[0.97] ' +
   'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none';
 
 const sizes: Record<ButtonSize, string> = {
@@ -27,13 +30,13 @@ const sizes: Record<ButtonSize, string> = {
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    'bg-primary text-white border border-primary hover:bg-primary-700 hover:shadow-sm active:bg-primary-800 active:translate-y-px',
+    'bg-primary text-white border border-primary hover:bg-primary-700 hover:shadow-sm active:bg-primary-800',
   secondary:
-    'bg-white text-primary border border-primary hover:bg-primary-50 active:translate-y-px',
+    'bg-white text-primary border border-primary hover:bg-primary-50',
   ghost:
-    'bg-transparent text-primary border border-transparent hover:bg-primary-50 active:translate-y-px',
+    'bg-transparent text-primary border border-transparent hover:bg-primary-50',
   danger:
-    'bg-danger text-white border border-danger hover:bg-danger-hover hover:shadow-sm active:translate-y-px',
+    'bg-danger text-white border border-danger hover:bg-danger-hover hover:shadow-sm',
 };
 
 /** Fibertech primary action button — navy-filled by default. */
