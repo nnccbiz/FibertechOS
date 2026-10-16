@@ -142,22 +142,47 @@
   --container-max: 1200px;
   --container-wide: 1320px;
   --gutter: var(--sp-6);
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Strong curves — the built-in CSS easings are too weak to feel intentional.
+     ease-out for anything entering/exiting (starts fast = responsive),
+     ease-in-out for things that move while on screen, drawer for sheets. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* UI motion stays under 300ms. press → fast, popover → base, modal → slow. */
   --dur-fast: 120ms;
+  --dur-press: 160ms;
   --dur-base: 200ms;
-  --dur-slow: 360ms;
+  --dur-slow: 300ms;
 }
 
+/* Page-section entrance. Seen on every dashboard load, so it is short and
+   travels only 8px — enough to feel settled, not enough to feel slow. */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Popover / menu entrance — scales from its trigger (set transform-origin
+   on the element). Never from scale(0): nothing real appears from nothing. */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pop-in {
+  animation: popIn var(--dur-fast) var(--ease-out) both;
 }
 
 @keyframes shimmer {
@@ -170,27 +195,50 @@
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.4s ease-out both;
+  animation: fadeInUp 220ms var(--ease-out) both;
 }
 
+/* Stagger: 40ms steps. Decorative only — never blocks interaction. */
 .animate-fade-in-up-delay-1 {
-  animation: fadeInUp 0.4s ease-out 0.05s both;
+  animation: fadeInUp 220ms var(--ease-out) 40ms both;
 }
 
 .animate-fade-in-up-delay-2 {
-  animation: fadeInUp 0.4s ease-out 0.1s both;
+  animation: fadeInUp 220ms var(--ease-out) 80ms both;
 }
 
 .animate-fade-in-up-delay-3 {
-  animation: fadeInUp 0.4s ease-out 0.15s both;
+  animation: fadeInUp 220ms var(--ease-out) 120ms both;
 }
 
 .animate-fade-in-up-delay-4 {
-  animation: fadeInUp 0.4s ease-out 0.2s both;
+  animation: fadeInUp 220ms var(--ease-out) 160ms both;
 }
 
 .animate-fade-in-up-delay-5 {
-  animation: fadeInUp 0.4s ease-out 0.25s both;
+  animation: fadeInUp 220ms var(--ease-out) 200ms both;
+}
+
+/* Reduced motion: fewer and gentler, not zero. Opacity/colour transitions
+   that aid comprehension stay; movement and scaling go. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  [class*='animate-fade-in-up-delay-'],
+  .animate-pop-in {
+    animation-name: fadeOnly;
+    animation-duration: 150ms;
+    animation-delay: 0ms;
+  }
+  *,
+  ::before,
+  ::after {
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
+  }
+}
+
+@keyframes fadeOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .skeleton {

@@ -51,7 +51,7 @@ export default function Sidebar() {
     <aside
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
-      className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-line-subtle flex-col z-40 transition-all duration-300 ${
+      className={`hidden md:flex fixed top-0 right-0 h-screen bg-white border-l border-line-subtle flex-col z-40 transition-[width,box-shadow] duration-base ease-brand ${
         expanded ? 'w-[200px] shadow-lg' : 'w-[60px]'
       }`}
     >
@@ -77,7 +77,7 @@ export default function Sidebar() {
             <a
               key={item.label}
               href={loading ? item.href : navHref(item, canAccess)}
-              className={`flex items-center gap-3 py-3 text-lg font-medium transition-all duration-200 no-underline ${
+              className={`flex items-center gap-3 py-3 text-lg font-medium transition-colors duration-fast ease-brand no-underline ${
                 expanded ? 'px-4' : 'px-0 justify-center'
               } ${
                 active
@@ -100,7 +100,7 @@ export default function Sidebar() {
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className={`border-t border-line-subtle flex items-center gap-3 py-3 text-lg font-medium text-content-muted hover:bg-danger-soft hover:text-danger transition-all duration-200 ${
+        className={`border-t border-line-subtle flex items-center gap-3 py-3 text-lg font-medium text-content-muted hover:bg-danger-soft hover:text-danger transition-colors duration-fast ease-brand ${
           expanded ? 'px-4' : 'px-0 justify-center'
         }`}
         title={!expanded ? 'התנתק' : undefined}

@@ -178,12 +178,14 @@ const config: Config = {
       transitionTimingFunction: {
         brand: 'var(--ease-out)',
         'brand-inout': 'var(--ease-in-out)',
+        drawer: 'var(--ease-drawer)',
       },
 
       transitionDuration: {
         fast: '120ms',
+        press: '160ms',
         base: '200ms',
-        slow: '360ms',
+        slow: '300ms',
       },
     },
   },

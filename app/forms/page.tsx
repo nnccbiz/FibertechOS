@@ -22,7 +22,7 @@ export default function FormsIndexPage() {
       </header>
       <div className="max-w-4xl mx-auto px-4 md:px-6 pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         {FORMS.map((f) => (
-          <a key={f.href} href={f.href} className="bg-white rounded-xl border border-line-subtle p-5 hover:shadow-md hover:border-primary transition-all no-underline">
+          <a key={f.href} href={f.href} className="bg-white rounded-xl border border-line-subtle p-5 hover:shadow-md hover:border-primary transition-[box-shadow,border-color] duration-fast ease-brand no-underline">
             <div className="flex items-center gap-3 mb-2">
               <span className="text-[12px] font-bold text-primary bg-primary-50 px-2 py-0.5 rounded" dir="ltr">{f.code}</span>
               <h2 className="text-lg font-bold text-content-strong">{f.title}</h2>

@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { usePresence } from '@/hooks/usePresence';
 
 export interface ModalProps {
   open: boolean;
@@ -23,8 +24,16 @@ const sizes = {
   xl: 'max-w-4xl',
 };
 
-/** Modal — fixed-inset overlay with a centered card. RTL-aware, Escape + backdrop close. */
+const EXIT_MS = 150;
+
+/**
+ * Modal — fixed-inset overlay with a centered card. RTL-aware, Escape + backdrop close.
+ * Enters at 200ms (backdrop fades, card scales 0.97→1 from the centre — a modal is
+ * not anchored to a trigger, so it stays centred), exits faster at 150ms.
+ */
 export function Modal({ open, onClose, title, children, footer, size = 'md', disableClose = false, className }: ModalProps) {
+  const { mounted, shown } = usePresence(open, EXIT_MS);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -39,11 +48,15 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dis
     };
   }, [open, disableClose, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4',
+        'transition-opacity ease-brand',
+        shown ? 'opacity-100 duration-base' : 'opacity-0 duration-fast',
+      )}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !disableClose) onClose();
       }}
@@ -51,7 +64,13 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dis
       <div
         role="dialog"
         aria-modal="true"
-        className={cn('w-full bg-surface-card rounded-lg shadow-lg max-h-[90vh] overflow-hidden flex flex-col', sizes[size], className)}
+        className={cn(
+          'w-full bg-surface-card rounded-lg shadow-lg max-h-[90vh] overflow-hidden flex flex-col origin-center',
+          'transition-[opacity,transform] ease-brand',
+          shown ? 'opacity-100 scale-100 duration-base' : 'opacity-0 scale-[0.97] duration-fast',
+          sizes[size],
+          className,
+        )}
       >
         {(title || !disableClose) && (
           <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-line-subtle shrink-0">
@@ -61,7 +80,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dis
                 type="button"
                 onClick={onClose}
                 aria-label="סגור"
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-muted hover:bg-neutral-100 hover:text-content-strong transition-colors duration-fast ease-brand"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-muted hover:bg-neutral-100 hover:text-content-strong active:scale-[0.95] transition-[background-color,color,transform] duration-fast ease-brand"
               >
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />

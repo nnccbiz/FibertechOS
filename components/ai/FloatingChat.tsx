@@ -8,6 +8,7 @@ import { logAiAction } from '@/lib/ai/activity-log';
 import { executePendingAction } from '@/lib/ai/execute-action';
 import type { PendingAction } from '@/lib/ai/roxy-tools';
 import Icon, { type IconName } from '@/components/ui/Icon';
+import { usePresence } from '@/hooks/usePresence';
 
 interface AiMessage {
   role: 'user' | 'ai';
@@ -76,6 +77,9 @@ function MessageText({ text }: { text: string }) {
 
 export default function FloatingChat() {
   const [open, setOpen] = useState(false);
+  // ⌘K is hit dozens of times a day — keyboard-initiated toggles never animate.
+  const viaKeyboard = useRef(false);
+  const { mounted: panelMounted, shown: panelShown } = usePresence(open, 150);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -133,6 +137,7 @@ export default function FloatingChat() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
+        viaKeyboard.current = true;
         setOpen((prev) => {
           const next = !prev;
           if (next) {
@@ -142,6 +147,7 @@ export default function FloatingChat() {
         });
       }
       if (e.key === 'Escape' && open) {
+        viaKeyboard.current = true;
         setOpen(false);
       }
     }
@@ -642,8 +648,8 @@ export default function FloatingChat() {
     <>
       {/* Floating button */}
       <button
-        onClick={() => setOpen(!open)}
-        className={`fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 ${
+        onClick={() => { viaKeyboard.current = false; setOpen(!open); }}
+        className={`fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-[background-color,transform,box-shadow] duration-press ease-brand [@media(hover:hover)]:hover:scale-[1.04] active:scale-[0.95] ${
           open ? 'bg-neutral-700 text-white rotate-45' : 'bg-primary text-white'
         }`}
         title={`רקסי AI (${shortcutLabel})`}
@@ -666,8 +672,14 @@ export default function FloatingChat() {
       )}
 
       {/* Chat panel */}
-      {open && (
-        <div className="fixed bottom-24 left-6 z-50 w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-line-subtle flex flex-col overflow-hidden animate-fade-in-up">
+      {panelMounted && (
+        <div
+          className={`fixed bottom-24 left-6 z-50 w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-line-subtle flex flex-col overflow-hidden origin-bottom-left ease-brand ${
+            viaKeyboard.current
+              ? 'transition-none'
+              : 'transition-[opacity,transform]'
+          } ${panelShown ? 'opacity-100 scale-100 duration-base' : 'opacity-0 scale-[0.97] duration-fast'}`}
+        >
           {/* Header */}
           <div className="px-4 py-3 bg-azure-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -686,8 +698,8 @@ export default function FloatingChat() {
                 <Icon name="add" size={18} />
               </button>
               <button
-                onClick={() => setOpen(false)}
-                className="text-navy-300 hover:text-azure-600 transition-colors p-1"
+                onClick={() => { viaKeyboard.current = false; setOpen(false); }}
+                className="text-navy-300 hover:text-azure-600 transition-colors duration-fast p-1"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18" />

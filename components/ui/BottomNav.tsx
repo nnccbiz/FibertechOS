@@ -23,7 +23,7 @@ export default function BottomNav() {
             <a
               key={item.label}
               href={loading ? item.href : navHref(item, canAccess)}
-              className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[12px] font-medium transition-colors no-underline ${
+              className={`flex flex-col items-center min-w-[64px] px-2 py-1.5 rounded-lg text-[12px] font-medium transition-[background-color,color,transform] duration-press ease-brand active:scale-[0.95] no-underline ${
                 active ? 'bg-azure-100 text-azure-600' : 'text-content-muted'
               }`}
             >
