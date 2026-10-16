@@ -332,6 +332,8 @@ Production (`main` → https://fibertech-os.vercel.app) is live with full auth +
 
 (Full flow map + backlog: `SYSTEM_REVIEW_2026-07-02.md`. Session detail: `SESSION_HANDOFF_2026-07-05.md`.)
 
+> **Latest handoff — `SESSION_HANDOFF_2026-10-16.md`**: branch `claude/collections-system-review-vyioct` is 10 commits ahead of `main` and NOT merged (import tracker, smart-upload dedup, permissions-after-login fix, suppliers email/phone). Open decisions + the next-session prompt are in that file.
+
 ### Issues from Code Review (Fri 2026-06-12, branch `claude/read-claude-md-TBUdH`)
 
 Verified findings from a high-effort multi-angle review of the branch. Ranked by severity — fix top-to-bottom.
