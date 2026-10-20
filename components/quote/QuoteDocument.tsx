@@ -132,6 +132,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       const tops = tbs.map((e) => e.getBoundingClientRect().top);
       const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
       const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
+      // A block's own bottom margin doesn't need room when it is the last thing
+      // on a page — fit-check with the bare box height, advance with the full
+      // (margin-inclusive) stride so spacing between blocks stays exact.
+      const tbBoxHs = tbs.map((e, i) => rh(e.firstElementChild) || tbHs[i]);
       const tbKeep = tbs.map((e) => e.getAttribute('data-keep') === '1');
       const tbCtitleIdx = tbs.findIndex((e) => e.getAttribute('data-kind') === 'ctitle');
       if (!tbs.length) return;
@@ -151,8 +155,8 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       const curBase = (cur.hasHeader ? headerH : contLabelH) + (cur.itemIdxs.length ? theadH : 0) + cur.itemIdxs.reduce((s, idx) => s + rowHs[idx], 0);
       let rem = contentAvail - curBase - SAFETY;
       for (let t = 0; t < tbs.length; t++) {
-        let need = tbHs[t] || 0;
-        if (tbKeep[t]) need += tbHs[t + 1] || 0;
+        let need = tbBoxHs[t] || 0;
+        if (tbKeep[t]) need += tbBoxHs[t + 1] || 0;
         const forceBreak = t === tbCtitleIdx;
         if ((forceBreak || need > rem) && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
           cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
@@ -572,7 +576,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       </div>
     ),
     pay: (
-      <div key="pay" className="grid grid-cols-2 gap-8 mb-5">
+      <div key="pay" className="grid grid-cols-2 gap-8 mb-2">
         {quote.payment_terms && (
           <div>
             <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">תנאי תשלום</h3>
@@ -588,7 +592,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
               </>
             )}
             {nonImgAtts.length > 0 && (
-              <div className={quote.delivery_time ? 'mt-3' : ''}>
+              <div className={quote.delivery_time ? 'mt-5' : ''}>
                 <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">מפרטים טכניים ושרטוטים</h3>
                 <div className="space-y-1">
                   {nonImgAtts.map((att: any) => (
