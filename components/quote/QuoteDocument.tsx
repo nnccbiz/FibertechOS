@@ -132,6 +132,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       const tops = tbs.map((e) => e.getBoundingClientRect().top);
       const wrapBottom = tbWrap ? tbWrap.getBoundingClientRect().bottom : 0;
       const tbHs = tbs.map((e, i) => (i < tbs.length - 1 ? tops[i + 1] - tops[i] : wrapBottom - tops[i]));
+      // A block's own bottom margin doesn't need room when it is the last thing
+      // on a page — fit-check with the bare box height, advance with the full
+      // (margin-inclusive) stride so spacing between blocks stays exact.
+      const tbBoxHs = tbs.map((e, i) => rh(e.firstElementChild) || tbHs[i]);
       const tbKeep = tbs.map((e) => e.getAttribute('data-keep') === '1');
       const tbCtitleIdx = tbs.findIndex((e) => e.getAttribute('data-kind') === 'ctitle');
       if (!tbs.length) return;
@@ -151,8 +155,8 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
       const curBase = (cur.hasHeader ? headerH : contLabelH) + (cur.itemIdxs.length ? theadH : 0) + cur.itemIdxs.reduce((s, idx) => s + rowHs[idx], 0);
       let rem = contentAvail - curBase - SAFETY;
       for (let t = 0; t < tbs.length; t++) {
-        let need = tbHs[t] || 0;
-        if (tbKeep[t]) need += tbHs[t + 1] || 0;
+        let need = tbBoxHs[t] || 0;
+        if (tbKeep[t]) need += tbBoxHs[t + 1] || 0;
         const forceBreak = t === tbCtitleIdx;
         if ((forceBreak || need > rem) && (cur.blockIdxs.length > 0 || cur.itemIdxs.length > 0)) {
           cur = { hasHeader: false, itemIdxs: [], blockIdxs: [] };
@@ -328,19 +332,27 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
 
   const trailing: TBlock[] = [];
   trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
-  if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
+  // The attached specs/drawings list lives inside the זמן אספקה column of the
+  // pay row (not as its own full-width block), so it adds only its rows to the
+  // page height and doesn't push the declaration onto an extra page.
   // A foreign-currency quote drops the VAT row entirely (export sale), so the
   // notes carry the VAT statement instead — without the exchange-rate sentence.
   // The peg note is for ILS prices tracking a rate, so it stays on ILS quotes.
   const currencyNote = isForeign
     ? 'המחירים בהצעה זו אינם כוללים מע"מ.'
     : currencyPegNote(costCurrency);
-  if (quote.disclaimer_text || currencyNote) {
-    const totalLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
-    trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil(totalLen / 90) * 4.5 });
+  const hasNotes = Boolean(quote.disclaimer_text || currencyNote);
+  // One two-column block: right = payment terms + notes, left = delivery time +
+  // attached specs/drawings. Estimated height = the taller column (half-width
+  // columns wrap text at ~45 chars per line).
+  if (quote.payment_terms || quote.delivery_time || hasNotes || nonImgAtts.length) {
+    const colText = (t: string) => 12 + Math.ceil((t || '').length / 45) * 4.5;
+    const notesLen = (quote.disclaimer_text || '').length + (currencyNote ? currencyNote.length + 2 : 0);
+    const right = (quote.payment_terms ? colText(quote.payment_terms) + 5 : 0) + (hasNotes ? colText(' '.repeat(notesLen)) : 0);
+    const left = (quote.delivery_time ? colText(quote.delivery_time) + 5 : 0) + (nonImgAtts.length ? 12 + nonImgAtts.length * 5 : 0);
+    trailing.push({ kind: 'summary', key: 'pay', h: Math.max(right, left, 20) });
   }
   trailing.push({ kind: 'summary', key: 'doc', h: 22 });
-  if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
   trailing.push({ kind: 'ctitle', h: 18 });
   contractSections.forEach((s) => {
     trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
@@ -567,30 +579,50 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
         </div>
       </div>
     ),
+    // Two-column summary: right = תנאי תשלום over הערות, left = זמן אספקה over
+    // מפרטים טכניים ושרטוטים. Each column stacks its own blocks so the page
+    // packs tightly instead of stepping down one full-width block at a time.
     pay: (
-      <div key="pay" className="grid grid-cols-2 gap-8 mb-5">
-        {quote.payment_terms && (
-          <div>
-            <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">תנאי תשלום</h3>
-            <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
-          </div>
-        )}
-        {quote.delivery_time && (
-          <div>
-            <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">זמן אספקה</h3>
-            <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
-          </div>
-        )}
-      </div>
-    ),
-    disc: (
-      <div key="disc" className="mb-4">
-        <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">הערות</h3>
-        <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">
-          {quote.disclaimer_text}
-          {quote.disclaimer_text && currencyNote ? '\n' : ''}
-          {currencyNote ? `• ${currencyNote}` : ''}
-        </p>
+      <div key="pay" className="grid grid-cols-2 gap-8 mb-4">
+        <div className="space-y-5">
+          {quote.payment_terms && (
+            <div>
+              <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">תנאי תשלום</h3>
+              <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
+            </div>
+          )}
+          {hasNotes && (
+            <div>
+              <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">הערות</h3>
+              <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">
+                {quote.disclaimer_text}
+                {quote.disclaimer_text && currencyNote ? '\n' : ''}
+                {currencyNote ? `• ${currencyNote}` : ''}
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="space-y-5">
+          {quote.delivery_time && (
+            <div>
+              <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">זמן אספקה</h3>
+              <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
+            </div>
+          )}
+          {nonImgAtts.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">מפרטים טכניים ושרטוטים</h3>
+              <div className="space-y-1">
+                {nonImgAtts.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-2 text-xs text-content-body">
+                    <span>📄</span>
+                    <span>{att.file_name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     ),
     doc: (
@@ -599,19 +631,6 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <span className="font-bold">הצהרת מסמכים: </span>
           הסכם זה כולל את כל המסמכים שצורפו להצעה זו — סקר חוזה, שרטוטים ומפרטים טכניים, ותנאי הסכם — כולם מהווים יחד מסמך מחייב אחד ובלתי נפרד.
         </p>
-      </div>
-    ),
-    att: (
-      <div key="att" className="mb-5">
-        <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">מפרטים טכניים ושרטוטים</h3>
-        <div className="space-y-1">
-          {nonImgAtts.map((att: any) => (
-            <div key={att.id} className="flex items-center gap-2 text-xs text-content-body">
-              <span>📄</span>
-              <span>{att.file_name}</span>
-            </div>
-          ))}
-        </div>
       </div>
     ),
   };
