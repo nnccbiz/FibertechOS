@@ -328,11 +328,12 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
 
   const trailing: TBlock[] = [];
   trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
-  if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
-  // The attached specs/drawings list sits right under תנאי תשלום / זמן אספקה,
-  // before the notes and the documents declaration, so it stays on the
-  // summary page instead of spilling over with the declaration.
-  if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
+  // The attached specs/drawings list lives inside the זמן אספקה column of the
+  // pay row (not as its own full-width block), so it adds only its rows to the
+  // page height and doesn't push the declaration onto an extra page.
+  if (quote.payment_terms || quote.delivery_time || nonImgAtts.length) {
+    trailing.push({ kind: 'summary', key: 'pay', h: 32 + (nonImgAtts.length ? 8 + nonImgAtts.length * 5 : 0) });
+  }
   // A foreign-currency quote drops the VAT row entirely (export sale), so the
   // notes carry the VAT statement instead — without the exchange-rate sentence.
   // The peg note is for ILS prices tracking a rate, so it stays on ILS quotes.
@@ -578,10 +579,27 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
             <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.payment_terms}</p>
           </div>
         )}
-        {quote.delivery_time && (
+        {(quote.delivery_time || nonImgAtts.length > 0) && (
           <div>
-            <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">זמן אספקה</h3>
-            <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
+            {quote.delivery_time && (
+              <>
+                <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">זמן אספקה</h3>
+                <p className="text-xs text-content-body whitespace-pre-line leading-relaxed">{quote.delivery_time}</p>
+              </>
+            )}
+            {nonImgAtts.length > 0 && (
+              <div className={quote.delivery_time ? 'mt-3' : ''}>
+                <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">מפרטים טכניים ושרטוטים</h3>
+                <div className="space-y-1">
+                  {nonImgAtts.map((att: any) => (
+                    <div key={att.id} className="flex items-center gap-2 text-xs text-content-body">
+                      <span>📄</span>
+                      <span>{att.file_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -602,19 +620,6 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <span className="font-bold">הצהרת מסמכים: </span>
           הסכם זה כולל את כל המסמכים שצורפו להצעה זו — סקר חוזה, שרטוטים ומפרטים טכניים, ותנאי הסכם — כולם מהווים יחד מסמך מחייב אחד ובלתי נפרד.
         </p>
-      </div>
-    ),
-    att: (
-      <div key="att" className="mb-5">
-        <h3 className="text-sm font-bold text-content-strong mb-2 border-r-4 border-navy-700 pr-3">מפרטים טכניים ושרטוטים</h3>
-        <div className="space-y-1">
-          {nonImgAtts.map((att: any) => (
-            <div key={att.id} className="flex items-center gap-2 text-xs text-content-body">
-              <span>📄</span>
-              <span>{att.file_name}</span>
-            </div>
-          ))}
-        </div>
       </div>
     ),
   };
