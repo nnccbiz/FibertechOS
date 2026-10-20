@@ -358,7 +358,9 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
     s.clauses.forEach((cl) => trailing.push({ kind: 'cblock', b: { type: 'clause', clause: cl }, h: cEstClause(cl.text) }));
   });
-  trailing.push({ kind: 'sign', h: 92 });
+  // Compact form (the one that must fit after the clauses); the full form only
+  // opens a fresh page, so its height never gates the packing.
+  trailing.push({ kind: 'sign', h: 52 });
 
   type RPage = { hasHeader: boolean; itemIdxs: number[]; blockIdxs: number[] };
   const pages: RPage[] = [];
@@ -635,7 +637,18 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     ),
   };
 
-  const renderTBlock = (tb: TBlock, key: number) => {
+  const SIGN_TEXT = 'בחתימתנו מטה אנו מאשרים את ההצעה על כל חלקיה, לרבות סקר החוזה, השרטוטים, המפרטים ותנאי ההסכם המצורפים.';
+  const SignLine = ({ label, gap }: { label: string; gap: string }) => (
+    <div>
+      <p className={`text-sm font-bold text-content-body ${gap}`}>{label}</p>
+      <div className="border-b border-neutral-400" />
+      <p className="text-[11px] text-neutral-400 mt-2">שם + חתימה + תאריך</p>
+    </div>
+  );
+
+  // `standalone` — the block opens its page (nothing above it); only the
+  // signatures block renders differently for it.
+  const renderTBlock = (tb: TBlock, key: number, standalone = false) => {
     if (tb.kind === 'summary') return <div key={key}>{summaryEls[tb.key]}</div>;
     if (tb.kind === 'ctitle') return (
       <div key={key} className="mt-1">
@@ -661,7 +674,13 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
         </div>
       );
     }
-    return (
+    // Signatures adapt to where they land. Opening a page of their own → the
+    // full title + logo header. Following the clauses on the same page → a
+    // compact section in the clause style, about half the height, so a page
+    // with room left keeps them instead of spilling onto a near-empty page.
+    // The fit check measures the compact form (the mirror renders it), so the
+    // full form only ever appears at the top of a page.
+    if (standalone) return (
       <div key={key} className="mt-4">
         <div className="flex justify-between items-start mb-3">
           <div>
@@ -671,18 +690,22 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
           <img src="/logo.png" alt="Fibertech" className="h-11 object-contain" />
         </div>
         <div className="border-b-2 border-content-muted mb-6" />
-        <p className="text-sm text-content-body mb-8 leading-relaxed">בחתימתנו מטה אנו מאשרים את ההצעה על כל חלקיה, לרבות סקר החוזה, השרטוטים, המפרטים ותנאי ההסכם המצורפים.</p>
+        <p className="text-sm text-content-body mb-8 leading-relaxed">{SIGN_TEXT}</p>
         <div className="grid grid-cols-2 gap-12 mt-4">
-          <div>
-            <p className="text-sm font-bold text-content-body mb-12">חתימת פיברטק</p>
-            <div className="border-b border-neutral-400" />
-            <p className="text-[11px] text-neutral-400 mt-2">שם + חתימה + תאריך</p>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-content-body mb-12">חתימת המזמין</p>
-            <div className="border-b border-neutral-400" />
-            <p className="text-[11px] text-neutral-400 mt-2">שם + חתימה + תאריך</p>
-          </div>
+          <SignLine label="חתימת פיברטק" gap="mb-12" />
+          <SignLine label="חתימת המזמין" gap="mb-12" />
+        </div>
+      </div>
+    );
+    return (
+      <div key={key} className="mt-5">
+        <div className="border-r-4 border-navy-700 pr-3 mb-2">
+          <h3 className="text-[12px] font-bold text-navy-700">חתימות</h3>
+        </div>
+        <p className="text-[10px] text-content-body mb-5 leading-tight">{SIGN_TEXT}</p>
+        <div className="grid grid-cols-2 gap-12">
+          <SignLine label="חתימת פיברטק" gap="mb-9" />
+          <SignLine label="חתימת המזמין" gap="mb-9" />
         </div>
       </div>
     );
@@ -708,7 +731,7 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
                     : <p className="text-sm text-neutral-400 mb-4">סקר חוזה — מס׳ {quote.quote_number} (המשך)</p>
                   }
                   {pg.itemIdxs.length > 0 && <ItemsTable slice={pg.itemIdxs.map((i: number) => items[i])} startIdx={pg.itemIdxs[0]} />}
-                  {pg.blockIdxs.map((bi: number) => renderTBlock(trailing[bi], bi))}
+                  {pg.blockIdxs.map((bi: number, k: number) => renderTBlock(trailing[bi], bi, k === 0 && pg.itemIdxs.length === 0))}
                 </div>
                 <QuoteFooter pageNum={displayPageNum(pIdx)} />
               </div>
