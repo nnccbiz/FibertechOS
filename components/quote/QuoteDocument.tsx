@@ -329,6 +329,10 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
   const trailing: TBlock[] = [];
   trailing.push({ kind: 'summary', key: 'totals', h: (hasQuoteDiscount ? (globalDisc > 0 && discAmount > 0 ? 58 : 52) : 42) - (isForeign ? 16 : 0) });
   if (quote.payment_terms || quote.delivery_time) trailing.push({ kind: 'summary', key: 'pay', h: 32 });
+  // The attached specs/drawings list sits right under תנאי תשלום / זמן אספקה,
+  // before the notes and the documents declaration, so it stays on the
+  // summary page instead of spilling over with the declaration.
+  if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
   // A foreign-currency quote drops the VAT row entirely (export sale), so the
   // notes carry the VAT statement instead — without the exchange-rate sentence.
   // The peg note is for ILS prices tracking a rate, so it stays on ILS quotes.
@@ -340,7 +344,6 @@ const QuoteDocument = forwardRef<QuoteDocumentHandle, QuoteDocumentData>(functio
     trailing.push({ kind: 'summary', key: 'disc', h: 12 + Math.ceil(totalLen / 90) * 4.5 });
   }
   trailing.push({ kind: 'summary', key: 'doc', h: 22 });
-  if (nonImgAtts.length) trailing.push({ kind: 'summary', key: 'att', h: 14 + nonImgAtts.length * 5 });
   trailing.push({ kind: 'ctitle', h: 18 });
   contractSections.forEach((s) => {
     trailing.push({ kind: 'cblock', b: { type: 'heading', title: s.title }, h: 10 });
