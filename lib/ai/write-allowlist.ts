@@ -42,7 +42,7 @@ export const WRITE_ALLOWLIST: Record<string, Set<string>> = {
     'project_id', 'role', 'name', 'phone', 'email',
   ]),
   pipe_specs: new Set([
-    'project_id', 'diameter_mm', 'line_length_m', 'unit_length_m',
+    'project_id', 'dn_mm', 'line_length_m', 'unit_length_m',
     'stiffness_pascal', 'pressure_bar', 'notes',
   ]),
   alerts: new Set([

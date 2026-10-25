@@ -148,7 +148,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
 טבלאות מותרות: alerts (סימון משימה כטופלה — משימה חדשה נוצרת דרך create_task, לא כאן), project_updates (עדכון פרויקט), projects (עדכון שדות), project_details (עדכון פרטים), project_contacts (הוספת איש קשר), pipe_specs (הוספת מפרט), leads (ליד חדש/עדכון), inventory (עדכון מלאי).
 מחיקות אסורות לחלוטין.
 לעדכון (operation=update) חובה target_id — השג אותו קודם עם כלי קריאה.
-עמודות מותרות לפי טבלה: alerts: project_id,type,message,is_resolved · project_updates: project_id,update_date,people,title,description,tasks · projects: name,description,current_stage,stage_label,progress_percent,priority,order_value,status,city,supplier,notes,developer_name,planning_office,probability_percent · project_details: location,description,project_status,project_type,installation_type,winning_contractor,tender_submission_date,expected_pipe_order_date,special_requirements · project_contacts: project_id,role,name,phone,email · pipe_specs: project_id,diameter_mm,line_length_m,unit_length_m,stiffness_pascal,pressure_bar,notes · leads: project_name,developer_name,planner_name,stage,estimated_value,next_action,next_action_date,notes · inventory: manufacturer,pipe_type,diameter_mm,pressure_bar,stiffness_sn,length_m,in_stock,category,notes`,
+עמודות מותרות לפי טבלה: alerts: project_id,type,message,is_resolved · project_updates: project_id,update_date,people,title,description,tasks · projects: name,description,current_stage,stage_label,progress_percent,priority,order_value,status,city,supplier,notes,developer_name,planning_office,probability_percent · project_details: location,description,project_status,project_type,installation_type,winning_contractor,tender_submission_date,expected_pipe_order_date,special_requirements · project_contacts: project_id,role,name,phone,email · pipe_specs: project_id,dn_mm,line_length_m,unit_length_m,stiffness_pascal,pressure_bar,notes · leads: project_name,developer_name,planner_name,stage,estimated_value,next_action,next_action_date,notes · inventory: manufacturer,pipe_type,diameter_mm,pressure_bar,stiffness_sn,length_m,in_stock,category,notes`,
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -233,11 +233,12 @@ export async function executeRoxyTool(
           const ids = rows.map((p) => p.id);
           const [dets, specs] = await Promise.all([
             needDetails ? sb.from('project_details').select('project_id, installation_type, field_supervision, pipe_installation_start, project_type').in('project_id', ids.slice(0, 400)) : Promise.resolve({ data: [] }),
-            needSpecs ? sb.from('pipe_specs').select('project_id, diameter_mm').in('project_id', ids.slice(0, 400)) : Promise.resolve({ data: [] }),
+            needSpecs ? sb.from('pipe_specs').select('project_id, dn_mm').in('project_id', ids.slice(0, 400)) : Promise.resolve({ data: [] }),
           ]);
           const detBy: Record<string, any> = {}; (dets.data || []).forEach((d: any) => { detBy[d.project_id] = d; });
-          const dnsBy: Record<string, number[]> = {}; (specs.data || []).forEach((s: any) => { (dnsBy[s.project_id] ||= []).push(Number(s.diameter_mm) || 0); });
-          const yes = (v: any) => /כן|נדרש|yes|true/i.test(String(v || ''));
+          const dnsBy: Record<string, number[]> = {}; (specs.data || []).forEach((s: any) => { (dnsBy[s.project_id] ||= []).push(Number(s.dn_mm) || 0); });
+          // Live values seen: 'כן', 'נדרש', 'ליווי שירות שדה' (yes) · 'לא', '' (no).
+          const yes = (v: any) => /כן|נדרש|ליווי|yes|true/i.test(String(v || ''));
           rows = rows.filter((p) => {
             const d = detBy[p.id];
             if (args.installation_type && !(d?.installation_type || '').includes(String(args.installation_type))) return false;
@@ -278,7 +279,7 @@ export async function executeRoxyTool(
         const [details, contacts, specs, updates, quotes] = await Promise.all([
           sb.from('project_details').select('*').eq('project_id', proj.id).maybeSingle(),
           sb.from('project_contacts').select('id, role, name, phone, email').eq('project_id', proj.id),
-          sb.from('pipe_specs').select('id, diameter_mm, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, notes').eq('project_id', proj.id),
+          sb.from('pipe_specs').select('id, dn_mm, pipe_type, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, od_mm, id_mm, notes').eq('project_id', proj.id),
           sb.from('project_updates').select('update_date, people, title, description, tasks').eq('project_id', proj.id).order('update_date', { ascending: false }).limit(5),
           sb.from('quotes').select('id, quote_number, status, total_amount, client_name, sent_at, valid_until').eq('project_id', proj.id).order('created_at', { ascending: false }).limit(10),
         ]);
