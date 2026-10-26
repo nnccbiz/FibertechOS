@@ -7,12 +7,17 @@
  * proposal against the write-allowlist and hands it back to the client, where
  * the user must explicitly confirm before execution.
  *
+ * Cross-cut read tools (quote items by DN, quote search, orders, deliveries,
+ * finance views, customer rankings) live in roxy-insight-tools.ts and are
+ * spliced into the declarations below; unknown names fall through to them.
+ *
  * Import tables (import_orders, shipments, invoices…) are deliberately NOT
  * exposed — standing policy: no financial import data through Roxy.
  */
 import { SchemaType, type FunctionDeclaration } from '@google/generative-ai';
 import { validateWrite, rejectionMessage } from '@/lib/ai/write-allowlist';
 import { logAiAction } from '@/lib/ai/activity-log';
+import { INSIGHT_FUNCTION_DECLARATIONS, executeInsightTool } from '@/lib/ai/roxy-insight-tools';
 
 // ---------------------------------------------------------------------------
 // Tool declarations (what Gemini sees)
@@ -21,12 +26,25 @@ import { logAiAction } from '@/lib/ai/activity-log';
 export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'search_projects',
-    description: 'חיפוש פרויקטים לפי שם / יזם / עיר / סטטוס. מחזיר רשימה תמציתית עם id לכל פרויקט.',
+    description: `חיפוש פרויקטים עם חיתוכים: טקסט חופשי (שם/יזם/עיר), סטטוס מימוש, עיר, תאריך פתיחה, "לא עודכן מעל N יום", סוג התקנה (דחיקה / חפירה פתוחה / השחלה), פיקוח שדה, קוטר DN במפרטי הצנרת, התקנה שמתחילה בטווח תאריכים.
+עונה על: "פרויקטים פעילים בבאר שבע", "בשלב מכרז", "נפתחו ברבעון האחרון ולא עודכנו 30 יום", "הסתיימו ב-2026 ומה הערך הכולל", "דחיקה עם DN מעל 1000", "נדרש פיקוח שדה והתקנה מתחילה החודש". מחזיר רשימה + totals (מספר, סה"כ ערך).`,
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
-        query: { type: SchemaType.STRING, description: 'טקסט חיפוש חופשי (שם פרויקט, יזם, עיר). ריק = כל הפרויקטים הפעילים' },
-        limit: { type: SchemaType.NUMBER, description: 'מקסימום תוצאות (ברירת מחדל 10)' },
+        query: { type: SchemaType.STRING, description: 'טקסט חיפוש חופשי (שם פרויקט, יזם, עיר)' },
+        status: { type: SchemaType.STRING, description: 'סטטוס מימוש, מופרד בפסיק: הזמנה / גבוהה / בינוני / נמוך / הסתיים / בוטל. ריק = פעילים בלבד (בלי הסתיים/בוטל)' },
+        include_archived: { type: SchemaType.BOOLEAN, description: 'לכלול גם פרויקטים שהסתיימו/בוטלו' },
+        city: { type: SchemaType.STRING, description: 'עיר' },
+        opened_from: { type: SchemaType.STRING, description: 'נפתח מתאריך YYYY-MM-DD' },
+        opened_to: { type: SchemaType.STRING, description: 'נפתח עד תאריך YYYY-MM-DD' },
+        stale_days: { type: SchemaType.NUMBER, description: 'רק פרויקטים שלא עודכנו מעל N ימים' },
+        installation_type: { type: SchemaType.STRING, description: 'סוג התקנה (טקסט חלקי): דחיקה / חפירה פתוחה / השחלה' },
+        field_supervision: { type: SchemaType.BOOLEAN, description: 'true = רק פרויקטים שבהם נדרש פיקוח שירות שדה' },
+        dn_min: { type: SchemaType.NUMBER, description: 'קוטר מינימלי במפרטי הצנרת של הפרויקט' },
+        dn_max: { type: SchemaType.NUMBER, description: 'קוטר מקסימלי במפרטי הצנרת' },
+        installation_from: { type: SchemaType.STRING, description: 'התקנה (הנחת צנרת) מתחילה מתאריך YYYY-MM-DD' },
+        installation_to: { type: SchemaType.STRING, description: 'התקנה מתחילה עד תאריך YYYY-MM-DD' },
+        limit: { type: SchemaType.NUMBER, description: 'מקסימום תוצאות (ברירת מחדל 10, עד 60)' },
       },
     },
   },
@@ -41,17 +59,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       },
     },
   },
-  {
-    name: 'list_quotes',
-    description: 'רשימת הצעות מחיר, אפשר לסנן לפי סטטוס או פרויקט. סטטוסים: draft (טיוטה), sent (נשלחה), signed (נחתמה), rejected (נדחתה), expired (פג תוקף).',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        status: { type: SchemaType.STRING, description: 'סינון לפי סטטוס (draft/sent/signed/rejected/expired). ריק = הכל' },
-        project_name: { type: SchemaType.STRING, description: 'סינון לפי שם פרויקט' },
-      },
-    },
-  },
+  // Quotes: search_quotes / search_quote_items / get_quote live in roxy-insight-tools.
   {
     name: 'list_tasks',
     description: 'רשימת משימות והתראות מלוח הבקרה. ברירת מחדל: פתוחות בלבד.',
@@ -140,7 +148,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
 טבלאות מותרות: alerts (סימון משימה כטופלה — משימה חדשה נוצרת דרך create_task, לא כאן), project_updates (עדכון פרויקט), projects (עדכון שדות), project_details (עדכון פרטים), project_contacts (הוספת איש קשר), pipe_specs (הוספת מפרט), leads (ליד חדש/עדכון), inventory (עדכון מלאי).
 מחיקות אסורות לחלוטין.
 לעדכון (operation=update) חובה target_id — השג אותו קודם עם כלי קריאה.
-עמודות מותרות לפי טבלה: alerts: project_id,type,message,is_resolved · project_updates: project_id,update_date,people,title,description,tasks · projects: name,description,current_stage,stage_label,progress_percent,priority,order_value,status,city,supplier,notes,developer_name,planning_office,probability_percent · project_details: location,description,project_status,project_type,installation_type,winning_contractor,tender_submission_date,expected_pipe_order_date,special_requirements · project_contacts: project_id,role,name,phone,email · pipe_specs: project_id,diameter_mm,line_length_m,unit_length_m,stiffness_pascal,pressure_bar,notes · leads: project_name,developer_name,planner_name,stage,estimated_value,next_action,next_action_date,notes · inventory: manufacturer,pipe_type,diameter_mm,pressure_bar,stiffness_sn,length_m,in_stock,category,notes`,
+עמודות מותרות לפי טבלה: alerts: project_id,type,message,is_resolved · project_updates: project_id,update_date,people,title,description,tasks · projects: name,description,current_stage,stage_label,progress_percent,priority,order_value,status,city,supplier,notes,developer_name,planning_office,probability_percent · project_details: location,description,project_status,project_type,installation_type,winning_contractor,tender_submission_date,expected_pipe_order_date,special_requirements · project_contacts: project_id,role,name,phone,email · pipe_specs: project_id,dn_mm,line_length_m,unit_length_m,stiffness_pascal,pressure_bar,notes · leads: project_name,developer_name,planner_name,stage,estimated_value,next_action,next_action_date,notes · inventory: manufacturer,pipe_type,diameter_mm,pressure_bar,stiffness_sn,length_m,in_stock,category,notes`,
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -157,6 +165,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       required: ['operation', 'table', 'data', 'summary'],
     },
   },
+  ...INSIGHT_FUNCTION_DECLARATIONS,
 ];
 
 // ---------------------------------------------------------------------------
@@ -198,14 +207,63 @@ export async function executeRoxyTool(
   try {
     switch (name) {
       case 'search_projects': {
+        const ARCHIVED = ['הסתיים', 'בוטל'];
         let q = sb.from('projects')
-          .select('id, name, current_stage, stage_label, progress_percent, order_value, status, developer_name, city, probability_percent')
-          .order('updated_at', { ascending: false })
-          .limit(Math.min(args.limit || 10, 25));
+          .select('id, name, current_stage, stage_label, progress_percent, order_value, status, realization_status, developer_name, planning_office, city, probability_percent, created_at, last_updated_at')
+          .order('updated_at', { ascending: false });
         if (args.query) q = q.or(`name.ilike.%${args.query}%,developer_name.ilike.%${args.query}%,city.ilike.%${args.query}%`);
-        const { data, error } = await q;
+        if (args.city) q = q.ilike('city', `%${args.city}%`);
+        const statuses = String(args.status || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+        if (statuses.length) q = q.in('realization_status', statuses);
+        else if (!args.include_archived) q = q.not('realization_status', 'in', `(${ARCHIVED.map((s) => `"${s}"`).join(',')})`);
+        if (args.opened_from) q = q.gte('created_at', args.opened_from);
+        if (args.opened_to) q = q.lte('created_at', `${args.opened_to}T23:59:59`);
+        if (args.stale_days != null) {
+          const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - Number(args.stale_days));
+          q = q.lt('last_updated_at', cutoff.toISOString());
+        }
+        const { data, error } = await q.limit(400);
         if (error) return { error: error.message };
-        return { projects: clip(data), count: data?.length || 0 };
+        let rows: any[] = data || [];
+
+        // Detail/spec filters live on child tables — fetch them for the candidates and filter in memory.
+        const needDetails = args.installation_type || args.field_supervision != null || args.installation_from || args.installation_to;
+        const needSpecs = args.dn_min != null || args.dn_max != null;
+        if (rows.length && (needDetails || needSpecs)) {
+          const ids = rows.map((p) => p.id);
+          const [dets, specs] = await Promise.all([
+            needDetails ? sb.from('project_details').select('project_id, installation_type, field_supervision, pipe_installation_start, project_type').in('project_id', ids.slice(0, 400)) : Promise.resolve({ data: [] }),
+            needSpecs ? sb.from('pipe_specs').select('project_id, dn_mm').in('project_id', ids.slice(0, 400)) : Promise.resolve({ data: [] }),
+          ]);
+          const detBy: Record<string, any> = {}; (dets.data || []).forEach((d: any) => { detBy[d.project_id] = d; });
+          const dnsBy: Record<string, number[]> = {}; (specs.data || []).forEach((s: any) => { (dnsBy[s.project_id] ||= []).push(Number(s.dn_mm) || 0); });
+          // Live values seen: 'כן', 'נדרש', 'ליווי שירות שדה' (yes) · 'לא', '' (no).
+          const yes = (v: any) => /כן|נדרש|ליווי|yes|true/i.test(String(v || ''));
+          rows = rows.filter((p) => {
+            const d = detBy[p.id];
+            if (args.installation_type && !(d?.installation_type || '').includes(String(args.installation_type))) return false;
+            if (args.field_supervision === true && !yes(d?.field_supervision)) return false;
+            if (args.field_supervision === false && yes(d?.field_supervision)) return false;
+            const start = d?.pipe_installation_start || null;
+            if ((args.installation_from || args.installation_to) && !start) return false;
+            if (args.installation_from && start < args.installation_from) return false;
+            if (args.installation_to && start > args.installation_to) return false;
+            if (needSpecs) {
+              const dns = dnsBy[p.id] || [];
+              if (!dns.length) return false;
+              if (args.dn_min != null && !dns.some((dn) => dn >= Number(args.dn_min))) return false;
+              if (args.dn_max != null && !dns.some((dn) => dn <= Number(args.dn_max))) return false;
+            }
+            return true;
+          }).map((p) => ({ ...p, installation_type: detBy[p.id]?.installation_type ?? undefined, field_supervision: detBy[p.id]?.field_supervision ?? undefined, pipe_installation_start: detBy[p.id]?.pipe_installation_start ?? undefined, dns: dnsBy[p.id] }));
+        }
+        const limit = Math.min(args.limit || 10, 60);
+        return {
+          projects: clip(rows.map((p) => ({ ...p, project_url: `/projects/${p.id}` })), limit),
+          count: rows.length,
+          totals: { count: rows.length, total_value_ils: rows.reduce((s, p) => s + (Number(p.order_value) || 0), 0) },
+          note: rows.length > limit ? `מוצגים ${limit} מתוך ${rows.length} — הסיכומים כוללים הכול.` : undefined,
+        };
       }
 
       case 'get_project': {
@@ -221,7 +279,7 @@ export async function executeRoxyTool(
         const [details, contacts, specs, updates, quotes] = await Promise.all([
           sb.from('project_details').select('*').eq('project_id', proj.id).maybeSingle(),
           sb.from('project_contacts').select('id, role, name, phone, email').eq('project_id', proj.id),
-          sb.from('pipe_specs').select('id, diameter_mm, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, notes').eq('project_id', proj.id),
+          sb.from('pipe_specs').select('id, dn_mm, pipe_type, line_length_m, unit_length_m, stiffness_pascal, pressure_bar, od_mm, id_mm, notes').eq('project_id', proj.id),
           sb.from('project_updates').select('update_date, people, title, description, tasks').eq('project_id', proj.id).order('update_date', { ascending: false }).limit(5),
           sb.from('quotes').select('id, quote_number, status, total_amount, client_name, sent_at, valid_until').eq('project_id', proj.id).order('created_at', { ascending: false }).limit(10),
         ]);
@@ -233,26 +291,6 @@ export async function executeRoxyTool(
           recent_updates: clip(updates.data, 5),
           quotes: clip(quotes.data, 10),
         };
-      }
-
-      case 'list_quotes': {
-        let q = sb.from('quotes')
-          .select('id, project_id, quote_number, client_name, status, total_amount, currency, sent_at, valid_until, created_at, lost_reason')
-          .order('created_at', { ascending: false }).limit(30);
-        if (args.status) q = q.eq('status', args.status);
-        const { data, error } = await q;
-        if (error) return { error: error.message };
-        let rows = data || [];
-        // Attach project names (and filter by project if asked)
-        const ids = Array.from(new Set(rows.map((r: any) => r.project_id).filter(Boolean)));
-        const nameById: Record<string, string> = {};
-        if (ids.length) {
-          const { data: projs } = await sb.from('projects').select('id, name').in('id', ids);
-          (projs || []).forEach((p: any) => { nameById[p.id] = p.name; });
-        }
-        rows = rows.map((r: any) => ({ ...r, project_name: nameById[r.project_id] || null }));
-        if (args.project_name) rows = rows.filter((r: any) => (r.project_name || '').includes(args.project_name));
-        return { quotes: clip(rows, 30), count: rows.length };
       }
 
       case 'list_tasks': {
@@ -505,8 +543,10 @@ export async function executeRoxyTool(
         };
       }
 
-      default:
-        return { error: `כלי לא מוכר: ${name}` };
+      default: {
+        const insight = await executeInsightTool(sb, name, args);
+        return insight ?? { error: `כלי לא מוכר: ${name}` };
+      }
     }
   } catch (e: any) {
     return { error: e?.message || 'שגיאה בהרצת הכלי' };
