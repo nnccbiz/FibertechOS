@@ -11,13 +11,16 @@
  * finance views, customer rankings) live in roxy-insight-tools.ts and are
  * spliced into the declarations below; unknown names fall through to them.
  *
- * Import tables (import_orders, shipments, invoices…) are deliberately NOT
- * exposed — standing policy: no financial import data through Roxy.
+ * Import / procurement reads (purchase orders, supplier pricing, shipments,
+ * supplier payables, suppliers) live in roxy-import-tools.ts — opened to Roxy
+ * on 2026-10-26 by explicit decision; RLS (import module) still gates them.
+ * No import table is ever on the WRITE allowlist.
  */
 import { SchemaType, type FunctionDeclaration } from '@google/generative-ai';
 import { validateWrite, rejectionMessage } from '@/lib/ai/write-allowlist';
 import { logAiAction } from '@/lib/ai/activity-log';
 import { INSIGHT_FUNCTION_DECLARATIONS, executeInsightTool } from '@/lib/ai/roxy-insight-tools';
+import { IMPORT_FUNCTION_DECLARATIONS, executeImportTool } from '@/lib/ai/roxy-import-tools';
 
 // ---------------------------------------------------------------------------
 // Tool declarations (what Gemini sees)
@@ -166,6 +169,7 @@ export const ROXY_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     },
   },
   ...INSIGHT_FUNCTION_DECLARATIONS,
+  ...IMPORT_FUNCTION_DECLARATIONS,
 ];
 
 // ---------------------------------------------------------------------------
@@ -545,7 +549,9 @@ export async function executeRoxyTool(
 
       default: {
         const insight = await executeInsightTool(sb, name, args);
-        return insight ?? { error: `כלי לא מוכר: ${name}` };
+        if (insight) return insight;
+        const imp = await executeImportTool(sb, name, args);
+        return imp ?? { error: `כלי לא מוכר: ${name}` };
       }
     }
   } catch (e: any) {
