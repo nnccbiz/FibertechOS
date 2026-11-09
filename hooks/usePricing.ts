@@ -102,6 +102,7 @@ export interface UsePricingReturn {
   refreshContractTemplates: () => Promise<void>;
   refreshProjectDrawings: () => Promise<void>;
   refreshCustomers: () => Promise<void>;
+  addCustomerContact: (customerId: string, c: { name: string; role?: string; phone?: string; email?: string }) => Promise<any | null>;
   toggleQuoteDrawing: (quoteId: string, attachmentId: string) => Promise<void>;
   contacts: any[];
   customers: any[];
@@ -1057,6 +1058,25 @@ export function usePricing(projectId: string): UsePricingReturn {
     await setQuoteContact(quoteId, inserted.id);
   }
 
+  // Add a contact to the customer master straight from the quote card (so the
+  // user needn't leave for the customer card). Returns the new client_contact;
+  // the caller then assigns it with assignQuoteContact(`cc:${id}`), which also
+  // materializes it as a project contact.
+  async function addCustomerContact(customerId: string, c: { name: string; role?: string; phone?: string; email?: string }) {
+    const name = (c.name || '').trim();
+    if (!customerId || !name) return null;
+    const dup = customerContacts.find((x) => x.client_id === customerId && (x.name || '').trim() === name);
+    if (dup) return dup;
+    const { data, error } = await supabase
+      .from('client_contacts')
+      .insert({ client_id: customerId, name, role: c.role?.trim() || null, phone: c.phone?.trim() || null, email: c.email?.trim() || null })
+      .select('id, client_id, name, role, phone, email')
+      .single();
+    if (error || !data) { alert(`שגיאה בהוספת איש הקשר: ${error?.message || ''}`); return null; }
+    setCustomerContacts((prev) => [...prev, data]);
+    return data;
+  }
+
   async function setQuoteCustomer(quoteId: string, customerId: string) {
     const value = customerId || null;
     // When a customer is chosen, reflect its name as the quote's recipient name.
@@ -1604,7 +1624,7 @@ export function usePricing(projectId: string): UsePricingReturn {
     parsingCostFile, saving, uploadingFile,
     createCostInput, duplicateCostInput, parseCostFile, updateCostItem, saveCostInputItems,
     startEditCostInput, cancelEditCostInput, setEditingCostItems,
-    contacts, customers, customerContacts, refreshCustomers, assignQuoteContact,
+    contacts, customers, customerContacts, refreshCustomers, addCustomerContact, assignQuoteContact,
     contractTemplates, setQuoteContractTemplate, setQuoteContractOverrides, toggleFieldWorksTerms, fetchTemplateContent, refreshContractTemplates, refreshProjectDrawings,
     projectDrawings, pipeSpecs, resolvePnSn, quoteDrawings, toggleQuoteDrawing,
     createQuote, duplicateQuote, startEditQuote, updateItem, bulkSetProfit, saveQuoteItems, setQuoteContact, setQuoteNotes, setQuoteCustomer, setQuoteCostInput,

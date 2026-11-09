@@ -12,6 +12,10 @@ import { isFieldWorksOn } from '@/lib/field-works-terms';
 import { CONTRACT_SECTIONS } from '@/lib/contract-terms';
 import CustomerForm from '@/components/customers/CustomerForm';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Field } from '@/components/ui/Field';
 import {
   calcCostPerMeter,
   calcRokerCostPerMeter,
@@ -775,8 +779,52 @@ function PipeCalcHelper({ citems, ci, rates }: { citems: any[]; ci: any; rates: 
   );
 }
 
+/**
+ * Quick "add a contact to this customer" dialog, opened from the quote's
+ * contact picker once a customer is chosen — saves to client_contacts and
+ * hands the new row back so the caller can select it on the quote at once.
+ */
+function QuickContactModal({ open, customerName, onClose, onSave }: {
+  open: boolean; customerName: string; onClose: () => void;
+  onSave: (c: { name: string; role: string; phone: string; email: string }) => Promise<void>;
+}) {
+  const [form, setForm] = useState({ name: '', role: '', phone: '', email: '' });
+  const [saving, setSaving] = useState(false);
+  const canSave = form.name.trim().length > 0 && !saving;
+  async function submit() {
+    if (!canSave) return;
+    setSaving(true);
+    try { await onSave(form); setForm({ name: '', role: '', phone: '', email: '' }); } finally { setSaving(false); }
+  }
+  return (
+    <Modal open={open} onClose={onClose} size="sm" title={`איש קשר חדש — ${customerName}`}
+      footer={<>
+        <Button variant="ghost" size="sm" onClick={onClose}>ביטול</Button>
+        <Button size="sm" onClick={submit} disabled={!canSave}>{saving ? 'שומר…' : 'שמור ובחר'}</Button>
+      </>}>
+      <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <Field label="שם" required className="md:col-span-2">
+          <Input sizeVariant="sm" autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="שם מלא" />
+        </Field>
+        <Field label="תפקיד">
+          <Input sizeVariant="sm" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="מנהל פרויקט / מתכנן…" />
+        </Field>
+        <Field label="טלפון">
+          <Input sizeVariant="sm" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="050-0000000" />
+        </Field>
+        <Field label="מייל" className="md:col-span-2">
+          <Input sizeVariant="sm" dir="ltr" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@company.co.il" />
+        </Field>
+        <button type="submit" className="hidden" aria-hidden="true" />
+      </form>
+    </Modal>
+  );
+}
+
 function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [showNewContact, setShowNewContact] = useState(false);
+  const newQuoteCustomerName = p.customers.find((c: any) => c.id === p.newQuote.customer_id)?.name || '';
   return (
     <>
       <div className="flex justify-end mb-3">
@@ -843,11 +891,24 @@ function QuotesTab({ p }: { p: ReturnType<typeof usePricing> }) {
                   ? '— אין אנשי קשר ללקוח —'
                   : '— ללא / איש קשר ראשון —';
                 return (
-                  <SearchableSelect value={p.newQuote.contact_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, contact_id: v })} className="w-full border border-line-subtle rounded-lg px-3 py-2 text-sm"
-                    placeholder={placeholder}
-                    options={opts} />
+                  <div className="flex gap-2">
+                    <SearchableSelect value={p.newQuote.contact_id} onChange={(v) => p.setNewQuote({ ...p.newQuote, contact_id: v })} className="flex-1 min-w-0 border border-line-subtle rounded-lg px-3 py-2 text-sm"
+                      placeholder={placeholder}
+                      options={opts} />
+                    {p.newQuote.customer_id && (
+                      <button type="button" onClick={() => setShowNewContact(true)} title="הוסף איש קשר ללקוח שנבחר"
+                        className="text-[13px] bg-white border border-primary text-primary px-3 py-2 rounded-lg hover:bg-primary-50 whitespace-nowrap">+ איש קשר</button>
+                    )}
+                  </div>
                 );
               })()}
+              <QuickContactModal open={showNewContact} customerName={newQuoteCustomerName} onClose={() => setShowNewContact(false)}
+                onSave={async (c) => {
+                  const row = await p.addCustomerContact(p.newQuote.customer_id, c);
+                  if (!row) return;
+                  setShowNewContact(false);
+                  p.setNewQuote({ ...p.newQuote, contact_id: `cc:${row.id}` });
+                }} />
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-content-muted mb-1">סוג הצעה</label>
@@ -982,6 +1043,7 @@ function HeaderStatusMenu({ q, p, st, onReject }: { q: any; p: ReturnType<typeof
 }
 
 function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
+  const [showNewContact, setShowNewContact] = useState(false);
   const st = QUOTE_STATUS_MAP[q.status] || QUOTE_STATUS_MAP.draft;
   const tier = QUOTE_TIER_MAP[q.tier] || QUOTE_TIER_MAP.contractor_pre_tender;
   const isExpanded = p.expandedQuote === q.id;
@@ -1038,6 +1100,17 @@ function QuoteCard({ q, p }: { q: any; p: ReturnType<typeof usePricing> }) {
                     }
                     return opts;
                   })()} />
+                {q.customer_id && (
+                  <button type="button" onClick={() => setShowNewContact(true)} title="הוסף איש קשר ללקוח שנבחר"
+                    className="text-[12px] text-primary border border-primary rounded-lg px-2 py-1 hover:bg-primary-50 whitespace-nowrap">+ איש קשר</button>
+                )}
+                <QuickContactModal open={showNewContact} customerName={p.customers.find((c: any) => c.id === q.customer_id)?.name || ''} onClose={() => setShowNewContact(false)}
+                  onSave={async (c) => {
+                    const row = await p.addCustomerContact(q.customer_id, c);
+                    if (!row) return;
+                    setShowNewContact(false);
+                    await p.assignQuoteContact(q.id, `cc:${row.id}`);
+                  }} />
               </span>
               <span className="flex items-center gap-1 text-[12px] text-content-muted">
                 <Icon name="company" size={16} /> לקוח:
