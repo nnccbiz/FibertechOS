@@ -655,16 +655,16 @@ function CostItemsEditor({ ci, p }: { ci: any; p: ReturnType<typeof usePricing> 
           </>
         )}
       </div>
-      <div className="flex items-center justify-between pt-2">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-2">
+        <div className="flex flex-wrap items-center gap-3">
           <button onClick={p.addCostItem} className="text-[12px] text-warning hover:underline">+ הוסף שורה</button>
           <label className={`text-[12px] px-3 py-1 rounded-lg cursor-pointer transition-colors ${p.parsingCostFile ? 'bg-primary-50 text-navy-500' : 'bg-primary-50 text-primary hover:bg-primary-50'}`}>
             {p.parsingCostFile ? <><Icon name="refresh" size={16} /> Roxy מעבדת...</> : <><Icon name="attach" size={16} /> העלה עוד קובץ ל-Roxy</>}
             <input type="file" className="hidden" accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx" multiple disabled={p.parsingCostFile} onChange={(e) => { if (e.target.files?.length) { p.parseCostFile(e.target.files, ci.id); e.target.value = ''; } }} />
           </label>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-content-body">סה״כ עלות: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
+        <div className="flex flex-wrap items-center gap-2 ms-auto">
+          <span className="text-sm font-bold text-content-body whitespace-nowrap">סה״כ עלות: {formatCurrency(p.editingCostItems.reduce((s: number, i: any) => s + (parseFloat(i.total_cost) || 0), 0))}</span>
           <button onClick={p.cancelEditCostInput} className="text-sm text-content-muted px-3 py-1.5 rounded-lg hover:bg-neutral-100">ביטול</button>
           <button onClick={() => p.saveCostInputItems(ci.id)} disabled={p.saving} className="text-sm bg-warning text-white px-4 py-1.5 rounded-lg hover:bg-warning disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
@@ -1651,18 +1651,24 @@ function QuoteItemsEditor({ q, p }: { q: any; p: ReturnType<typeof usePricing> }
           );
         })}
       </div>
-      <div className="flex items-center justify-between pt-2">
+      {/* Footer wraps on narrow screens: the quote card clips overflow (rounded
+          corners), so a single non-wrapping row pushed שמור/ביטול off-screen on
+          a phone. The action buttons sit in their own group that always lands
+          on its own line when the totals don't fit beside them. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-2">
         <button onClick={() => p.addEditingItem()} className="text-[12px] text-primary hover:underline">+ הוסף שורה</button>
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-neutral-400">עלות: {formatCurrency(totalCost)}</span>
-          {hasAnyDiscount && <span className="text-[12px] text-neutral-400">לפני הנחה: {fmtCur(toCur(subtotal))}</span>}
-          <span className="text-sm font-bold text-content-body">מכירה: {fmtCur(toCur(totalAfterDisc))}</span>
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="text-[12px] text-neutral-400 whitespace-nowrap">עלות: {formatCurrency(totalCost)}</span>
+          {hasAnyDiscount && <span className="text-[12px] text-neutral-400 whitespace-nowrap">לפני הנחה: {fmtCur(toCur(subtotal))}</span>}
+          <span className="text-sm font-bold text-content-body whitespace-nowrap">מכירה: {fmtCur(toCur(totalAfterDisc))}</span>
           {isFx && <span className="text-[11px] text-azure-600 whitespace-nowrap" dir="ltr">1 {editCur} = {editRate.toFixed(4)} ₪</span>}
           {totalCost > 0 && (
             <span className="text-[12px] font-semibold text-success bg-success-soft border border-success rounded px-2 py-0.5 whitespace-nowrap" title="אחוז ההפרש בין מחיר המכירה לעלות הישירה">
               פער מהעלות: +{diffPct.toFixed(1)}%
             </span>
           )}
+        </div>
+        <div className="flex items-center gap-2 ms-auto shrink-0">
           <button onClick={p.cancelEditQuote} className="text-sm text-content-muted px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors">ביטול</button>
           <button onClick={() => p.saveQuoteItems(q.id)} disabled={p.saving} className="text-sm bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{p.saving ? 'שומר...' : 'שמור'}</button>
         </div>
