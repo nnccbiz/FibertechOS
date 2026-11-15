@@ -1,7 +1,7 @@
 // Field-works section for quote contract terms ("עבודות שטח באתר הלקוח").
 // This UNIFIES the old standard section "צוות עבודות חוץ בשטח הפרויקט מטעמנו"
 // with the B149 field-works clauses into ONE section that always exists and
-// starts at clause 50 (in the standard template):
+// starts at clause 51 (in the standard template):
 //   - checkbox OFF (default): opens with "הצעה זו אינה כוללת ביצוע עבודות
 //     חבישה..." + the standard field-crew clauses.
 //   - checkbox ON: opens with "הצעה זו כוללת ביצוע עבודות חבישה..." + the full
